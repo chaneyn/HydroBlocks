@@ -16,7 +16,6 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1 class="header">HydroBloks</h1>
         <p class="header"></p>
 
         <ul>
@@ -32,11 +31,58 @@
       <section>
         <h3>
 <!--<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>HydroBloks.</h3>-->
-<img src="https://raw.githubusercontent.com/chaneyn/HydroBloks/gh-pages/images/hydrobloks.png" alt="HydroBloks" style="width:304px;height:228px">
+<img class="hydrobloks" src="https://raw.githubusercontent.com/chaneyn/HydroBloks/gh-pages/images/hydrobloks.png" style="border-style: none"><!-- style="width:304px;height:228px">-->
 
-<p>HydroBloks is a state-of-the-art physical hydrologic model. Its main strength is its ability to combine modularity, high perfomance computing, and hydrologic simularity to provide integrated continental scale hydrologic modeling over continenents at the field scale. The python based and module friendly interface makes additions of additional hydrologic processes a fairly seemless process. The model is freely available but please understand that both the model and webpage are in beta phase. Any feedback should be addressed to nchaney at princeton dot edu</p>
+<h3>
+<a name="background" class="anchor" href="#background"><span class="octicon octicon-link"></span></a>Background
+</h3>
 
-<p>Local Changes</p>
+<p>HydroBloks is a groundbreaking approach to hydrologic modeling. For the first time ever it provides a viable path towards continental scale hydrologic modeling that provides field scale information while remaining computational efficient.</p>
+<!--Its time for hydrologic modeling to move away from one time models that are either  state-of-the-art physical hydrologic model. Its main strength is its ability to combine modularity, high perfomance computing, and hydrologic simularity to provide integrated continental scale hydrologic modeling over continenents at the field scale. The python based and module friendly interface makes additions of additional hydrologic processes a fairly seemless process. The model is freely available but please understand that both the model and webpage are in beta phase. Any feedback should be addressed to nchaney at princeton dot edu</p>-->
+
+<h3>
+<a name="features" class="anchor" href="#features"><span class="octicon octicon-link"></span></a>Main Features
+</h3>
+
+<ul>
+  <li>Modularity</li>
+  <li>High Performance Computing</li>
+  <li>Hydrologic Similarity</li>
+</ul>
+
+
+<h3>
+<a name="tutorial" class="anchor" href="#tutorial"><span class="octicon octicon-link"></span></a>Tutorial - Little Washita Catchment, Oklahoma
+</h3>
+
+<p>Let start off with installing the necessary python libraries</p>
+<pre><code>$ pip install numpy
+$ pip install netCDF4
+</code></pre>
+<p>We have the model but we will need the test catchment input data</p>
+<pre><code>$ wget
+</code></pre>
+<p>We can now run the model for the default settings</p>
+<pre><code>$ python driver.py run_model
+</code></pre>
+<p>Let's now create a set of rudimentary plots</p>
+<pre><code>$ python driver.py create_plots
+</code></pre>
+<p>We can also change the model parameters</p>
+<pre><code>$ 
+</code></pre>
+
+<h3>
+<a name="testing" class="anchor" href="#testing"><span class="octicon octicon-link"></span></a>Testing
+</h3>
+
+<p>The model is currently still being developed. That being said, the working version of the model is available and can be downloaded and tested. Go for it. Any feedback you've got will be much appreciated. </p>
+
+
+<h3>
+<a name="support" class="anchor" href="#support"><span class="octicon octicon-link"></span></a>Support</h3>
+
+<p>Having trouble with HydroBloks? Send me an email to <a href="mailto:nchaney@princeton.edu">nchaney@princeton.edu</a>. Any feedback you can provide will be much appreciated!</p>
 
 <!--<pre><code>$ cd your_repo_root/repo_name
 $ git fetch origin
