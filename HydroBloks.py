@@ -5,7 +5,6 @@ import time
 import sys
 sys.path.append('pyDToplatsMP/pyNoahMP')
 sys.path.append('pyDToplatsMP/pyDTopmodel')
-sys.path.append('pyDToplatsMP/coupling_smcwtd')
 import scipy.sparse as sparse
 
 def Finalize_Model(NOAH,TOPMODEL):
@@ -28,9 +27,7 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  model.dt = dt
  model.nsnow = 3
  model.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
- #model.llanduse[:] = 'USGS'
- #model.lsoil[:] = 'CUST'
- model.lsoil[:] = 'STAS'#'CUST'
+ model.lsoil[:] = 'STAS'
  model.vegparm_file[:] = info['VEGPARM']#'data/VEGPARM.TBL'
  model.genparm_file[:] = info['GENPARM']#'data/GENPARM.TBL'
  model.soilparm_file[:] = 'pyDToplatsMP/pyNoahMP/data/SOILPARM.TBL'# info['SOILPARM']#'data/SOILPARM.TBL'
@@ -38,9 +35,7 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  #Read in the soil parameter file
  fp = open('pyDToplatsMP/pyNoahMP/data/SOILPARM.TBL')
  iline = 0
- #19,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ
  soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[]}
- #1,     2.79,    0.010,    -0.472,   0.339,   0.236,   0.069,  1.07E-6,  0.608E-6,   0.010,  0.92, 'SAND'
  for line in fp:
   if (iline > 2) & (iline < 15):
    tmp = line.split(',')
@@ -68,14 +63,7 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  model.iz0tlnd = 0
  model.z_ml[:] = 2.0
  psoil = 10**parameters['log10soil']
- #tmp = np.array([0.10,0.10,0.10,0.10,0.10])
- #tmp = np.array([0.1,0.15,0.2,0.25])
  tmp = 0.1*np.ones(nsoil)
- #tmp = np.linspace(0.1,1.00,nsoil)
- #tmp = np.array([0.1,0.3,0.6,1.0])
- #tmp = np.array([0.1,0.1,0.1,0.1])
- #tmp = np.array([0.10,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55])
- #tmp = psoil*tmp/np.sum(tmp)
  model.sldpth[:] = tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
@@ -128,25 +116,10 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
   ihsu = data['hsu'].keys().index(hsu)
   model.vegtyp[ihsu] = data['hsu'][hsu]['land_cover'] #HERE
   model.soiltyp[ihsu] = data['hsu'][hsu]['soil_texture_class']#1#ihsu+1 #HERE
-  #model.smcmax[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC']
-  #model.sh2o[ihsu,:] = data['hsu'][hsu]['soil_parameters']['MAXSMC']
-  #model.smcref[ihsu] = data['hsu'][hsu]['soil_parameters']['REFSMC']
-  #model.smcdry[ihsu] = data['hsu'][hsu]['soil_parameters']['DRYSMC']
-  #CAREFUL!!!
   model.smcmax[ihsu] = soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
   model.sh2o[ihsu] = soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
   model.smcref[ihsu] = soils_data['REFSMC'][model.soiltyp[ihsu]-1]
   model.smcdry[ihsu] = soils_data['DRYSMC'][model.soiltyp[ihsu]-1]
-  #if data['hsu'][hsu]['channel'] == 1:
-  # model.ist[ihsu] = 1
-  #else:
-  # model.ist[ihsu] = 2
-  #model.smcmax[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC']
-  #model.sh2o[ihsu,:] = data['hsu'][hsu]['soil_parameters']['MAXSMC']
-  #model.smcref[ihsu] = data['hsu'][hsu]['soil_parameters']['REFSMC']
-  #model.smcdry[ihsu] = data['hsu'][hsu]['soil_parameters']['DRYSMC']
- #print model.ist
- #exit()
  model.smc[:] = model.sh2o[:]
  model.smcwtd[:] = model.sh2o[:,0]
  #Set lat/lon (declination calculation)
@@ -189,9 +162,7 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  for hsu in data['hsu']:
   ihsu = data['hsu'].keys().index(hsu)
   model.pct[ihsu] = data['hsu'][hsu]['area_pct']/100
-  #THE AREAS ARE WRONG!!!! CORRECT IN PROCESS
   model.area[ihsu] = model.dx[ihsu]*data['hsu'][hsu]['area']
-  #model.T0[:] = model.m*data['hsu'][hsu]['soil_parameters']['SATDK']
   model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']
   model.sti[ihsu] = data['hsu'][hsu]['ti']
   model.beta[ihsu] = data['hsu'][hsu]['slope']
@@ -203,14 +174,10 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
- #Te = 10**parameters['log10q0']/(np.sum(model.area)*np.exp(-ti_mean))
- #lnTe = np.log(Te)
  lnTe = parameters['lnTe']
  
  #Calculate the sti
- #model.T0[:] = np.exp(lnTe)/np.sum(model.pct*model.T0)*model.T0 #HERE
- model.T0[:] = (model.dem - np.min(model.dem))*model.T0#model.sdmax*model.T0#8.0/3600.0/np.sum(model.pct*model.T0)*model.T0 #HERE
- print model.T0
+ model.T0[:] = (model.dem - np.min(model.dem))*model.T0
  lnT0 = np.log(model.T0)
  lnTe = np.sum(model.pct*lnT0)
  model.sti = model.sti - (lnT0 - lnTe)
@@ -218,24 +185,17 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  #Set weight matrix
  model.outlet_hsu = int(data['outlet']['hsu'])
  hsu = model.outlet_hsu
- data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu] #THIS SHOULD BE IN PROCESSING
+ data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
  model.w = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
  model.wfull[:] = data['tp'].T
  #Initialize the soil moisture deficit values
- model.si[:] = 0.0# - model.m*(model.sti - ti_mean)
- #model.si[model.si < 0] = 0.0
+ model.si[:] = 0.0
  
  return model
 
 def Update_Model(NOAH,TOPMODEL,ncores):
-
- #Calculate the current soil moisture deficit
- #si0 = COUPLING.calculate_deficit(TOPMODEL.sideep,NOAH.smcmax,NOAH.sldpth,NOAH.smc) 
- #si0 = COUPLING.calculate_deficit(TOPMODEL.sideep,NOAH.smcmax,NOAH.smcwtd,NOAH.zwt,NOAH.sldpth,NOAH.smc) 
- #si0 = NOAHTOPMODEL.si[:]
- #for i in xrange(4):
- # NOAH.smc[:,i][NOAH.smc[:,i] > NOAH.smcmax] = NOAH.smcmax[NOAH.smc[:,i] > NOAH.smcmax]
- #print NOAH.smc - NOAH.smcmax[:,np.newaxis]
+ 
+ #Set the partial pressure of CO2 and O2
  NOAH.co2air = 355.E-6*NOAH.psfc# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
  NOAH.o2air = 0.209*NOAH.psfc# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
@@ -250,16 +210,13 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  NOAH.dt = np.copy(dt)
 
  #Calculate the updated soil moisture deficit
- #si0 = np.copy(np.abs(NOAH.zwt0))
- #si1 = np.copy(np.abs(NOAH.zwt))
  si0 = np.copy(NOAH.si0)
  si1 = np.copy(NOAH.si1)
 
  #Calculate the change in deficit
- TOPMODEL.si[:] = si1#np.abs(NOAH.zwt)#np.abs(tmp)#si1
+ TOPMODEL.si[:] = si1
  TOPMODEL.dsi[:] = np.copy(si1 - si0)
- TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt#0.0
- #print np.sum(TOPMODEL.r*TOPMODEL.pct)
+ TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
 
  #Add the surface runoff
  TOPMODEL.qsurf[:] = NOAH.runsf/1000.0
@@ -273,15 +230,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  dsi = np.copy(si1 - TOPMODEL.si)
 
  #Update the soil moisture values
- #NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)
- #NOAH.dzwt[:] = np.copy(dsi-TOPMODEL.dt*TOPMODEL.r)
  NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex-TOPMODEL.dt*TOPMODEL.r)
- #NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex-TOPMODEL.dt*TOPMODEL.r+TOPMODEL.dt*TOPMODEL.qsurf)
- #mask = np.abs(NOAH.zwt) > 2.0
- #NOAH.dzwt[mask] += np.abs(2.0 + NOAH.zwt[mask])
- #NOAH.zwt[mask] = -2.0
  TOPMODEL.ex[:] = 0.0
- #NOAH.runsb[:] += 1000.0*TOPMODEL.ex[:]
- #NOAH.runsf[:] = 0.0
 
  return (NOAH,TOPMODEL)
