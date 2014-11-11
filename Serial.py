@@ -9,7 +9,7 @@ import cPickle as pickle
 
 #Get general info
 ncores = 1
-dir = 'TestData'
+dir = 'ReynoldsCreek'
         
 #Read in the LHS sampled parameter space
 data = np.loadtxt('%s/parameters/LHS_sampling.txt' % dir,
