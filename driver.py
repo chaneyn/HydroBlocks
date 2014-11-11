@@ -1,5 +1,6 @@
 import sys
-import processing
+sys.path.append('Tools')
+import Tools as processing
 import numpy as np
 import datetime
 import os
@@ -7,10 +8,10 @@ import cPickle as pickle
 
 #Get general info
 ncores = 1
-dir = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10'
+dir = 'TestData'
 
 #Read in the LHS sampled parameter space
-data = np.loadtxt('LHS/LHS_sampling.txt',
+data = np.loadtxt('%s/parameters/LHS_sampling.txt' % dir,
        dtype={'names':('log10m','lnTe','log10soil','sdmax'),
               'formats':('f4','f4','f4','f4')})
 
@@ -29,7 +30,7 @@ icatch = 3637
 catchid = 100
 
 #Define the catchment directory
-cdir = '%s/catchments/catch_%d' % (dir,icatch)
+cdir = dir #'%s/catchments/catch_%d' % (dir,icatch)
 
 #Make the output directory
 os.system('mkdir -p %s/output' % cdir)
