@@ -25,7 +25,7 @@ wbd = pickle.load(open('%s/wbd.pck' % dir))
 
 #Read in the general info dataset
 idate = datetime.datetime(2000,1,1,0)
-fdate = datetime.datetime(2003,12,31,23)
+fdate = datetime.datetime(2000,1,31,23)
 
 #Run HydroBloks on the model
 icatch = 3637
