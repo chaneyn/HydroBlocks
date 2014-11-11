@@ -3,8 +3,8 @@ import numpy as np
 import datetime
 import time
 import sys
-sys.path.append('pyDToplatsMP/pyNoahMP')
-sys.path.append('pyDToplatsMP/pyDTopmodel')
+sys.path.append('pyNoahMP')
+sys.path.append('pyDTopmodel')
 import scipy.sparse as sparse
 
 def Finalize_Model(NOAH,TOPMODEL):
@@ -30,10 +30,10 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  model.lsoil[:] = 'STAS'
  model.vegparm_file[:] = info['VEGPARM']#'data/VEGPARM.TBL'
  model.genparm_file[:] = info['GENPARM']#'data/GENPARM.TBL'
- model.soilparm_file[:] = 'pyDToplatsMP/pyNoahMP/data/SOILPARM.TBL'# info['SOILPARM']#'data/SOILPARM.TBL'
+ model.soilparm_file[:] = info['SOILPARM']
  model.mptable_file[:] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
  #Read in the soil parameter file
- fp = open('pyDToplatsMP/pyNoahMP/data/SOILPARM.TBL')
+ fp = open(info['SOILPARM'])
  iline = 0
  soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[]}
  for line in fp:
