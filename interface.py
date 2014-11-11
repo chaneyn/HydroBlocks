@@ -16,7 +16,7 @@ data = np.loadtxt('%s/parameters/LHS_sampling.txt' % dir,
               'formats':('f4','f4','f4','f4')})
 
 #Read in the watershed dataset
-wbd = pickle.load(open('wbd.pck'))
+wbd = pickle.load(open('%s/wbd.pck' % dir))
 
 #Determine the number of ensembles
 nens = data.size
@@ -27,7 +27,7 @@ fdate = datetime.datetime(2003,12,31,23)
 
 #Run HydroBloks on the model
 icatch = 3637
-catchid = 100
+print wbd[icatch]
 
 #Define the catchment directory
 cdir = dir #'%s/catchments/catch_%d' % (dir,icatch)

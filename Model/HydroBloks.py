@@ -3,8 +3,8 @@ import numpy as np
 import datetime
 import time
 import sys
-sys.path.append('pyNoahMP')
-sys.path.append('pyDTopmodel')
+sys.path.append('Model/pyNoahMP')
+sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 
 def Finalize_Model(NOAH,TOPMODEL):

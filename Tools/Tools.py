@@ -166,10 +166,10 @@ def run_model(parameters,cdir,idate,fdate,ncores,wbd):
  
  #Define the parameter files
  info = {}
- info['VEGPARM'] = 'pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
- info['GENPARM'] = 'pyNoahMP/data/GENPARM.TBL'#'data/GENPARM.TBL'
- info['MPTABLE'] = 'pyNoahMP/data/MPTABLE.TBL'#'pyNoahMP/data/MPTABLE.TBL'
- info['SOILPARM'] = 'pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
+ info['VEGPARM'] = 'Model/pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
+ info['GENPARM'] = 'Model/pyNoahMP/data/GENPARM.TBL'#'data/GENPARM.TBL'
+ info['MPTABLE'] = 'Model/pyNoahMP/data/MPTABLE.TBL'#'pyNoahMP/data/MPTABLE.TBL'
+ info['SOILPARM'] = 'Model/pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
 
  #Initialize the model
  NOAH = HB.Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd)
