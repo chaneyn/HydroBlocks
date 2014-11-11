@@ -1,6 +1,6 @@
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
-import HydroBloksMPI as HBM
+import HydroBloksTools as HBM
 import sys
 
 #Define the directory and run type
@@ -9,7 +9,8 @@ type = sys.argv[2]
 
 #Gather info
 info = {'rank':comm.rank,
-	'size':comm.size,}
+	'size':comm.size,
+	'wbd':'%s/wbd.pck' % dir}
 
 #Deterministic
 if type == 'Deterministic': HBM.Deterministic(info)
