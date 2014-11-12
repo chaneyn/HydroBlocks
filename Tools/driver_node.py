@@ -10,7 +10,8 @@ type = sys.argv[2]
 #Gather info
 info = {'rank':comm.rank,
 	'size':comm.size,
-	'wbd':'%s/wbd.pck' % dir}
+	'wbd':'%s/wbd.pck' % dir,
+	'dir':dir}
 
 #Deterministic
 if type == 'Deterministic': HBM.Deterministic(info)

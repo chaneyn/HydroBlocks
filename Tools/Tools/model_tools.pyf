@@ -1,0 +1,30 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module model_tools ! in 
+    interface  ! in :model_tools
+        module preprocessor ! in :model_tools:model_tools.f90
+            subroutine calculate_connections(hsus,dinfangle,transition_probabilities,nhsu,n,m) ! in :model_tools:model_tools.f90:preprocessor
+                real*8 dimension(n,m),intent(in) :: hsus
+                real*8 dimension(n,m),intent(in),depend(n,m) :: dinfangle
+                real*8 dimension(nhsu,nhsu),intent(out),depend(nhsu,nhsu) :: transition_probabilities
+                integer intent(in) :: nhsu
+                integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
+                integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
+            end subroutine calculate_connections
+            subroutine calculate_connections_d8(hsus,d8dir,transition_probabilities,nhsu,n,m) ! in :model_tools:model_tools.f90:preprocessor
+                real*8 dimension(n,m),intent(in) :: hsus
+                real*8 dimension(n,m),intent(in),depend(n,m) :: d8dir
+                real*8 dimension(nhsu,nhsu),intent(out),depend(nhsu,nhsu) :: transition_probabilities
+                integer intent(in) :: nhsu
+                integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
+                integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
+            end subroutine calculate_connections_d8
+            subroutine calculate_hsus ! in :model_tools:model_tools.f90:preprocessor
+            end subroutine calculate_hsus
+        end module preprocessor
+    end interface 
+end python module model_tools
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
