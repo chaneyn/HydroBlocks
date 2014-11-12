@@ -405,8 +405,6 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
  #Iterate through variable creating forcing product per HSU
  idate = info['time_info']['startdate']
  fdate = info['time_info']['enddate']
- #print idate
- #print fdate
  nt = 24*((fdate - idate).days+1)
  #Create structured array
  meteorology = {}
@@ -418,34 +416,17 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
   meteorology[data_var] = np.zeros((nt,len(names)))
  #Load data into structured array
  for data_var in wbd['files_meteorology']:
-  #print data_var,idate,fdate
   var = data_var.split('_')[1]
-  #Open up access to the file
-  #ga("xdfopen %s" % wbd['files_meteorology'][data_var])
-  #data = ga.expr(var)
-  #Extract all the data
-  #ga("set time %s %s" % (grads_tools.datetime2gradstime(idate),grads_tools.datetime2gradstime(fdate)))
-  #date = idate
-  #data = []
-  #while date < idate:
-  # ga("set time %s" % (grads_tools.datetime2gradstime(date),))
-  # #data = ga.expr(var)
-  # data.append(np.ma.getdata(ga.expr(var)).astype(np.float32))
-  # date = date + datetime.timedelta(hours=1)
-  #data = np.array(data)
   date = idate
-  #while date <= fdate:
   ctl = wbd['files_meteorology'][data_var]
   dir = ctl[0:-(len(var)+5)]
   file = '%s/%s/%s.nc' % (dir,var,var)
   fp = nc.Dataset(file)
-  data = np.ma.getdata(fp.variables[var][:])
-  #if date == idate:
-  #  data = fp.variables[var][:]
-  # else:
-  #  data = np.append(data,fp.variables[var][:],axis=0)
+  #Determine the time steps to retrieve
+  dates = nc.num2date(fp.variables['t'][:],units='hours since 2000-01-01 00:00:00')
+  mask_dates = (dates >= idate) & (dates <= fdate)
+  data = np.ma.getdata(fp.variables[var][mask_dates])
   fp.close()
-  #date = date + datetime.timedelta(days=366)
   #Assing to hsus
   for hsu in OUTPUT['hsu']:
    pcts = OUTPUT['hsu'][hsu][var]['pcts']
@@ -454,8 +435,6 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
    #Combine stage iv and nldas here
    if data_var not in ['stageiv_prec',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
-  #Close access to the file
-  #ga("close 1")
 
  #Append the meteorology to the output dictionary
  OUTPUT['meteorology'] = meteorology
