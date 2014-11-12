@@ -236,10 +236,10 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  return (NOAH,TOPMODEL)
 
-def run_model(info):
+def run_model(info,data):
 
  #Read in the pickled data
- data = pickle.load(open(info['input']))
+ #data = pickle.load(open(info['input']))
  ncells = len(data['hsu'].keys())
  dt = info['dt']
  nsoil = info['nsoil']

@@ -72,7 +72,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 10
+ nens = 32
  elements = {}
 
  #Create a dictionary of information
@@ -135,10 +135,12 @@ def Convergence_Analysis(info):
         }
 
    #Cluster the data
-   Prepare_Model_Input_Data(hydrobloks_info)
+   input = Prepare_Model_Input_Data(hydrobloks_info)
 
    #Run the model
-   output = HB.run_model(hydrobloks_info)
+   output = HB.run_model(hydrobloks_info,input)
+
+   #Compute heterogeneity metrics
 
  return
 
@@ -177,21 +179,15 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = {}
 
  #Create the Latin Hypercube (Clustering)
- print "Clustering the covariates and calculating the connections"
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,hydrobloks_info['nbins'])
 
  #Extract the meteorological forcing
- print "Preparing the meteorological forcing"
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
 
  #Add in the catchment info
  output['wbd'] = wbd
 
- #Save the data 
- file = '%s/data.pck' % input_dir
- pickle.dump(output,open(file,'wb'),pickle.HIGHEST_PROTOCOL)
-
- return
+ return output
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
 
@@ -316,27 +312,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
  cluster_ids[mask1] = np.nan
  nclusters = len(clusters.keys())
  tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids,covariates['fdir'],nclusters)
- #print tp_matrix
-
- #Create a plot of the map of clusters and transition probabilities
- plt.figure(figsize=(50,20))
- plt.subplot(121)
- plt.imshow(tp_matrix,interpolation='nearest')
- plt.axis('off')
- cb = plt.colorbar()
- cb.ax.tick_params(labelsize=45)
- plt.subplot(122)
- plt.imshow(cluster_ids,interpolation='nearest')
- plt.axis('off')
- cb = plt.colorbar()
- cb.ax.tick_params(labelsize=45)
- plt.tight_layout()
- file = '%s/cluster_connections.png' % workspace
- plt.savefig(file)
-
- #exit()
- #Create the input directory
- os.system('mkdir -p %s' % input_dir)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
@@ -391,66 +366,22 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
   idx = OUTPUT['hsu'][hsu]['idx']
   OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
 
- #Soil properties
- soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
- nhsus = len(OUTPUT['hsu'])
- soils_lookup = '%s/SOILPARM.TBL' % input_dir
- fp = open(soils_lookup,'w')
- fp.write('Soil Parameters\n')
- fp.write('CUST\n')
- fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
- for hsu in OUTPUT['hsu']:
-  fp.write('%d, ' % (hsu+1))
-  for var in soil_vars:
-   fp.write('%.10f, ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
-  fp.write('\n')
- fp.close()
-
  return OUTPUT
 
 def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
 
- #Open grads
- ga = grads_tools.open_grads(info['binaries']['grads'])
-
- #Define gdalwarp
- gdalwarp = info['binaries']['gdalwarp']
- 
- #Create the mapping
+ #Define the mapping directory
  mapping_dir = '%s/mapping' % workspace
- os.system('mkdir -p %s' % mapping_dir)
  #Calculate the fine to coarse scale mapping
  for data_var in wbd['files_meteorology']:
-
-  #print data_var
-  ctl = wbd['files_meteorology'][data_var]
+  
+  #Define the variable name
   var = data_var.split('_')[1]
-  ga("xdfopen %s" % ctl)
 
-  #Write out a sample file for each variable
-  ga("set gxout geotiff")
-  tmp = '%s/tmp.tif' % (mapping_dir,)
-
-  #Define th coarse and fine scale mapping
+  #Read in the coarse and fine mapping
   file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
   file_fine = '%s/%s_fine.tif' % (mapping_dir,data_var)
-  maskij = ga.expr(var)
-  maskij = ga.exp(var)
-  for i in xrange(maskij.shape[0]):
-   maskij[i,:] = np.arange(i*maskij.shape[1],(i+1)*maskij.shape[1])
-  ga.imp('mask',maskij)
-  ga("set geotiff %s" % file_coarse)
-  ga("d mask")
-
-  #Close access to grads file
-  ga("close 1")
-
-  #Regrid and downscale
-  log = '%s/log.txt' % workspace
-  os.system('%s -t_srs EPSG:102039 -overwrite -dstnodata -9999 -r near -tr %.16f %.16f -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % 
-           (gdalwarp,wbd['bbox_albers']['res'],wbd['bbox_albers']['res'],wbd['bbox_albers']['minx'],wbd['bbox_albers']['miny'],
-            wbd['bbox_albers']['maxx'],wbd['bbox_albers']['maxy'],file_coarse,file_fine,log))
-  #Read in the fine scale version
+  mask_coarse = gdal_tools.read_raster(file_coarse)
   mask_fine = gdal_tools.read_raster(file_fine)
 
   #Compute the mapping for each hsu
@@ -460,17 +391,14 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
    counts = np.bincount(mask_fine[idx].astype(np.int))
    coords,pcts = [],[]
    for icell in icells:
-    ilat = int(np.floor(icell/maskij.shape[1]))
-    jlat = icell - ilat*maskij.shape[1]
+    ilat = int(np.floor(icell/mask_coarse.shape[1]))
+    jlat = icell - ilat*mask_coarse.shape[1]
     pct = float(counts[icell])/float(np.sum(counts))
     coords.append([ilat,jlat])
     pcts.append(pct)
    pcts = np.array(pcts)
    coords = list(np.array(coords).T)
    OUTPUT['hsu'][hsu][var] = {'pcts':pcts,'coords':coords}
-
- #Reinitialize grads
- ga("reinit")
 
  #Iterate through variable creating forcing product per HSU
  idate = info['time_info']['startdate']
@@ -508,8 +436,5 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
 
  #Append the meteorology to the output dictionary
  OUTPUT['meteorology'] = meteorology
-
- #Close grads
- del ga
 
  return OUTPUT
