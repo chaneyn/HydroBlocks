@@ -44,7 +44,8 @@ def Deterministic(info):
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
-	'dir':dir
+	'dir':dir,
+        'nbins':{'area':10,'slope':1,'sms':1,'ndvi':1,'ti':1,'dem':1,'channels':2}
         }
 
  #Cluster the data
@@ -100,7 +101,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Create the Latin Hypercube (Clustering)
  print "Clustering the covariates and calculating the connections"
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir)
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,hydrobloks_info['nbins'])
 
  #Extract the meteorological forcing
  print "Preparing the meteorological forcing"
@@ -115,7 +116,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
 
  covariates = {}
  #Read in all the covariates
@@ -161,7 +162,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir):
  #Define the arrays to be used to create the LHS
  arrays = {'slope':covariates['cslope'].astype(np.float32),
           'area':covariates['carea'].astype(np.float32),
-          #'basins':covariates['basins'].astype(np.float32),
           'ndvi':covariates['ndvi'].astype(np.float32),
           'sms':covariates['MAXSMC'].astype(np.float32),
           'channels':covariates['channels'].astype(np.float32),
@@ -169,20 +169,13 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir):
           'ti':covariates['ti'].astype(np.float32)}
 
  #Define the binning
- info = {#'basins':{'nbins':1,'data':covariates['basins'][mask == True]},
-        #'area':{'nbins':1,'data':covariates['carea'][mask == True]},
-        'area':{'nbins':5,'data':covariates['carea'][mask == True]},
-        'slope':{'nbins':1,'data':covariates['cslope'][mask == True]},
-        #'sms':{'nbins':3,'data':covariates['MAXSMC'][mask == True]},
-        'sms':{'nbins':2,'data':covariates['MAXSMC'][mask == True]},
-        #'ndvi':{'nbins':3,'data':covariates['ndvi'][mask==True]},
-        'ndvi':{'nbins':2,'data':covariates['ndvi'][mask==True]},
-        #'ti':{'nbins':25,'data':covariates['ti'][mask==True]},
-        'ti':{'nbins':2,'data':covariates['ti'][mask==True]},
-        #'dem':{'nbins':3,'data':covariates['dem'][mask==True]},
-        'dem':{'nbins':2,'data':covariates['dem'][mask==True]},
-        #'channels':{'nbins':2,'data':covariates['channels'][mask==True]}
-        'channels':{'nbins':2,'data':covariates['channels'][mask==True]}
+ info = {'area':{'nbins':nbins['area'],'data':covariates['carea'][mask == True]},
+        'slope':{'nbins':nbins['slope'],'data':covariates['cslope'][mask == True]},
+        'sms':{'nbins':nbins['sms'],'data':covariates['MAXSMC'][mask == True]},
+        'ndvi':{'nbins':nbins['ndvi'],'data':covariates['ndvi'][mask==True]},
+        'ti':{'nbins':nbins['ti'],'data':covariates['ti'][mask==True]},
+        'dem':{'nbins':nbins['dem'],'data':covariates['dem'][mask==True]},
+        'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]}
         }
  
  #Create the LHS bins
