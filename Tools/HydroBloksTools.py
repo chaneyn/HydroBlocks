@@ -56,18 +56,95 @@ def Deterministic(info):
 
  return
 
-def Latin_Hypercube_Sample(info):
-
- print info
-
- return
-
 def Convergence_Analysis(info):
 
  print info
- #Create a sample of all the combinations
+ #Define the rank and size
+ rank = info['rank']
+ size = info['size']
 
- #Make way through all of them to find convergence
+ #Read in the catchment database
+ wbd = pickle.load(open(info['wbd']))
+
+ #Define the dates
+ idate = datetime.datetime(2000,1,1,0)
+ fdate = datetime.datetime(2000,1,31,23)
+
+ #Initialize the element count
+ ielement = 0
+ nens = 10
+ elements = {}
+
+ #Create a dictionary of information
+ for icatch in [3637,]:#len(wbd.keys()):
+
+  dir = info['dir']
+  #Define the parameters
+  parameters = {}
+  parameters['log10m'] = -2.582977995297425888e+00
+  parameters['lnTe'] = -1.963648774068431635e-01
+  parameters['log10soil'] = 1.389834359162560144e-02
+  parameters['sdmax'] = 1.938762117265730334e+00
+
+  #Cycle through the ensemble of clusters
+  for iens in xrange(nens):
+
+   #Define the number of bins
+   nbins={
+	'area':np.random.randint(1,100),
+	'slope':1,
+	'sms':1,
+	'ndvi':1,
+	'ti':1,
+	'dem':1,
+	'channels':2
+	}
+  
+   #Add the info to the dictionary
+   elements[ielement] = {
+		'parameters':parameters,
+		'nbins':nbins,
+		'icatch':icatch,
+		'iens':iens,
+		 } 
+
+   #Update the element
+   ielement += 1
+
+  #Iterate through the dictionary elements
+  for ielement in np.arange(len(elements.keys()))[rank::size]:
+
+   #Define the info
+   element = elements[ielement]
+
+   #Print where we are at
+   print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nbins']
+
+   #Define the info
+   hydrobloks_info = {
+        'input':'%s/input/data.pck' % dir,
+        'dt':3600.,
+        'nsoil':20,
+        'wbd':wbd[icatch],
+        'ncores':1,
+        'idate':idate,
+        'fdate':fdate,
+        'parameters':parameters,
+        'dir':dir,
+	'nbins':nbins
+        }
+
+   #Cluster the data
+   Prepare_Model_Input_Data(hydrobloks_info)
+
+   #Run the model
+   output = HB.run_model(hydrobloks_info)
+
+ return
+
+def Latin_Hypercube_Sample(info):
+
+ print info
 
  return
 
