@@ -102,7 +102,7 @@ def Convergence_Analysis(info):
 	'dem':1,#np.random.randint(1,10),
 	'lats':10,#np.random.randint(1,10),
 	'lons':10,#np.random.randint(1,10),
-	'channels':2
+	#'channels':2
           }
 
     #Calculate the total number of clusters
@@ -260,13 +260,15 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
 
  #Clean up the covariates
  covariates['ti'][covariates['ti'] > 14] = 14
- covariates['channels'][covariates['channels'] > 1] = 1
- covariates['channels'][covariates['channels'] < 0] = 0
+ #covariates['channels'][covariates['channels'] > 1] = 1
+ #covariates['channels'][covariates['channels'] < 0] = 0
 
  #Define the mask
  mask = np.copy(covariates['mask'])
  mask[mask > 0] = 1
  mask[mask < 0] = 0
+ #channels_original[mask == 0] = -9999
+ #mask[covariates['channels'] >= 1] = 0
  mask = mask.astype(np.bool)
 
  #Set all nans to the mean
@@ -289,13 +291,19 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
  for var in covariates:
   covariates[var][mask <= 0] = -9999
 
+ #Create channels mask
+ mask_woc = np.copy(mask)
+ mask_woc[covariates['channels'] > 0] = 0
+ mask_wc = np.copy(mask)
+ mask_wc[covariates['channels'] < 0] = 0
+
  #Might want to add lat/lon
  #Define the arrays to be used to create the LHS
  arrays = {'slope':covariates['cslope'].astype(np.float32),
           'area':covariates['carea'].astype(np.float32),
           'ndvi':covariates['ndvi'].astype(np.float32),
           'sms':covariates['MAXSMC'].astype(np.float32),
-          'channels':covariates['channels'].astype(np.float32),
+          #'channels':covariates['channels'].astype(np.float32),
           'dem':covariates['dem'].astype(np.float32),
           'ti':covariates['ti'].astype(np.float32),
 	  'lats':covariates['lats'].astype(np.float32),
@@ -303,15 +311,15 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
           }
 
  #Define the binning
- info = {'area':{'nbins':nbins['area'],'data':covariates['carea'][mask == True]},
-        'slope':{'nbins':nbins['slope'],'data':covariates['cslope'][mask == True]},
-        'sms':{'nbins':nbins['sms'],'data':covariates['MAXSMC'][mask == True]},
-        'ndvi':{'nbins':nbins['ndvi'],'data':covariates['ndvi'][mask==True]},
-        'ti':{'nbins':nbins['ti'],'data':covariates['ti'][mask==True]},
-        'dem':{'nbins':nbins['dem'],'data':covariates['dem'][mask==True]},
-        'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]},
-        'lats':{'nbins':nbins['lats'],'data':covariates['lats'][mask==True]},
-        'lons':{'nbins':nbins['lons'],'data':covariates['lons'][mask==True]},
+ info = {'area':{'nbins':nbins['area'],'data':covariates['carea'][mask_woc == True]},
+        'slope':{'nbins':nbins['slope'],'data':covariates['cslope'][mask_woc == True]},
+        'sms':{'nbins':nbins['sms'],'data':covariates['MAXSMC'][mask_woc == True]},
+        'ndvi':{'nbins':nbins['ndvi'],'data':covariates['ndvi'][mask_woc ==True]},
+        'ti':{'nbins':nbins['ti'],'data':covariates['ti'][mask_woc == True]},
+        'dem':{'nbins':nbins['dem'],'data':covariates['dem'][mask_woc == True]},
+        #'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]},
+        'lats':{'nbins':nbins['lats'],'data':covariates['lats'][mask_woc == True]},
+        'lons':{'nbins':nbins['lons'],'data':covariates['lons'][mask_woc == True]},
         }
  
  #Create the LHS bins
@@ -340,6 +348,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
  H,edges = np.histogramdd(data,bins=bins)
  H = H/np.sum(H)
 
+ #Adjust to account for channels
+ H = float(np.sum(mask_woc))/float(np.sum(mask))*H
+
  #Create a dictionary of class info
  clusters = {}
  Hfl = H.flat
@@ -366,6 +377,17 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
    if info.keys().index(id) == 0: string = "(arrays['%s'] >= clusters[%d]['bounds']['%s'][0]) & (arrays['%s'] <= clusters[%d]['bounds']['%s'][1])" % (id,cid,id,id,cid,id)
    else: string = string +  " & (arrays['%s'] >= clusters[%d]['bounds']['%s'][0]) & (arrays['%s'] <= clusters[%d]['bounds']['%s'][1])" % (id,cid,id,id,cid,id)
   idx = eval('np.where(%s)' % string)
+  clusters[cid]['idx'] = idx
+  cluster_ids[idx] = cid
+
+ #Add in the channel clusters
+ channels = np.unique(covariates['channels'][covariates['channels'] > 0])
+ print channels
+ for channel in channels:
+  cid = int(np.nanmax(cluster_ids) + 1)
+  pct = float(np.sum(covariates['channels'] == channel))/float(np.sum(mask))
+  clusters[cid] = {'pct':pct}
+  idx = np.where(covariates['channels'] == channel)
   clusters[cid]['idx'] = idx
   cluster_ids[idx] = cid
 
