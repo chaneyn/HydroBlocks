@@ -13,6 +13,7 @@ import model_tools as mt
 import matplotlib.pyplot as plt
 import os
 import netCDF4 as nc
+import time
 
 def Deterministic(info):
 
@@ -58,7 +59,6 @@ def Deterministic(info):
 
 def Convergence_Analysis(info):
 
- print info
  #Define the rank and size
  rank = info['rank']
  size = info['size']
@@ -72,7 +72,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 32
+ nens = 32*50
  elements = {}
 
  #Create a dictionary of information
@@ -88,18 +88,28 @@ def Convergence_Analysis(info):
 
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
-
-   #Define the number of bins
-   nbins={
-	'area':np.random.randint(1,100),
-	'slope':1,
-	'sms':1,
-	'ndvi':1,
-	'ti':1,
-	'dem':1,
-	'channels':2
-	}
   
+   nclusters = 1001
+   while nclusters > 1000:
+
+    #Define the number of bins
+    nbins={
+	'area':1,#np.random.randint(1,10),
+	'slope':1,#np.random.randint(1,100),
+	'sms':1,#np.random.randint(1,100),
+	'ndvi':1,#np.random.randint(1,100),
+	'ti':1,#np.random.randint(1,100),
+	'dem':1,#np.random.randint(1,10),
+	'lats':10,#np.random.randint(1,10),
+	'lons':10,#np.random.randint(1,10),
+	'channels':2
+          }
+
+    #Calculate the total number of clusters
+    nclusters = 1
+    for var in nbins:
+     nclusters = nclusters*nbins[var]
+   
    #Add the info to the dictionary
    elements[ielement] = {
 		'parameters':parameters,
@@ -110,6 +120,14 @@ def Convergence_Analysis(info):
 
    #Update the element
    ielement += 1
+
+  #Initialize metrics dictionary
+  metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
+
+  #Add the output variables
+  vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+  for var in vars:
+   metrics['vars'][var] = {'mean':[],'std':[]}
 
   #Iterate through the dictionary elements
   for ielement in np.arange(len(elements.keys()))[rank::size]:
@@ -131,18 +149,46 @@ def Convergence_Analysis(info):
         'fdate':fdate,
         'parameters':parameters,
         'dir':dir,
-	'nbins':nbins
+	'nbins':element['nbins']
         }
 
    #Cluster the data
    input = Prepare_Model_Input_Data(hydrobloks_info)
+   pickle.dump(input,open('data.pck','wb')) 
+   exit()
 
    #Run the model
+   time0 = time.time()
    output = HB.run_model(hydrobloks_info,input)
+   dt = time.time() - time0
 
    #Compute heterogeneity metrics
+   pcts = output['misc']['pct']
+   nclusters = len(pcts)
+   metrics['icatch'].append(icatch)
+   metrics['nclusters'].append(nclusters)
+   metrics['dt'].append(dt)
+   for var in vars:
+    output['variables'][var] = np.array(output['variables'][var])
+    #Compute the mean
+    mean = np.sum(pcts*output['variables'][var],axis=1)
+    #Compute the standard deviation
+    std = np.sum(pcts*(output['variables'][var] - mean[:,np.newaxis])**2,axis=1)**0.5
+    #Calculate and save the pcts
+    #mean
+    percentiles = []
+    for percentile in [1,10,25,50,75,90,99]:
+     percentiles.append(np.percentile(mean,percentile))
+    metrics['vars'][var]['mean'].append(percentiles)
+    #std
+    percentiles = []
+    for percentile in [1,10,25,50,75,90,99]:
+     percentiles.append(np.percentile(std,percentile))
+    metrics['vars'][var]['std'].append(percentiles)
 
    #Save time info and metrics to file
+   file = 'Output/%d.pck' % rank
+   pickle.dump(metrics,open(file,'wb'))
 
  return
 
@@ -196,11 +242,21 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
  covariates = {}
  #Read in all the covariates
  for file in wbd['files']:
+  original = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments/catch_3637' #HERE
+  final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
+  wbd['files'][file] = wbd['files'][file].replace(original,final) #HERE
   covariates[file] = gdal_tools.read_raster(wbd['files'][file])
   if file == 'carea': covariates[file] = np.log(covariates[file])
   if file == 'cslope':
    mask = covariates[file] == 0.0
    covariates[file][mask] = 0.000001
+
+ #Create lat/lon grids
+ lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
+ lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
+ lats, lons = np.meshgrid(lats, lons)
+ covariates['lats'] = lats.T
+ covariates['lons'] = lons.T
 
  #Clean up the covariates
  covariates['ti'][covariates['ti'] > 14] = 14
@@ -241,7 +297,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
           'sms':covariates['MAXSMC'].astype(np.float32),
           'channels':covariates['channels'].astype(np.float32),
           'dem':covariates['dem'].astype(np.float32),
-          'ti':covariates['ti'].astype(np.float32)}
+          'ti':covariates['ti'].astype(np.float32),
+	  'lats':covariates['lats'].astype(np.float32),
+	  'lons':covariates['lons'].astype(np.float32),
+          }
 
  #Define the binning
  info = {'area':{'nbins':nbins['area'],'data':covariates['carea'][mask == True]},
@@ -250,7 +309,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
         'ndvi':{'nbins':nbins['ndvi'],'data':covariates['ndvi'][mask==True]},
         'ti':{'nbins':nbins['ti'],'data':covariates['ti'][mask==True]},
         'dem':{'nbins':nbins['dem'],'data':covariates['dem'][mask==True]},
-        'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]}
+        'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]},
+        'lats':{'nbins':nbins['lats'],'data':covariates['lats'][mask==True]},
+        'lons':{'nbins':nbins['lons'],'data':covariates['lons'][mask==True]},
         }
  
  #Create the LHS bins
