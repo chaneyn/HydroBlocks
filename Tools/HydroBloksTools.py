@@ -62,6 +62,7 @@ def Convergence_Analysis(info):
  #Define the rank and size
  rank = info['rank']
  size = info['size']
+ ncores = info['ncores']
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -72,7 +73,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 32*50
+ nens = 400
  elements = {}
 
  #Create a dictionary of information
@@ -94,14 +95,14 @@ def Convergence_Analysis(info):
 
     #Define the number of bins
     nbins={
-	'area':1,#np.random.randint(1,10),
-	'slope':1,#np.random.randint(1,100),
-	'sms':1,#np.random.randint(1,100),
-	'ndvi':1,#np.random.randint(1,100),
-	'ti':1,#np.random.randint(1,100),
-	'dem':1,#np.random.randint(1,10),
-	'lats':10,#np.random.randint(1,10),
-	'lons':10,#np.random.randint(1,10),
+	'area':np.random.randint(1,10),#np.random.randint(1,10),
+	'slope':np.random.randint(1,3),
+	'sms':np.random.randint(1,3),
+	'ndvi':np.random.randint(1,3),
+	'ti':1,#np.random.randint(1,10),
+	'dem':np.random.randint(1,10),
+	'lats':np.random.randint(1,5),
+	'lons':np.random.randint(1,5),
 	#'channels':2
           }
 
@@ -144,7 +145,7 @@ def Convergence_Analysis(info):
         'dt':3600.,
         'nsoil':20,
         'wbd':wbd[icatch],
-        'ncores':1,
+        'ncores':ncores,
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
@@ -153,9 +154,13 @@ def Convergence_Analysis(info):
         }
 
    #Cluster the data
+   #time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
-   pickle.dump(input,open('data.pck','wb')) 
-   exit()
+   #dt = time.time() - time0
+   #nclusters = 1
+   #for var in nbins:
+   # nclusters = nclusters*nbins[var]
+   #pickle.dump(input,open('data.pck','wb')) 
 
    #Run the model
    time0 = time.time()
@@ -323,26 +328,50 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
         }
  
  #Create the LHS bins
+ import sklearn.cluster
  bins,data = [],[]
+ X = []
  for id in info:
   #Set all nans to the mean
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
+  X.append(info[id]['data'])
   #Find the percentiles
-  pcts = np.linspace(0,100,info[id]['nbins']+1)
-  scores = []
-  for pct in pcts:
-   scores.append(np.percentile(info[id]['data'],pct))
-  bins.append(scores)
-  data.append(info[id]['data'])
+  #pcts = np.linspace(0,100,info[id]['nbins']+1)
+  #scores = []
+  #for pct in pcts:
+  # scores.append(np.percentile(info[id]['data'],pct))
+  #bins.append(scores)
+  #n = info[id]['data'].size
+  #iqr = np.percentile(info[id]['data'],75) - np.percentile(info[id]['data'],25)
+  #binwidth = 2*iqr*n**(-1.0/3.0)
+  #range = (np.max(info[id]['data']) - np.min(info[id]['data']))
+  #print id,range,binwidth
+  #nbins = (np.max(info[id]['data']) - np.min(info[id]['data']))/binwidth
+  #print nbins
+  #bins.append(info[id]['nbins'])
+  #data.append(info[id]['data'])
+ X = np.array(X).T
+ #Subsample the array
+ Xf = X[np.random.choice(np.arange(X.shape[0]),10000),:]
+ n_clusters = 100
+ clf = sklearn.cluster.KMeans(n_clusters)
+ clf.fit(Xf)
+ output = clf.predict(X)
+ print output
+ 
+ #Subsample
+ #Fit 
+
+ exit()
  #Remove non-unique edges
- for id in xrange(len(info.keys())):
-  if info.keys()[id] != 'channels':
-   bins[id] = np.unique(np.array(bins[id]))
-  else:
-   bins[id][1] = 0.5
-   bins[id] = np.array(bins[id])
- bins = np.array(bins)
- data = np.array(data).T
+ #for id in xrange(len(info.keys())):
+ # if info.keys()[id] != 'channels':
+ #  bins[id] = np.unique(np.array(bins[id]))
+ # else:
+ #  bins[id][1] = 0.5
+ #  bins[id] = np.array(bins[id])
+ #bins = np.array(bins)
+ #data = np.array(data).T
 
  #Create the histogram
  H,edges = np.histogramdd(data,bins=bins)
@@ -382,7 +411,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
 
  #Add in the channel clusters
  channels = np.unique(covariates['channels'][covariates['channels'] > 0])
- print channels
  for channel in channels:
   cid = int(np.nanmax(cluster_ids) + 1)
   pct = float(np.sum(covariates['channels'] == channel))/float(np.sum(mask))

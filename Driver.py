@@ -6,6 +6,7 @@ import HydroBloksTools as HBM
 parallel_flag = sys.argv[1]
 dir = 'ReynoldsCreek'
 run_flag = 'Convergence Analysis'
+ncores = 4#32
 
 if parallel_flag == 'parallel':
  from mpi4py import MPI
@@ -15,6 +16,7 @@ if parallel_flag == 'parallel':
 	'size':comm.size,
 	'wbd':'%s/wbd.pck' % dir,
 	'dir':dir,
+	'ncores':ncores,
 	}
 
 elif parallel_flag == 'serial':
@@ -23,6 +25,7 @@ elif parallel_flag == 'serial':
         'size':1,
         'wbd':'%s/wbd.pck' % dir,
         'dir':dir,
+	'ncores':ncores,
         }
 
 #Deterministic
