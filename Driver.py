@@ -6,7 +6,7 @@ import HydroBloksTools as HBM
 parallel_flag = sys.argv[1]
 dir = 'ReynoldsCreek'
 run_flag = 'Convergence Analysis'
-ncores = 4#32
+ncores = 100#4#32
 
 if parallel_flag == 'parallel':
  from mpi4py import MPI

@@ -73,7 +73,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 400
+ nens = 8*50
  elements = {}
 
  #Create a dictionary of information
@@ -90,31 +90,13 @@ def Convergence_Analysis(info):
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
   
-   nclusters = 1001
-   while nclusters > 1000:
+   #Define the number of bins
+   nclusters = np.random.randint(1,1000)
 
-    #Define the number of bins
-    nbins={
-	'area':np.random.randint(1,10),#np.random.randint(1,10),
-	'slope':np.random.randint(1,3),
-	'sms':np.random.randint(1,3),
-	'ndvi':np.random.randint(1,3),
-	'ti':1,#np.random.randint(1,10),
-	'dem':np.random.randint(1,10),
-	'lats':np.random.randint(1,5),
-	'lons':np.random.randint(1,5),
-	#'channels':2
-          }
-
-    #Calculate the total number of clusters
-    nclusters = 1
-    for var in nbins:
-     nclusters = nclusters*nbins[var]
-   
    #Add the info to the dictionary
    elements[ielement] = {
 		'parameters':parameters,
-		'nbins':nbins,
+		'nclusters':nclusters,
 		'icatch':icatch,
 		'iens':iens,
 		 } 
@@ -137,7 +119,7 @@ def Convergence_Analysis(info):
    element = elements[ielement]
 
    #Print where we are at
-   print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nbins']
+   print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']
 
    #Define the info
    hydrobloks_info = {
@@ -150,7 +132,7 @@ def Convergence_Analysis(info):
         'fdate':fdate,
         'parameters':parameters,
         'dir':dir,
-	'nbins':element['nbins']
+	'nclusters':element['nclusters']
         }
 
    #Cluster the data
@@ -161,6 +143,7 @@ def Convergence_Analysis(info):
    #for var in nbins:
    # nclusters = nclusters*nbins[var]
    #pickle.dump(input,open('data.pck','wb')) 
+   #exit()
 
    #Run the model
    time0 = time.time()
@@ -232,7 +215,9 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = {}
 
  #Create the Latin Hypercube (Clustering)
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,hydrobloks_info['nbins'])
+ nclusters = hydrobloks_info['nclusters']
+ ncores = hydrobloks_info['ncores']
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores)
 
  #Extract the meteorological forcing
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
@@ -242,7 +227,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return output
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores):
 
  covariates = {}
  #Read in all the covariates
@@ -302,29 +287,15 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
  mask_wc = np.copy(mask)
  mask_wc[covariates['channels'] < 0] = 0
 
- #Might want to add lat/lon
- #Define the arrays to be used to create the LHS
- arrays = {'slope':covariates['cslope'].astype(np.float32),
-          'area':covariates['carea'].astype(np.float32),
-          'ndvi':covariates['ndvi'].astype(np.float32),
-          'sms':covariates['MAXSMC'].astype(np.float32),
-          #'channels':covariates['channels'].astype(np.float32),
-          'dem':covariates['dem'].astype(np.float32),
-          'ti':covariates['ti'].astype(np.float32),
-	  'lats':covariates['lats'].astype(np.float32),
-	  'lons':covariates['lons'].astype(np.float32),
-          }
-
- #Define the binning
- info = {'area':{'nbins':nbins['area'],'data':covariates['carea'][mask_woc == True]},
-        'slope':{'nbins':nbins['slope'],'data':covariates['cslope'][mask_woc == True]},
-        'sms':{'nbins':nbins['sms'],'data':covariates['MAXSMC'][mask_woc == True]},
-        'ndvi':{'nbins':nbins['ndvi'],'data':covariates['ndvi'][mask_woc ==True]},
-        'ti':{'nbins':nbins['ti'],'data':covariates['ti'][mask_woc == True]},
-        'dem':{'nbins':nbins['dem'],'data':covariates['dem'][mask_woc == True]},
-        #'channels':{'nbins':nbins['channels'],'data':covariates['channels'][mask==True]},
-        'lats':{'nbins':nbins['lats'],'data':covariates['lats'][mask_woc == True]},
-        'lons':{'nbins':nbins['lons'],'data':covariates['lons'][mask_woc == True]},
+ #Define the covariates
+ info = {'area':{'data':covariates['carea'][mask_woc == True],},
+        #'slope':{'data':covariates['cslope'][mask_woc == True],},
+        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
+        'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
+        'ti':{'data':covariates['ti'][mask_woc == True],},
+        'dem':{'data':covariates['dem'][mask_woc == True],},
+        'lats':{'data':covariates['lats'][mask_woc == True],},
+        'lons':{'data':covariates['lons'][mask_woc == True],},
         }
  
  #Create the LHS bins
@@ -335,80 +306,27 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nbins):
   #Set all nans to the mean
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
   X.append(info[id]['data'])
-  #Find the percentiles
-  #pcts = np.linspace(0,100,info[id]['nbins']+1)
-  #scores = []
-  #for pct in pcts:
-  # scores.append(np.percentile(info[id]['data'],pct))
-  #bins.append(scores)
-  #n = info[id]['data'].size
-  #iqr = np.percentile(info[id]['data'],75) - np.percentile(info[id]['data'],25)
-  #binwidth = 2*iqr*n**(-1.0/3.0)
-  #range = (np.max(info[id]['data']) - np.min(info[id]['data']))
-  #print id,range,binwidth
-  #nbins = (np.max(info[id]['data']) - np.min(info[id]['data']))/binwidth
-  #print nbins
-  #bins.append(info[id]['nbins'])
-  #data.append(info[id]['data'])
+
  X = np.array(X).T
  #Subsample the array
  Xf = X[np.random.choice(np.arange(X.shape[0]),10000),:]
- n_clusters = 100
- clf = sklearn.cluster.KMeans(n_clusters)
+ clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores)
  clf.fit(Xf)
- output = clf.predict(X)
- print output
- 
- #Subsample
- #Fit 
-
- exit()
- #Remove non-unique edges
- #for id in xrange(len(info.keys())):
- # if info.keys()[id] != 'channels':
- #  bins[id] = np.unique(np.array(bins[id]))
- # else:
- #  bins[id][1] = 0.5
- #  bins[id] = np.array(bins[id])
- #bins = np.array(bins)
- #data = np.array(data).T
-
- #Create the histogram
- H,edges = np.histogramdd(data,bins=bins)
- H = H/np.sum(H)
-
- #Adjust to account for channels
- H = float(np.sum(mask_woc))/float(np.sum(mask))*H
+ clf_output = clf.predict(X)
+ cluster_ids = np.empty(covariates['ti'].shape)
+ cluster_ids[:] = -9999
+ cluster_ids[mask_woc == True] = clf_output
 
  #Create a dictionary of class info
  clusters = {}
- Hfl = H.flat
- icluster = -1
- for i in xrange(H.size):
-  coords = Hfl.coords
-  if H[coords] > 0:
-   icluster = icluster + 1
-   clusters[icluster] = {'pct':H[coords]}
-   clusters[icluster]['bounds'] = {}  
-   for id in info:
-    key = info.keys().index(id)   
-    clusters[icluster]['bounds'][id] = [edges[key][coords[key]],edges[key][coords[key]+1]]
-  Hfl.next()
-
- #Map the cluster number to the grid
- cluster_ids = np.empty(covariates['ti'].shape)
- cluster_ids[:] = np.nan
- cmask = np.zeros(cluster_ids.shape).astype(np.int8)
- #print "Computing the hsu indices"
- for cid in clusters.keys():
-  cmask[:] = 0
-  for id in info.keys():
-   if info.keys().index(id) == 0: string = "(arrays['%s'] >= clusters[%d]['bounds']['%s'][0]) & (arrays['%s'] <= clusters[%d]['bounds']['%s'][1])" % (id,cid,id,id,cid,id)
-   else: string = string +  " & (arrays['%s'] >= clusters[%d]['bounds']['%s'][0]) & (arrays['%s'] <= clusters[%d]['bounds']['%s'][1])" % (id,cid,id,id,cid,id)
-  idx = eval('np.where(%s)' % string)
+ #Hfl = H.flat
+ for cid in xrange(nclusters):
+  #Determine the percentage coverage
+  pct = float(np.sum(cluster_ids == cid))/float(np.sum(mask))
+  clusters[cid] = {'pct':pct}
+  idx = np.where(cluster_ids == cid)
   clusters[cid]['idx'] = idx
-  cluster_ids[idx] = cid
-
+  
  #Add in the channel clusters
  channels = np.unique(covariates['channels'][covariates['channels'] > 0])
  for channel in channels:

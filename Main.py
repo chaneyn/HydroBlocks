@@ -1,7 +1,7 @@
 import os
 Parallel = False#True 
-njobs = 8*50#4
-ncores = 4#32
+njobs = 100
+ncores = 16
 
 if Parallel == True:
  
