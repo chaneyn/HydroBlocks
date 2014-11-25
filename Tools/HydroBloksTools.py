@@ -73,11 +73,11 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 8*50
+ nens = 100
  elements = {}
 
  #Create a dictionary of information
- for icatch in [3637,]:#len(wbd.keys()):
+ for icatch in [8756,500,3637]:#len(wbd.keys()):
 
   dir = info['dir']
   #Define the parameters
@@ -91,7 +91,7 @@ def Convergence_Analysis(info):
   for iens in xrange(nens):
   
    #Define the number of bins
-   nclusters = np.random.randint(1,1000)
+   nclusters = np.random.randint(1,2500)
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -162,17 +162,19 @@ def Convergence_Analysis(info):
     mean = np.sum(pcts*output['variables'][var],axis=1)
     #Compute the standard deviation
     std = np.sum(pcts*(output['variables'][var] - mean[:,np.newaxis])**2,axis=1)**0.5
-    #Calculate and save the pcts
+    #Save the time series for the mean and standard deviation
+    metrics['vars'][var]['mean'].append(mean)
+    metrics['vars'][var]['std'].append(std)
     #mean
-    percentiles = []
-    for percentile in [1,10,25,50,75,90,99]:
-     percentiles.append(np.percentile(mean,percentile))
-    metrics['vars'][var]['mean'].append(percentiles)
+    #percentiles = []
+    #for percentile in [1,10,25,50,75,90,99]:
+    # percentiles.append(np.percentile(mean,percentile))
+    #metrics['vars'][var]['mean'].append(percentiles)
     #std
-    percentiles = []
-    for percentile in [1,10,25,50,75,90,99]:
-     percentiles.append(np.percentile(std,percentile))
-    metrics['vars'][var]['std'].append(percentiles)
+    #percentiles = []
+    #for percentile in [1,10,25,50,75,90,99]:
+    # percentiles.append(np.percentile(std,percentile))
+    #metrics['vars'][var]['std'].append(percentiles)
 
    #Save time info and metrics to file
    file = 'Output/%d.pck' % rank

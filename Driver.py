@@ -4,7 +4,7 @@ import HydroBloksTools as HBM
 
 #INFO
 parallel_flag = sys.argv[1]
-dir = 'ReynoldsCreek'
+dir = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments'
 run_flag = 'Convergence Analysis'
 ncores = 100#4#32
 
