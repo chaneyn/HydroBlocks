@@ -165,10 +165,11 @@ def Convergence_Analysis(info):
 
    #Flush out the output
    #sys.stdout.flush()
-   #sys.stderr.flush()
+   sys.stderr.flush()
 
    #Redirect output
    #os.dup2(fout, 1),os.dup2(ferr,2)
+   os.dup2(ferr,2)
 
    #Run the model
    time0 = time.time()
@@ -177,10 +178,11 @@ def Convergence_Analysis(info):
 
    #Flush out the output
    #sys.stdout.flush()
-   #sys.stderr.flush()
+   sys.stderr.flush()
 
    #Redirect the output back to the terminal 
    #os.dup2(so, 1),os.dup2(se,2)
+   os.dup2(se,2)
 
    #Compute heterogeneity metrics
    pcts = output['misc']['pct']
