@@ -337,19 +337,22 @@ def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
   NOAH.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
   #Update meteorology
-  NOAH.lwdn[:] = meteorology['nldas_dlwrf'][i,:] #W/m2
-  NOAH.swdn[:] = meteorology['nldas_dswrf'][i,:] #W/m2
-  NOAH.psfc[:] = meteorology['nldas_pres'][i,:] #Pa
-  NOAH.p_ml[:] = meteorology['nldas_pres'][i,:] #Pa
-  NOAH.u_ml[:] = (meteorology['nldas_wind'][i,:]**2/2)**0.5 #m/s
-  NOAH.v_ml[:] = (meteorology['nldas_wind'][i,:]**2/2)**0.5 #m/s
-  NOAH.t_ml[:] = 273.15+meteorology['nldas_tair'][i,:] #K
+  NOAH.lwdn[:] = meteorology['dlwrf'][i,:] #W/m2
+  NOAH.swdn[:] = meteorology['dswrf'][i,:] #W/m2
+  NOAH.psfc[:] = meteorology['pres'][i,:] #Pa
+  NOAH.p_ml[:] = meteorology['pres'][i,:] #Pa
+  NOAH.u_ml[:] = (meteorology['wind'][i,:]**2/2)**0.5 #m/s
+  NOAH.v_ml[:] = (meteorology['wind'][i,:]**2/2)**0.5 #m/s
+  NOAH.t_ml[:] = 273.15+meteorology['tair'][i,:] #K
   estar = 611.0*np.exp(17.27*((NOAH.t_ml - 273.15)/(NOAH.t_ml[:] - 36.0)))
-  e = meteorology['nldas_rh'][i,:]*estar/100
+  e = meteorology['rh'][i,:]*estar/100
   q = 0.622*e/NOAH.psfc
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
-  NOAH.prcp[:] = meteorology['nldas_prec'][i,:]/3600.0 #mm/s
+  if np.mean(meteorology['apcpsfc'][i,:]) >= 0.0:
+   NOAH.prcp[:] = meteorology['apcpsfc'][i,:]/3600.0 #mm/s
+  else:
+   NOAH.prcp[:] = meteorology['prec'][i,:]/3600.0 #mm/s
 
   return (NOAH,TOPMODEL)
 

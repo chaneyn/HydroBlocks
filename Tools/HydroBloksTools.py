@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings('ignore')
 import sys
 sys.path.append('Model')
 import HydroBloks as HB
@@ -14,6 +16,7 @@ import matplotlib.pyplot as plt
 import os
 import netCDF4 as nc
 import time
+import glob
 
 def Deterministic(info):
 
@@ -67,17 +70,29 @@ def Convergence_Analysis(info):
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
+ #Read all the catchments
+ catchments = glob.glob('%s/*' % info['dir'])
+ icatchs = []
+ for dir in catchments:
+  icatchs.append(int(dir.split('/')[-1].split('_')[-1]))
+ #Shuffle the catchments
+ icatchs = np.array(icatchs)
+ np.random.seed(1)
+ np.random.shuffle(icatchs)
+ icatchs = icatchs[500:600]#1000]#1000] #SUBSET
+ #icatchs = [12068,2361,4672,5354,13566,3394,17918,2929,15236,845,8616,3981,2727,15879,15524,2609,18043,10007,17070,12923,7126,6432]
+
  #Define the dates
- idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,31,23)
+ idate = datetime.datetime(2004,1,1,0)
+ fdate = datetime.datetime(2005,12,31,23)
 
  #Initialize the element count
  ielement = 0
- nens = 100
+ nens = 1#12#50#400
  elements = {}
 
  #Create a dictionary of information
- for icatch in [8756,500,3637]:#len(wbd.keys()):
+ for icatch in icatchs:#xrange(800):#[501,502,503,504]:#[8756,500,3637]:#len(wbd.keys()):
 
   dir = info['dir']
   #Define the parameters
@@ -91,7 +106,8 @@ def Convergence_Analysis(info):
   for iens in xrange(nens):
   
    #Define the number of bins
-   nclusters = np.random.randint(1,2500)
+   #nclusters = int(np.linspace(1,2500,nens)[iens])#np.random.randint(1,1000)
+   nclusters = 100
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -104,57 +120,73 @@ def Convergence_Analysis(info):
    #Update the element
    ielement += 1
 
-  #Initialize metrics dictionary
-  metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
+ #Initialize metrics dictionary
+ metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
 
-  #Add the output variables
-  vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
-  for var in vars:
-   metrics['vars'][var] = {'mean':[],'std':[]}
+ #Add the output variables
+ vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+ for var in vars:
+  metrics['vars'][var] = {'mean':[],'std':[]}
 
-  #Iterate through the dictionary elements
-  for ielement in np.arange(len(elements.keys()))[rank::size]:
+ #Setup output redirection
+ fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
+ so,se = os.dup(1),os.dup(2)
 
-   #Define the info
-   element = elements[ielement]
+ #Iterate through the dictionary elements
+ for ielement in np.arange(len(elements.keys()))[rank::size]:
 
-   #Print where we are at
-   print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']
+  #Define the info
+  element = elements[ielement]
 
-   #Define the info
-   hydrobloks_info = {
+  #Print where we are at
+  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']
+
+  #Define the info
+  hydrobloks_info = {
         'input':'%s/input/data.pck' % dir,
         'dt':3600.,
         'nsoil':20,
-        'wbd':wbd[icatch],
+        'wbd':wbd[element['icatch']],
         'ncores':ncores,
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
-        'dir':dir,
+        'dir':'%s/catch_%d' % (dir,element['icatch']),
 	'nclusters':element['nclusters']
         }
 
+  try:
+   #if 1 == 1:
+
    #Cluster the data
-   #time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
-   #dt = time.time() - time0
-   #nclusters = 1
-   #for var in nbins:
-   # nclusters = nclusters*nbins[var]
    #pickle.dump(input,open('data.pck','wb')) 
    #exit()
+
+   #Flush out the output
+   #sys.stdout.flush()
+   #sys.stderr.flush()
+
+   #Redirect output
+   #os.dup2(fout, 1),os.dup2(ferr,2)
 
    #Run the model
    time0 = time.time()
    output = HB.run_model(hydrobloks_info,input)
    dt = time.time() - time0
 
+   #Flush out the output
+   #sys.stdout.flush()
+   #sys.stderr.flush()
+
+   #Redirect the output back to the terminal 
+   #os.dup2(so, 1),os.dup2(se,2)
+
    #Compute heterogeneity metrics
    pcts = output['misc']['pct']
    nclusters = len(pcts)
-   metrics['icatch'].append(icatch)
-   metrics['nclusters'].append(nclusters)
+   metrics['icatch'].append(element['icatch'])
+   metrics['nclusters'].append(element['nclusters'])
    metrics['dt'].append(dt)
    for var in vars:
     output['variables'][var] = np.array(output['variables'][var])
@@ -165,20 +197,15 @@ def Convergence_Analysis(info):
     #Save the time series for the mean and standard deviation
     metrics['vars'][var]['mean'].append(mean)
     metrics['vars'][var]['std'].append(std)
-    #mean
-    #percentiles = []
-    #for percentile in [1,10,25,50,75,90,99]:
-    # percentiles.append(np.percentile(mean,percentile))
-    #metrics['vars'][var]['mean'].append(percentiles)
-    #std
-    #percentiles = []
-    #for percentile in [1,10,25,50,75,90,99]:
-    # percentiles.append(np.percentile(std,percentile))
-    #metrics['vars'][var]['std'].append(percentiles)
 
-   #Save time info and metrics to file
-   file = 'Output/%d.pck' % rank
-   pickle.dump(metrics,open(file,'wb'))
+  except:
+   #else:
+
+   print "catchment %d Failed" % element['icatch']
+
+ #Save time info and metrics to file
+ file = 'Output/%d.pck' % rank
+ pickle.dump(metrics,open(file,'wb'))
 
  return
 
@@ -234,9 +261,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  covariates = {}
  #Read in all the covariates
  for file in wbd['files']:
-  original = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments/catch_3637' #HERE
-  final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
-  wbd['files'][file] = wbd['files'][file].replace(original,final) #HERE
+  #original = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments/catch_3637' #HERE
+  #final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
+  #wbd['files'][file] = wbd['files'][file].replace(original,final) #HERE
   covariates[file] = gdal_tools.read_raster(wbd['files'][file])
   if file == 'carea': covariates[file] = np.log(covariates[file])
   if file == 'cslope':
@@ -281,19 +308,20 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Set everything outside of the mask to -9999
  for var in covariates:
-  covariates[var][mask <= 0] = -9999
+  covariates[var][mask <= 0] = -9999.0
 
  #Create channels mask
  mask_woc = np.copy(mask)
  mask_woc[covariates['channels'] > 0] = 0
  mask_wc = np.copy(mask)
- mask_wc[covariates['channels'] < 0] = 0
+ mask_wc[covariates['channels'] <= 0] = 0
 
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_woc == True],},
         #'slope':{'data':covariates['cslope'][mask_woc == True],},
         'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
+        #'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
+        'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
@@ -333,7 +361,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  channels = np.unique(covariates['channels'][covariates['channels'] > 0])
  for channel in channels:
   cid = int(np.nanmax(cluster_ids) + 1)
-  pct = float(np.sum(covariates['channels'] == channel))/float(np.sum(mask))
+  pct = float(np.sum(covariates['channels'] == channel))/float(np.sum(mask)) 
   clusters[cid] = {'pct':pct}
   idx = np.where(covariates['channels'] == channel)
   clusters[cid]['idx'] = idx
@@ -342,9 +370,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Determine the links between clusters
  mask1 = covariates['fdir'] < 0
  covariates['fdir'][mask1] = -9999.0
- cluster_ids[mask1] = np.nan
+ cluster_ids_copy = np.copy(cluster_ids)
+ cluster_ids_copy[mask1] = np.nan
  nclusters = len(clusters.keys())
- tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids,covariates['fdir'],nclusters)
+ tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
@@ -409,13 +438,15 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
  for data_var in wbd['files_meteorology']:
   
   #Define the variable name
-  var = data_var.split('_')[1]
+  var = data_var#data_var.split('_')[1]
 
   #Read in the coarse and fine mapping
   file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
   file_fine = '%s/%s_fine.tif' % (mapping_dir,data_var)
   mask_coarse = gdal_tools.read_raster(file_coarse)
   mask_fine = gdal_tools.read_raster(file_fine)
+  nlat = mask_coarse.shape[0]
+  nlon = mask_coarse.shape[1]
 
   #Compute the mapping for each hsu
   for hsu in OUTPUT['hsu']:
@@ -447,14 +478,15 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
   meteorology[data_var] = np.zeros((nt,len(names)))
  #Load data into structured array
  for data_var in wbd['files_meteorology']:
-  var = data_var.split('_')[1]
+  var = data_var#data_var.split('_')[1]
   date = idate
-  ctl = wbd['files_meteorology'][data_var]
-  dir = ctl[0:-(len(var)+5)]
-  file = '%s/%s/%s.nc' % (dir,var,var)
+  file = wbd['files_meteorology'][data_var]
+  #dir = ctl[0:-(len(var)+5)]
+  #file = '%s/%s/%s.nc' % (dir,var,var)
+  #if var == 'apcpsfc': file = '%s/%s.nc' % (dir,var)
   fp = nc.Dataset(file)
   #Determine the time steps to retrieve
-  dates = nc.num2date(fp.variables['t'][:],units='hours since 2000-01-01 00:00:00')
+  dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
   mask_dates = (dates >= idate) & (dates <= fdate)
   data = np.ma.getdata(fp.variables[var][mask_dates])
   fp.close()
@@ -462,6 +494,8 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
   for hsu in OUTPUT['hsu']:
    pcts = OUTPUT['hsu'][hsu][var]['pcts']
    coords = OUTPUT['hsu'][hsu][var]['coords']
+   coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
+   coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
    tmp = pcts*data[:,coords[0],coords[1]]
    #Combine stage iv and nldas here
    if data_var not in ['stageiv_prec',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])

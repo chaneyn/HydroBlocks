@@ -181,8 +181,8 @@ contains
  subroutine finalize()
 
   !Single layer
-  deallocate(isnow) ! actual number of snow layers
-  deallocate(z_ml) ! model height [m]
+  if (allocated(isnow)) deallocate(isnow) ! actual number of snow layers
+  if (allocated(z_ml)) deallocate(z_ml) ! model height [m]
   deallocate(lwdn)       ! Downward longwave radiation flux at surface [W/m2]
   deallocate(swdn)      ! Downward shortwave radiation flux at surface [W/m2]
   deallocate(p_ml)    !  Surface pressure defined at intermediate level [Pa]
@@ -314,7 +314,7 @@ contains
   deallocate(smc)
   deallocate(smceq) ! eq vol. soil moisture (m3/m3)
   deallocate(zsnso) ! snow layer depth (m)
-  deallocate(snice)! snow layer ice (mm)
+  deallocate(snice) ! snow layer ice (mm)
   deallocate(snliq) ! snow layer liquid water (mm)
   deallocate(ficeold) ! snow layer ice fraction 
   deallocate(sldpth) !soil layer thickness
