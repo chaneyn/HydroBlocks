@@ -28,7 +28,7 @@ def Deterministic(info):
  fdate = datetime.datetime(2000,1,31,23)
 
  #Iterate through all the catchments until done
- for icatch in [3637,]:#len(wbd.keys()):
+ for icatch in [500,]:#[3637,]:#len(wbd.keys()):
 
   dir = info['dir']
   #Define the parameters
@@ -79,16 +79,17 @@ def Convergence_Analysis(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = icatchs[500:600]#1000]#1000] #SUBSET
+ icatchs = [500,]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
  #icatchs = [12068,2361,4672,5354,13566,3394,17918,2929,15236,845,8616,3981,2727,15879,15524,2609,18043,10007,17070,12923,7126,6432]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2005,12,31,23)
+ fdate = datetime.datetime(2004,1,1,23)
+ #fdate = datetime.datetime(2005,12,31,23)
 
  #Initialize the element count
  ielement = 0
- nens = 1#12#50#400
+ nens = 1#50#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -106,8 +107,8 @@ def Convergence_Analysis(info):
   for iens in xrange(nens):
   
    #Define the number of bins
-   #nclusters = int(np.linspace(1,2500,nens)[iens])#np.random.randint(1,1000)
-   nclusters = 100
+   nclusters = int(np.linspace(2,1500,nens)[iens])#np.random.randint(1,1000)
+   nclusters = 100#25#2500
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -155,34 +156,38 @@ def Convergence_Analysis(info):
 	'nclusters':element['nclusters']
         }
 
-  try:
-   #if 1 == 1:
+  #try:
+  if 1 == 1:
 
    #Cluster the data
+   time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
-   #pickle.dump(input,open('data.pck','wb')) 
-   #exit()
+   dt = time.time() - time0
+   print dt
+   pickle.dump(input,open('data.pck','wb')) 
+   exit()
 
    #Flush out the output
-   #sys.stdout.flush()
-   sys.stderr.flush()
+   sys.stdout.flush()
+   #sys.stderr.flush()
 
    #Redirect output
    #os.dup2(fout, 1),os.dup2(ferr,2)
-   os.dup2(ferr,2)
+   #os.dup2(fout,1)
 
    #Run the model
    time0 = time.time()
    output = HB.run_model(hydrobloks_info,input)
    dt = time.time() - time0
+   print dt
 
    #Flush out the output
-   #sys.stdout.flush()
-   sys.stderr.flush()
+   sys.stdout.flush()
+   #sys.stderr.flush()
 
    #Redirect the output back to the terminal 
    #os.dup2(so, 1),os.dup2(se,2)
-   os.dup2(se,2)
+   #os.dup2(so,1)
 
    #Compute heterogeneity metrics
    pcts = output['misc']['pct']
@@ -200,13 +205,13 @@ def Convergence_Analysis(info):
     metrics['vars'][var]['mean'].append(mean)
     metrics['vars'][var]['std'].append(std)
 
-  except:
-   #else:
+  #except:
+  else:
 
    print "catchment %d Failed" % element['icatch']
 
  #Save time info and metrics to file
- file = 'Output/%d.pck' % rank
+ file = 'Output/output/%d.pck' % rank
  pickle.dump(metrics,open(file,'wb'))
 
  return
@@ -245,13 +250,17 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Create the dictionary to hold all of the data
  output = {}
 
+ time0 = time.time()
  #Create the Latin Hypercube (Clustering)
  nclusters = hydrobloks_info['nclusters']
  ncores = hydrobloks_info['ncores']
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores)
+ print time.time() - time0
 
  #Extract the meteorological forcing
+ time0 = time.time()
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
+ print time.time() - time0
 
  #Add in the catchment info
  output['wbd'] = wbd
@@ -267,7 +276,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   #final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
   #wbd['files'][file] = wbd['files'][file].replace(original,final) #HERE
   covariates[file] = gdal_tools.read_raster(wbd['files'][file])
-  if file == 'carea': covariates[file] = np.log(covariates[file])
+  #if file == 'carea': 
+  # #covariates[file][covariates[file] == 0.0] = 1.0
+  # #covariates[file] = np.log(covariates[file])
   if file == 'cslope':
    mask = covariates[file] == 0.0
    covariates[file][mask] = 0.000001
@@ -280,7 +291,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  covariates['lons'] = lons.T
 
  #Clean up the covariates
- covariates['ti'][covariates['ti'] > 14] = 14
+ #covariates['ti'][covariates['ti'] > 14] = 14
  #covariates['channels'][covariates['channels'] > 1] = 1
  #covariates['channels'][covariates['channels'] < 0] = 0
 
@@ -323,13 +334,18 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
         #'slope':{'data':covariates['cslope'][mask_woc == True],},
         'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
         #'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
         'lons':{'data':covariates['lons'][mask_woc == True],},
         }
  
+ #Scale all the variables
+ for var in info:
+  info[var]['data'] = (info[var]['data'] - np.min(info[var]['data']))/(np.max(info[var]['data']) - np.min(info[var]['data']))
+  #if var == 'area':info[var]['data'] = 10*info[var]['data']
+
  #Create the LHS bins
  import sklearn.cluster
  bins,data = [],[]
@@ -339,35 +355,63 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
   X.append(info[id]['data'])
 
+ time0 = time.time()
  X = np.array(X).T
  #Subsample the array
- Xf = X[np.random.choice(np.arange(X.shape[0]),10000),:]
- clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores)
+ minsamples = 10**5
+ if X.shape[0] > minsamples:
+  Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
+  #Make sure we have the extremes
+  for ivar in xrange(X.shape[1]):
+   imin = np.argmin(X[:,ivar])
+   imax = np.argmax(X[:,ivar])
+   Xf = np.append(Xf,X[imin,:][np.newaxis,:],axis=0)
+   Xf = np.append(Xf,X[imax,:][np.newaxis,:],axis=0)
+ else:
+  Xf = X
+ #clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores)
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters)#,n_jobs=ncores)
+ #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
  clf.fit(Xf)
  clf_output = clf.predict(X)
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
  cluster_ids[mask_woc == True] = clf_output
+ print 'clustering',time.time() - time0
+
+ #Add in the channel clusters
+ channels = np.unique(covariates['channels'][covariates['channels'] > 0])
+ for channel in channels:
+  cid = int(np.nanmax(cluster_ids) + 1)
+  idx = np.where(covariates['channels'] == channel)
+  cluster_ids[idx] = cid
+  nclusters = nclusters + 1
+
+ #Reorder according to areas
+ areas = []
+ for cid in xrange(nclusters):
+  msk = cluster_ids == cid
+  areas.append(np.nanmean(covariates['carea'][msk]))
+ argsort = np.argsort(np.array(areas))
+ cluster_ids_new = np.copy(cluster_ids)
+ for cid in xrange(nclusters):
+  msk = cluster_ids == argsort[cid]
+  cluster_ids_new[msk] = cid
+ cluster_ids = np.copy(cluster_ids_new)
+ areas = []
+ for cid in xrange(nclusters):
+  msk = cluster_ids == cid
+  areas.append(np.nanmean(covariates['carea'][msk]))
 
  #Create a dictionary of class info
  clusters = {}
- #Hfl = H.flat
+ areas = []
  for cid in xrange(nclusters):
   #Determine the percentage coverage
   pct = float(np.sum(cluster_ids == cid))/float(np.sum(mask))
   clusters[cid] = {'pct':pct}
   idx = np.where(cluster_ids == cid)
   clusters[cid]['idx'] = idx
-  
- #Add in the channel clusters
- channels = np.unique(covariates['channels'][covariates['channels'] > 0])
- for channel in channels:
-  cid = int(np.nanmax(cluster_ids) + 1)
-  pct = float(np.sum(covariates['channels'] == channel))/float(np.sum(mask)) 
-  clusters[cid] = {'pct':pct}
-  idx = np.where(covariates['channels'] == channel)
-  clusters[cid]['idx'] = idx
-  cluster_ids[idx] = cid
 
  #Determine the links between clusters
  mask1 = covariates['fdir'] < 0
@@ -429,6 +473,26 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  for hsu in OUTPUT['hsu']:
   idx = OUTPUT['hsu'][hsu]['idx']
   OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+
+ #Create the image of the covariates
+ covariates['hsu_map'] = OUTPUT['hsu_map']
+ vars= ['carea','cslope','MAXSMC','nlcd','ti','dem','hsu_map']
+ ns = int(np.ceil(float(len(vars))**0.5))
+ plt.figure(figsize=(25,25))
+ for var in vars:
+  #Apply the mask
+  plotdata = np.copy(covariates[var])
+  plotdata[mask <= 0] = np.nan
+  #Plot the data
+  plt.subplot(ns,ns,vars.index(var) + 1)
+  plt.title(var,fontsize=45)
+  plt.imshow(plotdata,interpolation='nearest')
+  plt.axis('off')
+
+ #Save the figure
+ plt.tight_layout()
+ figure = 'covariates.png'
+ plt.savefig(figure)
 
  return OUTPUT
 
@@ -500,7 +564,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
    tmp = pcts*data[:,coords[0],coords[1]]
    #Combine stage iv and nldas here
-   if data_var not in ['stageiv_prec',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
+   if data_var not in ['apcpsfc',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
 
  #Append the meteorology to the output dictionary

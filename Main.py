@@ -1,12 +1,13 @@
 import os
-Parallel = True 
-njobs = 24#5000#8000#800#400
-ncores = 8
+Parallel = False#True 
+njobs = 5000#5000#8000#800#400
+ncores = 16
 
 if Parallel == True:
  
  #Run the model using MPI (w/OMP)
- os.system('aprun -n %d -d %d python Driver.py parallel' % (njobs,ncores))
+ #os.system('aprun -n %d -d %d python Driver.py parallel' % (njobs,ncores))
+ os.system('aprun -n %d -d %d run_mpi "python Driver.py parallel"' % (njobs,ncores))
 
 elif Parallel == False:
 
