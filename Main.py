@@ -1,5 +1,5 @@
 import os
-Parallel = False#True 
+Parallel = True 
 njobs = 100#400#5000#5000#8000#800#400
 ncores = 16
 

@@ -84,8 +84,8 @@ def Convergence_Analysis(info):
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,1,31,23)
- fdate = datetime.datetime(2005,12,31,23)
+ fdate = datetime.datetime(2004,1,31,23)
+ #fdate = datetime.datetime(2005,12,31,23)
 
  #Initialize the element count
  ielement = 0
@@ -108,7 +108,7 @@ def Convergence_Analysis(info):
   
    #Define the number of bins
    nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
-   nclusters = 50#250#100#250#25#2500
+   #nclusters = 200#250#100#250#25#2500
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -166,8 +166,8 @@ def Convergence_Analysis(info):
    elements['nclusters'] = input['nclusters']
    dt = time.time() - time0
    print "time to prepare the data",element['nclusters'],dt
-   pickle.dump(input,open('data.pck','wb')) 
-   exit()
+   #pickle.dump(input,open('data.pck','wb')) 
+   #exit()
 
    #Flush out the output
    sys.stdout.flush()
@@ -336,7 +336,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
         'slope':{'data':covariates['cslope'][mask_woc == True],},
         'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
         #'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
@@ -348,7 +348,12 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   #info[var]['data'] = (info[var]['data'] - np.min(info[var]['data']))/(np.max(info[var]['data']) - np.min(info[var]['data']))
   #if var == 'area':info[var]['data'] = 10*info[var]['data']
   argsort = np.argsort(info[var]['data'])
-  info[var]['data'][argsort] = np.linspace(0,1,len(info[var]['data']))
+  pcts = np.copy(info[var]['data'])
+  pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+  if np.unique(info[var]['data']).size < 1000:
+   for value in np.unique(info[var]['data']):
+    pcts[pcts == value] = np.mean(pcts[pcts == value])
+  info[var]['data'] = pcts
 
  #Create the LHS bins
  import sklearn.cluster
@@ -363,7 +368,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  X = np.array(X).T
  #Subsample the array
  np.random.seed(1)
- minsamples = 10**4#5
+ minsamples = 2.5*10**4
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
   #Make sure we have the extremes
