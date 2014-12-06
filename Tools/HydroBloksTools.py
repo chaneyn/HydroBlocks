@@ -79,17 +79,17 @@ def Convergence_Analysis(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = [500,]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
+ icatchs = [8072,]#[500,]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
  #icatchs = [12068,2361,4672,5354,13566,3394,17918,2929,15236,845,8616,3981,2727,15879,15524,2609,18043,10007,17070,12923,7126,6432]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2004,1,1,23)
- #fdate = datetime.datetime(2005,12,31,23)
+ #fdate = datetime.datetime(2004,1,31,23)
+ fdate = datetime.datetime(2005,12,31,23)
 
  #Initialize the element count
  ielement = 0
- nens = 1#50#12#50#400
+ nens = 100#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -107,8 +107,8 @@ def Convergence_Analysis(info):
   for iens in xrange(nens):
   
    #Define the number of bins
-   nclusters = int(np.linspace(2,1500,nens)[iens])#np.random.randint(1,1000)
-   nclusters = 100#25#2500
+   nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
+   nclusters = 50#250#100#250#25#2500
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -126,6 +126,7 @@ def Convergence_Analysis(info):
 
  #Add the output variables
  vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+ #vars = ['smc1',]
  for var in vars:
   metrics['vars'][var] = {'mean':[],'std':[]}
 
@@ -162,8 +163,9 @@ def Convergence_Analysis(info):
    #Cluster the data
    time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
+   elements['nclusters'] = input['nclusters']
    dt = time.time() - time0
-   print dt
+   print "time to prepare the data",element['nclusters'],dt
    pickle.dump(input,open('data.pck','wb')) 
    exit()
 
@@ -179,7 +181,7 @@ def Convergence_Analysis(info):
    time0 = time.time()
    output = HB.run_model(hydrobloks_info,input)
    dt = time.time() - time0
-   print dt
+   print 'time to run HydroBloks',element['nclusters'],dt
 
    #Flush out the output
    sys.stdout.flush()
@@ -211,7 +213,7 @@ def Convergence_Analysis(info):
    print "catchment %d Failed" % element['icatch']
 
  #Save time info and metrics to file
- file = 'Output/output/%d.pck' % rank
+ file = 'Output/output2/%d.pck' % rank
  pickle.dump(metrics,open(file,'wb'))
 
  return
@@ -250,17 +252,17 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Create the dictionary to hold all of the data
  output = {}
 
- time0 = time.time()
+ #time0 = time.time()
  #Create the Latin Hypercube (Clustering)
  nclusters = hydrobloks_info['nclusters']
  ncores = hydrobloks_info['ncores']
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores)
- print time.time() - time0
+ #print time.time() - time0
 
  #Extract the meteorological forcing
  time0 = time.time()
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
- print time.time() - time0
+ #print time.time() - time0
 
  #Add in the catchment info
  output['wbd'] = wbd
@@ -325,13 +327,13 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Create channels mask
  mask_woc = np.copy(mask)
- mask_woc[covariates['channels'] > 0] = 0
+ #mask_woc[covariates['channels'] > 0] = 0
  mask_wc = np.copy(mask)
  mask_wc[covariates['channels'] <= 0] = 0
 
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_woc == True],},
-        #'slope':{'data':covariates['cslope'][mask_woc == True],},
+        'slope':{'data':covariates['cslope'][mask_woc == True],},
         'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
         #'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
@@ -341,10 +343,12 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
         'lons':{'data':covariates['lons'][mask_woc == True],},
         }
  
- #Scale all the variables
+ #Scale all the variables (Calculate the percentiles
  for var in info:
-  info[var]['data'] = (info[var]['data'] - np.min(info[var]['data']))/(np.max(info[var]['data']) - np.min(info[var]['data']))
+  #info[var]['data'] = (info[var]['data'] - np.min(info[var]['data']))/(np.max(info[var]['data']) - np.min(info[var]['data']))
   #if var == 'area':info[var]['data'] = 10*info[var]['data']
+  argsort = np.argsort(info[var]['data'])
+  info[var]['data'][argsort] = np.linspace(0,1,len(info[var]['data']))
 
  #Create the LHS bins
  import sklearn.cluster
@@ -358,7 +362,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  time0 = time.time()
  X = np.array(X).T
  #Subsample the array
- minsamples = 10**5
+ np.random.seed(1)
+ minsamples = 10**4#5
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
   #Make sure we have the extremes
@@ -369,23 +374,51 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
    Xf = np.append(Xf,X[imax,:][np.newaxis,:],axis=0)
  else:
   Xf = X
- #clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores)
- clf = sklearn.cluster.MiniBatchKMeans(nclusters)#,n_jobs=ncores)
+ #Construct grid to fit the data
+ #npoints = np.ceil(minsamples**(1./len(info.keys())))
+ #if npoints < 2: npoints = 2
+ #for id in xrange(len(info.keys())):
+ # if id == 0: string = "np.meshgrid(np.linspace(0,1,%d)" % npoints 
+ # else: string = string + ",np.linspace(0,1,%d)" % npoints
+ #string = string + ")"
+ #tmp = eval(string)
+ #Xf = []
+ #Reshape data for the fitting
+ #for id in xrange(len(info.keys())):
+ # Xf.append(np.reshape(tmp[id],tmp[id].size))
+ #Xf = np.array(Xf).T
+ #print Xf
+ #idx = eval('np.where(%s)' % string)
+ #Xf = np.mgrid(
+ #Construct a features array (0,1)
+ #Xf = np.random.rand(minsamples,X.shape[1])
+ #Initialize all points at the 0.5 point
+ init = 0.5*np.ones((nclusters,Xf.shape[1]))
+ clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,init=init)
+ #clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1)#,n_jobs=ncores)
  #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
- clf.fit(Xf)
+ #clf = sklearn.cluster.DBSCAN(eps=0.3, min_samples=10)#clusters)
+ clf.fit(Xf)#
  clf_output = clf.predict(X)
+ #Reassign the ids
+ clf_output_copy = np.copy(clf_output)
+ for cid in xrange(len(np.unique(clf_output))):
+  clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
  cluster_ids[mask_woc == True] = clf_output
- print 'clustering',time.time() - time0
+ nclusters_old = nclusters
+ nclusters = np.unique(clf_output).size
+ #Redefine the number of clusters (We are sampling regions that just don't have data...)
+ print 'clustering %d->%d' % (nclusters_old,nclusters),time.time() - time0
 
  #Add in the channel clusters
- channels = np.unique(covariates['channels'][covariates['channels'] > 0])
- for channel in channels:
-  cid = int(np.nanmax(cluster_ids) + 1)
-  idx = np.where(covariates['channels'] == channel)
-  cluster_ids[idx] = cid
-  nclusters = nclusters + 1
+ #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
+ #for channel in channels:
+ # cid = int(np.nanmax(cluster_ids) + 1)
+ # idx = np.where(covariates['channels'] == channel)
+ # cluster_ids[idx] = cid
+ # nclusters = nclusters + 1
 
  #Reorder according to areas
  areas = []
@@ -475,7 +508,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
 
  #Create the image of the covariates
- covariates['hsu_map'] = OUTPUT['hsu_map']
+ '''covariates['hsu_map'] = OUTPUT['hsu_map']
  vars= ['carea','cslope','MAXSMC','nlcd','ti','dem','hsu_map']
  ns = int(np.ceil(float(len(vars))**0.5))
  plt.figure(figsize=(25,25))
@@ -492,7 +525,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Save the figure
  plt.tight_layout()
  figure = 'covariates.png'
- plt.savefig(figure)
+ plt.savefig(figure)'''
+
+ #Add the new number of clusters
+ OUTPUT['nclusters'] = nclusters
 
  return OUTPUT
 
