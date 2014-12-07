@@ -80,7 +80,6 @@ def Convergence_Analysis(info):
  np.random.seed(1)
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
- #icatchs = [12068,2361,4672,5354,13566,3394,17918,2929,15236,845,8616,3981,2727,15879,15524,2609,18043,10007,17070,12923,7126,6432]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
@@ -200,13 +199,6 @@ def Convergence_Analysis(info):
    for var in vars:
     metrics['vars'][var]['mean'] = np.array(output['variables'][var]['mean'])
     metrics['vars'][var]['std'] = np.array(output['variables'][var]['std'])
-   # #Compute the mean
-   # mean = np.sum(pcts*output['variables'][var],axis=1)
-   # #Compute the standard deviation
-   # std = np.sum(pcts*(output['variables'][var] - mean[:,np.newaxis])**2,axis=1)**0.5
-   # #Save the time series for the mean and standard deviation
-   # metrics['vars'][var]['mean'].append(mean)
-   # metrics['vars'][var]['std'].append(std)
 
   #except:
   else:
@@ -221,7 +213,87 @@ def Convergence_Analysis(info):
 
 def Latin_Hypercube_Sample(info):
 
- print info
+ from SALib.sample import latin_hypercube
+ from SALib.util import scale_samples
+ import random as rd
+
+ #Define the rank and size
+ rank = info['rank']
+ size = info['size']
+ ncores = info['ncores']
+
+ #Read in the catchment database
+ wbd = pickle.load(open(info['wbd']))
+
+ #Read all the catchments
+ catchments = glob.glob('%s/*' % info['dir'])
+ icatchs = []
+ for dir in catchments:
+  icatchs.append(int(dir.split('/')[-1].split('_')[-1]))
+ #Shuffle the catchments
+ icatchs = np.array(icatchs)
+ np.random.seed(1)
+ np.random.shuffle(icatchs)
+ icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
+
+ #Define the dates
+ idate = datetime.datetime(2004,1,1,0)
+ fdate = datetime.datetime(2006,12,31,23)
+
+ #Obtain Latin Hypercube Sample 
+ #1.Set random seed
+ np.random.seed(1)
+ rd.seed(1)
+
+ #Define parameters and ranges
+ parameters = ordereddict.OrderedDict()
+ parameters['log10m'] = [np.log10(0.001),np.log10(0.1)]
+ parameters['lnTe'] = [np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)]
+ parameters['log10soil'] = [np.log10(1.0),np.log10(2.00)]
+ parameters['sdmax'] = [0.1,2.0]
+ print parameters
+
+ #Generate samples (choose method here)
+ param_values = latin_hypercube.sample(nsamples, parameters['num_vars'])
+
+ #Samples are given in range [0, 1] by default. Rescale them to your parameter bounds.
+ scale_samples(param_values, pf['bounds'])
+
+ #Initialize the element count
+ ielement = 0
+ nens = 200
+ elements = {}
+
+ #Create a dictionary of information
+ for icatch in icatchs:
+
+  #Define the directory
+  dir = info['dir']
+
+  #Cycle through the ensemble of clusters
+  for iens in xrange(nens):
+
+   #Define the parameters
+   parameters = {}
+   parameters['log10m'] = -2.0#-2.582977995297425888e+00
+   parameters['lnTe'] = -3.12#-1.963648774068431635e-01
+   parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
+   parameters['sdmax'] = 1.0#1.938762117265730334e+00
+
+   #Define the number of bins
+   nclusters = int(np.linspace(2,2500,nens)[iens])
+
+   #Add the info to the dictionary
+   elements[ielement] = {
+		'parameters':parameters,
+		'nclusters':nclusters,
+		'icatch':icatch,
+		'iens':iens,
+		 } 
+
+   #Update the element
+   ielement += 1
+
 
  return
 
