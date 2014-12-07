@@ -236,7 +236,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  return (NOAH,TOPMODEL)
 
-def run_model(info,data):
+def run_model(info,data,output_type):
 
  #Read in the pickled data
  #data = pickle.load(open(info['input']))
@@ -258,7 +258,7 @@ def run_model(info,data):
  info['SOILPARM'] = 'Model/pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
 
  #Initialize the output
- output = Initialize_Output()
+ output = Initialize_Output(output_type)
 
  #Initialize the model
  NOAH = Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd)
@@ -318,7 +318,7 @@ def run_model(info,data):
   prcp = prcp + 3600*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update output
-  output = update_output(output,NOAH,TOPMODEL,date)
+  output = update_output(output,NOAH,TOPMODEL,date,output_type)
 
   #Update time step
   date = date + dt_timedelta
@@ -357,9 +357,10 @@ def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
 
   return (NOAH,TOPMODEL)
 
-def Initialize_Output():
+def Initialize_Output(output_type):
 
- variables = {
+ if output_type == 'Full':
+  variables = {
            #Fluxes
            'qout_subsurface':[],
            'qout_surface':[],
@@ -385,6 +386,11 @@ def Initialize_Output():
            'swnet':[], #absorved shortwave radiation (w/m2)
            'lwnet':[], #net upward longwave radiation (w/m2)
            }
+ elif output_type == 'Summary':
+  variables = {
+           #State variables
+           'smc1':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           }
 
  misc = {
       'sldpth':[], #soil depth
@@ -393,7 +399,7 @@ def Initialize_Output():
 
  return {'variables':variables,'misc':misc}
 
-def update_output(output,NOAH,TOPMODEL,date):
+def update_output(output,NOAH,TOPMODEL,date,output_type):
  
  #Miscellanous
  output['misc']['sldpth'] = NOAH.sldpth
@@ -425,34 +431,45 @@ def update_output(output,NOAH,TOPMODEL,date):
              'qout_surface':{'description':'Surface flux','units':'m2/s'},
              }
  output['misc']['metadata'] = metadata
- #Energy fluxes
- output['variables']['g'].append(np.copy(NOAH.ssoil)) #W/m2
- output['variables']['sh'].append(np.copy(NOAH.fsh)) #W/m2
- output['variables']['lh'].append(np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr)) #W/m2
- output['variables']['swnet'].append(np.copy(NOAH.fsa)) #W/m2
- output['variables']['lwnet'].append(np.copy(NOAH.fira)) #W/m2
- #Water balance
- output['variables']['et'].append(np.copy(NOAH.ecan + NOAH.etran + NOAH.esoil)) #mm/s
- imax = TOPMODEL.outlet_hsu
- #qexcess = np.copy(10**3*TOPMODEL.ex)
- qexcess = np.copy(NOAH.runsb)
- qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
- output['variables']['qexcess'].append(np.copy(qexcess)) #mm/s
- output['variables']['qsurface'].append(np.copy(NOAH.runsf)) #mm/s
- output['variables']['prcp'].append(np.copy(NOAH.prcp)) #mm/s
- #State variables
- output['variables']['smc1'].append(np.copy(NOAH.smc[:,0])) #m3/m3
- output['variables']['smc2'].append(np.copy(NOAH.smc[:,1])) #m3/m3
- output['variables']['smc3'].append(np.copy(NOAH.smc[:,2])) #m3/m3
- output['variables']['smc4'].append(np.copy(NOAH.smc[:,3])) #m3/m3
- #output['variables']['smc5'].append(np.copy(NOAH.smc[:,4])) #m3/m3
- output['variables']['swd'].append(np.copy(10**3*TOPMODEL.si)) #mm
- output['variables']['sstorage'].append(np.copy(10**3*TOPMODEL.storage_surface)) #mm
- output['variables']['sndpth'].append(np.copy(10**3*NOAH.sndpth)) #mm
- output['variables']['swe'].append(np.copy(NOAH.swe)) #mm
- #Fluxes
- output['variables']['qout_subsurface'].append(np.copy(TOPMODEL.qout)) #m2/s
- output['variables']['qout_surface'].append(np.copy(TOPMODEL.qout_surface)) #m2/s
+
+ if output_type == 'Full':
+  #Energy fluxes
+  output['variables']['g'].append(np.copy(NOAH.ssoil)) #W/m2
+  output['variables']['sh'].append(np.copy(NOAH.fsh)) #W/m2
+  output['variables']['lh'].append(np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr)) #W/m2
+  output['variables']['swnet'].append(np.copy(NOAH.fsa)) #W/m2
+  output['variables']['lwnet'].append(np.copy(NOAH.fira)) #W/m2
+  #Water balance
+  output['variables']['et'].append(np.copy(NOAH.ecan + NOAH.etran + NOAH.esoil)) #mm/s
+  imax = TOPMODEL.outlet_hsu
+  #qexcess = np.copy(10**3*TOPMODEL.ex)
+  qexcess = np.copy(NOAH.runsb)
+  qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
+  output['variables']['qexcess'].append(np.copy(qexcess)) #mm/s
+  output['variables']['qsurface'].append(np.copy(NOAH.runsf)) #mm/s
+  output['variables']['prcp'].append(np.copy(NOAH.prcp)) #mm/s
+  #State variables
+  output['variables']['smc1'].append(np.copy(NOAH.smc[:,0])) #m3/m3
+  output['variables']['smc2'].append(np.copy(NOAH.smc[:,1])) #m3/m3
+  output['variables']['smc3'].append(np.copy(NOAH.smc[:,2])) #m3/m3
+  output['variables']['smc4'].append(np.copy(NOAH.smc[:,3])) #m3/m3
+  #output['variables']['smc5'].append(np.copy(NOAH.smc[:,4])) #m3/m3
+  output['variables']['swd'].append(np.copy(10**3*TOPMODEL.si)) #mm
+  output['variables']['sstorage'].append(np.copy(10**3*TOPMODEL.storage_surface)) #mm
+  output['variables']['sndpth'].append(np.copy(10**3*NOAH.sndpth)) #mm
+  output['variables']['swe'].append(np.copy(NOAH.swe)) #mm
+  #Fluxes
+  output['variables']['qout_subsurface'].append(np.copy(TOPMODEL.qout)) #m2/s
+  output['variables']['qout_surface'].append(np.copy(TOPMODEL.qout_surface)) #m2/s
+
+ elif output_type == 'Summary':
+
+  #Compute the mean and standard deviation
+  pcts = TOPMODEL.pct
+  mean = np.sum(pcts*NOAH.smc[:,0])
+  std = np.sum(pcts*(NOAH.smc[:,0] - mean)**2)**0.5
+  output['variables']['smc1']['mean'].append(mean)
+  output['variables']['smc1']['std'].append(std)
 
  return output
 

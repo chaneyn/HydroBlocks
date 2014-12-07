@@ -79,17 +79,17 @@ def Convergence_Analysis(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = [8072,]#[500,]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
+ icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
  #icatchs = [12068,2361,4672,5354,13566,3394,17918,2929,15236,845,8616,3981,2727,15879,15524,2609,18043,10007,17070,12923,7126,6432]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2004,1,31,23)
- #fdate = datetime.datetime(2005,12,31,23)
+ #fdate = datetime.datetime(2004,1,31,23)
+ fdate = datetime.datetime(2006,12,31,23)
 
  #Initialize the element count
  ielement = 0
- nens = 100#12#50#400
+ nens = 200#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -98,16 +98,16 @@ def Convergence_Analysis(info):
   dir = info['dir']
   #Define the parameters
   parameters = {}
-  parameters['log10m'] = -2.582977995297425888e+00
-  parameters['lnTe'] = -1.963648774068431635e-01
-  parameters['log10soil'] = 1.389834359162560144e-02
-  parameters['sdmax'] = 1.938762117265730334e+00
+  parameters['log10m'] = -2.0#-2.582977995297425888e+00
+  parameters['lnTe'] = -3.12#-1.963648774068431635e-01
+  parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
+  parameters['sdmax'] = 1.0#1.938762117265730334e+00
 
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
   
    #Define the number of bins
-   nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
+   nclusters = int(np.linspace(2,2500,nens)[iens])#np.random.randint(1,1000)
    #nclusters = 200#250#100#250#25#2500
 
    #Add the info to the dictionary
@@ -125,8 +125,8 @@ def Convergence_Analysis(info):
  metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
 
  #Add the output variables
- vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
- #vars = ['smc1',]
+ #vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+ vars = ['smc1',]
  for var in vars:
   metrics['vars'][var] = {'mean':[],'std':[]}
 
@@ -179,7 +179,7 @@ def Convergence_Analysis(info):
 
    #Run the model
    time0 = time.time()
-   output = HB.run_model(hydrobloks_info,input)
+   output = HB.run_model(hydrobloks_info,input,output_type='Summary')
    dt = time.time() - time0
    print 'time to run HydroBloks',element['nclusters'],dt
 
@@ -198,14 +198,15 @@ def Convergence_Analysis(info):
    metrics['nclusters'].append(element['nclusters'])
    metrics['dt'].append(dt)
    for var in vars:
-    output['variables'][var] = np.array(output['variables'][var])
-    #Compute the mean
-    mean = np.sum(pcts*output['variables'][var],axis=1)
-    #Compute the standard deviation
-    std = np.sum(pcts*(output['variables'][var] - mean[:,np.newaxis])**2,axis=1)**0.5
-    #Save the time series for the mean and standard deviation
-    metrics['vars'][var]['mean'].append(mean)
-    metrics['vars'][var]['std'].append(std)
+    metrics['vars'][var]['mean'] = np.array(output['variables'][var]['mean'])
+    metrics['vars'][var]['std'] = np.array(output['variables'][var]['std'])
+   # #Compute the mean
+   # mean = np.sum(pcts*output['variables'][var],axis=1)
+   # #Compute the standard deviation
+   # std = np.sum(pcts*(output['variables'][var] - mean[:,np.newaxis])**2,axis=1)**0.5
+   # #Save the time series for the mean and standard deviation
+   # metrics['vars'][var]['mean'].append(mean)
+   # metrics['vars'][var]['std'].append(std)
 
   #except:
   else:
@@ -368,7 +369,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  X = np.array(X).T
  #Subsample the array
  np.random.seed(1)
- minsamples = 2.5*10**4
+ minsamples = 10**5
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
   #Make sure we have the extremes
@@ -399,7 +400,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Xf = np.random.rand(minsamples,X.shape[1])
  #Initialize all points at the 0.5 point
  init = 0.5*np.ones((nclusters,Xf.shape[1]))
- clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,init=init)
+ clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,n_init=1,init=init,tol=1e-6,max_iter=1500)
  #clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1)#,n_jobs=ncores)
  #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
  #clf = sklearn.cluster.DBSCAN(eps=0.3, min_samples=10)#clusters)

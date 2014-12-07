@@ -7,7 +7,7 @@ import HydroBloksTools as HBM
 parallel_flag = sys.argv[1]
 dir = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments'
 run_flag = 'Convergence Analysis'
-ncores = 8#32
+ncores = 4#32
 
 if parallel_flag == 'parallel':
  #from mpi4py import MPI
