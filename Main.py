@@ -1,6 +1,6 @@
 import os
-Parallel = False#True 
-njobs = 800#400#5000#5000#8000#800#400
+Parallel = True 
+njobs = 5000#5000#8000#800#400
 ncores = 4
 
 if Parallel == True:

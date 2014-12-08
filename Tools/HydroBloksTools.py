@@ -79,16 +79,17 @@ def Convergence_Analysis(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
+ #icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
+ icatchs = icatchs[0:1000]#1000]#1000] #SUBSET
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,31,23)
- fdate = datetime.datetime(2006,12,31,23)
+ fdate = datetime.datetime(2005,12,31,23)
 
  #Initialize the element count
  ielement = 0
- nens = 200#12#50#400
+ nens = 20#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -106,7 +107,7 @@ def Convergence_Analysis(info):
   for iens in xrange(nens):
   
    #Define the number of bins
-   nclusters = int(np.linspace(2,2500,nens)[iens])#np.random.randint(1,1000)
+   nclusters = int(np.linspace(2,2000,nens)[iens])#np.random.randint(1,1000)
    #nclusters = 200#250#100#250#25#2500
 
    #Add the info to the dictionary
@@ -133,8 +134,13 @@ def Convergence_Analysis(info):
  fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
  so,se = os.dup(1),os.dup(2)
 
+ #Randomize the data to minimize cores repeating the hard tasks
+ np.random.seed(1)
+ ielements = np.arange(len(elements.keys()))
+ np.random.shuffle(ielements)
+
  #Iterate through the dictionary elements
- for ielement in np.arange(len(elements.keys()))[rank::size]:
+ for ielement in ielements[rank::size]:
 
   #Define the info
   element = elements[ielement]
@@ -156,8 +162,8 @@ def Convergence_Analysis(info):
 	'nclusters':element['nclusters']
         }
 
-  #try:
-  if 1 == 1:
+  try:
+   #if 1 == 1:
 
    #Cluster the data
    time0 = time.time()
@@ -174,7 +180,7 @@ def Convergence_Analysis(info):
 
    #Redirect output
    #os.dup2(fout, 1),os.dup2(ferr,2)
-   #os.dup2(fout,1)
+   os.dup2(fout,1)
 
    #Run the model
    time0 = time.time()
@@ -188,7 +194,7 @@ def Convergence_Analysis(info):
 
    #Redirect the output back to the terminal 
    #os.dup2(so, 1),os.dup2(se,2)
-   #os.dup2(so,1)
+   os.dup2(so,1)
 
    #Compute heterogeneity metrics
    pcts = output['misc']['pct']
@@ -197,11 +203,11 @@ def Convergence_Analysis(info):
    metrics['nclusters'].append(element['nclusters'])
    metrics['dt'].append(dt)
    for var in vars:
-    metrics['vars'][var]['mean'] = np.array(output['variables'][var]['mean'])
-    metrics['vars'][var]['std'] = np.array(output['variables'][var]['std'])
+    metrics['vars'][var]['mean'].append(np.array(output['variables'][var]['mean']))
+    metrics['vars'][var]['std'].append(np.array(output['variables'][var]['std']))
 
-  #except:
-  else:
+  except:
+   #else:
 
    print "catchment %d Failed" % element['icatch']
 
@@ -213,14 +219,17 @@ def Convergence_Analysis(info):
 
 def Latin_Hypercube_Sample(info):
 
+ sys.path.append('Tools')
  from SALib.sample import latin_hypercube
  from SALib.util import scale_samples
  import random as rd
+ import netCDF4 as nc
 
  #Define the rank and size
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
+ nens = 5#10
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -235,10 +244,12 @@ def Latin_Hypercube_Sample(info):
  np.random.seed(1)
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
+ #icatchs = [500,]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2006,12,31,23)
+ fdate = datetime.datetime(2004,12,31,23)
+ #fdate = datetime.datetime(2006,12,31,23)
 
  #Obtain Latin Hypercube Sample 
  #1.Set random seed
@@ -246,22 +257,21 @@ def Latin_Hypercube_Sample(info):
  rd.seed(1)
 
  #Define parameters and ranges
- parameters = ordereddict.OrderedDict()
- parameters['log10m'] = [np.log10(0.001),np.log10(0.1)]
- parameters['lnTe'] = [np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)]
- parameters['log10soil'] = [np.log10(1.0),np.log10(2.00)]
- parameters['sdmax'] = [0.1,2.0]
- print parameters
+ parameters = []
+ parameters.append(['log10m',np.log10(0.001),np.log10(0.1)])
+ parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
+ parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
+ parameters.append(['sdmax',0.1,2.0])
 
  #Generate samples (choose method here)
- param_values = latin_hypercube.sample(nsamples, parameters['num_vars'])
-
- #Samples are given in range [0, 1] by default. Rescale them to your parameter bounds.
- scale_samples(param_values, pf['bounds'])
+ param_values = latin_hypercube.sample(nens,len(parameters))
+ bounds = []
+ for iparam in xrange(len(parameters)):
+  bounds.append([parameters[iparam][1],parameters[iparam][2]])
+ scale_samples(param_values,np.array(bounds))
 
  #Initialize the element count
  ielement = 0
- nens = 200
  elements = {}
 
  #Create a dictionary of information
@@ -270,18 +280,18 @@ def Latin_Hypercube_Sample(info):
   #Define the directory
   dir = info['dir']
 
+  #Define the number of clusters (Change to catchment)
+  nclusters = 50#100
+
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
 
    #Define the parameters
    parameters = {}
-   parameters['log10m'] = -2.0#-2.582977995297425888e+00
-   parameters['lnTe'] = -3.12#-1.963648774068431635e-01
-   parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
-   parameters['sdmax'] = 1.0#1.938762117265730334e+00
-
-   #Define the number of bins
-   nclusters = int(np.linspace(2,2500,nens)[iens])
+   parameters['log10m'] = param_values[iens,0]
+   parameters['lnTe'] = param_values[iens,1]
+   parameters['log10soil'] = param_values[iens,2]
+   parameters['sdmax'] = param_values[iens,3]
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -289,11 +299,79 @@ def Latin_Hypercube_Sample(info):
 		'nclusters':nclusters,
 		'icatch':icatch,
 		'iens':iens,
+                'cdir':'%s/catch_%d' % (dir,icatch)
 		 } 
 
    #Update the element
    ielement += 1
 
+ #Setup output redirection
+ fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
+ so,se = os.dup(1),os.dup(2)
+
+ #Iterate through the dictionary elements
+ icatch = -9999
+ for ielement in np.arange(len(elements.keys()))[rank::size]:
+
+  #Define the info
+  element = elements[ielement]
+
+  #Print where we are at
+  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']#,element['parameters']
+
+  #Define the info
+  hydrobloks_info = {
+        'input':'%s/input/data.pck' % dir,
+        'dt':3600.,
+        'nsoil':20,
+        'wbd':wbd[element['icatch']],
+        'ncores':ncores,
+        'idate':idate,
+        'fdate':fdate,
+        'parameters':element['parameters'],
+        'dir':'%s/catch_%d' % (dir,element['icatch']),
+        'nclusters':element['nclusters']
+        }
+
+  #If a new catchment then prepare the data
+  if element['icatch'] != icatch:
+   time0 = time.time()
+   input = Prepare_Model_Input_Data(hydrobloks_info)
+   elements['nclusters'] = input['nclusters']
+   dt = time.time() - time0
+   print "time to prepare the data",element['nclusters'],dt
+   #pickle.dump(input,open('data.pck','wb')) 
+   #exit()
+
+  #Flush out the output
+  sys.stdout.flush()
+  #sys.stderr.flush()
+
+  #Redirect output
+  #os.dup2(fout, 1),os.dup2(ferr,2)
+  #os.dup2(fout,1)
+
+  #Run the model
+  time0 = time.time()
+  output = HB.run_model(hydrobloks_info,input,output_type='Full')
+  dt = time.time() - time0
+  print 'time to run HydroBloks',element['nclusters'],dt
+
+  #Flush out the output
+  sys.stdout.flush()
+  #sys.stderr.flush()
+
+  #Redirect the output back to the terminal 
+  #os.dup2(so, 1),os.dup2(se,2)
+  #os.dup2(so,1)
+
+  #Save info to netcdf
+  print 'Catchment number: %d, Ensemble number: %d (Writing to netcdf)' % (element['icatch'],element['iens'])
+  file_netcdf = 'LHSoutput/%d.nc' % element['icatch']
+  update_netcdf(element['cdir'],element['iens'],nens,parameters,file_netcdf,input,output)
+
+  #Remember the catchment number
+  icatch = element['icatch']
 
  return
 
@@ -409,7 +487,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
         'slope':{'data':covariates['cslope'][mask_woc == True],},
         'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
         #'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
@@ -423,9 +501,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   argsort = np.argsort(info[var]['data'])
   pcts = np.copy(info[var]['data'])
   pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  if np.unique(info[var]['data']).size < 1000:
-   for value in np.unique(info[var]['data']):
-    pcts[pcts == value] = np.mean(pcts[pcts == value])
+  #if np.unique(info[var]['data']).size < 1000:
+  # for value in np.unique(info[var]['data']):
+  #  pcts[pcts == value] = np.mean(pcts[pcts == value])
   info[var]['data'] = pcts
 
  #Create the LHS bins
@@ -586,7 +664,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
 
  #Create the image of the covariates
- '''covariates['hsu_map'] = OUTPUT['hsu_map']
+ covariates['hsu_map'] = OUTPUT['hsu_map']
  vars= ['carea','cslope','MAXSMC','nlcd','ti','dem','hsu_map']
  ns = int(np.ceil(float(len(vars))**0.5))
  plt.figure(figsize=(25,25))
@@ -603,7 +681,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Save the figure
  plt.tight_layout()
  figure = 'covariates.png'
- plt.savefig(figure)'''
+ plt.savefig(figure)
 
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
@@ -685,3 +763,168 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
  OUTPUT['meteorology'] = meteorology
 
  return OUTPUT
+
+def create_netcdf_file(file_netcdf,output,nens,input,cdir):
+
+ #Create the file
+ fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
+
+ #Create the dimensions
+ ntime = output['variables']['lh'].shape[0]/24
+ nhsu = output['variables']['lh'].shape[1]
+ nsoil = 4
+ fp.createDimension('hsu',nhsu)
+ fp.createDimension('time',ntime)
+ fp.createDimension('ensemble',nens)
+ fp.createDimension('soil',nsoil)
+
+ #Create the summary group and its variables
+ grp = fp.createGroup('summary')
+ for var in output['variables']:
+  ncvar = grp.createVariable(var,'f4',('time','ensemble'))
+  ncvar.description = output['misc']['metadata'][var]['description']
+  ncvar.units = output['misc']['metadata'][var]['units']
+
+ #Create the output
+ grp = fp.createGroup('catchment')
+ for var in output['variables']:
+  grp.createVariable(var,'f4',('time','hsu','ensemble'))
+  ncvar.description = output['misc']['metadata'][var]['description']
+  ncvar.units = output['misc']['metadata'][var]['units']
+
+ #Create the metadata
+ grp = fp.createGroup('metadata')
+ #dates
+ times = grp.createVariable('dates','f8',('time',))
+ dates = []
+ for date in output['misc']['dates']:
+  if date.hour == 0:dates.append(date)
+ times.units = 'days since 1900-01-01'
+ times.calendar = 'standard'
+ times[:] = nc.date2num(np.array(dates),units=times.units,calendar=times.calendar)
+ #Soil depth
+ soil = grp.createVariable('soil','f4',('soil',))
+ soil[:] = np.array(output['misc']['sldpth'])[0,0:nsoil]
+ soil.units = 'meters'
+ soil.description = 'soil depth'
+ #HSU percentage coverage
+ pcts = grp.createVariable('pct','f4',('hsu',))
+ pcts[:] = 100*np.array(output['misc']['pct'])
+ pcts.description = 'hsu percentage coverage'
+ pcts.units = '%'
+ #HSU Spatial resolution
+ dx = grp.createVariable('dx','f4',('hsu',))
+ dx[:] = np.array(output['misc']['dx'])
+ dx.units = 'meters'
+ #HSU area
+ area = grp.createVariable('area','f4',('hsu',))
+ area[:] = np.array(output['misc']['area'])
+ area.units = 'meters squared'
+ #HSU ids
+ hsu = grp.createVariable('hsu','i4',('hsu',))
+ hsus =[]
+ for value in xrange(len(output['misc']['pct'])):hsus.append(value)
+ hsu[:] = np.array(hsus)
+ hsu.description = 'hsu ids'
+ #Add wbd metadata
+ grp.HUC = input['wbd']['HUC10']
+ #Define outlet hsu
+ grp.outlet_hsu = int(output['misc']['outlet_hsu'])
+ #Define catchment name
+ grp.catchment_name = input['wbd']['Name']
+ #Define catchment area
+ grp.AreaSqKm = input['wbd']['AreaSqKm']
+ #Add HSU transition probability matrix
+ tp = grp.createVariable('tpm','f4',('hsu','hsu'))
+ tp.description = 'Transition probability matrix between hsus'
+ tp[:] =  input['tp']
+
+ #Retrieve the conus_albers metadata
+ metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
+ metadata['nodata'] = -9999.0
+ #Save the conus_albers metadata
+ fp.createDimension('nx',metadata['nx'])
+ fp.createDimension('ny',metadata['ny'])
+ hmca = grp.createVariable('hmca','f4',('ny','nx')) 
+ hmca.gt = metadata['gt']
+ hmca.projection = metadata['projection']
+ hmca.description = 'HSU mapping (conus albers)'
+ hmca.nodata = metadata['nodata']
+ #Save the conus albers mapping
+ hsu_map = np.copy(input['hsu_map'])
+ hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ hmca[:] = hsu_map
+ #Write out the mapping
+ file_ca = '%s/workspace/hsu_mapping_conus_albers.tif' % cdir
+ gdal_tools.write_raster(file_ca,metadata,hsu_map)
+
+ #Map the mapping to regular lat/lon
+ file_ll = '%s/workspace/hsu_mapping_latlon.tif' % cdir
+ os.system('rm -f %s' % file_ll)
+ res = input['wbd']['bbox']['res']
+ minlat = input['wbd']['bbox']['minlat']
+ minlon = input['wbd']['bbox']['minlon']
+ maxlat = input['wbd']['bbox']['maxlat']
+ maxlon = input['wbd']['bbox']['maxlon']
+ log = '%s/workspace/log.txt' % cdir
+ os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+ #Add the lat/lon mapping
+ #Retrieve the lat/lon metadata
+ metadata = gdal_tools.retrieve_metadata(file_ll)
+ metadata['nodata'] = -9999.0
+ #Save the lat/lon metadata
+ fp.createDimension('nlon',metadata['nx'])
+ fp.createDimension('nlat',metadata['ny'])
+ hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+ hmll.gt = metadata['gt']
+ hmll.projection = metadata['projection']
+ hmll.description = 'HSU mapping (regular lat/lon)'
+ hmll.nodata = metadata['nodata']
+ #Save the lat/lon mapping
+ hsu_map = np.copy(gdal_tools.read_raster(file_ll))
+ hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ hmll[:] = hsu_map
+ 
+ #Close the file 
+ fp.close()
+
+ return
+
+def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output):
+ 
+ #Convert variables to arrays
+ for var in output['variables']:
+  output['variables'][var] = np.array(output['variables'][var])
+
+ #Create the netcdf file if necessary
+ if iens == 0: create_netcdf_file(file_netcdf,output,nens,input,cdir)
+
+ #Open the file
+ fp = nc.Dataset(file_netcdf, 'a')
+ 
+ #Output the data
+ for var in output['variables']:
+  
+  #Compute the daily average
+  data = []
+  for itime in xrange(output['variables'][var].shape[0]/24):
+   data.append(np.mean(output['variables'][var][24*itime:24*(itime+1)],axis=0))
+  data = np.array(data)
+
+  #Write the catchment info
+  fp.groups['catchment'].variables[var][:,:,iens] = data
+
+  #Compute the catchment summary 
+  if var not in ['qout_surface','qout_subsurface']:
+   data = np.sum(output['misc']['pct']*data,axis=1)
+  else:
+   imax = output['misc']['outlet_hsu']
+   data = data[:,imax]
+
+  #Write the catchment summary
+  fp.groups['summary'].variables[var][:,iens] = data
+
+ #Close the file
+ fp.close()
+
+ return

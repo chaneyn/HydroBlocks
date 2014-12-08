@@ -156,8 +156,9 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  model.dt = dt #seconds
  model.area[:] = 0.0 #meters^2
  model.dx[:] = 30.0 #meters
- model.m[:] = 0.01#1.0#10**parameters['log10m'] #HERE
- model.sdmax[:] = 1000.0#parameters['sdmax'] #HERE
+ model.m[:] = 10**parameters['log10m'] #HERE
+ model.sdmax[:] = parameters['sdmax'] #HERE
+ #model.sdmax[:] = 1000.0#parameters['sdmax'] #HERE
  dem = []
  #Set cluster information
  for hsu in data['hsu']:
@@ -172,15 +173,16 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
   model.surface_velocity[ihsu] = 1000.0/3600.0 #m/s
   dem.append(data['hsu'][hsu]['dem'])
  model.dem[:] = np.array(dem)
- model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
+ #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
  lnTe = parameters['lnTe']
  
  #Calculate the sti
- model.T0[:] = (model.dem - np.min(model.dem))*model.T0
+ #model.T0[:] = (model.dem - np.min(model.dem))*model.T0
  lnT0 = np.log(model.T0)
- lnTe = np.sum(model.pct*lnT0)
+ lnT0 = lnTe*lnT0/np.sum(model.pct*lnT0)
+ #lnTe = np.sum(model.pct*lnT0)
  model.sti = model.sti - (lnT0 - lnTe)
 
  #Set weight matrix
