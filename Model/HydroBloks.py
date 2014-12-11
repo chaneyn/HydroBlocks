@@ -392,6 +392,12 @@ def Initialize_Output(output_type):
   variables = {
            #State variables
            'smc1':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'swe':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'lh':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'sh':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'qexcess':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'qsurface':{'mean':[],'std':[]}, #soil moisture content (layer 1)
+           'prcp':{'mean':[],'std':[]}, #soil moisture content (layer 1)
            }
 
  misc = {
@@ -468,10 +474,49 @@ def update_output(output,NOAH,TOPMODEL,date,output_type):
 
   #Compute the mean and standard deviation
   pcts = TOPMODEL.pct
+  #smc1
   mean = np.sum(pcts*NOAH.smc[:,0])
   std = np.sum(pcts*(NOAH.smc[:,0] - mean)**2)**0.5
   output['variables']['smc1']['mean'].append(mean)
   output['variables']['smc1']['std'].append(std)
+  #swe
+  swe = NOAH.swe
+  mean = np.sum(pcts*swe)
+  std = np.sum(pcts*(swe - mean)**2)**0.5
+  output['variables']['swe']['mean'].append(mean)
+  output['variables']['swe']['std'].append(std)
+  #lh
+  lh = NOAH.fcev + NOAH.fgev + NOAH.fctr
+  mean = np.sum(pcts*lh)
+  std = np.sum(pcts*(lh - mean)**2)**0.5
+  output['variables']['lh']['mean'].append(mean)
+  output['variables']['lh']['std'].append(std)
+  #sh
+  sh = NOAH.fsh
+  mean = np.sum(pcts*sh)
+  std = np.sum(pcts*(sh - mean)**2)**0.5
+  output['variables']['sh']['mean'].append(mean)
+  output['variables']['sh']['std'].append(std)
+  #qexcess
+  imax = TOPMODEL.outlet_hsu
+  qexcess = np.copy(NOAH.runsb)
+  qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
+  mean = np.sum(pcts*qexcess)
+  std = np.sum(pcts*(qexcess - mean)**2)**0.5
+  output['variables']['qexcess']['mean'].append(mean)
+  output['variables']['qexcess']['std'].append(std)
+  #qsurface
+  qsurf = NOAH.runsf
+  mean = np.sum(pcts*qsurf)
+  std = np.sum(pcts*(qsurf - mean)**2)**0.5
+  output['variables']['qsurface']['mean'].append(mean)
+  output['variables']['qsurface']['std'].append(std)
+  #prcp
+  prcp = NOAH.prcp
+  mean = np.sum(pcts*prcp)
+  std = np.sum(pcts*(prcp - mean)**2)**0.5
+  output['variables']['prcp']['mean'].append(mean)
+  output['variables']['prcp']['std'].append(std)
 
  return output
 
