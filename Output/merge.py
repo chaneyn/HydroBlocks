@@ -3,19 +3,20 @@ import numpy as np
 import metrics
 import glob
 import os
+import scipy.special
 from scipy.optimize import curve_fit
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 
-def func(x,a,b):
- return a*x**b
+def erf(x,a,b,c):
+ y = a + scipy.special.erf((x)/b)/c
+ return y
 
 def Extract_Info(icatch,mapping):
 
  #Extract the info for the catchment
  data = {'dt':[],'nclusters':[]}
  for i in mapping[icatch]:
-  #print icatch,i
   file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % i
   if os.path.exists(file) == False: continue
   tmp = pickle.load(open(file))
@@ -47,56 +48,48 @@ def Extract_Info(icatch,mapping):
 def Compute_Metrics(data):
 
  data['nclusters'] = np.array(data['nclusters'])
- #args = np.argsort(data['nclusters'])
- #print data['nclusters'][args == 1]
- #exit()
- #argmax = np.argmax(data['nclusters'])
- #kgesall = []
- #vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
- #for var in vars:
- # ivar = vars.index(var) + 1
- # #Compute the metrics
- # kges = []
- #or i in xrange(len(data['nclusters'])):
- #  #kges.append(metrics.KGE(data['vars'][var]['std'][i,:],data['vars'][var]['std'][argmax,:]))
- # kgesall.append(kges)
- #kgesall = np.array(kgesall).T
+ data['dt'] = np.array(data['dt'])
  nclusters = np.array(data['nclusters'])
  argsort = np.argsort(nclusters)
  nclusters = nclusters[argsort]
+ snclusters = np.arange(500000)
+ dt = data['dt'][argsort]
  rts = []
  for var in ['smc1']:#data['vars']:
   mean = np.mean(data['vars'][var]['std'][:,8500:],axis=1)
   mean = mean[argsort]
-  #mean = (mean - np.min(mean))/(np.max(mean) - np.min(mean))
-  #Construct relative tolerance 
-  rt = []
-  val = 5
-  for i in xrange(val,len(mean)):
-   #rt.append(np.abs((mean[i] - mean[i-1])/min(mean[i],mean[i-1])))
-   #rt.append(np.abs((mean[i] - mean[i-1])))
-   rt.append(np.mean(np.abs(mean[i] - mean[i-val:i-1])))
-  #rt.append(np.max(np.abs(numerator/denominator)))
-  #Scale from 0-1
-  rts.append(rt)
- rts = np.array(rts)
- rts = np.mean(rts,axis=0)
- #Fit the curve
- popt, pcov = curve_fit(func,nclusters[val::],rts)
- #Estimate rts for a lot more...
- snclusters = np.arange(2,10**6)
- srts = func(snclusters,popt[0],popt[1])
+  w = np.linspace(1,2,nclusters.size)**5
+  w = np.flipud(w/np.sum(w))
+  #Fit the error function
+  p0 = [3.07920873e-02,1.58328938e+02,1.18847980e+02]
+  popt, pcov = curve_fit(erf,nclusters[1::],mean[1::],maxfev=1000,sigma=w[1::],p0=p0)
+  smean = erf(snclusters,*popt)
+  tmean = erf(500000,*popt)
+  if smean[-1] < np.mean(smean):ratio = smean/tmean - 1
+  else: ratio = 1 - smean/tmean
  thresholds = [0.0001,0.001,0.01]
  nclustersout = []
  for threshold in thresholds:
-  mask = srts <= threshold
+  mask = ratio <= threshold
   tmp = snclusters[mask]
   if len(tmp) > 0:nclustersout.append(tmp[0])
   else: nclustersout.append(np.nan)
  #If the number of runs is below x then skip this cluster
  if nclusters.size < 50:nclustersout = [np.nan,np.nan,np.nan]
-
- return nclustersout
+ #Save the output
+ output = {
+           'nclusters':nclustersout,
+          }
+ #Add the mean and standard deviation of all the variables
+ output['data'] = {}
+ for var in data['vars']:
+  output['data'][var] = {}
+  for metric in ['mean','std']:
+   mean = np.mean(data['vars'][var][metric][:,8500:],axis=1)
+   mean = mean[argsort][-1]
+   output['data'][var][metric] = mean
+   
+ return output
 
 rank = comm.rank#0
 size = comm.size#01

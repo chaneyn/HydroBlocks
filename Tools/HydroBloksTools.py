@@ -79,8 +79,8 @@ def Convergence_Analysis(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- #icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
- icatchs = icatchs[0:5000]#1000]#1000] #SUBSET
+ icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
+ #icatchs = icatchs[0:5000]#1000]#1000] #SUBSET
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
@@ -89,7 +89,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 104#12#50#400
+ nens = 200#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -109,7 +109,7 @@ def Convergence_Analysis(info):
    #Define the number of bins
    #nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
    #nclusters = int(np.logspace(2,1000,nens)[iens])#np.random.randint(1,1000)
-   nclusters = np.logspace(np.log(2),np.log(1000),nens,base=np.exp(1))
+   nclusters = np.logspace(np.log(2),np.log(5000),nens,base=np.exp(1))
    np.random.seed(1)
    np.random.shuffle(nclusters)
    nclusters = np.int(np.ceil(nclusters[iens]))
@@ -131,8 +131,8 @@ def Convergence_Analysis(info):
  metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
 
  #Add the output variables
- vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
- #vars = ['smc1',]
+ #vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+ vars = ['smc1',]
  for var in vars:
   metrics['vars'][var] = {'mean':[],'std':[]}
 
@@ -218,7 +218,9 @@ def Convergence_Analysis(info):
    print "catchment %d Failed" % element['icatch']
 
  #Save time info and metrics to file
- file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
+ #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
+ file = '/u/sciteam/nchaney/projects/HydroBloks/Output/output/%d.pck' % rank
+ #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
  pickle.dump(metrics,open(file,'wb'))
 
  return
@@ -525,7 +527,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  X = np.array(X).T
  #Subsample the array
  np.random.seed(1)
- minsamples = 10**5
+ minsamples = 2.5*10**4
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
   #Make sure we have the extremes
@@ -559,7 +561,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,n_init=1,init=init,tol=1e-4,max_iter=300)
  batch_size = 25*nclusters
  init_size = 3*batch_size
- clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ #clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters,init=init,batch_size=batch_size,init_size=init_size)
  #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
  #clf = sklearn.cluster.DBSCAN(eps=0.3, min_samples=10)#clusters)
  clf.fit(Xf)#
