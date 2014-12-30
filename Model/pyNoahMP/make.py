@@ -11,5 +11,5 @@ os.system(cmd)
 #Clean up both directories
 #os.system('make clean')
 #os.system('rm *.f90')
-os.system('rm NoahMP.pyf')
+#os.system('rm NoahMP.pyf')
 os.system('mv NoahMP.so ../../.')

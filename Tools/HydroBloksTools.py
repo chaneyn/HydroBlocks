@@ -77,15 +77,17 @@ def Convergence_Analysis(info):
   icatchs.append(int(dir.split('/')[-1].split('_')[-1]))
  #Shuffle the catchments
  icatchs = np.array(icatchs)
+ #MISSING CATCHMENTS REPLACE!!!!!!!!!!!!
+ #icatchs = pickle.load(open('/u/sciteam/nchaney/projects/HydroBloks/Output/miscellanous/screened.pck'))
  np.random.seed(1)
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
- #icatchs = icatchs[0:5000]#1000]#1000] #SUBSET
+ #icatchs = icatchs[:]#[0:5000]#1000]#1000] #SUBSET
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,31,23)
- fdate = datetime.datetime(2006,12,31,23)
+ fdate = datetime.datetime(2007,12,31,23)
 
  #Initialize the element count
  ielement = 0
@@ -97,11 +99,12 @@ def Convergence_Analysis(info):
 
   dir = info['dir']
   #Define the parameters
-  parameters = {}
-  parameters['log10m'] = -2.0#-2.582977995297425888e+00
-  parameters['lnTe'] = -3.12#-1.963648774068431635e-01
-  parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
-  parameters['sdmax'] = 1.0#1.938762117265730334e+00
+  parameters = {'log10m': -1.279675506557842, 'log10soil': 0.17854995314368682, 'sdmax': 0.73625873496330596, 'lnTe': -15.163693541009348}
+  #parameters = {}
+  #parameters['log10m'] = -2.0#-2.582977995297425888e+00
+  #parameters['lnTe'] = -3.12#-1.963648774068431635e-01
+  #parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
+  #parameters['sdmax'] = 1.0#1.938762117265730334e+00
 
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
@@ -109,7 +112,7 @@ def Convergence_Analysis(info):
    #Define the number of bins
    #nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
    #nclusters = int(np.logspace(2,1000,nens)[iens])#np.random.randint(1,1000)
-   nclusters = np.logspace(np.log(2),np.log(5000),nens,base=np.exp(1))
+   nclusters = np.logspace(np.log(2),np.log(2000),nens,base=np.exp(1))
    np.random.seed(1)
    np.random.shuffle(nclusters)
    nclusters = np.int(np.ceil(nclusters[iens]))
@@ -131,8 +134,8 @@ def Convergence_Analysis(info):
  metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
 
  #Add the output variables
- #vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
- vars = ['smc1',]
+ vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
+ #vars = ['smc1',]
  for var in vars:
   metrics['vars'][var] = {'mean':[],'std':[]}
 
@@ -219,6 +222,7 @@ def Convergence_Analysis(info):
 
  #Save time info and metrics to file
  #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
+ #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/missing/%d.pck' % rank
  file = '/u/sciteam/nchaney/projects/HydroBloks/Output/output/%d.pck' % rank
  #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
  pickle.dump(metrics,open(file,'wb'))
@@ -252,10 +256,11 @@ def Latin_Hypercube_Sample(info):
  np.random.seed(1)
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
- #icatchs = [500,]#3637,]
+ clusters_info = {8072:469,3637:794,8756:379,500:3}##393}
+ icatchs = [8756,]#3637,]
 
  #Define the dates
- idate = datetime.datetime(2005,1,1,0)
+ idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,12,31,23)
  fdate = datetime.datetime(2007,12,31,23)
 
@@ -289,7 +294,7 @@ def Latin_Hypercube_Sample(info):
   dir = info['dir']
 
   #Define the number of clusters (Change to catchment)
-  nclusters = 250
+  nclusters = clusters_info[icatch]
 
   #Cycle through the ensemble of clusters
   for iens in xrange(nens):
@@ -300,6 +305,14 @@ def Latin_Hypercube_Sample(info):
    parameters['lnTe'] = param_values[iens,1]
    parameters['log10soil'] = param_values[iens,2]
    parameters['sdmax'] = param_values[iens,3]
+   print parameters
+
+   #RIGGED
+   #parameters = {}
+   #parameters['log10m'] = -2.0#-2.582977995297425888e+00
+   #parameters['lnTe'] = -3.12#-1.963648774068431635e-01
+   #parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
+   #parameters['sdmax'] = 1.0#1.938762117265730334e+00
 
    #Add the info to the dictionary
    elements[ielement] = {
@@ -432,6 +445,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  covariates = {}
  #Read in all the covariates
+ root = wbd['files']['MAXSMC'][0:-11]
+ wbd['files']['sand'] = '%s/dssurgo/sandtotal_r.tif' % root
+ wbd['files']['clay'] = '%s/dssurgo/claytotal_r.tif' % root
  for file in wbd['files']:
   #original = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments/catch_3637' #HERE
   #final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
@@ -443,6 +459,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   if file == 'cslope':
    mask = covariates[file] == 0.0
    covariates[file][mask] = 0.000001
+ #Add sand and clay
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
@@ -493,7 +510,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_woc == True],},
         'slope':{'data':covariates['cslope'][mask_woc == True],},
-        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
+        #'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
+        'clay':{'data':covariates['clay'][mask_woc == True],},
+        'sand':{'data':covariates['sand'][mask_woc == True],},
         'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         'ti':{'data':covariates['ti'][mask_woc == True],},
@@ -527,7 +546,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  X = np.array(X).T
  #Subsample the array
  np.random.seed(1)
- minsamples = 2.5*10**4
+ minsamples = 10**5
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
   #Make sure we have the extremes
@@ -561,8 +580,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,n_init=1,init=init,tol=1e-4,max_iter=300)
  batch_size = 25*nclusters
  init_size = 3*batch_size
- #clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
- clf = sklearn.cluster.MiniBatchKMeans(nclusters,init=init,batch_size=batch_size,init_size=init_size)
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ #clf = sklearn.cluster.MiniBatchKMeans(nclusters,init=init,batch_size=batch_size,init_size=init_size)
  #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
  #clf = sklearn.cluster.DBSCAN(eps=0.3, min_samples=10)#clusters)
  clf.fit(Xf)#
@@ -669,6 +688,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT['hsu'][hsu]['land_cover'] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
 
  #Soil
+ #Determine the most frequent soil texture class and assign the other properties
  #Determine the most frequent soil texture class per hsu and assign type
  for hsu in OUTPUT['hsu']:
   idx = OUTPUT['hsu'][hsu]['idx']
