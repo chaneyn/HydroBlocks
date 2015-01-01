@@ -241,7 +241,7 @@ def Latin_Hypercube_Sample(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nens = 2#10
+ nens = 10
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -256,13 +256,14 @@ def Latin_Hypercube_Sample(info):
  np.random.seed(1)
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
- clusters_info = {8072:469,3637:794,8756:379,500:3}##393}
+ #clusters_info = {8072:469,3637:794,8756:379,500:393}
+ clusters_info = {8072:469,3637:794,8756:100,500:3}##393}
  icatchs = [8756,]#3637,]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,12,31,23)
- fdate = datetime.datetime(2007,12,31,23)
+ fdate = datetime.datetime(2006,12,31,23)
+ #fdate = datetime.datetime(2007,12,31,23)
 
  #Obtain Latin Hypercube Sample 
  #1.Set random seed
@@ -271,10 +272,11 @@ def Latin_Hypercube_Sample(info):
 
  #Define parameters and ranges
  parameters = []
- parameters.append(['log10m',np.log10(0.001),np.log10(0.1)])
+ parameters.append(['log10m',np.log10(0.001),np.log10(1.0)])
  parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
- parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
- parameters.append(['sdmax',0.1,2.0])
+ #parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
+ parameters.append(['psoil',0.25,0.75])
+ parameters.append(['sdmax',0.1,1.0])
 
  #Generate samples (choose method here)
  param_values = latin_hypercube.sample(nens,len(parameters))
@@ -303,9 +305,9 @@ def Latin_Hypercube_Sample(info):
    parameters = {}
    parameters['log10m'] = param_values[iens,0]
    parameters['lnTe'] = param_values[iens,1]
-   parameters['log10soil'] = param_values[iens,2]
+   #parameters['log10soil'] = param_values[iens,2]
+   parameters['psoil'] = param_values[iens,2]
    parameters['sdmax'] = param_values[iens,3]
-   print parameters
 
    #RIGGED
    #parameters = {}
@@ -332,16 +334,19 @@ def Latin_Hypercube_Sample(info):
 
  #Iterate through the dictionary elements
  icatch = -9999
- for ielement in np.arange(len(elements.keys()))[rank::size]:
+ nens_rank = nens/size
+ for ielement in np.arange(len(elements.keys()))[rank*nens_rank:(rank+1)*nens_rank]:
 
   #Define the info
   element = elements[ielement]
 
   #Print where we are at
-  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']#,element['parameters']
+  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters'],element['parameters']
 
   #Define the info
   hydrobloks_info = {
+        'icatch':element['icatch'],
+	'rank':rank,
         'input':'%s/input/data.pck' % dir,
         'dt':3600.,
         'nsoil':20,
@@ -358,11 +363,17 @@ def Latin_Hypercube_Sample(info):
   if element['icatch'] != icatch:
    time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
+   #exit()
    elements['nclusters'] = input['nclusters']
    dt = time.time() - time0
    print "time to prepare the data",element['nclusters'],dt
+   #Memorize the original soil file
+   soilfile = input['files']['soils']
    #pickle.dump(input,open('data.pck','wb')) 
    #exit()
+
+  #Update the soils file
+  input = Update_Soils(input,soilfile,element['parameters']['psoil'],element['icatch'],rank)
 
   #Flush out the output
   sys.stdout.flush()
@@ -388,8 +399,13 @@ def Latin_Hypercube_Sample(info):
 
   #Save info to netcdf
   print 'Catchment number: %d, Ensemble number: %d (Writing to netcdf)' % (element['icatch'],element['iens'])
-  file_netcdf = 'LHSoutput/%d.nc' % element['icatch']
-  update_netcdf(element['cdir'],element['iens'],nens,parameters,file_netcdf,input,output)
+  file_netcdf = 'LHSoutput/%d_%d.nc' % (element['icatch'],rank)
+  #Set ensemble number
+  iens = element['iens']
+  iens = iens - rank*nens_rank
+  #Update the netcdf file
+  if rank == 0: update_netcdf(element['cdir'],iens,nens,parameters,file_netcdf,input,output,rank)
+  if rank != 0: update_netcdf(element['cdir'],iens,nens/size,parameters,file_netcdf,input,output,rank)
 
   #Remember the catchment number
   icatch = element['icatch']
@@ -415,7 +431,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  workspace = '%s/workspace' % hydrobloks_info['dir']
 
  #Define the model input data directory
- input_dir = '%s/input' % hydrobloks_info['dir']
+ input_dir = workspace#'%s/input' % hydrobloks_info['dir']
 
  #Read in the metadata
  file = '%s/workspace_info.pck' % workspace
@@ -428,7 +444,9 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Create the Latin Hypercube (Clustering)
  nclusters = hydrobloks_info['nclusters']
  ncores = hydrobloks_info['ncores']
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores)
+ icatch = hydrobloks_info['icatch']
+ rank = hydrobloks_info['rank']
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank)
  #print time.time() - time0
 
  #Extract the meteorological forcing
@@ -441,7 +459,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return output
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank):
 
  covariates = {}
  #Read in all the covariates
@@ -510,12 +528,13 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_woc == True],},
         'slope':{'data':covariates['cslope'][mask_woc == True],},
-        #'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
-        'clay':{'data':covariates['clay'][mask_woc == True],},
-        'sand':{'data':covariates['sand'][mask_woc == True],},
+        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
+        'smw':{'data':covariates['WLTSMC'][mask_woc == True],},
+        #'clay':{'data':covariates['clay'][mask_woc == True],},
+        #'sand':{'data':covariates['sand'][mask_woc == True],},
         'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        'ti':{'data':covariates['ti'][mask_woc == True],},
+        ##'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        #'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
         'lons':{'data':covariates['lons'][mask_woc == True],},
@@ -664,6 +683,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT['hsu'][hsu]['soil_parameters'] = {}
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
    OUTPUT['hsu'][hsu]['soil_parameters'][var] = np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   #OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   #print var,np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),np.median(covariates[var][OUTPUT['hsu'][hsu]['idx']])
   #Average Slope
   OUTPUT['hsu'][hsu]['slope'] = np.mean(covariates['cslope'][OUTPUT['hsu'][hsu]['idx']])
   #Topographic index
@@ -689,10 +710,57 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Soil
  #Determine the most frequent soil texture class and assign the other properties
- #Determine the most frequent soil texture class per hsu and assign type
  for hsu in OUTPUT['hsu']:
   idx = OUTPUT['hsu'][hsu]['idx']
   OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+
+ #Read in table of NOAH soil parameter values
+ fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
+ iline = 0
+ soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[],'ID':[],'BB':[],'F11':[],'SATPSI':[],'SATDK':[],'SATDW':[],'WLTSMC':[],'QTZ':[]}
+ for line in fp:
+  if (iline > 2) & (iline < 15):
+   tmp = line.split(',')
+   soils_data['ID'].append(float(tmp[0]))
+   soils_data['BB'].append(float(tmp[1]))
+   soils_data['DRYSMC'].append(float(tmp[2]))
+   soils_data['F11'].append(float(tmp[3]))
+   soils_data['MAXSMC'].append(float(tmp[4]))
+   soils_data['REFSMC'].append(float(tmp[5]))
+   soils_data['SATPSI'].append(float(tmp[6]))
+   soils_data['SATDK'].append(float(tmp[7]))
+   soils_data['SATDW'].append(float(tmp[8]))
+   soils_data['WLTSMC'].append(float(tmp[9]))
+   soils_data['QTZ'].append(float(tmp[10]))
+  iline = iline + 1
+ fp.close()
+
+ #Soil properties
+ soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
+ nhsus = len(OUTPUT['hsu'])
+ soilsdir = '%s/soils' % input_dir
+ os.system('mkdir -p %s' % soilsdir)
+ soils_lookup = '%s/SOILPARM_%d_%d.TBL' % (soilsdir,icatch,rank)
+ fp = open(soils_lookup,'w')
+ fp.write('Soil Parameters\n')
+ fp.write('CUST\n')
+ fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
+ for hsu in OUTPUT['hsu']:
+  fp.write('%d ' % (hsu+1))
+  for var in soil_vars:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
+   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','BB','SATPSI']:
+    fp.write(',%.10f ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
+   if var in ['F11','SATDW','QTZ']:
+   #if var in ['BB','F11','SATPSI','QTZ']:
+    idx = soils_data['ID'].index(OUTPUT['hsu'][hsu]['soil_texture_class'])
+    fp.write(',%.10f ' % soils_data[var][idx])
+   #fp.write('%.10f, ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
+  fp.write('\n')
+ fp.close()
+
+ #Save the soils file name to the model input
+ OUTPUT['files'] = {'soils':soils_lookup,}
 
  #Create the image of the covariates
  '''covariates['hsu_map'] = OUTPUT['hsu_map']
@@ -795,7 +863,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
 
  return OUTPUT
 
-def create_netcdf_file(file_netcdf,output,nens,input,cdir):
+def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
 
  #Create the file
  fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
@@ -822,6 +890,10 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir):
   grp.createVariable(var,'f4',('time','hsu','ensemble'))
   ncvar.description = output['misc']['metadata'][var]['description']
   ncvar.units = output['misc']['metadata'][var]['units']
+
+ if rank != 0: 
+  fp.close()
+  return
 
  #Create the metadata
  grp = fp.createGroup('metadata')
@@ -872,7 +944,7 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir):
 
  #Retrieve the conus_albers metadata
  metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
- metadata['nodata'] = -9999.0
+ metadata['nodata'] = -10000.0
  #Save the conus_albers metadata
  fp.createDimension('nx',metadata['nx'])
  fp.createDimension('ny',metadata['ny'])
@@ -921,14 +993,14 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir):
 
  return
 
-def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output):
+def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output,rank):
  
  #Convert variables to arrays
  for var in output['variables']:
   output['variables'][var] = np.array(output['variables'][var])
 
  #Create the netcdf file if necessary
- if iens == 0: create_netcdf_file(file_netcdf,output,nens,input,cdir)
+ if iens == 0: create_netcdf_file(file_netcdf,output,nens,input,cdir,rank)
 
  #Open the file
  fp = nc.Dataset(file_netcdf, 'a')
@@ -959,3 +1031,38 @@ def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output):
  fp.close()
 
  return
+
+def Update_Soils(input,soilfile,psoil,icatch,rank):
+
+ #Read in table of NOAH soil parameter values
+ dtype = {'names':('ID','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ'),
+          'formats':('d4','f4','f4','f4','f4','f4','f4','f4','f4','f4','f4')}
+          
+ soils_data = np.loadtxt(soilfile,skiprows=3,delimiter=',',dtype=dtype)
+ soilsdir = "/".join(soilfile.split('/')[0:-1])
+ soils_lookup = '%s/SOILPARM_ensemble_%d_%d.TBL' % (soilsdir,icatch,rank)
+ nhsus = soils_data['ID'].size
+ soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
+ fp = open(soils_lookup,'w')
+ fp.write('Soil Parameters\n')
+ fp.write('CUST\n')
+ fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
+ for hsu in input['hsu']:
+  fp.write('%d, ' % (hsu+1))
+  idx = soils_data['ID'] == hsu + 1
+  for var in soil_vars:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
+   if var in ['DRYSMC','WLTSMC']:
+    tmp = psoil*soils_data[var][idx]
+    input['hsu'][hsu]['soil_parameters'][var] = tmp
+    fp.write('%.10f, ' % tmp)
+   #if var in ['BB','F11','SATPSI','SATDK','SATDW','QTZ']:
+   else:
+    fp.write('%.10f, ' % soils_data[var][idx])
+  fp.write('\n')
+ fp.close()
+
+ #Save the soils file name to the model input
+ input['files']['soils'] = soils_lookup
+
+ return input

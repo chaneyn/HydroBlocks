@@ -28,23 +28,24 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  model.dt = dt
  model.nsnow = 3
  model.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
- model.lsoil[:] = 'STAS'
+ #model.lsoil[:] = 'STAS'
+ model.lsoil[:] = 'CUST'
  model.vegparm_file[:] = info['VEGPARM']#'data/VEGPARM.TBL'
  model.genparm_file[:] = info['GENPARM']#'data/GENPARM.TBL'
  model.soilparm_file[:] = info['SOILPARM']
  model.mptable_file[:] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
  #Read in the soil parameter file
- fp = open(info['SOILPARM'])
- iline = 0
- soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[]}
- for line in fp:
-  if (iline > 2) & (iline < 15):
-   tmp = line.split(',')
-   soils_data['MAXSMC'].append(float(tmp[4]))
-   soils_data['DRYSMC'].append(float(tmp[2]))
-   soils_data['REFSMC'].append(float(tmp[5]))
-  iline = iline + 1
- fp.close()
+ #fp = open(info['SOILPARM'])
+ #iline = 0
+ #soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[]}
+ #for line in fp:
+ # if (iline > 2) & (iline < 15):
+ #  tmp = line.split(',')
+ #  soils_data['MAXSMC'].append(float(tmp[4]))
+ #  soils_data['DRYSMC'].append(float(tmp[2]))
+ #  soils_data['REFSMC'].append(float(tmp[5]))
+ # iline = iline + 1
+ #fp.close()
  #Define the options
  model.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
  model.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -63,9 +64,10 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  #Set initial info
  model.iz0tlnd = 0
  model.z_ml[:] = 2.0
- psoil = 10**parameters['log10soil']
+ #psoil = 10**parameters['log10soil']
+ #psoil = parameters['psoil']
  tmp = 0.1*np.ones(nsoil)
- model.sldpth[:] = tmp
+ model.sldpth[:] = tmp#psoil*tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
  model.zsnso[:,3::] = model.zsoil[:]
@@ -116,11 +118,11 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  for hsu in data['hsu']:
   ihsu = data['hsu'].keys().index(hsu)
   model.vegtyp[ihsu] = data['hsu'][hsu]['land_cover'] #HERE
-  model.soiltyp[ihsu] = data['hsu'][hsu]['soil_texture_class']#1#ihsu+1 #HERE
-  model.smcmax[ihsu] = soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
-  model.sh2o[ihsu] = soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
-  model.smcref[ihsu] = soils_data['REFSMC'][model.soiltyp[ihsu]-1]
-  model.smcdry[ihsu] = soils_data['DRYSMC'][model.soiltyp[ihsu]-1]
+  model.soiltyp[ihsu] = ihsu + 1 #data['hsu'][hsu]['soil_texture_class']#1#ihsu+1 #HERE
+  model.smcmax[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC'] #soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
+  model.sh2o[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC'] #soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
+  model.smcref[ihsu] = data['hsu'][hsu]['soil_parameters']['REFSMC'] #soils_data['REFSMC'][model.soiltyp[ihsu]-1]
+  model.smcdry[ihsu] = data['hsu'][hsu]['soil_parameters']['DRYSMC'] #soils_data['DRYSMC'][model.soiltyp[ihsu]-1]
  model.smc[:] = model.sh2o[:]
  model.smcwtd[:] = model.sh2o[:,0]
  #Set lat/lon (declination calculation)
@@ -203,7 +205,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  NOAH.o2air = 0.209*NOAH.psfc# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
  #Update NOAH
- NOAH.minzwt[:] = -0.25#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
+ NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
  ntt = 1
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
@@ -257,7 +259,7 @@ def run_model(info,data,output_type):
  info['VEGPARM'] = 'Model/pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
  info['GENPARM'] = 'Model/pyNoahMP/data/GENPARM.TBL'#'data/GENPARM.TBL'
  info['MPTABLE'] = 'Model/pyNoahMP/data/MPTABLE.TBL'#'pyNoahMP/data/MPTABLE.TBL'
- info['SOILPARM'] = 'Model/pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
+ info['SOILPARM'] = data['files']['soils']#'Model/pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
 
  #Initialize the output
  output = Initialize_Output(output_type)
