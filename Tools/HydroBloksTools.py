@@ -241,7 +241,7 @@ def Latin_Hypercube_Sample(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nens = 10
+ nens = 50
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -257,7 +257,7 @@ def Latin_Hypercube_Sample(info):
  np.random.shuffle(icatchs)
  icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
  #clusters_info = {8072:469,3637:794,8756:379,500:393}
- clusters_info = {8072:469,3637:794,8756:100,500:3}##393}
+ clusters_info = {8072:469,3637:794,8756:50,500:3}##393}
  icatchs = [8756,]#3637,]
 
  #Define the dates
@@ -273,9 +273,12 @@ def Latin_Hypercube_Sample(info):
  #Define parameters and ranges
  parameters = []
  parameters.append(['log10m',np.log10(0.001),np.log10(1.0)])
- parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
+ #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
+ #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
  #parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
- parameters.append(['psoil',0.25,0.75])
+ parameters.append(['psoil',1.0,1.0])
+ #parameters.append(['psoil',0.25,1.0])
+ parameters.append(['pksat',1.0,1.0])
  parameters.append(['sdmax',0.1,1.0])
 
  #Generate samples (choose method here)
@@ -304,9 +307,10 @@ def Latin_Hypercube_Sample(info):
    #Define the parameters
    parameters = {}
    parameters['log10m'] = param_values[iens,0]
-   parameters['lnTe'] = param_values[iens,1]
+   #parameters['lnTe'] = param_values[iens,1]
    #parameters['log10soil'] = param_values[iens,2]
-   parameters['psoil'] = param_values[iens,2]
+   parameters['psoil'] = param_values[iens,1]
+   parameters['pksat'] = param_values[iens,2]
    parameters['sdmax'] = param_values[iens,3]
 
    #RIGGED
@@ -373,7 +377,7 @@ def Latin_Hypercube_Sample(info):
    #exit()
 
   #Update the soils file
-  input = Update_Soils(input,soilfile,element['parameters']['psoil'],element['icatch'],rank)
+  input = Update_Soils(input,soilfile,element['parameters'],element['icatch'],rank)
 
   #Flush out the output
   sys.stdout.flush()
@@ -404,6 +408,9 @@ def Latin_Hypercube_Sample(info):
   iens = element['iens']
   iens = iens - rank*nens_rank
   #Update the netcdf file
+  vars = output['variables'].keys()
+  for var in vars:
+   if var not in ['smc1','smc2','smc3',]:del output['variables'][var]
   if rank == 0: update_netcdf(element['cdir'],iens,nens,parameters,file_netcdf,input,output,rank)
   if rank != 0: update_netcdf(element['cdir'],iens,nens/size,parameters,file_netcdf,input,output,rank)
 
@@ -683,7 +690,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT['hsu'][hsu]['soil_parameters'] = {}
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
    OUTPUT['hsu'][hsu]['soil_parameters'][var] = np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
-   #OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   #if var in ['SATDK','SATDW']:
+   # OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   #else:
+   # OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
    #print var,np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),np.median(covariates[var][OUTPUT['hsu'][hsu]['idx']])
   #Average Slope
   OUTPUT['hsu'][hsu]['slope'] = np.mean(covariates['cslope'][OUTPUT['hsu'][hsu]['idx']])
@@ -749,10 +759,12 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   fp.write('%d ' % (hsu+1))
   for var in soil_vars:
    #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
-   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','BB','SATPSI']:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','BB','SATPSI']:
+   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
     fp.write(',%.10f ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
-   if var in ['F11','SATDW','QTZ']:
-   #if var in ['BB','F11','SATPSI','QTZ']:
+   else:
+    #if var in ['F11','SATDW','QTZ']:
+    #if var in ['BB','F11','SATPSI','QTZ']:
     idx = soils_data['ID'].index(OUTPUT['hsu'][hsu]['soil_texture_class'])
     fp.write(',%.10f ' % soils_data[var][idx])
    #fp.write('%.10f, ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
@@ -869,8 +881,8 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions
- ntime = output['variables']['lh'].shape[0]/24
- nhsu = output['variables']['lh'].shape[1]
+ ntime = output['variables']['smc1'].shape[0]/24
+ nhsu = output['variables']['smc1'].shape[1]
  nsoil = 4
  fp.createDimension('hsu',nhsu)
  fp.createDimension('time',ntime)
@@ -1032,7 +1044,7 @@ def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output,rank):
 
  return
 
-def Update_Soils(input,soilfile,psoil,icatch,rank):
+def Update_Soils(input,soilfile,parameters,icatch,rank):
 
  #Read in table of NOAH soil parameter values
  dtype = {'names':('ID','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ'),
@@ -1051,9 +1063,15 @@ def Update_Soils(input,soilfile,psoil,icatch,rank):
   fp.write('%d, ' % (hsu+1))
   idx = soils_data['ID'] == hsu + 1
   for var in soil_vars:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
-   if var in ['DRYSMC','WLTSMC']:
-    tmp = psoil*soils_data[var][idx]
+   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
+    #if var in ['DRYSMC','WLTSMC']:
+    tmp = parameters['psoil']*soils_data[var][idx]
+    #tmp = soils_data[var][idx]
+    input['hsu'][hsu]['soil_parameters'][var] = tmp
+    fp.write('%.10f, ' % tmp)
+   elif var in ['SATDK',]:
+    tmp = parameters['pksat']*soils_data[var][idx]
+    #tmp = soils_data[var][idx]
     input['hsu'][hsu]['soil_parameters'][var] = tmp
     fp.write('%.10f, ' % tmp)
    #if var in ['BB','F11','SATPSI','SATDK','SATDW','QTZ']:

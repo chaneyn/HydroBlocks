@@ -167,7 +167,8 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
   ihsu = data['hsu'].keys().index(hsu)
   model.pct[ihsu] = data['hsu'][hsu]['area_pct']/100
   model.area[ihsu] = model.dx[ihsu]*data['hsu'][hsu]['area']
-  model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']
+  model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']*(10**parameters['log10m']) #m2/s
+  #model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']#*(10**parameters['log10m']) #m2/s
   model.sti[ihsu] = data['hsu'][hsu]['ti']
   model.beta[ihsu] = data['hsu'][hsu]['slope']
   model.carea[ihsu] = data['hsu'][hsu]['carea']
@@ -178,13 +179,14 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
- lnTe = parameters['lnTe']
+ #lnTe = parameters['lnTe']
  
  #Calculate the sti
  #model.T0[:] = (model.dem - np.min(model.dem))*model.T0
  lnT0 = np.log(model.T0)
- lnT0 = lnTe*lnT0/np.sum(model.pct*lnT0)
- #lnTe = np.sum(model.pct*lnT0)
+ #lnT0 = lnTe*lnT0/np.sum(model.pct*lnT0)
+ #model.T0[:] = np.exp(lnT0)
+ lnTe = np.sum(model.pct*lnT0)
  model.sti = model.sti - (lnT0 - lnTe)
 
  #Set weight matrix
