@@ -91,7 +91,7 @@ def Convergence_Analysis(info):
 
  #Initialize the element count
  ielement = 0
- nens = 200#12#50#400
+ nens = 1000#12#50#400
  elements = {}
 
  #Create a dictionary of information
@@ -241,7 +241,7 @@ def Latin_Hypercube_Sample(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nens = 50
+ nens = 1000
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -255,15 +255,16 @@ def Latin_Hypercube_Sample(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
- #clusters_info = {8072:469,3637:794,8756:379,500:393}
- clusters_info = {8072:469,3637:794,8756:50,500:3}##393}
- icatchs = [8756,]#3637,]
+ icatchs = [8756,]#[8072,3637,8756,500]#icatchs[0:1] #SUBSET
+ clusters_info = {8072:469,3637:794,8756:379,500:393}
+ #clusters_info = {8072:100,3637:100,8756:100,500:100}##393}
+ #icatchs = [3637,]#3637,]
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2006,12,31,23)
- #fdate = datetime.datetime(2007,12,31,23)
+ #fdate = datetime.datetime(2005,12,31,23)
+ #fdate = datetime.datetime(2006,12,31,23)
+ fdate = datetime.datetime(2010,12,31,23)
 
  #Obtain Latin Hypercube Sample 
  #1.Set random seed
@@ -272,13 +273,13 @@ def Latin_Hypercube_Sample(info):
 
  #Define parameters and ranges
  parameters = []
- parameters.append(['log10m',np.log10(0.001),np.log10(1.0)])
+ parameters.append(['log10m',np.log10(0.001),np.log10(10.0)])
  #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
  #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
  #parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
- parameters.append(['psoil',1.0,1.0])
- #parameters.append(['psoil',0.25,1.0])
- parameters.append(['pksat',1.0,1.0])
+ #parameters.append(['psoil',1.0,1.0])
+ parameters.append(['psoil',0.01,1.0])
+ parameters.append(['pksat',0.25,4.0])
  parameters.append(['sdmax',0.1,1.0])
 
  #Generate samples (choose method here)
@@ -353,6 +354,7 @@ def Latin_Hypercube_Sample(info):
 	'rank':rank,
         'input':'%s/input/data.pck' % dir,
         'dt':3600.,
+        #'dt':900.,
         'nsoil':20,
         'wbd':wbd[element['icatch']],
         'ncores':ncores,
@@ -367,13 +369,14 @@ def Latin_Hypercube_Sample(info):
   if element['icatch'] != icatch:
    time0 = time.time()
    input = Prepare_Model_Input_Data(hydrobloks_info)
+   #pickle.dump(input,open('%d.pck' % icatch,'wb')) 
+   #input = pickle.load(open('%d.pck' % icatch)) 
    #exit()
    elements['nclusters'] = input['nclusters']
    dt = time.time() - time0
    print "time to prepare the data",element['nclusters'],dt
    #Memorize the original soil file
    soilfile = input['files']['soils']
-   #pickle.dump(input,open('data.pck','wb')) 
    #exit()
 
   #Update the soils file
@@ -689,11 +692,11 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   #SOIL
   OUTPUT['hsu'][hsu]['soil_parameters'] = {}
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
-   OUTPUT['hsu'][hsu]['soil_parameters'][var] = np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
-   #if var in ['SATDK','SATDW']:
-   # OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
-   #else:
-   # OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   #OUTPUT['hsu'][hsu]['soil_parameters'][var] = np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   if var in ['SATDK','SATDW']:
+    OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+   else:
+    OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
    #print var,np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),np.median(covariates[var][OUTPUT['hsu'][hsu]['idx']])
   #Average Slope
   OUTPUT['hsu'][hsu]['slope'] = np.mean(covariates['cslope'][OUTPUT['hsu'][hsu]['idx']])
@@ -1063,8 +1066,8 @@ def Update_Soils(input,soilfile,parameters,icatch,rank):
   fp.write('%d, ' % (hsu+1))
   idx = soils_data['ID'] == hsu + 1
   for var in soil_vars:
-   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
-    #if var in ['DRYSMC','WLTSMC']:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
+   if var in ['DRYSMC','WLTSMC','REFSMC']:
     tmp = parameters['psoil']*soils_data[var][idx]
     #tmp = soils_data[var][idx]
     input['hsu'][hsu]['soil_parameters'][var] = tmp

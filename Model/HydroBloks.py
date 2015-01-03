@@ -173,7 +173,7 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
   model.beta[ihsu] = data['hsu'][hsu]['slope']
   model.carea[ihsu] = data['hsu'][hsu]['carea']
   model.channel[ihsu] = data['hsu'][hsu]['channel']
-  model.surface_velocity[ihsu] = 1000.0/3600.0 #m/s
+  model.surface_velocity[ihsu] = 1000.0/dt #m/s
   dem.append(data['hsu'][hsu]['dem'])
  model.dem[:] = np.array(dem)
  #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
@@ -208,7 +208,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 1
+ ntt = 4
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
  NOAH.dt = dt/ntt
@@ -316,12 +316,12 @@ def run_model(info,data,output_type):
   #Update the water balance error
   tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
   errwat += tmp# - tmp
-  q = q + 3600.*np.sum(TOPMODEL.pct*NOAH.runsb)
-  et = et + 3600*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  etran += 3600*np.sum(TOPMODEL.pct*NOAH.etran)
-  ecan += 3600*np.sum(TOPMODEL.pct*NOAH.ecan)
-  esoil += 3600*np.sum(TOPMODEL.pct*NOAH.esoil)
-  prcp = prcp + 3600*np.sum(TOPMODEL.pct*NOAH.prcp)
+  q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb)
+  et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
+  ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
+  esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
+  prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update output
   output = update_output(output,NOAH,TOPMODEL,date,output_type)
@@ -338,6 +338,7 @@ def run_model(info,data,output_type):
 def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
 
   NOAH.itime = i
+  dt = NOAH.dt
   TOPMODEL.itime = i
   NOAH.nowdate[:] = date.strftime('%Y-%m-%d_%H:%M:%S')
   NOAH.julian = (date - datetime.datetime(date.year,1,1,0)).days
@@ -357,9 +358,9 @@ def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
   if np.mean(meteorology['apcpsfc'][i,:]) >= 0.0:
-   NOAH.prcp[:] = meteorology['apcpsfc'][i,:]/3600.0 #mm/s
+   NOAH.prcp[:] = meteorology['apcpsfc'][i,:]/dt #mm/s
   else:
-   NOAH.prcp[:] = meteorology['prec'][i,:]/3600.0 #mm/s
+   NOAH.prcp[:] = meteorology['prec'][i,:]/dt #mm/s
 
   return (NOAH,TOPMODEL)
 
