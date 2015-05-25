@@ -241,7 +241,7 @@ def Latin_Hypercube_Sample(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nens = 1000
+ nens = 250
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -255,7 +255,7 @@ def Latin_Hypercube_Sample(info):
  icatchs = np.array(icatchs)
  np.random.seed(1)
  np.random.shuffle(icatchs)
- icatchs = [8756,]#[8072,3637,8756,500]#icatchs[0:1] #SUBSET
+ icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
  clusters_info = {8072:469,3637:794,8756:379,500:393}
  #clusters_info = {8072:100,3637:100,8756:100,500:100}##393}
  #icatchs = [3637,]#3637,]
@@ -264,7 +264,7 @@ def Latin_Hypercube_Sample(info):
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2005,12,31,23)
  #fdate = datetime.datetime(2006,12,31,23)
- fdate = datetime.datetime(2010,12,31,23)
+ fdate = datetime.datetime(2009,12,31,23)
 
  #Obtain Latin Hypercube Sample 
  #1.Set random seed
@@ -339,8 +339,9 @@ def Latin_Hypercube_Sample(info):
 
  #Iterate through the dictionary elements
  icatch = -9999
- nens_rank = nens/size
- for ielement in np.arange(len(elements.keys()))[rank*nens_rank:(rank+1)*nens_rank]:
+ nelements_rank = len(icatchs)*nens/size#int(len(icatchs)*float(nens/float(size)))
+ ncatch_rank = int(float(nens)/(float(size)/float(len(icatchs))))
+ for ielement in np.arange(len(elements.keys()))[rank*nelements_rank:(rank+1)*nelements_rank]:
 
   #Define the info
   element = elements[ielement]
@@ -406,16 +407,18 @@ def Latin_Hypercube_Sample(info):
 
   #Save info to netcdf
   print 'Catchment number: %d, Ensemble number: %d (Writing to netcdf)' % (element['icatch'],element['iens'])
-  file_netcdf = 'LHSoutput/%d_%d.nc' % (element['icatch'],rank)
+  #Determine the rank of the ensemble
+  nfile = element['iens']/ncatch_rank
+  file_netcdf = 'LHSoutput/%d_%d.nc' % (element['icatch'],nfile)
   #Set ensemble number
   iens = element['iens']
-  iens = iens - rank*nens_rank
+  if nfile > 0:iens = iens % nfile
   #Update the netcdf file
   vars = output['variables'].keys()
   for var in vars:
-   if var not in ['smc1','smc2','smc3',]:del output['variables'][var]
-  if rank == 0: update_netcdf(element['cdir'],iens,nens,parameters,file_netcdf,input,output,rank)
-  if rank != 0: update_netcdf(element['cdir'],iens,nens/size,parameters,file_netcdf,input,output,rank)
+   if var not in ['smc1','lh']:del output['variables'][var]
+  if element['iens'] < ncatch_rank: update_netcdf(element['cdir'],iens,nens,parameters,file_netcdf,input,output,nfile)
+  else: update_netcdf(element['cdir'],iens,ncatch_rank,parameters,file_netcdf,input,output,nfile)
 
   #Remember the catchment number
   icatch = element['icatch']

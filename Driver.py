@@ -6,8 +6,9 @@ import HydroBloksTools as HBM
 #parallel_flag = sys.argv[1]
 parallel_flag = sys.argv[1]
 dir = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments'
-run_flag = 'Convergence Analysis'
+#run_flag = 'Convergence Analysis'
 #run_flag = 'Latin Hypercube Sample'
+run_flag = 'Deterministic'
 ncores = 4#32
 
 if parallel_flag == 'parallel':
