@@ -20,6 +20,10 @@ import glob
 
 def Deterministic(info):
 
+ #Define the metadata
+ nclusters = 3
+ rank = 0
+
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
@@ -40,6 +44,8 @@ def Deterministic(info):
 
   #Define the info
   hydrobloks_info = {
+        'icatch':icatch,
+        'rank':rank,
         'input':'%s/input/data.pck' % dir,
         'dt':3600.,
         'nsoil':20,
@@ -48,15 +54,15 @@ def Deterministic(info):
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
-	'dir':dir,
-        'nbins':{'area':10,'slope':1,'sms':1,'ndvi':1,'ti':1,'dem':1,'channels':2}
+        'dir':'%s/catch_%d' % (dir,icatch),
+        'nclusters':nclusters
         }
 
  #Cluster the data
- Prepare_Model_Input_Data(hydrobloks_info)
+ input = Prepare_Model_Input_Data(hydrobloks_info)
 
  #Run the model
- output = HB.run_model(hydrobloks_info)
+ output = HB.run_model(hydrobloks_info,input,output_type='Full')
 
  return
 
