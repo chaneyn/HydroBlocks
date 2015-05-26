@@ -311,9 +311,9 @@ def run_model(info):
  TOPMODEL = Initialize_DTopmodel(ncells,dt,parameters,info) 
 
  #Run the model
- meteorology = {}
- for var in info['input_fp'].groups['meteorology'].variables:
-  meteorology[var] = info['input_fp'].groups['meteorology'].variables[var][:]
+ #meteorology = {}
+ #for var in info['input_fp'].groups['meteorology'].variables:
+ # meteorology[var] = info['input_fp'].groups['meteorology'].variables[var][:]
  #meteorology = data['meteorology']
  date = idate
  i = 0
@@ -339,7 +339,8 @@ def run_model(info):
    ecan,etran,esoil = 0,0,0
  
   #Update input data
-  Update_Input(NOAH,TOPMODEL,date,meteorology,i)
+  #Update_Input(NOAH,TOPMODEL,date,meteorology,i)
+  Update_Input(NOAH,TOPMODEL,date,info,i)
 
   #Calculate initial NOAH water balance
   smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
@@ -375,7 +376,7 @@ def run_model(info):
 
  return output
 
-def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
+def Update_Input(NOAH,TOPMODEL,date,info,i):
 
   NOAH.itime = i
   dt = NOAH.dt
@@ -385,22 +386,23 @@ def Update_Input(NOAH,TOPMODEL,date,meteorology,i):
   NOAH.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
   #Update meteorology
-  NOAH.lwdn[:] = meteorology['dlwrf'][i,:] #W/m2
-  NOAH.swdn[:] = meteorology['dswrf'][i,:] #W/m2
-  NOAH.psfc[:] = meteorology['pres'][i,:] #Pa
-  NOAH.p_ml[:] = meteorology['pres'][i,:] #Pa
-  NOAH.u_ml[:] = (meteorology['wind'][i,:]**2/2)**0.5 #m/s
-  NOAH.v_ml[:] = (meteorology['wind'][i,:]**2/2)**0.5 #m/s
-  NOAH.t_ml[:] = 273.15+meteorology['tair'][i,:] #K
+  meteorology = info['input_fp'].groups['meteorology']
+  NOAH.lwdn[:] = meteorology.variables['dlwrf'][i,:] #W/m2
+  NOAH.swdn[:] = meteorology.variables['dswrf'][i,:] #W/m2
+  NOAH.psfc[:] = meteorology.variables['pres'][i,:] #Pa
+  NOAH.p_ml[:] = meteorology.variables['pres'][i,:] #Pa
+  NOAH.u_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
+  NOAH.v_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
+  NOAH.t_ml[:] = 273.15+meteorology.variables['tair'][i,:] #K
   estar = 611.0*np.exp(17.27*((NOAH.t_ml - 273.15)/(NOAH.t_ml[:] - 36.0)))
-  e = meteorology['rh'][i,:]*estar/100
+  e = meteorology.variables['rh'][i,:]*estar/100
   q = 0.622*e/NOAH.psfc
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
-  if np.mean(meteorology['apcpsfc'][i,:]) >= 0.0:
-   NOAH.prcp[:] = meteorology['apcpsfc'][i,:]/dt #mm/s
+  if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
+   NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
   else:
-   NOAH.prcp[:] = meteorology['prec'][i,:]/dt #mm/s
+   NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
 
   return (NOAH,TOPMODEL)
 
