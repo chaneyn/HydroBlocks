@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import netCDF4 as nc
 import datetime
 import time
 import sys
@@ -19,7 +20,7 @@ def Finalize_Model(NOAH,TOPMODEL):
 
  return
 
-def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
+def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
 
  from NoahMP import model
 
@@ -115,7 +116,15 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
  model.stc[:] = 285.0
  model.slopetyp[:] = 3
  model.albold[:] = 0.5
- for hsu in data['hsu']:
+ #Define the data
+ model.vegtyp[:] = info['input_fp'].groups['parameters'].variables['land_cover'][:]
+ model.soiltyp[:] = info['input_fp'].groups['parameters'].variables['soil_texture_class'][:]
+ model.smcmax[:] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
+ model.smcref[:] = info['input_fp'].groups['parameters'].variables['REFSMC'][:]
+ model.smcdry[:] = info['input_fp'].groups['parameters'].variables['DRYSMC'][:]
+ for ilayer in xrange(model.sh2o.shape[1]):
+  model.sh2o[:,ilayer] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
+ '''for hsu in data['hsu']:
   ihsu = data['hsu'].keys().index(hsu)
   model.vegtyp[ihsu] = data['hsu'][hsu]['land_cover'] #HERE
   model.soiltyp[ihsu] = ihsu + 1 #data['hsu'][hsu]['soil_texture_class']#1#ihsu+1 #HERE
@@ -123,6 +132,7 @@ def Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd):
   model.sh2o[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC'] #soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
   model.smcref[ihsu] = data['hsu'][hsu]['soil_parameters']['REFSMC'] #soils_data['REFSMC'][model.soiltyp[ihsu]-1]
   model.smcdry[ihsu] = data['hsu'][hsu]['soil_parameters']['DRYSMC'] #soils_data['DRYSMC'][model.soiltyp[ihsu]-1]
+ '''
  model.smc[:] = model.sh2o[:]
  model.smcwtd[:] = model.sh2o[:,0]
  #Set lat/lon (declination calculation)
@@ -242,11 +252,10 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  return (NOAH,TOPMODEL)
 
-def run_model(info,data,output_type):
+def run_model(info):
 
- #Read in the pickled data
  #data = pickle.load(open(info['input']))
- ncells = len(data['hsu'].keys())
+ #Define the metadata
  dt = info['dt']
  nsoil = info['nsoil']
  wbd = info['wbd']
@@ -254,24 +263,33 @@ def run_model(info,data,output_type):
  idate = info['idate']
  fdate = info['fdate']
  parameters = info['parameters']
+ output_type = info['output_type']
+ soil_file = info['soil_file']
+ input_file = info['input']
  dt_timedelta = datetime.timedelta(seconds=dt)
+
+ #Open access to the netcdf input file
+ info = {}
+ info['input_fp'] = nc.Dataset(input_file)
   
  #Define the parameter files
- info = {}
  info['VEGPARM'] = 'Model/pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
  info['GENPARM'] = 'Model/pyNoahMP/data/GENPARM.TBL'#'data/GENPARM.TBL'
  info['MPTABLE'] = 'Model/pyNoahMP/data/MPTABLE.TBL'#'pyNoahMP/data/MPTABLE.TBL'
- info['SOILPARM'] = data['files']['soils']#'Model/pyNoahMP/data/SOILPARM.TBL'#'data/SOILPARM.TBL'
+ info['SOILPARM'] = soil_file
+ 
+ #Set the number of cells (hsus)
+ ncells = len(info['input_fp'].dimensions['hsu'])
 
  #Initialize the output
  output = Initialize_Output(output_type)
 
  #Initialize the model
- NOAH = Initialize_Model(ncells,dt,nsoil,data,parameters,info,wbd)
+ NOAH = Initialize_Model(ncells,dt,nsoil,parameters,info,wbd)
  output['misc']['zsoil'] = NOAH.zsoil
 
  #Initialize Topmodel
- TOPMODEL = Initialize_DTopmodel(ncells,dt,data,parameters) 
+ TOPMODEL = Initialize_DTopmodel(ncells,dt,parameters,info) 
 
  #Run the model
  meteorology = data['meteorology']

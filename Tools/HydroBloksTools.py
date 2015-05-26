@@ -46,7 +46,8 @@ def Deterministic(info):
   hydrobloks_info = {
         'icatch':icatch,
         'rank':rank,
-        'input':'%s/input/data.pck' % dir,
+        #'input':'%s/input/data.pck' % dir,
+        'input':'%s/catch_%d/input_data.nc' % (dir,icatch),
         'dt':3600.,
         'nsoil':20,
         'wbd':wbd[icatch],
@@ -56,7 +57,8 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'output':'Full'
+        'output_type':'Full',
+        'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank)
         }
 
  #Cluster the data
