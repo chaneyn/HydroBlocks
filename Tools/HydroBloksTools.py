@@ -10,6 +10,7 @@ import datetime
 import gdal_tools
 import grads_tools
 import numpy as np
+import scipy.sparse as sparse
 import scipy.stats as stats
 import model_tools as mt
 import matplotlib.pyplot as plt
@@ -63,10 +64,9 @@ def Deterministic(info):
         }
 
  #Cluster the data
- #input = Prepare_Model_Input_Data(hydrobloks_info)
+ input = Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
- input = pickle.load(open('workspace/tmp.pck'))
- #exit()
+ #input = pickle.load(open('workspace/tmp.pck'))
 
  #Run the model
  #output = HB.run_model(hydrobloks_info,input,output_type='Full')
@@ -470,6 +470,10 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  file = '%s/workspace_info.pck' % workspace
  wbd = pickle.load(open(file))
 
+ #Create the netcdf file
+ file_netcdf = hydrobloks_info['input']
+ info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
+
  #Create the dictionary to hold all of the data
  output = {}
 
@@ -479,20 +483,72 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  ncores = hydrobloks_info['ncores']
  icatch = hydrobloks_info['icatch']
  rank = hydrobloks_info['rank']
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank)
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info)
  #print time.time() - time0
 
  #Extract the meteorological forcing
- time0 = time.time()
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
- #print time.time() - time0
+
+ #Write out the files to the netcdf file
+ fp = info['input_fp']
+ data = output
+ #Create the dimensions
+ ntime = data['meteorology']['wind'].shape[0]
+ nhsu = len(data['hsu'].keys())
+ fp.createDimension('hsu',nhsu)
+ fp.createDimension('time',ntime)
+
+ #Write the meteorology
+ grp = fp.createGroup('meteorology')
+ for var in data['meteorology']:
+  grp.createVariable(var,'f4',('time','hsu'))
+  grp.variables[var][:] = data['meteorology'][var][:]
+
+ #Write the flow matrix
+ flow_matrix = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
+ nconnections = flow_matrix.data.size
+ grp = fp.createGroup('flow_matrix')
+ grp.createDimension('connections_columns',flow_matrix.indices.size)
+ grp.createDimension('connections_rows',flow_matrix.indptr.size)
+ grp.createVariable('data','f4',('connections_columns',))
+ grp.createVariable('indices','f4',('connections_columns',))
+ grp.createVariable('indptr','f4',('connections_rows',))
+ grp.variables['data'][:] = flow_matrix.data
+ grp.variables['indices'][:] = flow_matrix.indices
+ grp.variables['indptr'][:] = flow_matrix.indptr
+
+ #Write the model parameters
+ grp = fp.createGroup('parameters')
+ vars = ['slope','vof','area_pct','land_cover','channel',
+        'vchan','dem','soil_texture_class','ti','carea','area',
+        'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']
+ for var in vars:
+  grp.createVariable(var,'f4',('hsu',))
+ for hsu in data['hsu']:
+  for var in vars:
+   if var not in ['WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']:
+    grp.variables[var][hsu] = data['hsu'][hsu][var]
+   else:
+    grp.variables[var][hsu] = data['hsu'][hsu]['soil_parameters'][var]
+
+ #Write other metadata
+ grp = fp.createGroup('metadata')
+ grp.outlet_hsu = data['outlet']['hsu']
+
+ #Remove info from output
+ del output['hsu']
+ del output['tp']
+ del output['meteorology']
 
  #Add in the catchment info
  output['wbd'] = wbd
 
+ #Close the file
+ fp.close()
+
  return output
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info):
 
  covariates = {}
  #Read in all the covariates
@@ -968,17 +1024,17 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  hsu[:] = np.array(hsus)
  hsu.description = 'hsu ids'
  #Add wbd metadata
- grp.HUC = input['wbd']['HUC10']
+ #grp.HUC = input['wbd']['HUC10']
  #Define outlet hsu
  grp.outlet_hsu = int(output['misc']['outlet_hsu'])
  #Define catchment name
- grp.catchment_name = input['wbd']['Name']
+ #grp.catchment_name = input['wbd']['Name']
  #Define catchment area
- grp.AreaSqKm = input['wbd']['AreaSqKm']
+ #grp.AreaSqKm = input['wbd']['AreaSqKm']
  #Add HSU transition probability matrix
- tp = grp.createVariable('tpm','f4',('hsu','hsu'))
- tp.description = 'Transition probability matrix between hsus'
- tp[:] =  input['tp']
+ #tp = grp.createVariable('tpm','f4',('hsu','hsu'))
+ #tp.description = 'Transition probability matrix between hsus'
+ #tp[:] =  input['tp']
 
  #Retrieve the conus_albers metadata
  metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
@@ -995,9 +1051,8 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  hsu_map = np.copy(input['hsu_map'])
  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
  hmca[:] = hsu_map
- #Write out the mapping
+ '''#Write out the mapping
  file_ca = '%s/workspace/hsu_mapping_conus_albers.tif' % cdir
- print file_ca
  gdal_tools.write_raster(file_ca,metadata,hsu_map)
 
  #Map the mapping to regular lat/lon
@@ -1025,7 +1080,7 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  #Save the lat/lon mapping
  hsu_map = np.copy(gdal_tools.read_raster(file_ll))
  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
- hmll[:] = hsu_map
+ hmll[:] = hsu_map'''
  
  #Close the file 
  fp.close()
