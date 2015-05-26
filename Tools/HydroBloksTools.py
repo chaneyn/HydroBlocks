@@ -58,17 +58,25 @@ def Deterministic(info):
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
         'output_type':'Full',
-        'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank)
+        'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
+        'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
  #Cluster the data
  #input = Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
+ input = pickle.load(open('workspace/tmp.pck'))
  #exit()
 
  #Run the model
  #output = HB.run_model(hydrobloks_info,input,output_type='Full')
  output = HB.run_model(hydrobloks_info)
+
+ #Write to netcdf
+ file_netcdf = hydrobloks_info['output']
+ #Update the netcdf file
+ vars = output['variables'].keys()
+ update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,input,output,0)
 
  return
 
@@ -989,6 +997,7 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  hmca[:] = hsu_map
  #Write out the mapping
  file_ca = '%s/workspace/hsu_mapping_conus_albers.tif' % cdir
+ print file_ca
  gdal_tools.write_raster(file_ca,metadata,hsu_map)
 
  #Map the mapping to regular lat/lon

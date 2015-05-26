@@ -118,7 +118,8 @@ def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
  model.albold[:] = 0.5
  #Define the data
  model.vegtyp[:] = info['input_fp'].groups['parameters'].variables['land_cover'][:]
- model.soiltyp[:] = info['input_fp'].groups['parameters'].variables['soil_texture_class'][:]
+ model.soiltyp[:] = np.arange(1,ncells+1)
+ #info['input_fp'].groups['parameters'].variables['soil_texture_class'][:]
  model.smcmax[:] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
  model.smcref[:] = info['input_fp'].groups['parameters'].variables['REFSMC'][:]
  model.smcdry[:] = info['input_fp'].groups['parameters'].variables['DRYSMC'][:]
@@ -156,7 +157,7 @@ def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
 
  return model
 
-def Initialize_DTopmodel(ncells,dt,data,parameters):
+def Initialize_DTopmodel(ncells,dt,parameters,info):
 
  #sys.path.append("topmodel")
  import dynamic_topmodel
@@ -173,7 +174,16 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  #model.sdmax[:] = 1000.0#parameters['sdmax'] #HERE
  dem = []
  #Set cluster information
- for hsu in data['hsu']:
+ model.pct[:] = info['input_fp'].groups['parameters'].variables['area_pct'][:]/100
+ model.area[:] = model.dx*info['input_fp'].groups['parameters'].variables['area']
+ model.T0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]*(10**parameters['log10m'])
+ model.sti[:] = info['input_fp'].groups['parameters'].variables['ti'][:]
+ model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
+ model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
+ model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
+ model.surface_velocity[:] = 1000.0/dt #m/s
+ model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
+ '''for hsu in data['hsu']:
   ihsu = data['hsu'].keys().index(hsu)
   model.pct[ihsu] = data['hsu'][hsu]['area_pct']/100
   model.area[ihsu] = model.dx[ihsu]*data['hsu'][hsu]['area']
@@ -185,7 +195,7 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
   model.channel[ihsu] = data['hsu'][hsu]['channel']
   model.surface_velocity[ihsu] = 1000.0/dt #m/s
   dem.append(data['hsu'][hsu]['dem'])
- model.dem[:] = np.array(dem)
+ model.dem[:] = np.array(dem)'''
  #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
@@ -200,11 +210,20 @@ def Initialize_DTopmodel(ncells,dt,data,parameters):
  model.sti = model.sti - (lnT0 - lnTe)
 
  #Set weight matrix
- model.outlet_hsu = int(data['outlet']['hsu'])
+ model.outlet_hsu = int(info['input_fp'].groups['metadata'].outlet_hsu)#int(data['outlet']['hsu'])
  hsu = model.outlet_hsu
- data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
- model.w = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
- model.wfull[:] = data['tp'].T
+ flow_matrix = sparse.csr_matrix((info['input_fp'].groups['flow_matrix'].variables['data'][:],
+			          info['input_fp'].groups['flow_matrix'].variables['indices'][:],
+			          info['input_fp'].groups['flow_matrix'].variables['indptr'][:]),
+ 				  dtype=np.float32)
+ #flow_matrix.data = info['input_fp'].groups['flow_matrix'].variables['data'][:]
+ #flow_matrix.indices = info['input_fp'].groups['flow_matrix'].variables['indices'][:]
+ #flow_matrix.indptr = info['input_fp'].groups['flow_matrix'].variables['indptr'][:]
+ #data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
+ flow_matrix[hsu,hsu] = flow_matrix[hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
+ #model.w = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
+ model.w = flow_matrix.T
+ #model.wfull[:] = data['tp'].T
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0
  
@@ -292,7 +311,10 @@ def run_model(info):
  TOPMODEL = Initialize_DTopmodel(ncells,dt,parameters,info) 
 
  #Run the model
- meteorology = data['meteorology']
+ meteorology = {}
+ for var in info['input_fp'].groups['meteorology'].variables:
+  meteorology[var] = info['input_fp'].groups['meteorology'].variables[var][:]
+ #meteorology = data['meteorology']
  date = idate
  i = 0
  dE = 0
