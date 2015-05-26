@@ -55,14 +55,18 @@ def Deterministic(info):
         'fdate':fdate,
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
-        'nclusters':nclusters
+        'nclusters':nclusters,
+        'output':'Full'
         }
 
  #Cluster the data
- input = Prepare_Model_Input_Data(hydrobloks_info)
+ #input = Prepare_Model_Input_Data(hydrobloks_info)
+ #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
+ #exit()
 
  #Run the model
- output = HB.run_model(hydrobloks_info,input,output_type='Full')
+ #output = HB.run_model(hydrobloks_info,input,output_type='Full')
+ output = HB.run_model(hydrobloks_info)
 
  return
 
