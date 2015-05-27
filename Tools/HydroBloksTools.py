@@ -76,7 +76,7 @@ def Deterministic(info):
  file_netcdf = hydrobloks_info['output']
  #Update the netcdf file
  vars = output['variables'].keys()
- update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,input,output,0)
+ update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
 
  return
 
@@ -972,7 +972,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
 
  return OUTPUT
 
-def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
+def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
 
  #Create the file
  fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
@@ -1052,20 +1052,20 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
  #tp[:] =  input['tp']
 
  #Retrieve the conus_albers metadata
- metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
- metadata['nodata'] = -10000.0
+ #metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
+ #metadata['nodata'] = -10000.0
  #Save the conus_albers metadata
- fp.createDimension('nx',metadata['nx'])
- fp.createDimension('ny',metadata['ny'])
- hmca = grp.createVariable('hmca','f4',('ny','nx')) 
- hmca.gt = metadata['gt']
- hmca.projection = metadata['projection']
- hmca.description = 'HSU mapping (conus albers)'
- hmca.nodata = metadata['nodata']
+ #fp.createDimension('nx',metadata['nx'])
+ #fp.createDimension('ny',metadata['ny'])
+ #hmca = grp.createVariable('hmca','f4',('ny','nx')) 
+ #hmca.gt = metadata['gt']
+ #hmca.projection = metadata['projection']
+ #hmca.description = 'HSU mapping (conus albers)'
+ #hmca.nodata = metadata['nodata']
  #Save the conus albers mapping
- hsu_map = np.copy(input['hsu_map'])
- hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
- hmca[:] = hsu_map
+ #hsu_map = np.copy(input['hsu_map'])
+ #hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ #hmca[:] = hsu_map
  '''#Write out the mapping
  file_ca = '%s/workspace/hsu_mapping_conus_albers.tif' % cdir
  gdal_tools.write_raster(file_ca,metadata,hsu_map)
@@ -1102,14 +1102,14 @@ def create_netcdf_file(file_netcdf,output,nens,input,cdir,rank):
 
  return
 
-def update_netcdf(cdir,iens,nens,parameters,file_netcdf,input,output,rank):
+def update_netcdf(cdir,iens,nens,parameters,file_netcdf,output,rank):
  
  #Convert variables to arrays
  for var in output['variables']:
   output['variables'][var] = np.array(output['variables'][var])
 
  #Create the netcdf file if necessary
- if iens == 0: create_netcdf_file(file_netcdf,output,nens,input,cdir,rank)
+ if iens == 0: create_netcdf_file(file_netcdf,output,nens,cdir,rank)
 
  #Open the file
  fp = nc.Dataset(file_netcdf, 'a')
