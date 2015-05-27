@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',
+        'model_type':'full',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -548,6 +548,14 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return output
 
+def Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters):
+
+ cluster_ids = np.empty(covariates['ti'].shape)
+ cluster_ids[:] = -9999
+ cluster_ids[mask_woc == True] = np.arange(np.sum(mask_woc == True))
+
+ return (cluster_ids,)
+
 def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
 
  #Define the covariates
@@ -633,7 +641,33 @@ def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
   msk = cluster_ids == cid
   areas.append(np.nanmean(covariates['carea'][msk]))
 
- return
+ return (cluster_ids,)
+
+def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
+
+ #Prepare the flow matrix
+ mask1 = covariates['fdir'] < 0
+ covariates['fdir'][mask1] = -9999.0
+ cluster_ids_copy = np.copy(cluster_ids)
+ cluster_ids_copy[mask1] = np.nan
+ max_nhru = np.sum(mask1)
+ #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ (hrus_dst,hrus_org) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ #Only use the non -9999 values
+ hrus_dst = hrus_dst[hrus_dst != -9999]-1
+ hrus_org = hrus_org[hrus_org != -9999]-1
+ #Prepare the sparse matrix
+ flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)
+ flow_matrix = flow_matrix.tocsr()
+ #Normalize the rows (sum to 1)
+ fm_sum = flow_matrix.sum(axis=1)
+ fm_data = flow_matrix.data
+ fm_indptr = flow_matrix.indptr
+ for row in xrange(fm_sum.size):
+  fm_data[fm_indptr[row]:fm_indptr[row+1]] = fm_data[fm_indptr[row]:fm_indptr[row+1]]/fm_sum[row]
+ flow_matrix.data = fm_data
+
+ return flow_matrix.T
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
 
@@ -687,125 +721,24 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  mask_wc[covariates['channels'] <= 0] = 0
 
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
- Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters)
-
- #Define the covariates
- '''info = {'area':{'data':covariates['carea'][mask_woc == True],},
-        'slope':{'data':covariates['cslope'][mask_woc == True],},
-        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
-        'smw':{'data':covariates['WLTSMC'][mask_woc == True],},
-        #'clay':{'data':covariates['clay'][mask_woc == True],},
-        #'sand':{'data':covariates['sand'][mask_woc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        #'ti':{'data':covariates['ti'][mask_woc == True],},
-        'dem':{'data':covariates['dem'][mask_woc == True],},
-        'lats':{'data':covariates['lats'][mask_woc == True],},
-        'lons':{'data':covariates['lons'][mask_woc == True],},
-        }
- 
- #Scale all the variables (Calculate the percentiles
- for var in info:
-  argsort = np.argsort(info[var]['data'])
-  pcts = np.copy(info[var]['data'])
-  pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  info[var]['data'] = pcts
-
- #Create the LHS bins
- import sklearn.cluster
- bins,data = [],[]
- X = []
- for id in info:
-  #Set all nans to the mean
-  info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
-  X.append(info[id]['data'])
-
- time0 = time.time()
- X = np.array(X).T
- #Subsample the array
- np.random.seed(1)
- minsamples = 10**5
- if X.shape[0] > minsamples:
-  Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
- else:
-  Xf = X
- #Initialize all points at the 0.5 point
- init = 0.5*np.ones((nclusters,Xf.shape[1]))
- batch_size = 25*nclusters
- init_size = 3*batch_size
- clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
- clf.fit(Xf)#
- clf_output = clf.predict(X)
- #Reassign the ids
- clf_output_copy = np.copy(clf_output)
- for cid in xrange(len(np.unique(clf_output))):
-  clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
- cluster_ids = np.empty(covariates['ti'].shape)
- cluster_ids[:] = -9999
- cluster_ids[mask_woc == True] = clf_output
- nclusters_old = nclusters
- nclusters = np.unique(clf_output).size
- #Redefine the number of clusters (We are sampling regions that just don't have data...)
- print 'clustering %d->%d' % (nclusters_old,nclusters),time.time() - time0
-
- #Add in the channel clusters
- #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
- #for channel in channels:
- # cid = int(np.nanmax(cluster_ids) + 1)
- # idx = np.where(covariates['channels'] == channel)
- # cluster_ids[idx] = cid
- # nclusters = nclusters + 1
-
- #Reorder according to areas
- areas = []
- for cid in xrange(nclusters):
-  msk = cluster_ids == cid
-  areas.append(np.nanmean(covariates['carea'][msk]))
- argsort = np.argsort(np.array(areas))
- cluster_ids_new = np.copy(cluster_ids)
- for cid in xrange(nclusters):
-  msk = cluster_ids == argsort[cid]
-  cluster_ids_new[msk] = cid
- cluster_ids = np.copy(cluster_ids_new)
- areas = []
- for cid in xrange(nclusters):
-  msk = cluster_ids == cid
-  areas.append(np.nanmean(covariates['carea'][msk]))'''
- exit()
+ if hydrobloks_info['model_type'] == 'semi':
+  (cluster_ids,) = Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters)
+ elif hydrobloks_info['model_type'] == 'full':
+  (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters)
 
  #Create a dictionary of class info
- clusters = {}
- areas = []
+ '''clusters = {}
  for cid in xrange(nclusters):
   #Determine the percentage coverage
   pct = float(np.sum(cluster_ids == cid))/float(np.sum(mask))
   clusters[cid] = {'pct':pct}
   idx = np.where(cluster_ids == cid)
-  clusters[cid]['idx'] = idx
+  clusters[cid]['idx'] = idx'''
 
- #Determine the links between clusters
- mask1 = covariates['fdir'] < 0
- covariates['fdir'][mask1] = -9999.0
- cluster_ids_copy = np.copy(cluster_ids)
- cluster_ids_copy[mask1] = np.nan
- nclusters = len(clusters.keys())
- max_nhru = np.sum(mask1)
- #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
- (hrus_dst,hrus_org) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
- #Only use the non -9999 values
- hrus_dst = hrus_dst[hrus_dst != -9999]-1
- hrus_org = hrus_org[hrus_org != -9999]-1
- #Prepare the sparse matrix
- flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)
- flow_matrix = flow_matrix.tocsr()
- #Normalize the rows (sum to 1)
- fm_sum = flow_matrix.sum(axis=1)
- fm_data = flow_matrix.data
- fm_indptr = flow_matrix.indptr
- for row in xrange(fm_sum.size):
-  fm_data[fm_indptr[row]:fm_indptr[row+1]] = fm_data[fm_indptr[row]:fm_indptr[row+1]]/fm_sum[row]
- flow_matrix.data = fm_data
- flow_matrix = flow_matrix.T
+ #Prepare the flow matrix
+ flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
+ print flow_matrix
+ exit()
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
