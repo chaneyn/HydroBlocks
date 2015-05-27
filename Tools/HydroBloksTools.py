@@ -58,6 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -477,13 +478,14 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Create the dictionary to hold all of the data
  output = {}
 
- #time0 = time.time()
  #Create the Latin Hypercube (Clustering)
  nclusters = hydrobloks_info['nclusters']
  ncores = hydrobloks_info['ncores']
  icatch = hydrobloks_info['icatch']
  rank = hydrobloks_info['rank']
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info)
+
+ #Create the clusters and their connections
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
 
  #Extract the meteorological forcing
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
@@ -504,7 +506,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
- #flow_matrix = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
  flow_matrix = output['flow_matrix']
  nconnections = flow_matrix.data.size
  grp = fp.createGroup('flow_matrix')
@@ -547,71 +548,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return output
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info):
-
- covariates = {}
- #Read in all the covariates
- root = wbd['files']['MAXSMC'][0:-11]
- wbd['files']['sand'] = '%s/dssurgo/sandtotal_r.tif' % root
- wbd['files']['clay'] = '%s/dssurgo/claytotal_r.tif' % root
- for file in wbd['files']:
-  #original = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments/catch_3637' #HERE
-  #final = '/u/sciteam/nchaney/projects/HydroBloks/ReynoldsCreek' #HERE
-  #wbd['files'][file] = wbd['files'][file].replace(original,final) #HERE
-  covariates[file] = gdal_tools.read_raster(wbd['files'][file])
-  #if file == 'carea': 
-  # #covariates[file][covariates[file] == 0.0] = 1.0
-  # #covariates[file] = np.log(covariates[file])
-  if file == 'cslope':
-   mask = covariates[file] == 0.0
-   covariates[file][mask] = 0.000001
- #Add sand and clay
-
- #Create lat/lon grids
- lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
- lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
- lats, lons = np.meshgrid(lats, lons)
- covariates['lats'] = lats.T
- covariates['lons'] = lons.T
-
- #Clean up the covariates
- #covariates['ti'][covariates['ti'] > 14] = 14
- #covariates['channels'][covariates['channels'] > 1] = 1
- #covariates['channels'][covariates['channels'] < 0] = 0
-
- #Define the mask
- mask = np.copy(covariates['mask'])
- mask[mask > 0] = 1
- mask[mask < 0] = 0
- #channels_original[mask == 0] = -9999
- #mask[covariates['channels'] >= 1] = 0
- mask = mask.astype(np.bool)
-
- #Set all nans to the mean
- for var in covariates:
-  mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0)
-  mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
-  if var in ['fdir','nlcd']:
-   covariates[var][mask0] = stats.mode(covariates[var][mask1])[0][0]
-  else:
-   covariates[var][mask0] = np.mean(covariates[var][mask1])
-
- #Set everything that is -9999 to the mean
- for var in covariates:
-  if var in ['fdir','nlcd','TEXTURE_CLASS']:
-   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]
-  else:
-   covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
-
- #Set everything outside of the mask to -9999
- for var in covariates:
-  covariates[var][mask <= 0] = -9999.0
-
- #Create channels mask
- mask_woc = np.copy(mask)
- #mask_woc[covariates['channels'] > 0] = 0
- mask_wc = np.copy(mask)
- mask_wc[covariates['channels'] <= 0] = 0
+def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
 
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_woc == True],},
@@ -621,23 +558,18 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
         'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
-        ##'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask_woc == True],},
         'dem':{'data':covariates['dem'][mask_woc == True],},
         'lats':{'data':covariates['lats'][mask_woc == True],},
         'lons':{'data':covariates['lons'][mask_woc == True],},
         }
- 
+
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  #info[var]['data'] = (info[var]['data'] - np.min(info[var]['data']))/(np.max(info[var]['data']) - np.min(info[var]['data']))
-  #if var == 'area':info[var]['data'] = 10*info[var]['data']
   argsort = np.argsort(info[var]['data'])
   pcts = np.copy(info[var]['data'])
   pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  #if np.unique(info[var]['data']).size < 1000:
-  # for value in np.unique(info[var]['data']):
-  #  pcts[pcts == value] = np.mean(pcts[pcts == value])
   info[var]['data'] = pcts
 
  #Create the LHS bins
@@ -656,41 +588,13 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  minsamples = 10**5
  if X.shape[0] > minsamples:
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
-  #Make sure we have the extremes
-  #for ivar in xrange(X.shape[1]):
-  # imin = np.argmin(X[:,ivar])
-  # imax = np.argmax(X[:,ivar])
-  # Xf = np.append(Xf,X[imin,:][np.newaxis,:],axis=0)
-  # Xf = np.append(Xf,X[imax,:][np.newaxis,:],axis=0)
  else:
   Xf = X
- #Construct grid to fit the data
- #npoints = np.ceil(minsamples**(1./len(info.keys())))
- #if npoints < 2: npoints = 2
- #for id in xrange(len(info.keys())):
- # if id == 0: string = "np.meshgrid(np.linspace(0,1,%d)" % npoints 
- # else: string = string + ",np.linspace(0,1,%d)" % npoints
- #string = string + ")"
- #tmp = eval(string)
- #Xf = []
- #Reshape data for the fitting
- #for id in xrange(len(info.keys())):
- # Xf.append(np.reshape(tmp[id],tmp[id].size))
- #Xf = np.array(Xf).T
- #print Xf
- #idx = eval('np.where(%s)' % string)
- #Xf = np.mgrid(
- #Construct a features array (0,1)
- #Xf = np.random.rand(minsamples,X.shape[1])
  #Initialize all points at the 0.5 point
  init = 0.5*np.ones((nclusters,Xf.shape[1]))
- #clf = sklearn.cluster.KMeans(nclusters,n_jobs=ncores,n_init=1,init=init,tol=1e-4,max_iter=300)
  batch_size = 25*nclusters
  init_size = 3*batch_size
  clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
- #clf = sklearn.cluster.MiniBatchKMeans(nclusters,init=init,batch_size=batch_size,init_size=init_size)
- #clf = sklearn.cluster.AgglomerativeClustering(nclusters)
- #clf = sklearn.cluster.DBSCAN(eps=0.3, min_samples=10)#clusters)
  clf.fit(Xf)#
  clf_output = clf.predict(X)
  #Reassign the ids
@@ -728,6 +632,146 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  for cid in xrange(nclusters):
   msk = cluster_ids == cid
   areas.append(np.nanmean(covariates['carea'][msk]))
+
+ return
+
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
+
+ covariates = {}
+ #Read in and curate all the covariates
+ root = wbd['files']['MAXSMC'][0:-11]
+ wbd['files']['sand'] = '%s/dssurgo/sandtotal_r.tif' % root
+ wbd['files']['clay'] = '%s/dssurgo/claytotal_r.tif' % root
+ for file in wbd['files']:
+  covariates[file] = gdal_tools.read_raster(wbd['files'][file])
+  if file == 'cslope':
+   mask = covariates[file] == 0.0
+   covariates[file][mask] = 0.000001
+
+ #Create lat/lon grids
+ lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
+ lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
+ lats, lons = np.meshgrid(lats, lons)
+ covariates['lats'] = lats.T
+ covariates['lons'] = lons.T
+
+ #Define the mask
+ mask = np.copy(covariates['mask'])
+ mask[mask > 0] = 1
+ mask[mask < 0] = 0
+ mask = mask.astype(np.bool)
+
+ #Set all nans to the mean
+ for var in covariates:
+  mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0)
+  mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
+  if var in ['fdir','nlcd']:
+   covariates[var][mask0] = stats.mode(covariates[var][mask1])[0][0]
+  else:
+   covariates[var][mask0] = np.mean(covariates[var][mask1])
+
+ #Set everything that is -9999 to the mean
+ for var in covariates:
+  if var in ['fdir','nlcd','TEXTURE_CLASS']:
+   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]
+  else:
+   covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
+
+ #Set everything outside of the mask to -9999
+ for var in covariates:
+  covariates[var][mask <= 0] = -9999.0
+
+ #Create channels mask
+ mask_woc = np.copy(mask)
+ mask_wc = np.copy(mask)
+ mask_wc[covariates['channels'] <= 0] = 0
+
+ #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
+ Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters)
+
+ #Define the covariates
+ '''info = {'area':{'data':covariates['carea'][mask_woc == True],},
+        'slope':{'data':covariates['cslope'][mask_woc == True],},
+        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
+        'smw':{'data':covariates['WLTSMC'][mask_woc == True],},
+        #'clay':{'data':covariates['clay'][mask_woc == True],},
+        #'sand':{'data':covariates['sand'][mask_woc == True],},
+        'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
+        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
+        #'ti':{'data':covariates['ti'][mask_woc == True],},
+        'dem':{'data':covariates['dem'][mask_woc == True],},
+        'lats':{'data':covariates['lats'][mask_woc == True],},
+        'lons':{'data':covariates['lons'][mask_woc == True],},
+        }
+ 
+ #Scale all the variables (Calculate the percentiles
+ for var in info:
+  argsort = np.argsort(info[var]['data'])
+  pcts = np.copy(info[var]['data'])
+  pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+  info[var]['data'] = pcts
+
+ #Create the LHS bins
+ import sklearn.cluster
+ bins,data = [],[]
+ X = []
+ for id in info:
+  #Set all nans to the mean
+  info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
+  X.append(info[id]['data'])
+
+ time0 = time.time()
+ X = np.array(X).T
+ #Subsample the array
+ np.random.seed(1)
+ minsamples = 10**5
+ if X.shape[0] > minsamples:
+  Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
+ else:
+  Xf = X
+ #Initialize all points at the 0.5 point
+ init = 0.5*np.ones((nclusters,Xf.shape[1]))
+ batch_size = 25*nclusters
+ init_size = 3*batch_size
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ clf.fit(Xf)#
+ clf_output = clf.predict(X)
+ #Reassign the ids
+ clf_output_copy = np.copy(clf_output)
+ for cid in xrange(len(np.unique(clf_output))):
+  clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
+ cluster_ids = np.empty(covariates['ti'].shape)
+ cluster_ids[:] = -9999
+ cluster_ids[mask_woc == True] = clf_output
+ nclusters_old = nclusters
+ nclusters = np.unique(clf_output).size
+ #Redefine the number of clusters (We are sampling regions that just don't have data...)
+ print 'clustering %d->%d' % (nclusters_old,nclusters),time.time() - time0
+
+ #Add in the channel clusters
+ #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
+ #for channel in channels:
+ # cid = int(np.nanmax(cluster_ids) + 1)
+ # idx = np.where(covariates['channels'] == channel)
+ # cluster_ids[idx] = cid
+ # nclusters = nclusters + 1
+
+ #Reorder according to areas
+ areas = []
+ for cid in xrange(nclusters):
+  msk = cluster_ids == cid
+  areas.append(np.nanmean(covariates['carea'][msk]))
+ argsort = np.argsort(np.array(areas))
+ cluster_ids_new = np.copy(cluster_ids)
+ for cid in xrange(nclusters):
+  msk = cluster_ids == argsort[cid]
+  cluster_ids_new[msk] = cid
+ cluster_ids = np.copy(cluster_ids_new)
+ areas = []
+ for cid in xrange(nclusters):
+  msk = cluster_ids == cid
+  areas.append(np.nanmean(covariates['carea'][msk]))'''
+ exit()
 
  #Create a dictionary of class info
  clusters = {}
