@@ -1,11 +1,11 @@
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
-                  area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,weights,nthreads)
+                  area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,nthreads)
 
  use omp_lib
  implicit none
  integer :: nhsu,nvalues
  real*8,intent(in) :: dt
- real*4,intent(in),dimension(nhsu,nhsu) :: weights
+ !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
  real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
  integer*4,intent(in),dimension(nvalues) :: wcolumns
@@ -39,7 +39,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
    !Solve the kinematic wave for this time step
    call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                              recharge1,area,dx,dtt,celerity,celerity1,&
-                             wvalues,wcolumns,wrowindex,weights)
+                             wvalues,wcolumns,wrowindex)!,weights)
 
    !Add for the average at the end
    qout_ = qout_ + qout
@@ -56,12 +56,12 @@ end subroutine update
 
 subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                                 recharge1,area,dx,dtt,celerity,celerity1,&
-                                wvalues,wcolumns,wrowindex,weights)
+                                wvalues,wcolumns,wrowindex)!,weights)
 
  implicit none
  integer,intent(in) :: nhsu,nvalues
  real*8,intent(in) :: dtt
- real*4,intent(in),dimension(nhsu,nhsu) :: weights
+ !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
  real*4,intent(in),dimension(nhsu) :: area,dx,celerity,celerity1
  integer*4,intent(in),dimension(nvalues) :: wcolumns

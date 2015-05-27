@@ -484,7 +484,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  icatch = hydrobloks_info['icatch']
  rank = hydrobloks_info['rank']
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info)
- #print time.time() - time0
 
  #Extract the meteorological forcing
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
@@ -505,7 +504,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
- flow_matrix = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
+ #flow_matrix = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
+ flow_matrix = output['flow_matrix']
  nconnections = flow_matrix.data.size
  grp = fp.createGroup('flow_matrix')
  grp.createDimension('connections_columns',flow_matrix.indices.size)
@@ -537,7 +537,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Remove info from output
  del output['hsu']
- del output['tp']
  del output['meteorology']
 
  #Add in the catchment info
@@ -746,13 +745,29 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  cluster_ids_copy = np.copy(cluster_ids)
  cluster_ids_copy[mask1] = np.nan
  nclusters = len(clusters.keys())
- tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters)
+ max_nhru = np.sum(mask1)
+ #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ (hrus_dst,hrus_org) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ #Only use the non -9999 values
+ hrus_dst = hrus_dst[hrus_dst != -9999]-1
+ hrus_org = hrus_org[hrus_org != -9999]-1
+ #Prepare the sparse matrix
+ flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)
+ flow_matrix = flow_matrix.tocsr()
+ #Normalize the rows (sum to 1)
+ fm_sum = flow_matrix.sum(axis=1)
+ fm_data = flow_matrix.data
+ fm_indptr = flow_matrix.indptr
+ for row in xrange(fm_sum.size):
+  fm_data[fm_indptr[row]:fm_indptr[row+1]] = fm_data[fm_indptr[row]:fm_indptr[row+1]]/fm_sum[row]
+ flow_matrix.data = fm_data
+ flow_matrix = flow_matrix.T
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
 
  #Make the output dictionary for the basin
- OUTPUT = {'hsu':{},'tp':tp_matrix,'metadata':metadata,'mask':mask}
+ OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix}
 
  #Determine outlet cell
  covariates['carea'][mask == False] = np.nan

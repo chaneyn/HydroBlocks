@@ -52,14 +52,19 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
 
  end subroutine calculate_connections
 
- subroutine calculate_connections_d8(HSUs,d8dir,transition_probabilities,nhsu,n,m)
+ subroutine calculate_connections_d8(HSUs,d8dir,hrus_dst,hrus_org,nhsu,max_nhsu,n,m)
 
  implicit none
- integer :: i,j,k,n,m
- integer,intent(in) :: nhsu
+ integer :: i,j,k,n,m,ipos
+ integer,intent(in) :: nhsu,max_nhsu
  real*8,intent(in),dimension(n,m) :: HSUs,d8dir
- real*8,intent(out),dimension(nhsu,nhsu) :: transition_probabilities
+ !real*8,intent(out),dimension(nhsu,nhsu) :: transition_probabilities
+ integer,intent(out),dimension(max_nhsu) :: hrus_dst,hrus_org
+ real*8,dimension(nhsu,nhsu) :: transition_probabilities
  real :: hsu_org,hsu_dst
+ hrus_dst(:) = -9999
+ hrus_org(:) = -9999
+ ipos = 1
 
  !Iterate through the cells and determine the connections
  do i = 1,n
@@ -86,15 +91,18 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      !Determine the HSU it comes from
      hsu_org = HSUs(i,j) + 1
      !Add the count to the transition probabilities
-     transition_probabilities(int(hsu_org),int(hsu_dst)) = transition_probabilities(int(hsu_org),int(hsu_dst)) + 1
+     !transition_probabilities(int(hsu_org),int(hsu_dst)) = transition_probabilities(int(hsu_org),int(hsu_dst)) + 1
+     hrus_dst(ipos) = hsu_dst
+     hrus_org(ipos) = hsu_org
+     ipos = ipos + 1
   enddo
  enddo
 
  !Compute the transition probabilities
- do i = 1,nhsu
-  if (sum(transition_probabilities(i,:)) .eq. 0) cycle
-  transition_probabilities(i,:) = transition_probabilities(i,:)/sum(transition_probabilities(i,:))
- end do
+ !do i = 1,nhsu
+ ! if (sum(transition_probabilities(i,:)) .eq. 0) cycle
+ ! transition_probabilities(i,:) = transition_probabilities(i,:)/sum(transition_probabilities(i,:))
+ !end do
 
  end subroutine
 

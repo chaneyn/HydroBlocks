@@ -55,7 +55,7 @@ class Dynamic_Topmodel:
 
   #weights
   self.w = []#np.empty((ngroups,ngroups),dtype=np.float32,order='F')
-  self.wfull = np.empty((ngroups,ngroups),dtype=np.float32,order='F')
+  #self.wfull = np.empty((ngroups,ngroups),dtype=np.float32,order='F')
 
  def update(self,ncores):
   
@@ -88,7 +88,7 @@ class Dynamic_Topmodel:
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
 	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
 	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             self.w.data,self.w.indices,self.w.indptr,self.wfull,ncores)
+             self.w.data,self.w.indices,self.w.indptr,ncores)
 
   return
 
@@ -116,7 +116,7 @@ class Dynamic_Topmodel:
   dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             self.w.data,self.w.indices,self.w.indptr,self.wfull,ncores)
+             self.w.data,self.w.indices,self.w.indptr,ncores)
 
   #print 'after:',-si
 

@@ -3,7 +3,7 @@
 
 python module dynamic_topmodel_tools ! in 
     interface  ! in :dynamic_topmodel_tools
-        subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,weights,nthreads) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
+        subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,nthreads) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
             use omp_lib
             real*4 dimension(nhsu),intent(inout) :: recharge
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: storage
@@ -23,10 +23,9 @@ python module dynamic_topmodel_tools ! in
             integer*4 dimension(nvalues),intent(in),depend(nvalues) :: wcolumns
             integer*4 dimension(nhsu + 1),intent(in),depend(nhsu) :: wrowindex
             integer, optional,check(len(wvalues)>=nvalues),depend(wvalues) :: nvalues=len(wvalues)
-            real*4 dimension(nhsu,nhsu),intent(in),depend(nhsu,nhsu) :: weights
             integer intent(in) :: nthreads
         end subroutine update
-        subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,recharge1,area,dx,dtt,celerity,celerity1,wvalues,wcolumns,wrowindex,weights) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
+        subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,recharge1,area,dx,dtt,celerity,celerity1,wvalues,wcolumns,wrowindex) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
             integer, optional,intent(in),check(len(storage)>=nhsu),depend(storage) :: nhsu=len(storage)
             integer, optional,intent(in),check(len(wvalues)>=nvalues),depend(wvalues) :: nvalues=len(wvalues)
             real*4 dimension(nhsu),intent(inout) :: storage
@@ -45,7 +44,6 @@ python module dynamic_topmodel_tools ! in
             real*4 dimension(nvalues),intent(in) :: wvalues
             integer*4 dimension(nvalues),intent(in),depend(nvalues) :: wcolumns
             integer*4 dimension(nhsu + 1),intent(in),depend(nhsu) :: wrowindex
-            real*4 dimension(nhsu,nhsu),intent(in),depend(nhsu,nhsu) :: weights
         end subroutine solve_kinematic_wave
     end interface 
 end python module dynamic_topmodel_tools
