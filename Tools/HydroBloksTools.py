@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',
+        'model_type':'full',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -498,25 +498,17 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  rank = hydrobloks_info['rank']
 
  #Create the clusters and their connections
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
+ #output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
 
  #Extract the meteorological forcing
- output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info,hydrobloks_info)
+ if hydrobloks_info['model_type'] == 'semi':
+  Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydrobloks_info)
+ elif hydrobloks_info['model_type'] == 'full':
+  Prepare_Meteorology_Fulldistributed(workspace,wbd,output,input_dir,info,hydrobloks_info)
 
  #Write out the files to the netcdf file
  fp = hydrobloks_info['input_fp']
  data = output
- #Create the dimensions
- #ntime = data['meteorology']['wind'].shape[0]
- #nhsu = hydrobloks_info['nclusters']
- #fp.createDimension('hsu',nhsu)
- #fp.createDimension('time',ntime)
-
- #Write the meteorology
- #grp = fp.createGroup('meteorology')
- #for var in data['meteorology']:
- # grp.createVariable(var,'f4',('time','hsu'))
- # grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
  flow_matrix = output['flow_matrix']
@@ -539,12 +531,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  for var in vars:
   grp.createVariable(var,'f4',('hsu',))
   grp.variables[var][:] = data['hsu'][var]
- #for hsu in data['hsu']:
- # for var in vars:
- #  if var not in ['WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']:
- #   grp.variables[var][hsu] = data['hsu'][hsu][var]
- #  else:
- #   grp.variables[var][hsu] = data['hsu'][hsu]['soil_parameters'][var]
 
  #Write other metadata
  grp = fp.createGroup('metadata')
@@ -995,10 +981,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
   grp.createVariable(var,'f4',('time','hsu'))
   grp.variables[data_var][:] = meteorology[data_var][:]
 
- #Append the meteorology to the output dictionary
- #OUTPUT['meteorology'] = meteorology
-
- return OUTPUT
+ return 
 
 def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
 
