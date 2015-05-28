@@ -503,8 +503,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp = fp.createGroup('meteorology')
  for var in data['meteorology']:
   grp.createVariable(var,'f4',('time','hsu'))
-  print var,data['meteorology'][var].shape
-  print ntime,nhsu
   grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
@@ -646,6 +644,53 @@ def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
 
  return (cluster_ids,)
 
+def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask):
+
+ nclusters = hydrobloks_info['nclusters']
+ #Initialize the arrays
+ vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
+         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
+         'vchan','vof','land_cover','soil_texture_class']
+ OUTPUT['hsu'] = {}
+ for var in vars:
+  OUTPUT['hsu'][var] = np.zeros(nclusters)
+
+ NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ for hsu in np.arange(nclusters):
+
+  #Set indices
+  idx = np.where(cluster_ids == hsu)
+  #Calculate area per hsu
+  OUTPUT['hsu']['area'][hsu] = metadata['resx']**2*idx[0].size
+  #Calculate area percentage per hsu
+  OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']*mask[mask].size)
+  #Soil properties
+  for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
+   if var in ['SATDK','SATDW']:
+    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])
+   else:
+    OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
+  #Average Slope
+  OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
+  #Topographic index
+  OUTPUT['hsu']['ti'][hsu] = np.mean(covariates['ti'][idx])
+  #DEM
+  OUTPUT['hsu']['dem'][hsu] = np.mean(covariates['dem'][idx])
+  #Average Catchment Area
+  OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
+  #Channel?
+  OUTPUT['hsu']['channel'][hsu] = np.mean(covariates['channels'][idx])
+  #Vchan
+  OUTPUT['hsu']['vchan'][hsu] = 1000 #m/hr
+  #Vof
+  OUTPUT['hsu']['vof'][hsu] = 100 #m/hr
+  #Land cover type  
+  OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  #Soil texture class
+  OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+
+ return OUTPUT
+
 def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
 
  #Prepare the flow matrix
@@ -729,15 +774,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  elif hydrobloks_info['model_type'] == 'full':
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters)
 
- #Create a dictionary of class info
- clusters = {}
- for cid in xrange(nclusters):
-  #Determine the percentage coverage
-  pct = float(np.sum(cluster_ids == cid))/float(np.sum(mask))
-  clusters[cid] = {'pct':pct}
-  idx = np.where(cluster_ids == cid)
-  clusters[cid]['idx'] = idx
-
  #Prepare the flow matrix
  flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
 
@@ -757,47 +793,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  OUTPUT['hsu_map'] = cluster_ids
 
  #Assign the model parameters
- vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
-         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
-         'vchan','vof','land_cover','soil_texture_class']
- OUTPUT['hsu'] = {}
- for var in vars:
-  OUTPUT['hsu'][var] = np.zeros(nclusters)
-
- #Assign the model parameters
- NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
- for hsu in np.arange(nclusters):
-
-  #Set indices
-  idx = clusters[hsu]['idx']
-  #Calculate area per hsu
-  OUTPUT['hsu']['area'][hsu] = metadata['resx']**2*idx[0].size
-  #Calculate area percentage per hsu
-  OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']*mask[mask].size)
-  #Soil properties
-  for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
-   if var in ['SATDK','SATDW']:
-    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])
-   else:
-    OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
-  #Average Slope
-  OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
-  #Topographic index
-  OUTPUT['hsu']['ti'][hsu] = np.mean(covariates['ti'][idx])
-  #DEM
-  OUTPUT['hsu']['dem'][hsu] = np.mean(covariates['dem'][idx])
-  #Average Catchment Area
-  OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
-  #Channel?
-  OUTPUT['hsu']['channel'][hsu] = np.mean(covariates['channels'][idx])
-  #Vchan
-  OUTPUT['hsu']['vchan'][hsu] = 1000 #m/hr
-  #Vof
-  OUTPUT['hsu']['vof'][hsu] = 100 #m/hr
-  #Land cover type
-  OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
-  #Soil texture class
-  OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+ if hydrobloks_info['model_type'] == 'semi':
+  OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
+ #elif hydrobloks_info['model_type'] == 'full':
+ # Assign_Parameters_Fulldistributed()
 
  #Read in table of NOAH soil parameter values
  fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
@@ -871,7 +870,6 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
 
   #Compute the mapping for each hsu
   for hsu in np.arange(hydrobloks_info['nclusters']):
-   print hsu
    idx = OUTPUT['hsu_map'] == hsu
    icells = np.unique(mask_fine[idx].astype(np.int))
    counts = np.bincount(mask_fine[idx].astype(np.int))
