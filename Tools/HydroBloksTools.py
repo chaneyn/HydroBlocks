@@ -473,13 +473,19 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Create the netcdf file
  file_netcdf = hydrobloks_info['input']
- info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
+ hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions (netcdf)
- ntime = data['meteorology']['wind'].shape[0]
+ idate = hydrobloks_info['idate']
+ fdate = hydrobloks_info['fdate']
+ dt = hydrobloks_info['dt']
+ ntime = 24*3600*((fdate - idate).days+1)/dt
  nhsu = hydrobloks_info['nclusters']
- fp.createDimension('hsu',nhsu)
- fp.createDimension('time',ntime)
+ hydrobloks_info['input_fp'].createDimension('hsu',nhsu)
+ hydrobloks_info['input_fp'].createDimension('time',ntime)
+
+ #Create the groups (netcdf)
+ hydrobloks_info['input_fp'].createGroup('meteorology')
 
 
  #Create the dictionary to hold all of the data
@@ -498,19 +504,19 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info,hydrobloks_info)
 
  #Write out the files to the netcdf file
- fp = info['input_fp']
+ fp = hydrobloks_info['input_fp']
  data = output
  #Create the dimensions
- ntime = data['meteorology']['wind'].shape[0]
- nhsu = hydrobloks_info['nclusters']
- fp.createDimension('hsu',nhsu)
- fp.createDimension('time',ntime)
+ #ntime = data['meteorology']['wind'].shape[0]
+ #nhsu = hydrobloks_info['nclusters']
+ #fp.createDimension('hsu',nhsu)
+ #fp.createDimension('time',ntime)
 
  #Write the meteorology
- grp = fp.createGroup('meteorology')
- for var in data['meteorology']:
-  grp.createVariable(var,'f4',('time','hsu'))
-  grp.variables[var][:] = data['meteorology'][var][:]
+ #grp = fp.createGroup('meteorology')
+ #for var in data['meteorology']:
+ # grp.createVariable(var,'f4',('time','hsu'))
+ # grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
  flow_matrix = output['flow_matrix']
@@ -546,7 +552,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Remove info from output
  del output['hsu']
- del output['meteorology']
 
  #Add in the catchment info
  output['wbd'] = wbd
@@ -985,9 +990,13 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
    if data_var not in ['apcpsfc',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
 
- #Write the meteorology to the netcdf file (single chunk for now...)
+  #Write the meteorology to the netcdf file (single chunk for now...)
+  grp = hydrobloks_info['input_fp'].groups['meteorology']
+  grp.createVariable(var,'f4',('time','hsu'))
+  grp.variables[data_var][:] = meteorology[data_var][:]
+
  #Append the meteorology to the output dictionary
- OUTPUT['meteorology'] = meteorology
+ #OUTPUT['meteorology'] = meteorology
 
  return OUTPUT
 
