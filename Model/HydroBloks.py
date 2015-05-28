@@ -175,7 +175,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  dem = []
  #Set cluster information
  model.pct[:] = info['input_fp'].groups['parameters'].variables['area_pct'][:]/100
- model.area[:] = model.dx*info['input_fp'].groups['parameters'].variables['area']
+ model.area[:] = info['input_fp'].groups['parameters'].variables['area']
  model.T0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]*(10**parameters['log10m'])
  model.sti[:] = info['input_fp'].groups['parameters'].variables['ti'][:]
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]

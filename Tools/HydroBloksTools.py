@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -488,14 +488,14 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
 
  #Extract the meteorological forcing
- output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info)
+ output = Prepare_HSU_Meteorology(workspace,wbd,output,input_dir,info,hydrobloks_info)
 
  #Write out the files to the netcdf file
  fp = info['input_fp']
  data = output
  #Create the dimensions
  ntime = data['meteorology']['wind'].shape[0]
- nhsu = len(data['hsu'].keys())
+ nhsu = hydrobloks_info['nclusters']
  fp.createDimension('hsu',nhsu)
  fp.createDimension('time',ntime)
 
@@ -503,6 +503,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp = fp.createGroup('meteorology')
  for var in data['meteorology']:
   grp.createVariable(var,'f4',('time','hsu'))
+  print var,data['meteorology'][var].shape
+  print ntime,nhsu
   grp.variables[var][:] = data['meteorology'][var][:]
 
  #Write the flow matrix
@@ -525,12 +527,13 @@ def Prepare_Model_Input_Data(hydrobloks_info):
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']
  for var in vars:
   grp.createVariable(var,'f4',('hsu',))
- for hsu in data['hsu']:
-  for var in vars:
-   if var not in ['WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']:
-    grp.variables[var][hsu] = data['hsu'][hsu][var]
-   else:
-    grp.variables[var][hsu] = data['hsu'][hsu]['soil_parameters'][var]
+  grp.variables[var][:] = data['hsu'][var]
+ #for hsu in data['hsu']:
+ # for var in vars:
+ #  if var not in ['WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']:
+ #   grp.variables[var][hsu] = data['hsu'][hsu][var]
+ #  else:
+ #   grp.variables[var][hsu] = data['hsu'][hsu]['soil_parameters'][var]
 
  #Write other metadata
  grp = fp.createGroup('metadata')
@@ -727,18 +730,16 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters)
 
  #Create a dictionary of class info
- '''clusters = {}
+ clusters = {}
  for cid in xrange(nclusters):
   #Determine the percentage coverage
   pct = float(np.sum(cluster_ids == cid))/float(np.sum(mask))
   clusters[cid] = {'pct':pct}
   idx = np.where(cluster_ids == cid)
-  clusters[cid]['idx'] = idx'''
+  clusters[cid]['idx'] = idx
 
  #Prepare the flow matrix
  flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
- print flow_matrix
- exit()
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
@@ -748,55 +749,55 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Determine outlet cell
  covariates['carea'][mask == False] = np.nan
- outlet_idx = covariates['carea'] == np.max(covariates['carea'][np.isnan(covariates['carea']) == 0])
- OUTPUT['outlet'] = {'idx':outlet_idx,'hsu':cluster_ids[outlet_idx]}
+ outlet_idx = np.where(covariates['carea'] == np.max(covariates['carea'][np.isnan(covariates['carea']) == 0]))
+ outlet_idx = [int(outlet_idx[0]),int(outlet_idx[1])]
+ OUTPUT['outlet'] = {'idx':outlet_idx,'hsu':cluster_ids[outlet_idx[0],outlet_idx[1]]}
+
+ #Remember the map of hrus
  OUTPUT['hsu_map'] = cluster_ids
 
- for hsu in clusters:
+ #Assign the model parameters
+ vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
+         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
+         'vchan','vof','land_cover','soil_texture_class']
+ OUTPUT['hsu'] = {}
+ for var in vars:
+  OUTPUT['hsu'][var] = np.zeros(nclusters)
+
+ #Assign the model parameters
+ NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ for hsu in np.arange(nclusters):
 
   #Set indices
-  OUTPUT['hsu'][hsu] = {'idx':clusters[hsu]['idx']}
+  idx = clusters[hsu]['idx']
   #Calculate area per hsu
-  OUTPUT['hsu'][hsu]['area'] = metadata['resx']*OUTPUT['hsu'][hsu]['idx'][0].size
+  OUTPUT['hsu']['area'][hsu] = metadata['resx']**2*idx[0].size
   #Calculate area percentage per hsu
-  OUTPUT['hsu'][hsu]['area_pct'] = 100*OUTPUT['hsu'][hsu]['area']/(metadata['resx']*mask[mask].size)
-  #SOIL
-  OUTPUT['hsu'][hsu]['soil_parameters'] = {}
+  OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']*mask[mask].size)
+  #Soil properties
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
-   #OUTPUT['hsu'][hsu]['soil_parameters'][var] = np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
    if var in ['SATDK','SATDW']:
-    OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])
    else:
-    OUTPUT['hsu'][hsu]['soil_parameters'][var] = stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']])
-   #print var,np.mean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.gmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),stats.mstats.hmean(covariates[var][OUTPUT['hsu'][hsu]['idx']]),np.median(covariates[var][OUTPUT['hsu'][hsu]['idx']])
+    OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
   #Average Slope
-  OUTPUT['hsu'][hsu]['slope'] = np.mean(covariates['cslope'][OUTPUT['hsu'][hsu]['idx']])
+  OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
   #Topographic index
-  OUTPUT['hsu'][hsu]['ti'] = np.mean(covariates['ti'][OUTPUT['hsu'][hsu]['idx']])
+  OUTPUT['hsu']['ti'][hsu] = np.mean(covariates['ti'][idx])
   #DEM
-  OUTPUT['hsu'][hsu]['dem'] = np.mean(covariates['dem'][OUTPUT['hsu'][hsu]['idx']])
+  OUTPUT['hsu']['dem'][hsu] = np.mean(covariates['dem'][idx])
   #Average Catchment Area
-  OUTPUT['hsu'][hsu]['carea'] = np.mean(covariates['carea'][OUTPUT['hsu'][hsu]['idx']])
+  OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
-  OUTPUT['hsu'][hsu]['channel'] = np.mean(covariates['channels'][OUTPUT['hsu'][hsu]['idx']])
+  OUTPUT['hsu']['channel'][hsu] = np.mean(covariates['channels'][idx])
   #Vchan
-  OUTPUT['hsu'][hsu]['vchan'] = 1000 #m/hr
+  OUTPUT['hsu']['vchan'][hsu] = 1000 #m/hr
   #Vof
-  OUTPUT['hsu'][hsu]['vof'] = 100 #m/hr
-
- #Vegetation
- NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
- #Determine the most frequent vegetation class per hsu and assign type
- for hsu in OUTPUT['hsu']:
-  idx = OUTPUT['hsu'][hsu]['idx']
-  #if stats.mode(covariates['nlcd'][idx])[0][0] == 0.0:return
-  OUTPUT['hsu'][hsu]['land_cover'] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
-
- #Soil
- #Determine the most frequent soil texture class and assign the other properties
- for hsu in OUTPUT['hsu']:
-  idx = OUTPUT['hsu'][hsu]['idx']
-  OUTPUT['hsu'][hsu]['soil_texture_class'] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+  OUTPUT['hsu']['vof'][hsu] = 100 #m/hr
+  #Land cover type
+  OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  #Soil texture class
+  OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
 
  #Read in table of NOAH soil parameter values
  fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
@@ -821,7 +822,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Soil properties
  soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
- nhsus = len(OUTPUT['hsu'])
+ nhsus = hydrobloks_info['nclusters']
  soilsdir = '%s/soils' % input_dir
  os.system('mkdir -p %s' % soilsdir)
  soils_lookup = '%s/SOILPARM_%d_%d.TBL' % (soilsdir,icatch,rank)
@@ -829,59 +830,36 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  fp.write('Soil Parameters\n')
  fp.write('CUST\n')
  fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
- for hsu in OUTPUT['hsu']:
+ for hsu in np.arange(nclusters):
   fp.write('%d ' % (hsu+1))
   for var in soil_vars:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','BB','SATPSI']:
    if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
-    fp.write(',%.10f ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
+    fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
    else:
-    #if var in ['F11','SATDW','QTZ']:
-    #if var in ['BB','F11','SATPSI','QTZ']:
-    idx = soils_data['ID'].index(OUTPUT['hsu'][hsu]['soil_texture_class'])
+    idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
     fp.write(',%.10f ' % soils_data[var][idx])
-   #fp.write('%.10f, ' % OUTPUT['hsu'][hsu]['soil_parameters'][var])
   fp.write('\n')
  fp.close()
 
  #Save the soils file name to the model input
  OUTPUT['files'] = {'soils':soils_lookup,}
 
- #Create the image of the covariates
- '''covariates['hsu_map'] = OUTPUT['hsu_map']
- vars= ['carea','cslope','MAXSMC','nlcd','ti','dem','hsu_map']
- ns = int(np.ceil(float(len(vars))**0.5))
- plt.figure(figsize=(25,25))
- for var in vars:
-  #Apply the mask
-  plotdata = np.copy(covariates[var])
-  plotdata[mask <= 0] = np.nan
-  #Plot the data
-  plt.subplot(ns,ns,vars.index(var) + 1)
-  plt.title(var,fontsize=45)
-  plt.imshow(plotdata,interpolation='nearest')
-  plt.axis('off')
-
- #Save the figure
- plt.tight_layout()
- figure = 'covariates.png'
- plt.savefig(figure)'''
-
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
 
  return OUTPUT
 
-def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
+def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info):
 
  #Define the mapping directory
  mapping_dir = '%s/mapping' % workspace
+ mapping_info = {}
  #Calculate the fine to coarse scale mapping
  for data_var in wbd['files_meteorology']:
   
   #Define the variable name
   var = data_var#data_var.split('_')[1]
+  mapping_info[var] = {}
 
   #Read in the coarse and fine mapping
   file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
@@ -892,8 +870,9 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
   nlon = mask_coarse.shape[1]
 
   #Compute the mapping for each hsu
-  for hsu in OUTPUT['hsu']:
-   idx = OUTPUT['hsu'][hsu]['idx']
+  for hsu in np.arange(hydrobloks_info['nclusters']):
+   print hsu
+   idx = OUTPUT['hsu_map'] == hsu
    icells = np.unique(mask_fine[idx].astype(np.int))
    counts = np.bincount(mask_fine[idx].astype(np.int))
    coords,pcts = [],[]
@@ -905,7 +884,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
     pcts.append(pct)
    pcts = np.array(pcts)
    coords = list(np.array(coords).T)
-   OUTPUT['hsu'][hsu][var] = {'pcts':pcts,'coords':coords}
+   mapping_info[var][hsu] = {'pcts':pcts,'coords':coords}
 
  #Iterate through variable creating forcing product per HSU
  idate = info['time_info']['startdate']
@@ -913,12 +892,12 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
  nt = 24*((fdate - idate).days+1)
  #Create structured array
  meteorology = {}
- formats,names = [],[]
- for name in OUTPUT['hsu'].keys():
-  formats.append('f8')
-  names.append(str(name))
+ #formats,names = [],[]
+ #for name in mapping_info.keys():
+ # #formats.append('f8')
+ # #names.append(str(name))
  for data_var in wbd['files_meteorology']:
-  meteorology[data_var] = np.zeros((nt,len(names)))
+  meteorology[data_var] = np.zeros((nt,hydrobloks_info['nclusters']))
  #Load data into structured array
  for data_var in wbd['files_meteorology']:
   var = data_var#data_var.split('_')[1]
@@ -934,9 +913,9 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info):
   data = np.ma.getdata(fp.variables[var][mask_dates])
   fp.close()
   #Assing to hsus
-  for hsu in OUTPUT['hsu']:
-   pcts = OUTPUT['hsu'][hsu][var]['pcts']
-   coords = OUTPUT['hsu'][hsu][var]['coords']
+  for hsu in mapping_info[var]:
+   pcts = mapping_info[var][hsu]['pcts']
+   coords = mapping_info[var][hsu]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
    tmp = pcts*data[:,coords[0],coords[1]]
@@ -1148,7 +1127,6 @@ def Update_Soils(input,soilfile,parameters,icatch,rank):
     #tmp = soils_data[var][idx]
     input['hsu'][hsu]['soil_parameters'][var] = tmp
     fp.write('%.10f, ' % tmp)
-   #if var in ['BB','F11','SATPSI','SATDK','SATDW','QTZ']:
    else:
     fp.write('%.10f, ' % soils_data[var][idx])
   fp.write('\n')
