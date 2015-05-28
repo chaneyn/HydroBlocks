@@ -549,29 +549,29 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  return output
 
-def Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters):
+def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
- cluster_ids[mask_woc == True] = np.arange(np.sum(mask_woc == True))
+ cluster_ids[mask == True] = np.arange(nclusters)
 
  return (cluster_ids,)
 
-def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
+def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask_woc == True],},
-        'slope':{'data':covariates['cslope'][mask_woc == True],},
-        'sms':{'data':covariates['MAXSMC'][mask_woc == True],},
-        'smw':{'data':covariates['WLTSMC'][mask_woc == True],},
+ info = {'area':{'data':covariates['carea'][mask == True],},
+        'slope':{'data':covariates['cslope'][mask == True],},
+        'sms':{'data':covariates['MAXSMC'][mask == True],},
+        'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask_woc ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask_woc == True],},
-        'dem':{'data':covariates['dem'][mask_woc == True],},
-        'lats':{'data':covariates['lats'][mask_woc == True],},
-        'lons':{'data':covariates['lons'][mask_woc == True],},
+        'dem':{'data':covariates['dem'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
@@ -612,7 +612,7 @@ def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
   clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
- cluster_ids[mask_woc == True] = clf_output
+ cluster_ids[mask == True] = clf_output
  nclusters_old = nclusters
  nclusters = np.unique(clf_output).size
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
@@ -644,6 +644,53 @@ def Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters):
 
  return (cluster_ids,)
 
+def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask):
+
+ nclusters = hydrobloks_info['nclusters']
+ #Initialize the arrays
+ vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
+         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',         'vchan','vof','land_cover','soil_texture_class']
+ OUTPUT['hsu'] = {}
+ for var in vars:
+  OUTPUT['hsu'][var] = np.zeros(nclusters) 
+
+ #Metadata
+ NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+
+ #Calculate area per hsu
+ OUTPUT['hsu']['area'][:] = metadata['resx']**2
+ #Calculate area percentage per hsu
+ OUTPUT['hsu']['area_pct'][:] = 100*OUTPUT['hsu']['area']/(metadata['resx']**2*nclusters)
+ #Soil properties
+ for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
+  if var in ['SATDK','SATDW']:
+   OUTPUT['hsu'][var][:] = covariates[var][mask]
+  else:
+   OUTPUT['hsu'][var][:] = covariates[var][mask]
+  #Average Slope
+  OUTPUT['hsu']['slope'][:] = covariates['cslope'][mask]
+  #Topographic index
+  OUTPUT['hsu']['ti'][:] = covariates['ti'][mask]
+  #DEM
+  OUTPUT['hsu']['dem'][:] = covariates['dem'][mask]
+  #Average Catchment Area
+  OUTPUT['hsu']['carea'][:] = covariates['carea'][mask]
+  #Channel?
+  OUTPUT['hsu']['channel'][:] = covariates['channels'][mask]
+  #Vchan
+  OUTPUT['hsu']['vchan'][:] = 1000 #m/hr
+  #Vof
+  OUTPUT['hsu']['vof'][:] = 100 #m/hr
+  #Land cover type  
+  land_cover = np.copy(covariates['nlcd'])
+  for lc in np.unique(land_cover)[1:]:
+   land_cover[land_cover == lc] = NLCD2NOAH[lc]
+  #OUTPUT['hsu']['land_cover'][:] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  #Soil texture class
+  OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
+
+ return OUTPUT
+
 def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask):
 
  nclusters = hydrobloks_info['nclusters']
@@ -655,6 +702,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  for var in vars:
   OUTPUT['hsu'][var] = np.zeros(nclusters)
 
+ #Metadata
  NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  for hsu in np.arange(nclusters):
 
@@ -663,7 +711,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Calculate area per hsu
   OUTPUT['hsu']['area'][hsu] = metadata['resx']**2*idx[0].size
   #Calculate area percentage per hsu
-  OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']*mask[mask].size)
+  OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']**2*mask[mask].size)
   #Soil properties
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
    if var in ['SATDK','SATDW']:
@@ -716,6 +764,53 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  flow_matrix.data = fm_data
 
  return flow_matrix.T
+
+def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank):
+
+ #Read in table of NOAH soil parameter values
+ fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
+ iline = 0
+ soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[],'ID':[],'BB':[],'F11':[],'SATPSI':[],'SATDK':[]
+,'SATDW':[],'WLTSMC':[],'QTZ':[]}
+ for line in fp:
+  if (iline > 2) & (iline < 15):
+   tmp = line.split(',')
+   soils_data['ID'].append(float(tmp[0]))
+   soils_data['BB'].append(float(tmp[1]))
+   soils_data['DRYSMC'].append(float(tmp[2]))
+   soils_data['F11'].append(float(tmp[3]))
+   soils_data['MAXSMC'].append(float(tmp[4]))
+   soils_data['REFSMC'].append(float(tmp[5]))
+   soils_data['SATPSI'].append(float(tmp[6]))
+   soils_data['SATDK'].append(float(tmp[7]))
+   soils_data['SATDW'].append(float(tmp[8]))
+   soils_data['WLTSMC'].append(float(tmp[9]))
+   soils_data['QTZ'].append(float(tmp[10]))
+  iline = iline + 1
+ fp.close()
+
+ #Soil properties
+ soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
+ nhsus = hydrobloks_info['nclusters']
+ soilsdir = '%s/soils' % input_dir
+ os.system('mkdir -p %s' % soilsdir)
+ soils_lookup = '%s/SOILPARM_%d_%d.TBL' % (soilsdir,icatch,rank)
+ fp = open(soils_lookup,'w')
+ fp.write('Soil Parameters\n')
+ fp.write('CUST\n')
+ fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
+ for hsu in np.arange(nhsus):
+  fp.write('%d ' % (hsu+1))
+  for var in soil_vars:
+   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
+    fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
+   else:
+    idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
+    fp.write(',%.10f ' % soils_data[var][idx])
+  fp.write('\n')
+ fp.close()
+
+ return soils_lookup
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
 
@@ -770,9 +865,11 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  if hydrobloks_info['model_type'] == 'semi':
-  (cluster_ids,) = Compute_HRUs_Semidistributed(covariates,mask_woc,nclusters)
+  (cluster_ids,) = Compute_HRUs_Semidistributed(covariates,mask,nclusters)
  elif hydrobloks_info['model_type'] == 'full':
-  (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask_woc,nclusters)
+  nclusters = np.sum(mask_woc == True)
+  hydrobloks_info['nclusters'] = nclusters
+  (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nclusters)
 
  #Prepare the flow matrix
  flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
@@ -795,50 +892,11 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Assign the model parameters
  if hydrobloks_info['model_type'] == 'semi':
   OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
- #elif hydrobloks_info['model_type'] == 'full':
- # Assign_Parameters_Fulldistributed()
+ elif hydrobloks_info['model_type'] == 'full':
+  OUTPUT = Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
 
- #Read in table of NOAH soil parameter values
- fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
- iline = 0
- soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[],'ID':[],'BB':[],'F11':[],'SATPSI':[],'SATDK':[],'SATDW':[],'WLTSMC':[],'QTZ':[]}
- for line in fp:
-  if (iline > 2) & (iline < 15):
-   tmp = line.split(',')
-   soils_data['ID'].append(float(tmp[0]))
-   soils_data['BB'].append(float(tmp[1]))
-   soils_data['DRYSMC'].append(float(tmp[2]))
-   soils_data['F11'].append(float(tmp[3]))
-   soils_data['MAXSMC'].append(float(tmp[4]))
-   soils_data['REFSMC'].append(float(tmp[5]))
-   soils_data['SATPSI'].append(float(tmp[6]))
-   soils_data['SATDK'].append(float(tmp[7]))
-   soils_data['SATDW'].append(float(tmp[8]))
-   soils_data['WLTSMC'].append(float(tmp[9]))
-   soils_data['QTZ'].append(float(tmp[10]))
-  iline = iline + 1
- fp.close()
-
- #Soil properties
- soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
- nhsus = hydrobloks_info['nclusters']
- soilsdir = '%s/soils' % input_dir
- os.system('mkdir -p %s' % soilsdir)
- soils_lookup = '%s/SOILPARM_%d_%d.TBL' % (soilsdir,icatch,rank)
- fp = open(soils_lookup,'w')
- fp.write('Soil Parameters\n')
- fp.write('CUST\n')
- fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
- for hsu in np.arange(nclusters):
-  fp.write('%d ' % (hsu+1))
-  for var in soil_vars:
-   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
-    fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
-   else:
-    idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
-    fp.write(',%.10f ' % soils_data[var][idx])
-  fp.write('\n')
- fp.close()
+ #Create the soil parameters file
+ soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
 
  #Save the soils file name to the model input
  OUTPUT['files'] = {'soils':soils_lookup,}
