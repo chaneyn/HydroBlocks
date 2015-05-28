@@ -475,6 +475,13 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  file_netcdf = hydrobloks_info['input']
  info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
+ #Create the dimensions (netcdf)
+ ntime = data['meteorology']['wind'].shape[0]
+ nhsu = hydrobloks_info['nclusters']
+ fp.createDimension('hsu',nhsu)
+ fp.createDimension('time',ntime)
+
+
  #Create the dictionary to hold all of the data
  output = {}
 
@@ -954,10 +961,6 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
  nt = 24*((fdate - idate).days+1)
  #Create structured array
  meteorology = {}
- #formats,names = [],[]
- #for name in mapping_info.keys():
- # #formats.append('f8')
- # #names.append(str(name))
  for data_var in wbd['files_meteorology']:
   meteorology[data_var] = np.zeros((nt,hydrobloks_info['nclusters']))
  #Load data into structured array
@@ -965,9 +968,6 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
   var = data_var#data_var.split('_')[1]
   date = idate
   file = wbd['files_meteorology'][data_var]
-  #dir = ctl[0:-(len(var)+5)]
-  #file = '%s/%s/%s.nc' % (dir,var,var)
-  #if var == 'apcpsfc': file = '%s/%s.nc' % (dir,var)
   fp = nc.Dataset(file)
   #Determine the time steps to retrieve
   dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
@@ -985,6 +985,7 @@ def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info)
    if data_var not in ['apcpsfc',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
 
+ #Write the meteorology to the netcdf file (single chunk for now...)
  #Append the meteorology to the output dictionary
  OUTPUT['meteorology'] = meteorology
 
