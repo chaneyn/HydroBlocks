@@ -812,7 +812,7 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank):
 
  return soils_lookup
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
+def Create_and_Curate_Covariates(wbd):
 
  covariates = {}
  #Read in and curate all the covariates
@@ -857,21 +857,25 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Set everything outside of the mask to -9999
  for var in covariates:
   covariates[var][mask <= 0] = -9999.0
+ 
+ return (covariates,mask)
 
- #Create channels mask
- mask_woc = np.copy(mask)
- mask_wc = np.copy(mask)
- mask_wc[covariates['channels'] <= 0] = 0
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
+ 
+ print "Creating and curating the covariates"
+ (covariates,mask) = Create_and_Curate_Covariates(wbd)
 
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
+ print "Computing the HRUs"
  if hydrobloks_info['model_type'] == 'semi':
   (cluster_ids,) = Compute_HRUs_Semidistributed(covariates,mask,nclusters)
  elif hydrobloks_info['model_type'] == 'full':
-  nclusters = np.sum(mask_woc == True)
+  nclusters = np.sum(mask == True)
   hydrobloks_info['nclusters'] = nclusters
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nclusters)
 
  #Prepare the flow matrix
+ print "Calculating the flow matrix"
  flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
 
  #Define the metadata
@@ -890,12 +894,14 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  OUTPUT['hsu_map'] = cluster_ids
 
  #Assign the model parameters
+ print "Assigning the model parameters"
  if hydrobloks_info['model_type'] == 'semi':
   OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
  elif hydrobloks_info['model_type'] == 'full':
   OUTPUT = Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
 
  #Create the soil parameters file
+ print "Creating the soil file"
  soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
 
  #Save the soils file name to the model input
