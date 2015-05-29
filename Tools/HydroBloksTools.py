@@ -65,7 +65,7 @@ def Deterministic(info):
         }
 
  #Cluster the data
- input = Prepare_Model_Input_Data(hydrobloks_info)
+ #input = Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
  #input = pickle.load(open('workspace/tmp.pck'))
 
@@ -966,7 +966,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Create the soil parameters file
  print "Creating the soil file"
- #soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
+ soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
 
  #Save the soils file name to the model input
  #OUTPUT['files'] = {'soils':soils_lookup,}
@@ -1271,9 +1271,9 @@ def update_netcdf(cdir,iens,nens,parameters,file_netcdf,output,rank):
   #Compute the catchment summary 
   if var not in ['qout_surface','qout_subsurface']:
    data = np.sum(output['misc']['pct']*data,axis=1)
-  else:
-   imax = output['misc']['outlet_hsu']
-   data = data[:,imax]
+  #else:
+  # imax = output['misc']['outlet_hsu']
+  # data = data[:,imax]
 
   #Write the catchment summary
   fp.groups['summary'].variables[var][:,iens] = data

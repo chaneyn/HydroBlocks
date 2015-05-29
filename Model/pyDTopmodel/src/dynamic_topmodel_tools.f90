@@ -88,6 +88,8 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  
   !Calculate qin
   call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,area*qout,qin)
+  print*,area*qout
+  print*,qin
   !call sgemv('N',nhsu,nhsu,1.0,weights,nhsu,qout*area,1,0.0,qin,1)
   !qout = qout*area
   !qin = 0
