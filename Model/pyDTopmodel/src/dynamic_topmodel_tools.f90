@@ -1,18 +1,21 @@
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
-                  area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,nthreads)
+                  area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,nthreads,&
+                  qin_outlet,area_outlet,nhru_outlet)
 
  use omp_lib
  implicit none
- integer :: nhsu,nvalues
+ integer :: nhsu,nvalues,nhru_outlet
  real*8,intent(in) :: dt
  !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
  real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
+ real*4,intent(inout),dimension(nhru_outlet) :: qin_outlet
+ real*4,intent(in),dimension(nhru_outlet) :: area_outlet
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
  real*4,intent(in),dimension(nvalues) :: wvalues
  integer,intent(in) :: nthreads
- real*4,dimension(nhsu) :: storage_,qout_,storage1_,qout1_,qin1_
+ real*4,dimension(nhsu) :: storage_,qout_,storage1_,qout1_,qin1_,qin_outlet_
  real*8 :: dt_minimum,dtt
  integer :: ntt,itime
 
@@ -27,6 +30,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  storage1_(:) = storage(:)
  qout1_(:) = qout(:) 
  qin1_(:) = qin(:)
+ qin_outlet_(:) = 0.0
 
  !Set the number of threads
  !call omp_set_num_threads(nthreads)
@@ -39,37 +43,44 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
    !Solve the kinematic wave for this time step
    call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                              recharge1,area,dx,dtt,celerity,celerity1,&
-                             wvalues,wcolumns,wrowindex)!,weights)
+                             wvalues,wcolumns,wrowindex,&
+                             area_outlet,qin_outlet,nhru_outlet)!,weights)
 
    !Add for the average at the end
    qout_ = qout_ + qout
+   qin_outlet_ = qin_outlet_
 
  enddo
 
- !Set the output variables
+ !Set the output variables (WHAT ABOUT qin???)
  qout(:) = qout_/ntt
  qout1(:) = qout1_
  storage1(:) = storage1_
  qin1(:) = qin1_
+ qin_outlet(:) = qin_outlet_/ntt
 
 end subroutine update
 
 subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                                 recharge1,area,dx,dtt,celerity,celerity1,&
-                                wvalues,wcolumns,wrowindex)!,weights)
+                                wvalues,wcolumns,wrowindex,&
+                                area_outlet,qin_outlet,nhru_outlet)!,weights)
 
  implicit none
- integer,intent(in) :: nhsu,nvalues
+ integer,intent(in) :: nhsu,nvalues,nhru_outlet
  real*8,intent(in) :: dtt
  !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
  real*4,intent(in),dimension(nhsu) :: area,dx,celerity,celerity1
+ real*4,intent(inout),dimension(nhru_outlet) :: qin_outlet
+ real*4,intent(in),dimension(nhru_outlet) :: area_outlet
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
  real*4,intent(in),dimension(nvalues) :: wvalues
  integer :: i,j,iter,niter
  real*4 :: w,eps
  real*4,dimension(nhsu) :: denominator,numerator1,numerator2,qout_,ds,part1,part2
+ real*4,dimension(nhsu+nhru_outlet) :: qin_all
 
  !Define implicit scheme parameters
  w = 0.5 
@@ -87,9 +98,8 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  do iter = 1,niter
  
   !Calculate qin
-  call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,area*qout,qin)
-  print*,area*qout
-  print*,qin
+  call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,area*qout,qin_all)
+  !Split up the qin among hrus and outlet hrus
   !call sgemv('N',nhsu,nhsu,1.0,weights,nhsu,qout*area,1,0.0,qin,1)
   !qout = qout*area
   !qin = 0
@@ -100,8 +110,9 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   !  enddo
   !enddo
   !!OMP PARALLEL END DO 
-  !Divide by the area to get the flux
-  qin = qin/area
+  !Divide by the area to get the flux (hrus and outlets)
+  qin = qin_all(1:nhsu)/area
+  qin_outlet = qin(nhsu+1:nhsu+nhru_outlet)/area_outlet
  
   !Calculate qout
   qout = part1 + part2*qin

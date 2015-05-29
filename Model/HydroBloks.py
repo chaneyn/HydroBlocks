@@ -162,13 +162,17 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  #sys.path.append("topmodel")
  import dynamic_topmodel
 
+ #Define some metadata
+ nhru_outlet = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'].size
+
  #Initialize Dynamic Topmodel
- model = dynamic_topmodel.Dynamic_Topmodel(ncells)
+ model = dynamic_topmodel.Dynamic_Topmodel(ncells,nhru_outlet)
+ dx = 30.0 #meters
 
  #Set model parameters
  model.dt = dt #seconds
  model.area[:] = 0.0 #meters^2
- model.dx[:] = 30.0 #meters
+ model.dx[:] = dx #meters
  model.m[:] = 10**parameters['log10m'] #HERE
  model.sdmax[:] = parameters['sdmax'] #HERE
  #model.sdmax[:] = 1000.0#parameters['sdmax'] #HERE
@@ -183,19 +187,8 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
  model.surface_velocity[:] = 1000.0/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
- '''for hsu in data['hsu']:
-  ihsu = data['hsu'].keys().index(hsu)
-  model.pct[ihsu] = data['hsu'][hsu]['area_pct']/100
-  model.area[ihsu] = model.dx[ihsu]*data['hsu'][hsu]['area']
-  model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']*(10**parameters['log10m']) #m2/s
-  #model.T0[ihsu] = data['hsu'][hsu]['soil_parameters']['SATDK']#*(10**parameters['log10m']) #m2/s
-  model.sti[ihsu] = data['hsu'][hsu]['ti']
-  model.beta[ihsu] = data['hsu'][hsu]['slope']
-  model.carea[ihsu] = data['hsu'][hsu]['carea']
-  model.channel[ihsu] = data['hsu'][hsu]['channel']
-  model.surface_velocity[ihsu] = 1000.0/dt #m/s
-  dem.append(data['hsu'][hsu]['dem'])
- model.dem[:] = np.array(dem)'''
+ #Set outlet information
+ model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
  #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
@@ -210,8 +203,8 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.sti = model.sti - (lnT0 - lnTe)
 
  #Set weight matrix
- model.outlet_hsu = int(info['input_fp'].groups['metadata'].outlet_hsu)#int(data['outlet']['hsu'])
- hsu = model.outlet_hsu
+ #model.outlet_hsu = int(info['input_fp'].groups['metadata'].outlet_hsu)#int(data['outlet']['hsu'])
+ #hsu = model.outlet_hsu
  flow_matrix = sparse.csr_matrix((info['input_fp'].groups['flow_matrix'].variables['data'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indices'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indptr'][:]),
@@ -220,9 +213,11 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  #flow_matrix.indices = info['input_fp'].groups['flow_matrix'].variables['indices'][:]
  #flow_matrix.indptr = info['input_fp'].groups['flow_matrix'].variables['indptr'][:]
  #data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
- flow_matrix[hsu,hsu] = flow_matrix[hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
+ #flow_matrix[hsu,hsu] = flow_matrix[hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
  #model.w = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
- model.w = flow_matrix.T
+ model.w = flow_matrix
+ #print model.w.shape
+ #exit()
  #model.wfull[:] = data['tp'].T
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0
@@ -462,7 +457,7 @@ def update_output(output,NOAH,TOPMODEL,date,output_type):
  output['misc']['pct'] = TOPMODEL.pct
  output['misc']['dx'] = TOPMODEL.dx
  output['misc']['area'] = TOPMODEL.area
- output['misc']['outlet_hsu'] = TOPMODEL.outlet_hsu
+ #output['misc']['outlet_hsu'] = TOPMODEL.outlet_hsu
  metadata = {
              'g':{'description':'Ground heat flux','units':'W/m2'},
              'sh':{'description':'Sensible heat flux','units':'W/m2'},
@@ -496,10 +491,10 @@ def update_output(output,NOAH,TOPMODEL,date,output_type):
   output['variables']['lwnet'].append(np.copy(NOAH.fira)) #W/m2
   #Water balance
   output['variables']['et'].append(np.copy(NOAH.ecan + NOAH.etran + NOAH.esoil)) #mm/s
-  imax = TOPMODEL.outlet_hsu
+  #imax = TOPMODEL.outlet_hsu
   #qexcess = np.copy(10**3*TOPMODEL.ex)
   qexcess = np.copy(NOAH.runsb)
-  qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
+  #qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
   output['variables']['qexcess'].append(np.copy(qexcess)) #mm/s
   output['variables']['qsurface'].append(np.copy(NOAH.runsf)) #mm/s
   output['variables']['prcp'].append(np.copy(NOAH.prcp)) #mm/s
@@ -545,9 +540,9 @@ def update_output(output,NOAH,TOPMODEL,date,output_type):
   output['variables']['sh']['mean'].append(mean)
   output['variables']['sh']['std'].append(std)
   #qexcess
-  imax = TOPMODEL.outlet_hsu
+  #imax = TOPMODEL.outlet_hsu
   qexcess = np.copy(NOAH.runsb)
-  qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
+  #qexcess[imax] = qexcess[imax] + 10**3*(TOPMODEL.dx[imax]*(TOPMODEL.qout[imax])/np.sum(TOPMODEL.area))
   mean = np.sum(pcts*qexcess)
   std = np.sum(pcts*(qexcess - mean)**2)**0.5
   output['variables']['qexcess']['mean'].append(mean)

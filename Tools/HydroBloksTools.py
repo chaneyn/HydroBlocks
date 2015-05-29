@@ -30,7 +30,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,1,23)
+ fdate = datetime.datetime(2000,1,31,23)
 
  #Iterate through all the catchments until done
  for icatch in [500,]:#[3637,]:#len(wbd.keys()):
@@ -65,7 +65,7 @@ def Deterministic(info):
         }
 
  #Cluster the data
- #input = Prepare_Model_Input_Data(hydrobloks_info)
+ input = Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
  #input = pickle.load(open('workspace/tmp.pck'))
 

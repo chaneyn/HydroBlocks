@@ -4,7 +4,7 @@ import dynamic_topmodel_tools as dtt
 
 class Dynamic_Topmodel:
 
- def __init__(self,ngroups):
+ def __init__(self,ngroups,nhru_outlet):
 
   #Initialize the variables and parameters
   self.itime = 0 #timestep
@@ -52,6 +52,11 @@ class Dynamic_Topmodel:
   self.r1 = np.zeros(ngroups,dtype=np.float32)
   self.qout1 = np.zeros(ngroups,dtype=np.float32)
   self.qin1 = np.zeros(ngroups,dtype=np.float32)
+
+  #Outlet information
+  self.qin_outlet = np.zeros(ngroups,dtype=np.float32)
+  self.area_outlet = np.zeros(ngroups,dtype=np.float32)
+  self.nhru_outlet = nhru_outlet
 
   #weights
   self.w = []#np.empty((ngroups,ngroups),dtype=np.float32,order='F')
@@ -116,7 +121,8 @@ class Dynamic_Topmodel:
   dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             self.w.data,self.w.indices,self.w.indptr,ncores)
+             self.w.data,self.w.indices,self.w.indptr,ncores,
+             self.qin_outlet,self.area_outlet,self.nhru_outlet)
 
   #print 'after:',-si
 
