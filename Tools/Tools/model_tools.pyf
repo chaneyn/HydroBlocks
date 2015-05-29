@@ -12,13 +12,17 @@ python module model_tools ! in
                 integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
                 integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
             end subroutine calculate_connections
-            subroutine calculate_connections_d8(hsus,d8dir,hrus_dst,hrus_org,nhsu,max_nhsu,n,m) ! in :model_tools:model_tools.f90:preprocessor
+            subroutine calculate_connections_d8(hsus,d8dir,hrus_dst,hrus_org,nhsu,max_nhsu,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8,n,m) ! in :model_tools:model_tools.f90:preprocessor
                 real*8 dimension(n,m),intent(in) :: hsus
                 real*8 dimension(n,m),intent(in),depend(n,m) :: d8dir
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: hrus_dst
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: hrus_org
                 integer intent(in) :: nhsu
                 integer intent(in) :: max_nhsu
+                integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_icoord
+                integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_jcoord
+                integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_hru
+                integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_d8
                 integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
                 integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
             end subroutine calculate_connections_d8

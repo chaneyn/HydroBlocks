@@ -30,7 +30,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,31,23)
+ fdate = datetime.datetime(2000,1,1,23)
 
  #Iterate through all the catchments until done
  for icatch in [500,]:#[3637,]:#len(wbd.keys()):
@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -471,7 +471,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  file = '%s/workspace_info.pck' % workspace
  wbd = pickle.load(open(file))
 
- #Create the netcdf file
+ '''#Create the netcdf file
  file_netcdf = hydrobloks_info['input']
  hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
@@ -485,8 +485,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  hydrobloks_info['input_fp'].createDimension('time',ntime)
 
  #Create the groups (netcdf)
- hydrobloks_info['input_fp'].createGroup('meteorology')
-
+ hydrobloks_info['input_fp'].createGroup('meteorology')'''
 
  #Create the dictionary to hold all of the data
  output = {}
@@ -498,7 +497,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  rank = hydrobloks_info['rank']
 
  #Create the clusters and their connections
- #output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
 
  #Extract the meteorological forcing
  if hydrobloks_info['model_type'] == 'semi':
@@ -744,12 +743,35 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  covariates['fdir'][mask1] = -9999.0
  cluster_ids_copy = np.copy(cluster_ids)
  cluster_ids_copy[mask1] = np.nan
- max_nhru = np.sum(mask1)
+ max_nhru = np.sum(cluster_ids >= 0)
  #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
- (hrus_dst,hrus_org) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ (hrus_dst,hrus_org,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
  #Only use the non -9999 values
  hrus_dst = hrus_dst[hrus_dst != -9999]-1
  hrus_org = hrus_org[hrus_org != -9999]-1
+ outlet_icoord = outlet_icoord[outlet_icoord != -9999]-1
+ outlet_jcoord = outlet_jcoord[outlet_jcoord != -9999]-1
+ outlet_hru_org = outlet_hru[outlet_hru != -9999] - 1
+ outlet_d8 = outlet_d8[outlet_d8 != -9999]
+
+ #Create hrus for the outlets
+ outlet_hru_dst_summary = np.arange(nclusters,nclusters+np.unique(outlet_hru_org).size)
+ outlet_hru_org_summary = np.unique(outlet_hru_org)
+ outlet_hru_dst = np.zeros(outlet_hru_org.size)
+ counts = []
+ for (hru_org,hru_dst) in zip(outlet_hru_org_summary,outlet_hru_dst_summary):
+  idx = outlet_hru_org == hru_org
+  counts.append(np.sum(idx))
+  outlet_hru_dst[idx] = hru_dst
+ 
+ #Create a dictionary of outlet information
+ outlet = {'full':{'i':outlet_icoord,'j':outlet_jcoord,'hru_org':outlet_hru_org,'hru_dst':outlet_hru_dst,'d8':outlet_d8},
+           'summary':{'hru_org':outlet_hru_org_summary,'hru_dst':outlet_hru_dst_summary,'counts':counts}}
+
+ #Update the input to create the sparse matrix
+ hrus_dst = np.append(hrus_dst,outlet_hru_dst)
+ hrus_org = np.append(hrus_org,outlet_hru_org)
+
  #Prepare the sparse matrix
  flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)
  flow_matrix = flow_matrix.tocsr()
@@ -872,6 +894,22 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   hydrobloks_info['nclusters'] = nclusters
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nclusters)
 
+ #Create the netcdf file
+ file_netcdf = hydrobloks_info['input']
+ hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
+
+ #Create the dimensions (netcdf)
+ idate = hydrobloks_info['idate']
+ fdate = hydrobloks_info['fdate']
+ dt = hydrobloks_info['dt']
+ ntime = 24*3600*((fdate - idate).days+1)/dt
+ nhsu = hydrobloks_info['nclusters']
+ hydrobloks_info['input_fp'].createDimension('hsu',nhsu)
+ hydrobloks_info['input_fp'].createDimension('time',ntime)
+
+ #Create the groups (netcdf)
+ hydrobloks_info['input_fp'].createGroup('meteorology')
+
  #Prepare the flow matrix
  print "Calculating the flow matrix"
  flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
@@ -900,17 +938,82 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Create the soil parameters file
  print "Creating the soil file"
- soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
+ #soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
 
  #Save the soils file name to the model input
- OUTPUT['files'] = {'soils':soils_lookup,}
+ #OUTPUT['files'] = {'soils':soils_lookup,}
 
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
+ OUTPUT['mask'] = mask
 
  return OUTPUT
 
-def Prepare_HSU_Meteorology(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info):
+def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info):
+
+ #Assign other variables
+ mask = OUTPUT['mask']
+
+ #Define the mapping directory
+ mapping_dir = '%s/mapping' % workspace
+ mapping_info = {}
+ #Calculate the fine to coarse scale mapping
+ for data_var in wbd['files_meteorology']:
+
+  #Define the variable name
+  var = data_var#data_var.split('_')[1]
+  mapping_info[var] = {}
+
+  #Read in the coarse and fine mapping
+  file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
+  file_fine = '%s/%s_fine.tif' % (mapping_dir,data_var)
+  mask_coarse = gdal_tools.read_raster(file_coarse)
+  mask_fine = gdal_tools.read_raster(file_fine)
+  nlat = mask_coarse.shape[0]
+  nlon = mask_coarse.shape[1]
+
+  print data_var,"Creating the i and j mapping"
+  #Create maps of i and j for mapping
+  coords = {'i':np.zeros(mask_fine.shape,dtype=np.int),
+            'j':np.zeros(mask_fine.shape,dtype=np.int)}
+  for value in np.unique(mask_coarse):
+   if value < 0:continue
+   idx_fine = mask_fine == value
+   idx_coarse = np.where(mask_coarse == value)
+   coords['i'][idx_fine] = idx_coarse[0]
+   coords['j'][idx_fine] = idx_coarse[1]
+  coords['i'] = coords['i'][mask]
+  coords['j'] = coords['j'][mask]
+
+  print data_var,"Extracting all the data"
+  #Extract all of the data for that variable
+  idate = info['time_info']['startdate']
+  fdate = info['time_info']['enddate']
+  nt = 24*((fdate - idate).days+1)
+  var = data_var#data_var.split('_')[1]
+  date = idate
+  file = wbd['files_meteorology'][data_var]
+  fp = nc.Dataset(file)
+  #Determine the time steps to retrieve
+  dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
+  mask_dates = (dates >= idate) & (dates <= fdate)
+  data = np.ma.getdata(fp.variables[var][mask_dates])
+  fp.close()
+
+  print data_var,"Assigning the data"
+  #Create the variable
+  grp = hydrobloks_info['input_fp'].groups['meteorology']
+  grp.createVariable(var,'f4',('time','hsu'))
+  #Place all the data per time step
+  tmp = np.zeros(np.sum(mask))
+  for itime in np.arange(data.shape[0]):
+   tmp[:] = data[itime,coords['i'],coords['j']]
+   #Write the timestep
+   grp.variables[var][itime,:] = tmp[:]
+
+ return
+
+def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info):
 
  #Define the mapping directory
  mapping_dir = '%s/mapping' % workspace

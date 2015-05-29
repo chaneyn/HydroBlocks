@@ -52,7 +52,8 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
 
  end subroutine calculate_connections
 
- subroutine calculate_connections_d8(HSUs,d8dir,hrus_dst,hrus_org,nhsu,max_nhsu,n,m)
+ subroutine calculate_connections_d8(HSUs,d8dir,hrus_dst,hrus_org,nhsu,&
+  max_nhsu,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8,n,m)
 
  implicit none
  integer :: i,j,k,n,m,ipos
@@ -60,10 +61,16 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
  real*8,intent(in),dimension(n,m) :: HSUs,d8dir
  !real*8,intent(out),dimension(nhsu,nhsu) :: transition_probabilities
  integer,intent(out),dimension(max_nhsu) :: hrus_dst,hrus_org
+ integer,intent(out),dimension(max_nhsu) :: outlet_icoord,outlet_jcoord
+ integer,intent(out),dimension(max_nhsu) :: outlet_hru,outlet_d8
  real*8,dimension(nhsu,nhsu) :: transition_probabilities
  real :: hsu_org,hsu_dst
  hrus_dst(:) = -9999
  hrus_org(:) = -9999
+ outlet_icoord(:) = -9999
+ outlet_jcoord(:) = -9999
+ outlet_hru(:) = -9999
+ outlet_d8(:) = -9999
  ipos = 1
 
  !Iterate through the cells and determine the connections
@@ -86,14 +93,21 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      if (d8dir(i,j) == 6) hsu_dst = HSUs(i,j-1) !W
      !if (d8dir(i,j) == 7) hsu_dst = HSUs(i+1,j-1) !NW
      if (d8dir(i,j) == 7) hsu_dst = HSUs(i-1,j-1) !NW
-     if (isnan(hsu_dst)) cycle
-     hsu_dst = hsu_dst + 1
-     !Determine the HSU it comes from
-     hsu_org = HSUs(i,j) + 1
-     !Add the count to the transition probabilities
-     !transition_probabilities(int(hsu_org),int(hsu_dst)) = transition_probabilities(int(hsu_org),int(hsu_dst)) + 1
-     hrus_dst(ipos) = hsu_dst
-     hrus_org(ipos) = hsu_org
+     !If the grid cell is an outlet...
+     if (isnan(hsu_dst)) then
+      outlet_icoord(ipos) = i
+      outlet_jcoord(ipos) = j
+      outlet_hru(ipos) = hsu_org 
+      outlet_d8(ipos) = d8dir(i,j)
+     else
+      hsu_dst = hsu_dst + 1
+      !Determine the HSU it comes from
+      hsu_org = HSUs(i,j) + 1
+      !Add the count to the transition probabilities
+      !transition_probabilities(int(hsu_org),int(hsu_dst)) = transition_probabilities(int(hsu_org),int(hsu_dst)) + 1
+      hrus_dst(ipos) = hsu_dst
+      hrus_org(ipos) = hsu_org
+     endif
      ipos = ipos + 1
   enddo
  enddo
