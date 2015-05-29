@@ -500,6 +500,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
 
  #Extract the meteorological forcing
+ print "Preparing the meteorology"
  if hydrobloks_info['model_type'] == 'semi':
   Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydrobloks_info)
  elif hydrobloks_info['model_type'] == 'full':
@@ -522,6 +523,32 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp.variables['indices'][:] = flow_matrix.indices
  grp.variables['indptr'][:] = flow_matrix.indptr
 
+ #Write the outlet information
+ outlet = output['outlet']
+ grp = fp.createGroup('outlet')
+ full = grp.createGroup('full')
+ full.createDimension('cell',outlet['full']['hru_org'].size)
+ full.createVariable('i','i4',('cell',))
+ full.createVariable('j','i4',('cell',))
+ full.createVariable('hru_org','i4',('cell',))
+ full.createVariable('hru_dst','i4',('cell',))
+ full.createVariable('d8','i4',('cell',))
+ full.variables['i'][:] = outlet['full']['i']
+ full.variables['j'][:] = outlet['full']['j']
+ full.variables['hru_org'][:] = outlet['full']['hru_org']
+ full.variables['hru_dst'][:] = outlet['full']['hru_dst']
+ full.variables['d8'][:] = outlet['full']['d8']
+ summary = grp.createGroup('summary')
+ summary.createDimension('hru',outlet['summary']['hru_org'].size)
+ summary.createVariable('hru_org','i4',('hru',))
+ summary.createVariable('hru_dst','i4',('hru',))
+ summary.createVariable('counts','i4',('hru',))
+ summary.variables['hru_org'][:] = outlet['summary']['hru_org']
+ summary.variables['hru_dst'][:] = outlet['summary']['hru_dst']
+ summary.variables['counts'][:] = outlet['summary']['counts']
+ #outlet = {'full':{'i':outlet_icoord,'j':outlet_jcoord,'hru_org':outlet_hru_org,'hru_dst':outlet_hru_dst,'d8':outlet_d8},
+ #          'summary':{'hru_org':outlet_hru_org_summary,'hru_dst':outlet_hru_dst_summary,'counts':counts}}
+
  #Write the model parameters
  grp = fp.createGroup('parameters')
  vars = ['slope','vof','area_pct','land_cover','channel',
@@ -532,8 +559,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   grp.variables[var][:] = data['hsu'][var]
 
  #Write other metadata
- grp = fp.createGroup('metadata')
- grp.outlet_hsu = data['outlet']['hsu']
+ #grp = fp.createGroup('metadata')
+ #grp.outlet_hsu = data['outlet']['hsu']
 
  #Remove info from output
  del output['hsu']
@@ -783,7 +810,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
   fm_data[fm_indptr[row]:fm_indptr[row+1]] = fm_data[fm_indptr[row]:fm_indptr[row+1]]/fm_sum[row]
  flow_matrix.data = fm_data
 
- return flow_matrix.T
+ return (flow_matrix.T,outlet)
 
 def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank):
 
@@ -912,19 +939,20 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Prepare the flow matrix
  print "Calculating the flow matrix"
- flow_matrix = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
+ (flow_matrix,outlet) = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
 
  #Make the output dictionary for the basin
  OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix}
+ OUTPUT['outlet'] = outlet
 
  #Determine outlet cell
- covariates['carea'][mask == False] = np.nan
- outlet_idx = np.where(covariates['carea'] == np.max(covariates['carea'][np.isnan(covariates['carea']) == 0]))
- outlet_idx = [int(outlet_idx[0]),int(outlet_idx[1])]
- OUTPUT['outlet'] = {'idx':outlet_idx,'hsu':cluster_ids[outlet_idx[0],outlet_idx[1]]}
+ #covariates['carea'][mask == False] = np.nan
+ #outlet_idx = np.where(covariates['carea'] == np.max(covariates['carea'][np.isnan(covariates['carea']) == 0]))
+ #outlet_idx = [int(outlet_idx[0]),int(outlet_idx[1])]
+ #OUTPUT['outlet'] = {'idx':outlet_idx,'hsu':cluster_ids[outlet_idx[0],outlet_idx[1]]}
 
  #Remember the map of hrus
  OUTPUT['hsu_map'] = cluster_ids
@@ -1155,7 +1183,7 @@ def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
  #Add wbd metadata
  #grp.HUC = input['wbd']['HUC10']
  #Define outlet hsu
- grp.outlet_hsu = int(output['misc']['outlet_hsu'])
+ #grp.outlet_hsu = int(output['misc']['outlet_hsu'])
  #Define catchment name
  #grp.catchment_name = input['wbd']['Name']
  #Define catchment area
