@@ -1410,6 +1410,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
         LUMATCH=1
      ENDIF
 ! prevent possible array overwrite, Bill Bovermann, IBM, May 6, 2008
+     print*,size(bb),slcats
      IF ( SIZE(BB    ) < SLCATS .OR. &
           SIZE(DRYSMC) < SLCATS .OR. &
           SIZE(F11   ) < SLCATS .OR. &

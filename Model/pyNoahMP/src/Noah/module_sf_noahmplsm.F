@@ -80,7 +80,7 @@ REAL,    DIMENSION(NLUS)   ::  ZBOTVTBL
 
   CHARACTER*4 SLTYPE
   INTEGER                     :: SLCATS
-  INTEGER, PARAMETER          :: NSLTYPE=2000
+  INTEGER, PARAMETER          :: NSLTYPE=1000000
   REAL, DIMENSION (1:NSLTYPE) :: BB,DRYSMC,F11,                           &
         MAXSMC, REFSMC,SATPSI,SATDK,SATDW, WLTSMC,QTZ
 !------------------------------------------------------------------------------------------!
@@ -9229,6 +9229,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! SET-UP VEGETATION PARAMETERS
 ! ----------------------------------------------------------------------
     ! Six redprm_canres variables:
+    print*,VEGTYP
     TOPT = TOPT_DATA
     RGL = RGLTBL (VEGTYP)
     RSMAX = RSMAX_DATA

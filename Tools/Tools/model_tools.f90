@@ -97,7 +97,7 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      if (isnan(hsu_dst)) then
       outlet_icoord(ipos) = i
       outlet_jcoord(ipos) = j
-      outlet_hru(ipos) = hsu_org 
+      outlet_hru(ipos) = HSUs(i,j) + 1
       outlet_d8(ipos) = d8dir(i,j)
      else
       hsu_dst = hsu_dst + 1

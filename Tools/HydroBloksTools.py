@@ -30,7 +30,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,31,23)
+ fdate = datetime.datetime(2000,1,2,23)
 
  #Iterate through all the catchments until done
  for icatch in [500,]:#[3637,]:#len(wbd.keys()):
@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',
+        'model_type':'full',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -691,27 +691,27 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
    OUTPUT['hsu'][var][:] = covariates[var][mask]
   else:
    OUTPUT['hsu'][var][:] = covariates[var][mask]
-  #Average Slope
-  OUTPUT['hsu']['slope'][:] = covariates['cslope'][mask]
-  #Topographic index
-  OUTPUT['hsu']['ti'][:] = covariates['ti'][mask]
-  #DEM
-  OUTPUT['hsu']['dem'][:] = covariates['dem'][mask]
-  #Average Catchment Area
-  OUTPUT['hsu']['carea'][:] = covariates['carea'][mask]
-  #Channel?
-  OUTPUT['hsu']['channel'][:] = covariates['channels'][mask]
-  #Vchan
-  OUTPUT['hsu']['vchan'][:] = 1000 #m/hr
-  #Vof
-  OUTPUT['hsu']['vof'][:] = 100 #m/hr
-  #Land cover type  
-  land_cover = np.copy(covariates['nlcd'])
-  for lc in np.unique(land_cover)[1:]:
-   land_cover[land_cover == lc] = NLCD2NOAH[lc]
-  #OUTPUT['hsu']['land_cover'][:] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
-  #Soil texture class
-  OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
+ #Average Slope
+ OUTPUT['hsu']['slope'][:] = covariates['cslope'][mask]
+ #Topographic index
+ OUTPUT['hsu']['ti'][:] = covariates['ti'][mask]
+ #DEM
+ OUTPUT['hsu']['dem'][:] = covariates['dem'][mask]
+ #Average Catchment Area
+ OUTPUT['hsu']['carea'][:] = covariates['carea'][mask]
+ #Channel?
+ OUTPUT['hsu']['channel'][:] = covariates['channels'][mask]
+ #Vchan
+ OUTPUT['hsu']['vchan'][:] = 1000 #m/hr
+ #Vof
+ OUTPUT['hsu']['vof'][:] = 100 #m/hr
+ #Land cover type  
+ land_cover = np.copy(covariates['nlcd'])
+ for lc in np.unique(land_cover)[1:]:
+  land_cover[land_cover == lc] = NLCD2NOAH[lc]
+ OUTPUT['hsu']['land_cover'][:] = land_cover[mask]
+ #Soil texture class
+ OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
 
  return OUTPUT
 
@@ -790,6 +790,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
   idx = outlet_hru_org == hru_org
   counts.append(np.sum(idx))
   outlet_hru_dst[idx] = hru_dst
+ counts = np.array(counts)
  
  #Create a dictionary of outlet information
  outlet = {'full':{'i':outlet_icoord,'j':outlet_jcoord,'hru_org':outlet_hru_org,'hru_dst':outlet_hru_dst,'d8':outlet_d8},

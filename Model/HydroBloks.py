@@ -179,7 +179,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  dem = []
  #Set cluster information
  model.pct[:] = info['input_fp'].groups['parameters'].variables['area_pct'][:]/100
- model.area[:] = info['input_fp'].groups['parameters'].variables['area']
+ model.area[:] = info['input_fp'].groups['parameters'].variables['area'][:]
  model.T0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]*(10**parameters['log10m'])
  model.sti[:] = info['input_fp'].groups['parameters'].variables['ti'][:]
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
@@ -299,10 +299,12 @@ def run_model(info):
  output = Initialize_Output(output_type)
 
  #Initialize the model
+ print "Initializing Noah"
  NOAH = Initialize_Model(ncells,dt,nsoil,parameters,info,wbd)
  output['misc']['zsoil'] = NOAH.zsoil
 
  #Initialize Topmodel
+ print "Initializing TOPMODEL"
  TOPMODEL = Initialize_DTopmodel(ncells,dt,parameters,info) 
 
  #Run the model
@@ -324,6 +326,7 @@ def run_model(info):
  NOAH.dzwt[:] = 0.0
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
+  print date
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
    #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil

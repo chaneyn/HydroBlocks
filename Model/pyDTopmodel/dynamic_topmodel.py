@@ -54,8 +54,8 @@ class Dynamic_Topmodel:
   self.qin1 = np.zeros(ngroups,dtype=np.float32)
 
   #Outlet information
-  self.qin_outlet = np.zeros(ngroups,dtype=np.float32)
-  self.area_outlet = np.zeros(ngroups,dtype=np.float32)
+  self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float32)
+  self.area_outlet = np.zeros(nhru_outlet,dtype=np.float32)
   self.nhru_outlet = nhru_outlet
 
   #weights
