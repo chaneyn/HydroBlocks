@@ -27,6 +27,15 @@ HydroBloks relies on a number of packages. Please make sure you have the followi
 
 Enter into the directory Tools/Tools and insert "python compile.py" to prepare the model tools library
 
+Now we can compile the different model libraries by following these steps:
+
+1. cd Model/pyNoahMP
+   python make.py
+   cd ..
+2. Model/pyDTopmodel
+   python Model/pyDTopmodel/src
+   python compile.py
+
 To run the model on a test dataset, please download and untar the following file within the HydroBloks directory:
 
 http://hydrology.princeton.edu/~nchaney/HydroBloks/Test.tar.gz
