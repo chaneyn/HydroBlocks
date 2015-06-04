@@ -285,11 +285,15 @@ def run_model(info):
  output_type = info['output_type']
  soil_file = info['soil_file']
  input_file = info['input']
+ output_file = info['output']
  dt_timedelta = datetime.timedelta(seconds=dt)
 
- #Open access to the netcdf input file
+ #Open access to the input netcdf file
  info = {}
  info['input_fp'] = nc.Dataset(input_file)
+
+ #Open access to the output netcdf file
+ info['output_fp'] = nc.Dataset(output_file,'w',format='NETCDF4')
   
  #Define the parameter files
  info['VEGPARM'] = 'Model/pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
@@ -368,7 +372,13 @@ def run_model(info):
   #prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update output
-  output = update_output(output,NOAH,TOPMODEL,date,output_type)
+  #Write to netcdf
+  #file_netcdf = hydrobloks_info['output'] 
+  ##Update the netcdf file
+  #vars = output['variables'].keys()
+  #update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
+  Update_Output(info,i,NOAH,TOPMODEL)
+  #output = Update_Output(output,NOAH,TOPMODEL,date,output_type)
 
   #Update time step
   date = date + dt_timedelta
@@ -377,7 +387,11 @@ def run_model(info):
  #Finalize the model
  Finalize_Model(NOAH,TOPMODEL)
 
- return output
+ #Close the input and output files
+ info['input_fp'].close()
+ info['output_fp'].close()
+
+ return
 
 def Update_Input(NOAH,TOPMODEL,date,info,i):
 
@@ -456,6 +470,106 @@ def Initialize_Output(output_type):
       }
 
  return {'variables':variables,'misc':misc}
+
+def Create_Netcdf_File(info):
+
+ #Extract the pointers to both input and output files
+ fp_out = info['output_fp']
+ fp_in = info['input_fp']
+
+ #Define the metadata
+ metadata = {
+             'g':{'description':'Ground heat flux','units':'W/m2'},
+             'sh':{'description':'Sensible heat flux','units':'W/m2'},
+             'lh':{'description':'Latent heat flux','units':'W/m2'},
+             'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
+             'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
+             'et':{'description':'Evapotranspiration','units':'mm/s'},
+             'qexcess':{'description':'Excess runoff','units':'mm/s'},
+             'qsurface':{'description':'Surface runoff','units':'mm/s'},
+             'prcp':{'description':'Precipitation','units':'mm/s'},
+             'smc1':{'description':'Soil water content','units':'m3/m3'},
+             'smc2':{'description':'Soil water content','units':'m3/m3'},
+             'smc3':{'description':'Soil water content','units':'m3/m3'},
+             'smc4':{'description':'Soil water content','units':'m3/m3'},
+             'swd':{'description':'Soil water deficit','units':'mm'},
+             'sstorage':{'description':'Surface storage','units':'mm'},
+             'sndpth':{'description':'Snow depth','units':'mm'},
+             'swe':{'description':'Snow water equivalent','units':'mm'},
+             'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
+             'qout_surface':{'description':'Surface flux','units':'m2/s'},
+             }
+
+ #Create the dimensions
+ print 'Creating the dimensions'
+ ntime = len(fp_in.dimensions['time'])
+ nhsu = len(fp_in.dimensions['hsu'])
+ nsoil = 4
+ fp_out.createDimension('hsu',nhsu)
+ fp_out.createDimension('time',ntime)
+ fp_out.createDimension('soil',nsoil)
+
+ #Create the output
+ print 'Creating the catchment group'
+ grp = fp_out.createGroup('catchment')
+ for var in metadata:
+  ncvar = grp.createVariable(var,'f4',('time','hsu',))
+  ncvar.description = metadata[var]['description']
+  ncvar.units = metadata[var]['units']
+
+ #Create the metadata
+ print 'Creating the metadata group'
+ grp = fp_out.createGroup('metadata')
+ #dates
+ '''times = grp.createVariable('dates','f8',('time',))
+ dates = []
+ for date in output['misc']['dates']:
+  #if date.hour == 0:dates.append(date)
+  dates.append(date)
+ times.units = 'days since 1900-01-01'
+ times.calendar = 'standard'
+ times[:] = nc.date2num(np.array(dates),units=times.units,calendar=times.calendar)'''
+ #HSU percentage coverage
+ print 'Setting the HRU percentage coverage'
+ pcts = grp.createVariable('pct','f4',('hsu',))
+ pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
+ pcts.description = 'hsu percentage coverage'
+ pcts.units = '%'
+ '''#HSU Spatial resolution
+ print 'Setting the spatial resolution'
+ dx = grp.createVariable('dx','f4',('hsu',))
+ dx[:] = np.array(output['misc']['dx'])
+ dx.units = 'meters'''
+ #HSU area
+ print 'Setting the HRU areal coverage'
+ area = grp.createVariable('area','f4',('hsu',))
+ area[:] = fp_in.groups['parameters'].variables['area'][:]
+ area.units = 'meters squared'
+ print 'Defining the HRU ids'
+ hsu = grp.createVariable('hsu','i4',('hsu',))
+ hsus =[]
+ for value in xrange(nhsu):hsus.append(value)
+ hsu[:] = np.array(hsus)
+ hsu.description = 'hsu ids'
+
+ return
+
+def Update_Output(info,itime,NOAH,TOPMODEL):
+
+ #Create the netcdf file
+ if itime == 0: Create_Netcdf_File(info)
+
+ #Update the variables
+ grp =info['output_fp'].groups['catchment']
+ #NoahMP
+ grp.variables['smc1'][itime,:] = np.copy(NOAH.smc[:,0]) #m3/m3
+ grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
+ grp.variables['sh'][itime,:] = np.copy(NOAH.fsh) #W/m2
+ grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
+ #TOPMODEL
+ grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
+ 
+ return
 
 def update_output(output,NOAH,TOPMODEL,date,output_type):
  

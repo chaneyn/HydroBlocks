@@ -74,10 +74,10 @@ def Deterministic(info):
  output = HB.run_model(hydrobloks_info)
 
  #Write to netcdf
- file_netcdf = hydrobloks_info['output']
+ #file_netcdf = hydrobloks_info['output']
  #Update the netcdf file
- vars = output['variables'].keys()
- update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
+ #vars = output['variables'].keys()
+ #update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
 
  return
 
