@@ -1,6 +1,9 @@
 import os
 #Compile NOAH
-os.chdir('src/Noah')
+os.chdir('src/Utility_routines')
+os.system('make clean')
+os.system('make')
+os.chdir('../Noah')
 os.system('make clean')
 os.system('make')
 #Create signature file

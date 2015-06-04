@@ -63,7 +63,7 @@ def Deterministic(info):
         }
 
  #Cluster the data
- Prepare_Model_Input_Data(hydrobloks_info)
+ #Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
  #input = pickle.load(open('workspace/tmp.pck'))
 

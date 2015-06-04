@@ -16,8 +16,13 @@
 ! JM NOTE -- can we name this grav instead?
    REAL    , PARAMETER :: g = 9.81  ! acceleration due to gravity (m {s}^-2)
 
+
+
+
+
    REAL    , PARAMETER :: r_d          = 287.
    REAL    , PARAMETER :: cp           = 7.*r_d/2.
+
 
    REAL    , PARAMETER :: r_v          = 461.6
    REAL    , PARAMETER :: cv           = cp-r_d
@@ -99,7 +104,11 @@
        REAL , PARAMETER ::  epsfc=1./1.05
        REAL , PARAMETER ::  epswet=0.0
        REAL , PARAMETER ::  fcdif=1./3.
+
+
+
        REAL , PARAMETER ::  fcm=0.00003
+
        REAL , PARAMETER ::  gma=-r_d*(1.-rcp)*0.5
        REAL , PARAMETER ::  p400=40000.0
        REAL , PARAMETER ::  phitp=15000.0
@@ -120,7 +129,11 @@
        REAL , PARAMETER ::  wght=0.35
        REAL , PARAMETER ::  wpc=0.075
        REAL , PARAMETER ::  z0land=0.10
+
+
+
        REAL , PARAMETER ::  z0max=0.008
+
        REAL , PARAMETER ::  z0sea=0.001
 !#endif
 
@@ -144,6 +157,11 @@
    REAL , PARAMETER :: EQUINOX_FRACTION= 0.0
 
 ! 2012103
+
+
+
+
+
 
  CONTAINS
    SUBROUTINE init_module_model_constants

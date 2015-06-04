@@ -548,6 +548,9 @@ contains
 		   SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 		   GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
 		   CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE   , ERRWAT, minzwt & !
+
+
+
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -599,6 +602,9 @@ contains
   REAL                           , INTENT(IN)    :: DX
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
 !jref:end
+
+
+
 
 
 ! input/output : need arbitary intial values
@@ -904,6 +910,9 @@ contains
                  CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                  QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                  ISURBAN,QSNBOT,FPICE,minzwt                             &
+
+
+
                  )  !out
 
 !     write(*,'(a20,10F15.5)') 'SFLX:RUNOFF=',RUNSRF*DT,RUNSUB*DT,EDIR*DT
@@ -1211,6 +1220,7 @@ contains
         !print*,ERRWAT
         !print*,RUNSRF*DT,RUNSUB*DT,ERRWAT
 
+
         IF(ABS(ERRWAT) > 10.0) THEN
            if (ERRWAT > 0) then
               call wrf_message ('The model is gaining water (ERRWAT is positive)')
@@ -1227,6 +1237,7 @@ contains
            call wrf_message(trim(message))
            call wrf_error_fatal("Water budget problem in NOAHMP LSM")
         END IF
+
    ELSE                 !KWM
       ERRWAT = 0.0      !KWM
    ENDIF
@@ -6258,6 +6269,9 @@ contains
                     CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                     QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                     ISURBAN,QSNBOT,FPICE,minzwt                             &
+
+
+
                     )  !out
 ! ----------------------------------------------------------------------  
 ! Code history:
@@ -6358,6 +6372,9 @@ contains
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
 
+
+
+
 ! ----------------------------------------------------------------------
 ! initialize
 
@@ -6424,6 +6441,9 @@ contains
     DO IZ = 1, NROOT
        ETRANI(IZ) = ETRAN * BTRANI(IZ) * 0.001
     ENDDO
+
+
+
 
 
 ! lake/soil water balances

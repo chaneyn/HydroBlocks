@@ -5,6 +5,9 @@
 !----------------------------------------------------------------------
 !
       USE MODULE_MODEL_CONSTANTS
+
+
+
 !
 !----------------------------------------------------------------------
 !
@@ -181,7 +184,11 @@ CONTAINS
 !
       NTSD=ITIMESTEP
 !
+
+
+
      IF(NTSD==1)THEN
+
 !tgs       IF(NTSD==1)THEN
         DO J=JTS,JTE
         DO I=ITS,ITE
@@ -285,7 +292,11 @@ CONTAINS
 !          APESFC=(PSFC*1.E-5)**CAPA
           APESFC=(PSFC/P1000mb)**CAPA
 !tgs - in ARW THZ0 is not initialized when MYJSFC is called first time
+
+
+
      IF(NTSD==1)THEN
+
 !       if(itimestep.le.1) then
           TZ0=TSK(I,J)
        else
@@ -441,7 +452,11 @@ CONTAINS
 !
             IF(USTAR<USTR)THEN
 !
+
+
+
      IF(NTSD==1)THEN
+
 !tgs              IF(NTSD==1)THEN
                 AKMS=CXCHS
                 AKHS=CXCHS
@@ -459,7 +474,11 @@ CONTAINS
               WGHTT=AKHS*ZT*RTVISC
               WGHTQ=AKHS*ZQ*RQVISC
 !
+
+
+
      IF(NTSD>1)THEN
+
 !tgs              IF(NTSD>1)THEN
                 THZ0=((WGHTT*THLOW+THS)/(WGHTT+1.)+THZ0)*0.5
                 QZ0=((WGHTQ*QLOW+QS)/(WGHTQ+1.)+QZ0)*0.5
@@ -480,7 +499,11 @@ CONTAINS
               WGHTT=AKHS*ZT*RTVISC
               WGHTQ=AKHS*ZQ*RQVISC
 !
+
+
+
      IF(NTSD>1)THEN
+
 
 !tgs              IF(NTSD>1)THEN
                 THZ0=((WGHTT*THLOW+THS)/(WGHTT+1.)+THZ0)*0.5
