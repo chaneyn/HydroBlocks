@@ -28,7 +28,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,2,23)
+ fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in xrange(len(wbd)):
@@ -63,9 +63,7 @@ def Deterministic(info):
         }
 
  #Cluster the data
- #Prepare_Model_Input_Data(hydrobloks_info)
- #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
- #input = pickle.load(open('workspace/tmp.pck'))
+ Prepare_Model_Input_Data(hydrobloks_info)
 
  #Run the model
  HB.run_model(hydrobloks_info)
