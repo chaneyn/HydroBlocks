@@ -30,7 +30,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,2,23)
+ fdate = datetime.datetime(2000,1,31,23)
 
  #Iterate through all the catchments until done
  for icatch in [500,]:#[3637,]:#len(wbd.keys()):
@@ -52,20 +52,20 @@ def Deterministic(info):
         'dt':3600.,
         'nsoil':20,
         'wbd':wbd[icatch],
-        'ncores':1,
+        'ncores':32,
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
  #Cluster the data
- input = Prepare_Model_Input_Data(hydrobloks_info)
+ #input = Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
  #input = pickle.load(open('workspace/tmp.pck'))
 
@@ -1121,7 +1121,9 @@ def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
  fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions
- ntime = output['variables']['smc1'].shape[0]/24
+ print 'Creating the dimensions'
+ #ntime = output['variables']['smc1'].shape[0]/24
+ ntime = output['variables']['smc1'].shape[0]
  nhsu = output['variables']['smc1'].shape[1]
  nsoil = 4
  fp.createDimension('hsu',nhsu)
@@ -1130,6 +1132,7 @@ def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
  fp.createDimension('soil',nsoil)
 
  #Create the summary group and its variables
+ print 'Creating the summary group'
  grp = fp.createGroup('summary')
  for var in output['variables']:
   ncvar = grp.createVariable(var,'f4',('time','ensemble'))
@@ -1137,6 +1140,7 @@ def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
   ncvar.units = output['misc']['metadata'][var]['units']
 
  #Create the output
+ print 'Creating the catchment group'
  grp = fp.createGroup('catchment')
  for var in output['variables']:
   grp.createVariable(var,'f4',('time','hsu','ensemble'))
@@ -1148,34 +1152,42 @@ def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
   return
 
  #Create the metadata
+ print 'Creating the metadata group'
  grp = fp.createGroup('metadata')
  #dates
  times = grp.createVariable('dates','f8',('time',))
  dates = []
  for date in output['misc']['dates']:
-  if date.hour == 0:dates.append(date)
+  #if date.hour == 0:dates.append(date)
+  dates.append(date)
  times.units = 'days since 1900-01-01'
  times.calendar = 'standard'
  times[:] = nc.date2num(np.array(dates),units=times.units,calendar=times.calendar)
  #Soil depth
+ print 'Setting the soil depth'
+ nsoil = 4
  soil = grp.createVariable('soil','f4',('soil',))
- soil[:] = np.array(output['misc']['sldpth'])[0,0:nsoil]
+ soil[:] = output['misc']['sldpth'][0,0:nsoil]
  soil.units = 'meters'
  soil.description = 'soil depth'
  #HSU percentage coverage
+ print 'Setting the HRU percentage coverage'
  pcts = grp.createVariable('pct','f4',('hsu',))
  pcts[:] = 100*np.array(output['misc']['pct'])
  pcts.description = 'hsu percentage coverage'
  pcts.units = '%'
  #HSU Spatial resolution
+ print 'Setting the spatial resolution'
  dx = grp.createVariable('dx','f4',('hsu',))
  dx[:] = np.array(output['misc']['dx'])
  dx.units = 'meters'
  #HSU area
+ print 'Setting the HRU areal coverage'
  area = grp.createVariable('area','f4',('hsu',))
  area[:] = np.array(output['misc']['area'])
  area.units = 'meters squared'
  #HSU ids
+ print 'Defining the HRU ids'
  hsu = grp.createVariable('hsu','i4',('hsu',))
  hsus =[]
  for value in xrange(len(output['misc']['pct'])):hsus.append(value)
@@ -1262,8 +1274,11 @@ def update_netcdf(cdir,iens,nens,parameters,file_netcdf,output,rank):
   
   #Compute the daily average
   data = []
-  for itime in xrange(output['variables'][var].shape[0]/24):
-   data.append(np.mean(output['variables'][var][24*itime:24*(itime+1)],axis=0))
+  #for itime in xrange(output['variables'][var].shape[0]/24):
+  for itime in xrange(output['variables'][var].shape[0]):
+   #data.append(np.mean(output['variables'][var][itime],axis=0))
+   data.append(output['variables'][var][itime])
+   #data.append(np.mean(output['variables'][var][24*itime:24*(itime+1)],axis=0))
   data = np.array(data)
 
   #Write the catchment info

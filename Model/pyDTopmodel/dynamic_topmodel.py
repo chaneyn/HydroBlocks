@@ -101,8 +101,8 @@ class Dynamic_Topmodel:
 
   #Compute the flux
   #if self.itime == 0:
-  self.qout = self.Calculate_Flux_Subsurface(self.si)
-  self.qout[self.qout < 0] = 0.0
+  self.qout[:] = self.Calculate_Flux_Subsurface(self.si)
+  self.qout[self.qout < 0.0] = 0.0
 
   #Calculate the celerities
   self.c1[:] = self.c
@@ -121,8 +121,8 @@ class Dynamic_Topmodel:
   dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             self.w.data,self.w.indices,self.w.indptr,ncores,
-             self.qin_outlet,self.area_outlet,self.nhru_outlet)
+             self.w.data,self.w.indices,self.w.indptr,
+             self.qin_outlet,self.area_outlet,ncores)
 
   #print 'after:',-si
 

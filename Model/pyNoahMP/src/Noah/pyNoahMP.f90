@@ -163,6 +163,8 @@ module model
  real,dimension(:),allocatable :: si1 ! final soil moisture deficit
  real,dimension(:),allocatable :: zwt0 ! initial water table depth
  real,dimension(:),allocatable :: minzwt ! minimum water table depth
+ real,dimension(:),allocatable :: co2air
+ real,dimension(:),allocatable :: o2air
 
  !Multi layer
  real,dimension(:,:),allocatable :: stc ! snow/soil temperatures
@@ -306,6 +308,8 @@ contains
   if (allocated(si1) .eqv. .True.) deallocate(si1) 
   if (allocated(zwt0) .eqv. .True.) deallocate(zwt0)
   if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
+  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
+  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -579,6 +583,10 @@ contains
   allocate(zwt0(ncells))
   if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
   allocate(minzwt(ncells))
+  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
+  allocate(co2air(ncells))
+  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
+  allocate(o2air(ncells))
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -718,6 +726,8 @@ contains
   si1 = badval
   zwt0 = badval
   minzwt = badval
+  co2air = badval
+  o2air = badval
 
   !Multi layer
   zsoil = badval
@@ -774,8 +784,9 @@ contains
 
   !real :: lat,yearlen,julian,cosz
   !integer :: nsoil
+  !if (itime .eq. 0) call OMP_SET_NUM_THREADS(ncores)
   call OMP_SET_NUM_THREADS(ncores)
-  ostart = omp_get_wtime()
+  !ostart = omp_get_wtime()
   !$OMP PARALLEL
   !$OMP DO
   !!$OMP DO PRIVATE(BEXP,SMCDRY,F1,SMCMAX,SMCREF,PSISAT,DKSAT,&
@@ -816,73 +827,10 @@ contains
             CHLEAF(i)  , CHUC(i)    , CHV2(i)    , CHB2(i)    , FPICE(i), &
             SOILTYP(i), SLOPETYP(i),LON(i),NOWDATE,ITIME,SLDPTH(i,:),DZWT(i),ERRWAT(i),si0(i),si1(i), &
             zwt0(i),minzwt(i)) ! OTHER
-   !ostart1 = omp_get_wtime()
-   !Copy cell variables
-   !stc0 = STC(i,:); sh2o0 = SH2O(i,:); smc0 = SMC(i,:); zsnso0 = zsnso(i,:); snice0 = snice(i,:); snliq0 = snliq(i,:)
-   !sldpth0 = sldpth(i,:); zsoil0 = zsoil(i,:); ficeold0 = ficeold(i,:); smceq0 = smceq(i,:)
-   !fveg0 = fveg(i); fvgmax0 = fvgmax(i); t_ml0 = t_ml(i); p_ml0 = p_ml(i); psfc0 = psfc(i); u_ml0 = u_ml(i); v_ml0 = v_ml(i)
-   !q_ml0 = q_ml(i); swdn0 = swdn(i); lwdn0 = lwdn(i); prcp0 = prcp(i); tbot0 = tbot(i); co2pp0 = co2pp(i)
-   !ZWT0 = zwt(i); WA0 = wa(i); WT0 = wt(i); WSLAKE0 = wslake(i); LFMASS0 = lfmass(i); RTMASS0 = rtmass(i)
-   !STMASS0 = stmass(i); WOOD0 = wood(i); STBLCP0 = stblcp(i); FASTCP0 =fastcp(i); PLAI0 = plai(i); PSAI0 = psai(i)
-   !CM0 = cm(i); CH0 =  ch(i); TAUSS0 = tauss(i)
-   !SMCWTD0 = smcwtd(i); DEEPRECH0 = deeprech(i); RECH0 = rech(i)
-   !FSA0 = fsa(i); FSR0 = fsr(i); FIRA0 = fira(i); FSH0 = fsh(i); SSOIL0 = ssoil(i); FCEV0 = fcev(i)
-   !FGEV0 = fgev(i); FCTR0 = fctr(i); ECAN0 = ecan(i); ETRAN0 = etran(i); ESOIL0 = esoil(i); TRAD0 = trad(i)
-   !TGB0 = tgb(i); TGV0 = tgv(i); T2MV0 = t2mv(i); T2MB0 = t2mb(i); Q2MV0 = q2mv(i); Q2MB0 = q2mb(i)
-   !RUNSF0 = runsf(i); RUNSB0 = runsb(i); APAR0 = apar(i); PSN0 = psn(i); SAV0 = sav(i); SAG0 = sag(i)
-   !FSNO0 = fsno(i); NEE0 = nee(i); GPP0 = gpp(i); NPP0 = npp(i); FVEGMP0 = fvegmp(i); SALB0 = salb(i)
-   !QSNBOT0 = qsnbot(i); PONDING0 = ponding(i); PONDING10 = ponding1(i); PONDING20 = ponding2(i); RSSUN0 = rssun(i); RSSHA0 = rssha(i)
-   !BGAP0 = bgap(i); WGAP0 = wgap(i); CHV0 = chv(i); CHB0 = chb(i); EMISSI0 = emissi(i)
-   !SHG0 = shg(i); SHC0 = shc(I); SHB0 = shb(i); EVG0 = evg(i); EVB0 = evb(i); GHV0 = ghv(i)
-   !GHB0 = ghb(i); IRG0 = irg(i); IRC0 = irc(i); IRB0 = irb(i); TR0 =  tr(i); EVC0 = evc(i)
-   !CHLEAF0 = chleaf(i); CHUC0 = chuc(i); CHV20 = chv2(i); CHB20 = chb2(i); FPICE0 = fpice(i)
-   !LAT0 = lat(i); COSZ0 = cosz(i)
-   !VEGTYP0 = vegtyp(i); ISURBAN0 = isurban(i); ICE0 = ice(i); IST0 = ist(i); ISC0 = isc(i)
-   !O2PP0 = o2pp(i); FOLN0 = foln(i); Z_ML0 = z_ml(i); ALBOLD0 = albold(i); SNEQVO0 = sneqvo(i)
-   !TAH0 = tah(i); EAH0 = eah(i); FWET0 = fwet(i)
-   !CANLIQ0 = canliq(i); CANICE0 = canice(i); TV0 = tv(i); TG0 = tg(i); QSFC1D0 = qsfc1d(i); QSNOW0 = qsnow(i)
-   !ISNOW0 = isnow(i); SNDPTH0 =  sndpth(i); SWE0 = swe(i)
-   !SOILTYP0 = soiltyp(i); SLOPETYP0 = slopetyp(i);LON0 = lon(i);DZWT0 = dzwt(i)
-
-   !call run_model_cell(&
-   !         LAT0     , YEARLEN , JULIAN  , COSZ0    , & ! IN : Time/Space-related
-   !         DT      , DX      , NSOIL   , ZSOIL0   , NSNOW,  & ! IN : Model configuration 
-   !         fveg0    , fvgmax0  , VEGTYP0  , ISURBAN0 , ICE0     , IST0     , & ! IN : Vegetation/Soil characteristics
-   !         ISC0     , SMCEQ0   ,                                         & ! IN : Vegetation/Soil characteristics
-   !         IZ0TLND ,                                                   & ! IN : User options
-   !         t_ml0    , p_ml0    , psfc0    , u_ml0    , v_ml0    , q_ml0    , & ! IN : Forcing
-   !         swdn0    , lwdn0    , prcp0    , tbot0    , co2pp0   , & ! IN : Forcing
-   !         O2PP0    , FOLN0    , FICEOLD0 , Z_ML0    ,           & ! IN : Forcing
-   !         ALBOLD0  , SNEQVO0  ,                                         & ! IN/OUT : 
-   !         stc0    , sh2o0   , smc0     , TAH0     , EAH0     , FWET0    , & ! IN/OUT : 
-   !         CANLIQ0  , CANICE0  , TV0      , TG0      , QSFC1D0  , QSNOW0   , & ! IN/OUT : 
-   !         ISNOW0   , ZSNSO0   , SNDPTH0  , SWE0     , SNICE0   , SNLIQ0   , & ! IN/OUT : 
-   !         ZWT0     , WA0      , WT0      , WSLAKE0  , LFMASS0  , RTMASS0  , & ! IN/OUT : 
-   !         STMASS0  , WOOD0    , STBLCP0  , FASTCP0  , PLAI0    , PSAI0    , & ! IN/OUT : 
-   !         CM0      , CH0      , TAUSS0   ,                               & ! IN/OUT : 
-   !         SMCWTD0  ,DEEPRECH0 , RECH0    ,                               & ! IN/OUT :
-   !         FSA0     , FSR0     , FIRA0    , FSH0     , SSOIL0   , FCEV0    , & ! OUT : 
-   !         FGEV0    , FCTR0    , ECAN0    , ETRAN0   , ESOIL0   , TRAD0    , & ! OUT : 
-   !         TGB0     , TGV0     , T2MV0    , T2MB0    , Q2MV0    , Q2MB0    , & ! OUT : 
-   !         RUNSF0   , RUNSB0   , APAR0    , PSN0    , SAV0     , SAG0     , & ! OUT : 
-   !         FSNO0    , NEE0     , GPP0     , NPP0     , FVEGMP0  , SALB0    , & ! OUT : 
-   !         QSNBOT0  , PONDING0 , PONDING10, PONDING20, RSSUN0   , RSSHA0   , & ! OUT : 
-   !         BGAP0    , WGAP0    , CHV0     , CHB0     , EMISSI0  ,           & ! OUT : 
-   !         SHG0     , SHC0     , SHB0     , EVG0     , EVB0     , GHV0     , & ! OUT :
-   ! 	    GHB0     , IRG0     , IRC0     , IRB0     , TR0      , EVC0     , & ! OUT :
-   ! 	    CHLEAF0  , CHUC0    , CHV20    , CHB20    , FPICE0, &
-   !         SOILTYP0, SLOPETYP0,LON0,NOWDATE,ITIME,SLDPTH0,DZWT0) ! OTHER
-   !stc(i,:) = STC0; sh2o(i,:) = SH2O0; smc(i,:) = SMC0; zsnso(i,:) = zsnso0; snice(i,:) = snice0; snliq(i,:) = snliq0
-   !sldpth(i,:) = sldpth0; zsoil(i,:) = zsoil0; ficeold(i,:) = ficeold0; smceq(i,:) = smceq0
-   !STC(i,:) = stc0; SH2O(i,:) = sh2o0; SMC(i,:) = smc0
-   !fveg(i) = fveg0; fvgmax(i) = fvgmax0; t_ml(i) = t_ml0; p_ml(i) = p_ml0; psfc(i) = psfc0; u_ml(i) = u_ml0; v_ml(i) = v_ml0
-   !q_ml(i) = q_ml0; swdn(i) = swdn0; lwdn(i) = lwdn0; prcp(i) = prcp0; tbot(i) = tbot0; co2pp(i) = co2pp0
-   !oend1 = omp_get_wtime()
-   !!print*,'Run hsu',oend1-ostart1
   enddo
   !$OMP END DO
   !$OMP END PARALLEL
-  oend = omp_get_wtime()
+  !oend = omp_get_wtime()
   !print*,'Run all hsus',oend - ostart,ncores
 
  end subroutine
@@ -1081,7 +1029,8 @@ subroutine run_model_cell(&
     INTEGER                             :: IST          ! surface type 1-soil; 2-lake
     INTEGER                             :: YEARLEN
     INTEGER                             :: ITIME
-    REAL :: QSPRING,si0,si1,zwt0,minzwt
+    REAL,intent(inout) :: si0,si1
+    REAL :: QSPRING,zwt0,minzwt
     REAL, DIMENSION(1:NSOIL) :: SLDPTH
     REAL :: DZWT
     REAL :: ERRWAT
@@ -2110,7 +2059,7 @@ subroutine Calculate_Deficit(si,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
 
  implicit none
  integer :: nsoil
- real,intent(out) :: si
+ real,intent(inout) :: si
  real,intent(in) :: smcmax,smcwtd,zwt
  real,intent(in),dimension(nsoil) :: sldpth,smc
  integer :: isoil

@@ -1,7 +1,7 @@
 import os
 Parallel = False#True 
 njobs = 1#800#80000#5000#8000#800#400
-ncores = 4
+ncores = 32
 
 if Parallel == True:
  

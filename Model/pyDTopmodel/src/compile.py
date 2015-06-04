@@ -2,8 +2,10 @@ import os
 cmd = 'f2py dynamic_topmodel_tools.f90 -h dynamic_topmodel_tools.pyf -m dynamic_topmodel_tools --overwrite-signature'
 os.system(cmd)
 #Create driver library
+#cmd = 'f2py dynamic_topmodel_tools.f90 -L/u/sciteam/nchaney/local/lib -lgomp -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -fopenmp -O3 -funroll-loops"'
 #cmd = 'f2py dynamic_topmodel_tools.f90 -L/u/sciteam/nchaney/local/lib -lopenblas -lgomp -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -fopenmp -O3 -funroll-loops -ffast-math"'
-cmd = 'f2py dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -Ofast -funroll-loops -ffast-math -m64 -Wl,--no-as-needed -openmp -fopenmp"'
+#cmd = 'f2py dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -Ofast -funroll-loops -ffast-math -m64 -Wl,--no-as-needed -openmp -fopenmp"'
+cmd = 'f2py --debug dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -Ofast -funroll-loops -m64 -Wl,--no-as-needed -openmp -fopenmp -g -fbacktrace"'
 #cmd = 'f2py dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -c dynamic_topmodel_tools.pyf --fcompiler=gnu95 --f90flags="-w -O3 -funroll-loops -ffast-math -m64 -Wl,--no-as-needed -openmp -fopenmp"'
 #cmd = 'f2py dynamic_topmodel_tools.f90 -lmkl_rt -lpthread -lm -c dynamic_topmodel_tools.pyf --fcompiler=intelem --f90flags="-fast -xHost -axAVX -opt-prefetch -ipo"'
 #cmd = 'f2py dynamic_topmodel_tools.f90 -lmkl_rt -lpthread -lm -liomp5 -c dynamic_topmodel_tools.pyf --fcompiler=intelem --f90flags="-fast -xHost -axAVX -opt-prefetch -ipoi -openmp"'

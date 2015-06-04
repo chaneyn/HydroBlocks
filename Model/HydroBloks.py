@@ -227,15 +227,17 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
 def Update_Model(NOAH,TOPMODEL,ncores):
  
  #Set the partial pressure of CO2 and O2
- NOAH.co2air = 355.E-6*NOAH.psfc# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
- NOAH.o2air = 0.209*NOAH.psfc# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
+ NOAH.co2air[:] = 355.E-6*NOAH.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
+ NOAH.o2air[:] = 0.209*NOAH.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 4
+ ntt = 1#4
+ #NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
  NOAH.dt = dt/ntt
+ print "Update Noah",ncores
  for i in xrange(ntt):
   NOAH.run_model(ncores)
  NOAH.dt = np.copy(dt)
@@ -245,19 +247,22 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  si1 = np.copy(NOAH.si1)
 
  #Calculate the change in deficit
- TOPMODEL.si[:] = si1
+ TOPMODEL.si[:] = si1[:]
+ #TOPMODEL.si[:] = NOAH.si1[:]
  TOPMODEL.dsi[:] = np.copy(si1 - si0)
+ #TOPMODEL.dsi[:] = NOAH.si1[:] - NOAH.si0[:]
  TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
 
  #Add the surface runoff
- TOPMODEL.qsurf[:] = NOAH.runsf/1000.0
+ TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0
 
  #Update dynamic topmodel
+ print "Update TOPMODEL"
  TOPMODEL.update(ncores)
 
  #Calculate the change in deficit
- TOPMODEL.sideep = TOPMODEL.sideep.astype(np.float32)
- TOPMODEL.si = TOPMODEL.si.astype(np.float32)
+ TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
+ TOPMODEL.si[:] = TOPMODEL.si.astype(np.float32)
  dsi = np.copy(si1 - TOPMODEL.si)
 
  #Update the soil moisture values
@@ -341,26 +346,26 @@ def run_model(info):
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
   #Calculate initial NOAH water balance
-  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
-  beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
-  dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
+  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
+  #beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
+  #dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
 
   #Update model
   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
 
   #Calculate final water balance
-  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
-  end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
+  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
+  #end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
 
   #Update the water balance error
-  tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
-  errwat += tmp# - tmp
-  q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb)
-  et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
-  ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
-  esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
-  prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+  #tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
+  #errwat += tmp# - tmp
+  #q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb)
+  #et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  #etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
+  #ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
+  #esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
+  #prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update output
   output = update_output(output,NOAH,TOPMODEL,date,output_type)
@@ -392,9 +397,9 @@ def Update_Input(NOAH,TOPMODEL,date,info,i):
   NOAH.u_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
   NOAH.v_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
   NOAH.t_ml[:] = 273.15+meteorology.variables['tair'][i,:] #K
-  estar = 611.0*np.exp(17.27*((NOAH.t_ml - 273.15)/(NOAH.t_ml[:] - 36.0)))
+  estar = 611.0*np.exp(17.27*((NOAH.t_ml[:] - 273.15)/(NOAH.t_ml[:] - 36.0)))
   e = meteorology.variables['rh'][i,:]*estar/100
-  q = 0.622*e/NOAH.psfc
+  q = 0.622*e/NOAH.psfc[:]
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
   if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
@@ -455,7 +460,7 @@ def Initialize_Output(output_type):
 def update_output(output,NOAH,TOPMODEL,date,output_type):
  
  #Miscellanous
- output['misc']['sldpth'] = NOAH.sldpth
+ output['misc']['sldpth'] = np.copy(NOAH.sldpth)
  output['misc']['dates'].append(date)
  output['misc']['pct'] = TOPMODEL.pct
  output['misc']['dx'] = TOPMODEL.dx

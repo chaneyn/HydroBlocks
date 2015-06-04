@@ -1,6 +1,6 @@
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
-                  area,dx,dt,nhsu,celerity,celerity1,wvalues,wcolumns,wrowindex,nvalues,nthreads,&
-                  qin_outlet,area_outlet,nhru_outlet)
+                  area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,&
+                  qin_outlet,area_outlet,nthreads,nhsu,nvalues,nhru_outlet)
 
  use omp_lib
  implicit none
@@ -16,7 +16,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  real*4,intent(in),dimension(nvalues) :: wvalues
  integer,intent(in) :: nthreads
  real*4,dimension(nhsu) :: storage_,qout_,storage1_,qout1_,qin1_,qin_outlet_
- real*8 :: dt_minimum,dtt
+ real*4 :: dt_minimum,dtt
  integer :: ntt,itime
 
  !Determine the required time step
@@ -33,7 +33,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  qin_outlet_(:) = 0.0
 
  !Set the number of threads
- !call omp_set_num_threads(nthreads)
+ !call omp_set_num_threads(1)!nthreads)
  call mkl_set_num_threads(nthreads)
  !call openblas_set_num_threads(32)
           
@@ -48,7 +48,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
 
    !Add for the average at the end
    qout_ = qout_ + qout
-   qin_outlet_ = qin_outlet_
+   qin_outlet_ = qin_outlet_ + qin_outlet
 
  enddo
 
@@ -68,7 +68,7 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
 
  implicit none
  integer,intent(in) :: nhsu,nvalues,nhru_outlet
- real*8,intent(in) :: dtt
+ real*4,intent(in) :: dtt
  !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
  real*4,intent(in),dimension(nhsu) :: area,dx,celerity,celerity1
@@ -87,6 +87,9 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  niter = 15!0
  eps = 10.0**-6.0
 
+ !Initialize dummy variables
+ qin_all = 0.0
+
  !Calculate as many constants as possible before going into the iterations
  denominator = (1 + dtt*w*celerity/dx)
  numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
@@ -97,22 +100,31 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  !Update qout using the implicit scheme until it converges (upstream to downstream)
  do iter = 1,niter
  
+  qin_all = 0.0
   !Calculate qin
-  call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,area*qout,qin_all)
+  qout = area*qout
+  call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,qout,qin_all)
+  !print*,qin_all
   !Split up the qin among hrus and outlet hrus
-  !call sgemv('N',nhsu,nhsu,1.0,weights,nhsu,qout*area,1,0.0,qin,1)
+ ! call scsrsgemv('N',nhsu,nhsu,1.0,weights,nhsu,qout*area,1,0.0,qin,1)
+  !call cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,qout,qin_all)
   !qout = qout*area
   !qin = 0
-  !!$OMP PARALLEL DO SCHEDULE(STATIC)
-  !do i = 1,nhsu
-  !  do j = wrowindex(i)+1,wrowindex(i+1)
-  !   qin(i) = qin(i) + qout(wcolumns(j)+1)*wvalues(j)
+  !print*,wrowindex
+  !print*,wcolumns
+  !print*,size(wvalues),size(wrowindex)
+  !!!$OMP PARALLEL DO SCHEDULE(STATIC)
+  !do j = 1,size(wrowindex)-1
+  !  do i = wrowindex(j)+1,wrowindex(j+1)
+  !   !qin_all(i) = qin_all(i) + qout(wcolumns(j)+1)*wvalues(j)
+  !   qin_all(wcolumns(i)+1) = qin_all(wcolumns(i)+1) + qout(i)*wvalues(j)
   !  enddo
   !enddo
-  !!OMP PARALLEL END DO 
+  !qin_all(:) = 0.0001
+  !!!OMP PARALLEL END DO 
   !Divide by the area to get the flux (hrus and outlets)
   qin = qin_all(1:nhsu)/area
-  qin_outlet = qin(nhsu+1:nhsu+nhru_outlet)/area_outlet
+  qin_outlet = qin_all(nhsu+1:nhsu+nhru_outlet)/area_outlet
  
   !Calculate qout
   qout = part1 + part2*qin

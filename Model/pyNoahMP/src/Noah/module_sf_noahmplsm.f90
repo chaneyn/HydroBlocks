@@ -9209,7 +9209,6 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! SET-UP VEGETATION PARAMETERS
 ! ----------------------------------------------------------------------
     ! Six redprm_canres variables:
-    print*,VEGTYP
     TOPT = TOPT_DATA
     RGL = RGLTBL (VEGTYP)
     RSMAX = RSMAX_DATA
