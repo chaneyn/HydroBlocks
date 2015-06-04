@@ -36,8 +36,8 @@ elif parallel_flag == 'serial':
 #Deterministic
 if run_flag == 'Deterministic': HBM.Deterministic(info)
 
-#Latin Hypercube Sample
+#Latin Hypercube Sample (CURRENTLY NOT WORKING)
 if run_flag == 'Latin Hypercube Sample': HBM.Latin_Hypercube_Sample(info)
-
-#Deterministic
+ 
+#Convergence Analysis (CURRENTLY NOT WORKING)
 if run_flag == 'Convergence Analysis': HBM.Convergence_Analysis(info)
