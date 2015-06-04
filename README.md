@@ -36,6 +36,8 @@ Now we can compile the different model libraries by following these steps:
    python Model/pyDTopmodel/src
    python compile.py
 
+*Note - Before compiling dynamic topmodel, you will need to ensure that the intel MKL library is installed.
+
 To run the model on a test dataset, please download and untar the following file within the HydroBloks directory:
 
 http://hydrology.princeton.edu/~nchaney/HydroBloks/Test.tar.gz
