@@ -5,7 +5,8 @@ import HydroBloksTools as HBM
 #INFO
 #parallel_flag = sys.argv[1]
 parallel_flag = sys.argv[1]
-dir = '/scratch/sciteam/nchaney/data/CONUS_SIMULATIONS_HUC10/catchments'
+dir = 'Test'
+wbd_file = 'Test/catchments.pck'
 #run_flag = 'Convergence Analysis'
 #run_flag = 'Latin Hypercube Sample'
 run_flag = 'Deterministic'
@@ -18,7 +19,7 @@ if parallel_flag == 'parallel':
  info = {
 	'rank':int(sys.argv[2]),#comm.rank,
 	'size':int(sys.argv[3]),#comm.size,
-	'wbd':'wbd.pck',
+	'wbd':wbd_file,
 	'dir':dir,
 	'ncores':ncores,
 	}
@@ -27,7 +28,7 @@ elif parallel_flag == 'serial':
   info = {
         'rank':0,
         'size':1,
-        'wbd':'wbd.pck',
+        'wbd':wbd_file,
         'dir':dir,
 	'ncores':ncores,
         }

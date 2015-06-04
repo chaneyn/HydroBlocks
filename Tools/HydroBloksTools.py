@@ -33,7 +33,7 @@ def Deterministic(info):
  fdate = datetime.datetime(2000,1,2,23)
 
  #Iterate through all the catchments until done
- for icatch in [500,]:#[3637,]:#len(wbd.keys()):
+ for icatch in xrange(len(wbd)):
 
   dir = info['dir']
   #Define the parameters
@@ -58,7 +58,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
