@@ -30,7 +30,7 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,31,23)
+ fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in [500,]:#[3637,]:#len(wbd.keys()):
@@ -38,8 +38,8 @@ def Deterministic(info):
   dir = info['dir']
   #Define the parameters
   parameters = {}
-  parameters['log10m'] = -2.582977995297425888e+00
-  parameters['lnTe'] = -1.963648774068431635e-01
+  parameters['log10m'] = -0.1#-2.582977995297425888e+00
+  parameters['lnTe'] = 0.0#-1.963648774068431635e-01
   parameters['log10soil'] = 1.389834359162560144e-02
   parameters['sdmax'] = 1.938762117265730334e+00
 
@@ -65,19 +65,12 @@ def Deterministic(info):
         }
 
  #Cluster the data
- #input = Prepare_Model_Input_Data(hydrobloks_info)
+ #Prepare_Model_Input_Data(hydrobloks_info)
  #pickle.dump(input,open('tmp.pck','wb'),pickle.HIGHEST_PROTOCOL)
  #input = pickle.load(open('workspace/tmp.pck'))
 
  #Run the model
- #output = HB.run_model(hydrobloks_info,input,output_type='Full')
- output = HB.run_model(hydrobloks_info)
-
- #Write to netcdf
- #file_netcdf = hydrobloks_info['output']
- #Update the netcdf file
- #vars = output['variables'].keys()
- #update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
+ HB.run_model(hydrobloks_info)
 
  return
 
@@ -510,6 +503,56 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  fp = hydrobloks_info['input_fp']
  data = output
 
+ #Write the HRU mapping
+ #CONUS conus_albers metadata
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['ti']) 
+ metadata['nodata'] = -10000.0
+ #Save the conus_albers metadata
+ grp = fp.createGroup('conus_albers_mapping')
+ grp.createDimension('nx',metadata['nx'])
+ grp.createDimension('ny',metadata['ny'])
+ hmca = grp.createVariable('hmca','f4',('ny','nx')) 
+ hmca.gt = metadata['gt']
+ hmca.projection = metadata['projection']
+ hmca.description = 'HSU mapping (conus albers)'
+ hmca.nodata = metadata['nodata']
+ #Save the conus albers mapping
+ hsu_map = np.copy(output['hsu_map'])
+ hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ hmca[:] = hsu_map
+
+ #Write out the mapping
+ file_ca = '%s/hsu_mapping_conus_albers.tif' % workspace
+ gdal_tools.write_raster(file_ca,metadata,hsu_map)
+
+ #Map the mapping to regular lat/lon
+ file_ll = '%s/hsu_mapping_latlon.tif' % workspace
+ os.system('rm -f %s' % file_ll)
+ res = wbd['bbox']['res']
+ minlat = wbd['bbox']['minlat']
+ minlon = wbd['bbox']['minlon']
+ maxlat = wbd['bbox']['maxlat']
+ maxlon = wbd['bbox']['maxlon']
+ log = '%s/log.txt' % workspace
+ os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+ #Add the lat/lon mapping
+ #Retrieve the lat/lon metadata
+ metadata = gdal_tools.retrieve_metadata(file_ll)
+ metadata['nodata'] = -9999.0
+ #Save the lat/lon metadata
+ grp = fp.createGroup('latlon_mapping')
+ grp.createDimension('nlon',metadata['nx'])
+ grp.createDimension('nlat',metadata['ny'])
+ hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+ hmll.gt = metadata['gt']
+ hmll.projection = metadata['projection']
+ hmll.description = 'HSU mapping (regular lat/lon)'
+ hmll.nodata = metadata['nodata']
+ #Save the lat/lon mapping
+ hsu_map = np.copy(gdal_tools.read_raster(file_ll))
+ hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ hmll[:] = hsu_map
+
  #Write the flow matrix
  flow_matrix = output['flow_matrix']
  nconnections = flow_matrix.data.size
@@ -587,7 +630,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
  info = {'area':{'data':covariates['carea'][mask == True],},
         'slope':{'data':covariates['cslope'][mask == True],},
         'sms':{'data':covariates['MAXSMC'][mask == True],},
-        'smw':{'data':covariates['WLTSMC'][mask == True],},
+        #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
         'ndvi':{'data':covariates['ndvi'][mask ==True],},

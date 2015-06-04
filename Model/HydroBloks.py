@@ -482,22 +482,22 @@ def Create_Netcdf_File(info):
              'g':{'description':'Ground heat flux','units':'W/m2'},
              'sh':{'description':'Sensible heat flux','units':'W/m2'},
              'lh':{'description':'Latent heat flux','units':'W/m2'},
-             'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
-             'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
-             'et':{'description':'Evapotranspiration','units':'mm/s'},
-             'qexcess':{'description':'Excess runoff','units':'mm/s'},
-             'qsurface':{'description':'Surface runoff','units':'mm/s'},
-             'prcp':{'description':'Precipitation','units':'mm/s'},
+             #'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
+             #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
+             #'et':{'description':'Evapotranspiration','units':'mm/s'},
+             #'qexcess':{'description':'Excess runoff','units':'mm/s'},
+             #'qsurface':{'description':'Surface runoff','units':'mm/s'},
+             #'prcp':{'description':'Precipitation','units':'mm/s'},
              'smc1':{'description':'Soil water content','units':'m3/m3'},
-             'smc2':{'description':'Soil water content','units':'m3/m3'},
-             'smc3':{'description':'Soil water content','units':'m3/m3'},
-             'smc4':{'description':'Soil water content','units':'m3/m3'},
+             #'smc2':{'description':'Soil water content','units':'m3/m3'},
+             #'smc3':{'description':'Soil water content','units':'m3/m3'},
+             #'smc4':{'description':'Soil water content','units':'m3/m3'},
              'swd':{'description':'Soil water deficit','units':'mm'},
-             'sstorage':{'description':'Surface storage','units':'mm'},
-             'sndpth':{'description':'Snow depth','units':'mm'},
-             'swe':{'description':'Snow water equivalent','units':'mm'},
+             #'sstorage':{'description':'Surface storage','units':'mm'},
+             #'sndpth':{'description':'Snow depth','units':'mm'},
+             #'swe':{'description':'Snow water equivalent','units':'mm'},
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
-             'qout_surface':{'description':'Surface flux','units':'m2/s'},
+             #'qout_surface':{'description':'Surface flux','units':'m2/s'},
              }
 
  #Create the dimensions
@@ -516,6 +516,16 @@ def Create_Netcdf_File(info):
   ncvar = grp.createVariable(var,'f4',('time','hsu',))
   ncvar.description = metadata[var]['description']
   ncvar.units = metadata[var]['units']
+
+ #Create the outlet group 
+ print 'Creating the outlet group'
+ grp = fp_out.createGroup('outlet')
+ grp.createDimension('hru_outlet',len(fp_in.groups['outlet'].groups['summary'].dimensions['hru']))
+ grp.createVariable('hru_org','i4',('hru_outlet',))
+ grp.createVariable('hru_dst','i4',('hru_outlet',))
+ grp.createVariable('counts','i4',('hru_outlet',))
+ for var in ['qin_subsurface_outlet',]:
+  ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
 
  #Create the metadata
  print 'Creating the metadata group'
@@ -552,6 +562,18 @@ def Create_Netcdf_File(info):
  hsu[:] = np.array(hsus)
  hsu.description = 'hsu ids'
 
+ #Create the mapping
+ grp = fp_out.createGroup('latlon_mapping')
+ grp.createDimension('nlon',len(fp_in.groups['latlon_mapping'].dimensions['nlon']))
+ grp.createDimension('nlat',len(fp_in.groups['latlon_mapping'].dimensions['nlat']))
+ hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+ hmll.gt = fp_in.groups['latlon_mapping'].variables['hmll'].gt
+ hmll.projection = fp_in.groups['latlon_mapping'].variables['hmll'].projection
+ hmll.description = 'HSU mapping (regular lat/lon)'
+ hmll.nodata = fp_in.groups['latlon_mapping'].variables['hmll'].nodata
+ #Save the lat/lon mapping
+ hmll[:] = fp_in.groups['latlon_mapping'].variables['hmll'][:]
+
  return
 
 def Update_Output(info,itime,NOAH,TOPMODEL):
@@ -559,7 +581,7 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  #Create the netcdf file
  if itime == 0: Create_Netcdf_File(info)
 
- #Update the variables
+ #Update the variables (catchment)
  grp =info['output_fp'].groups['catchment']
  #NoahMP
  grp.variables['smc1'][itime,:] = np.copy(NOAH.smc[:,0]) #m3/m3
@@ -568,6 +590,11 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
  #TOPMODEL
  grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
+ grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
+
+ #Update the variables (outlet)
+ grp = info['output_fp'].groups['outlet']
+ grp.variables['qin_subsurface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet) #m2/s
  
  return
 
