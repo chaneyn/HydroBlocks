@@ -2,6 +2,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import sys
 sys.path.append('Model')
+sys.path.append('Tools')
 import HydroBloks as HB
 import cPickle as pickle
 import datetime
