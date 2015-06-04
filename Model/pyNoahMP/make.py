@@ -1,7 +1,7 @@
 import os
 #Compile NOAH
 os.chdir('src/Noah')
-#os.system('make clean')
+os.system('make clean')
 os.system('make')
 #Create signature file
 cmd = 'f2py pyNoahMP.f90 -h NoahMP.pyf -m NoahMP --overwrite-signature'
