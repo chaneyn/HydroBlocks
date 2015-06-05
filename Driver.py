@@ -13,12 +13,12 @@ run_flag = 'Deterministic'
 ncores = 4#32
 
 if parallel_flag == 'parallel':
- #from mpi4py import MPI
- #comm = MPI.COMM_WORLD
+ from mpi4py import MPI
+ comm = MPI.COMM_WORLD
  
  info = {
-	'rank':int(sys.argv[2]),#comm.rank,
-	'size':int(sys.argv[3]),#comm.size,
+	'rank':comm.rank,
+	'size':comm.size,
 	'wbd':wbd_file,
 	'dir':dir,
 	'ncores':ncores,

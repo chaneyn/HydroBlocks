@@ -20,8 +20,10 @@ import glob
 def Deterministic(info):
 
  #Define the metadata
+ rank = info['rank']
+ size = info['size']
+ ncores = info['ncores']
  nclusters = 100
- rank = 0
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -31,7 +33,7 @@ def Deterministic(info):
  fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
- for icatch in xrange(len(wbd)):
+ for icatch in np.arange(len(wbd))[rank::size]:
 
   print icatch
   dir = info['dir']
@@ -51,7 +53,7 @@ def Deterministic(info):
         'dt':3600.,
         'nsoil':20,
         'wbd':wbd[icatch],
-        'ncores':32,
+        'ncores':ncores,
         'idate':idate,
         'fdate':fdate,
         'parameters':parameters,
