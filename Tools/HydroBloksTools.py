@@ -20,7 +20,7 @@ import glob
 def Deterministic(info):
 
  #Define the metadata
- nclusters = 3
+ nclusters = 100
  rank = 0
 
  #Read in the catchment database
@@ -33,6 +33,7 @@ def Deterministic(info):
  #Iterate through all the catchments until done
  for icatch in xrange(len(wbd)):
 
+  print icatch
   dir = info['dir']
   #Define the parameters
   parameters = {}
@@ -62,11 +63,11 @@ def Deterministic(info):
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
- #Cluster the data
- Prepare_Model_Input_Data(hydrobloks_info)
+  #Cluster the data
+  Prepare_Model_Input_Data(hydrobloks_info)
 
- #Run the model
- HB.run_model(hydrobloks_info)
+  #Run the model
+  HB.run_model(hydrobloks_info)
 
  return
 
@@ -484,6 +485,41 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  ncores = hydrobloks_info['ncores']
  icatch = hydrobloks_info['icatch']
  rank = hydrobloks_info['rank']
+
+ #Prepare the input file
+ wbd['files'] = {
+  'WLTSMC':'%s/workspace/WLTSMC.tif' % hydrobloks_info['dir'],
+  'TEXTURE_CLASS':'%s/workspace/TEXTURE_CLASS.tif' % hydrobloks_info['dir'],
+  'cslope':'%s/workspace/cslope.tif' % hydrobloks_info['dir'],
+  'MAXSMC':'%s/workspace/MAXSMC.tif' % hydrobloks_info['dir'],
+  'BB':'%s/workspace/BB.tif' % hydrobloks_info['dir'],
+  'DRYSMC':'%s/workspace/DRYSMC.tif' % hydrobloks_info['dir'],
+  'fdir':'%s/workspace/fdir.tif' % hydrobloks_info['dir'],
+  'QTZ':'%s/workspace/QTZ.tif' % hydrobloks_info['dir'],
+  'SATDW':'%s/workspace/SATDW.tif' % hydrobloks_info['dir'],
+  'REFSMC':'%s/workspace/REFSMC.tif' % hydrobloks_info['dir'],
+  'mask':'%s/workspace/mask.tif' % hydrobloks_info['dir'],
+  'channels':'%s/workspace/channels.tif' % hydrobloks_info['dir'],
+  'SATDW':'%s/workspace/SATDW.tif' % hydrobloks_info['dir'],
+  'REFSMC':'%s/workspace/REFSMC.tif' % hydrobloks_info['dir'],
+  'SATPSI':'%s/workspace/SATPSI.tif' % hydrobloks_info['dir'],
+  'nlcd':'%s/workspace/nlcd.tif' % hydrobloks_info['dir'],
+  'carea':'%s/workspace/carea.tif' % hydrobloks_info['dir'],
+  'ti':'%s/workspace/ti.tif' % hydrobloks_info['dir'],
+  'ndvi':'%s/workspace/ndvi.tif' % hydrobloks_info['dir'],
+  'F11':'%s/workspace/F11.tif' % hydrobloks_info['dir'],
+  'SATDK':'%s/workspace/SATDK.tif' % hydrobloks_info['dir'],
+  'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir']
+  }
+ wbd['files_meteorology'] = {
+  'dlwrf':'%s/workspace/nldas/dlwrf/dlwrf.nc' % hydrobloks_info['dir'],
+  'dswrf':'%s/workspace/nldas/dswrf/dswrf.nc' % hydrobloks_info['dir'],
+  'tair':'%s/workspace/nldas/tair/tair.nc' % hydrobloks_info['dir'],
+  'prec':'%s/workspace/nldas/prec/prec.nc' % hydrobloks_info['dir'],
+  'pres':'%s/workspace/nldas/pres/pres.nc' % hydrobloks_info['dir'],
+  'wind':'%s/workspace/nldas/wind/wind.nc' % hydrobloks_info['dir'],
+  'rh':'%s/workspace/nldas/rh/rh.nc' % hydrobloks_info['dir'],
+  }
 
  #Create the clusters and their connections
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)

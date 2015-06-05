@@ -5,8 +5,8 @@ import HydroBloksTools as HBM
 #INFO
 #parallel_flag = sys.argv[1]
 parallel_flag = sys.argv[1]
-dir = 'Test'
-wbd_file = 'Test/catchments.pck'
+dir = '../LittleWashitaRegion'#'Test'
+wbd_file = '../LittleWashitaRegion/catchments.pck'#'Test/catchments.pck'
 #run_flag = 'Convergence Analysis'
 #run_flag = 'Latin Hypercube Sample'
 run_flag = 'Deterministic'

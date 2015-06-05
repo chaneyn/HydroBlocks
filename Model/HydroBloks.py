@@ -237,7 +237,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
  NOAH.dt = dt/ntt
- print "Update Noah",ncores
+ #print "Update Noah",ncores
  for i in xrange(ntt):
   NOAH.run_model(ncores)
  NOAH.dt = np.copy(dt)
@@ -257,7 +257,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0
 
  #Update dynamic topmodel
- print "Update TOPMODEL"
+ #print "Update TOPMODEL"
  TOPMODEL.update(ncores)
 
  #Calculate the change in deficit
@@ -335,8 +335,8 @@ def run_model(info):
  NOAH.dzwt[:] = 0.0
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
-  print date
   if (date.hour == 0) and (date.day == 1):
+   print date
    testvar = 1
    #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil
   if (date.month == 1) and (date.day == 1) and (date.hour == 0):
@@ -416,10 +416,11 @@ def Update_Input(NOAH,TOPMODEL,date,info,i):
   q = 0.622*e/NOAH.psfc[:]
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
-  if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
-   NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
-  else:
-   NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
+  NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s ONLY NLDAS
+  #if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
+  # NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
+  #else:
+  # NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
 
   return (NOAH,TOPMODEL)
 
