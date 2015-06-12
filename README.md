@@ -24,6 +24,7 @@ HydroBloks relies on a number of packages. Please make sure you have the followi
    yum install netcdf-devel
 6. grads
    yum install grads
+7. proj4
 
 Enter into the directory Tools/Tools and insert "python compile.py" to prepare the model tools library
 

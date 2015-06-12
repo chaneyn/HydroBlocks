@@ -5,12 +5,12 @@ import HydroBloksTools as HBM
 #INFO
 #parallel_flag = sys.argv[1]
 parallel_flag = sys.argv[1]
-dir = '../LittleWashitaRegion'#'Test'
-wbd_file = '../LittleWashitaRegion/catchments.pck'#'Test/catchments.pck'
+dir = 'Test'#'../LittleWashitaRegion'#'Test'
+wbd_file = '%s/catchments.pck' % dir#'Test/catchments.pck'
 #run_flag = 'Convergence Analysis'
 #run_flag = 'Latin Hypercube Sample'
 run_flag = 'Deterministic'
-ncores = 4#32
+ncores = 32
 
 if parallel_flag == 'parallel':
  from mpi4py import MPI
