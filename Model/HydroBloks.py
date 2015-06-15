@@ -187,7 +187,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
  model.surface_velocity[:] = 1000.0/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
- #Set outlet information
+ #Set outlet informationA
  model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
  #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
@@ -498,7 +498,7 @@ def Create_Netcdf_File(info):
              #'sndpth':{'description':'Snow depth','units':'mm'},
              #'swe':{'description':'Snow water equivalent','units':'mm'},
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
-             #'qout_surface':{'description':'Surface flux','units':'m2/s'},
+             'qout_surface':{'description':'Surface flux','units':'m2/s'},
              }
 
  #Create the dimensions
@@ -525,8 +525,11 @@ def Create_Netcdf_File(info):
  grp.createVariable('hru_org','i4',('hru_outlet',))
  grp.createVariable('hru_dst','i4',('hru_outlet',))
  grp.createVariable('counts','i4',('hru_outlet',))
- for var in ['qin_subsurface_outlet',]:
+ grp.createVariable('area_outlet','i4',('hru_outlet',))
+ for var in ['qin_subsurface_outlet','qin_surface_outlet']:
   ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
+ dx = 30.0
+ grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
 
  #Create the metadata
  print 'Creating the metadata group'
@@ -592,10 +595,12 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  #TOPMODEL
  grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
  grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
+ grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
 
  #Update the variables (outlet)
  grp = info['output_fp'].groups['outlet']
  grp.variables['qin_subsurface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet) #m2/s
+ grp.variables['qin_surface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet_surface) #m2/s
  
  return
 

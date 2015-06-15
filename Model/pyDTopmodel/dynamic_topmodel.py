@@ -55,6 +55,7 @@ class Dynamic_Topmodel:
 
   #Outlet information
   self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float32)
+  self.qin_outlet_surface = np.zeros(nhru_outlet,dtype=np.float32)
   self.area_outlet = np.zeros(nhru_outlet,dtype=np.float32)
   self.nhru_outlet = nhru_outlet
 
@@ -69,7 +70,7 @@ class Dynamic_Topmodel:
 
   #Update the surface runoff
   #tic = time.time()
-  #self.update_surface_fortran(ncores)
+  self.update_surface_fortran(ncores)
   #print time.time() - tic
 
   return
@@ -82,19 +83,19 @@ class Dynamic_Topmodel:
   #self.recharge_surface[:] = 0#self.qsurf + self.ex
 
   #Estimate the flux
-  #self.qout_surface = self.Calculate_Flux_Surface(self.storage_surface)
-  #self.qout_surface[self.qout_surface < 0] = 0.0
+  self.qout_surface = self.Calculate_Flux_Surface(self.storage_surface)
+  self.qout_surface[self.qout_surface < 0] = 0.0
 
   #Set the celerities
   self.celerity1_surface[:] = self.celerity_surface
   self.celerity_surface[:] = self.Calculate_Celerity_Surface()
 
   #Solve for the given time step
-  dtt.update(self.r,si,self.qout,self.qin,
-             self.r1,si1,self.qout1,self.qin1,
-             self.area,self.dx,self.dt,self.c,self.c1,
+  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+             self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
+             self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.w.data,self.w.indices,self.w.indptr,
-             self.qin_outlet,self.area_outlet,ncores)
+             self.qin_outlet_surface,self.area_outlet,ncores)
   #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
   #	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
   #	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
