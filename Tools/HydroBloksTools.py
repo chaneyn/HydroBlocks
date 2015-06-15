@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 3
+ nclusters = 10
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -66,7 +66,7 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  Prepare_Model_Input_Data(hydrobloks_info)
+  #Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)

@@ -90,10 +90,15 @@ class Dynamic_Topmodel:
   self.celerity_surface[:] = self.Calculate_Celerity_Surface()
 
   #Solve for the given time step
-  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
-	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
-	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             self.w.data,self.w.indices,self.w.indptr,ncores)
+  dtt.update(self.r,si,self.qout,self.qin,
+             self.r1,si1,self.qout1,self.qin1,
+             self.area,self.dx,self.dt,self.c,self.c1,
+             self.w.data,self.w.indices,self.w.indptr,
+             self.qin_outlet,self.area_outlet,ncores)
+  #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+  #	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
+  #	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
+  #           self.w.data,self.w.indices,self.w.indptr,ncores)
 
   return
 
