@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 100
+ nclusters = 3#100
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))

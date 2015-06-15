@@ -27,6 +27,7 @@ class Dynamic_Topmodel:
   self.sti = np.zeros(ngroups,dtype=np.float32)
 
   #Define surface variables
+  self.q_surface = np.zeros(ngroups,dtype=np.float32)
   self.storage_surface = np.zeros(ngroups,dtype=np.float32)
   self.qin_surface = np.zeros(ngroups,dtype=np.float32)
   self.qout_surface = np.zeros(ngroups,dtype=np.float32)
@@ -41,6 +42,7 @@ class Dynamic_Topmodel:
   self.surface_velocity = np.zeros(ngroups,dtype=np.float32)
  
   #Current time step
+  self.q_subsurface = np.zeros(ngroups,dtype=np.float32)
   self.r = np.zeros(ngroups,dtype=np.float32)
   self.qout = np.zeros(ngroups,dtype=np.float32)
   self.qin = np.zeros(ngroups,dtype=np.float32)
@@ -83,15 +85,15 @@ class Dynamic_Topmodel:
   #self.recharge_surface[:] = 0#self.qsurf + self.ex
 
   #Estimate the flux
-  self.qout_surface = self.Calculate_Flux_Surface(self.storage_surface)
-  self.qout_surface[self.qout_surface < 0] = 0.0
+  self.q_surface = self.Calculate_Flux_Surface(self.storage_surface)
+  self.q_surface[self.q_surface < 0] = 0.0
 
   #Set the celerities
   self.celerity1_surface[:] = self.celerity_surface
   self.celerity_surface[:] = self.Calculate_Celerity_Surface()
 
   #Solve for the given time step
-  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,self.q_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.w.data,self.w.indices,self.w.indptr,
@@ -107,12 +109,12 @@ class Dynamic_Topmodel:
 
   #Compute the flux
   #if self.itime == 0:
-  self.qout[:] = self.Calculate_Flux_Subsurface(self.si)
-  self.qout[self.qout < 0.0] = 0.0
+  self.q_subsurface[:] = self.Calculate_Flux_Subsurface(self.si)
+  self.q_subsurface[self.q_subsurface < 0.0] = 0.0
 
   #Calculate the celerities
   self.c1[:] = self.c
-  self.c[:] = self.Calculate_Celerity_Subsurface(self.m,self.qout)
+  self.c[:] = self.Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
 
   #Set deficit in the form that the solver wants
   si = np.copy(-self.si)
@@ -124,7 +126,7 @@ class Dynamic_Topmodel:
   #Solve for the given time step
   #dx = np.copy(self.dx)
   #dx[:] = 1.0
-  dtt.update(self.r,si,self.qout,self.qin,
+  dtt.update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.w.indptr,

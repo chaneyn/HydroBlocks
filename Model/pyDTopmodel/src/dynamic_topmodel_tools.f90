@@ -1,4 +1,4 @@
-subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
+subroutine update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,&
                   area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,&
                   qin_outlet,area_outlet,nthreads,nhsu,nvalues,nhru_outlet)
 
@@ -8,7 +8,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  real*8,intent(in) :: dt
  !real*4,intent(in),dimension(nhsu,nhsu) :: weights
  real*4,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
- real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
+ real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1,q
  real*4,intent(inout),dimension(nhru_outlet) :: qin_outlet
  real*4,intent(in),dimension(nhru_outlet) :: area_outlet
  integer*4,intent(in),dimension(nvalues) :: wcolumns
@@ -41,7 +41,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  do itime = 1,ntt
   
    !Solve the kinematic wave for this time step
-   call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
+   call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,q,storage1,qout1,qin1,&
                              recharge1,area,dx,dtt,celerity,celerity1,&
                              wvalues,wcolumns,wrowindex,&
                              area_outlet,qin_outlet,nhru_outlet)!,weights)
@@ -61,7 +61,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
 
 end subroutine update
 
-subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
+subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,q,storage1,qout1,qin1,&
                                 recharge1,area,dx,dtt,celerity,celerity1,&
                                 wvalues,wcolumns,wrowindex,&
                                 area_outlet,qin_outlet,nhru_outlet)!,weights)
@@ -70,7 +70,7 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  integer,intent(in) :: nhsu,nvalues,nhru_outlet
  real*4,intent(in) :: dtt
  !real*4,intent(in),dimension(nhsu,nhsu) :: weights
- real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
+ real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1,q
  real*4,intent(in),dimension(nhsu) :: area,dx,celerity,celerity1
  real*4,intent(inout),dimension(nhru_outlet) :: qin_outlet
  real*4,intent(in),dimension(nhru_outlet) :: area_outlet
@@ -84,26 +84,39 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
 
  !Define implicit scheme parameters
  w = 0.5 
- niter = 15!0
- eps = 10.0**-6.0
+ !niter = 15!0
+ !eps = 10.0**-6.0
 
  !Initialize dummy variables
  qin_all = 0.0
 
  !Calculate as many constants as possible before going into the iterations
- denominator = (1 + dtt*w*celerity/dx)
+ !denominator = (1 + dtt*w*celerity/dx)
+ denominator = (1 + 2*dtt*w*celerity/dx)
  numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
  numerator2 = dtt*w*celerity/dx
  part1 = numerator1/denominator
  part2 = numerator2/denominator
 
+ !Calculate qout
+ qout = part1 + 2*part2*q
+
+ !Calculate qin
+ qin_all = 0.0
+ !qout = area*qout
+ call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,area*qout,qin_all)
+
+ !Divide by the area to get the flux (hrus and outlets)
+ qin = qin_all(1:nhsu)/area
+ qin_outlet = qin_all(nhsu+1:nhsu+nhru_outlet)/area_outlet
+
  !Update qout using the implicit scheme until it converges (upstream to downstream)
- do iter = 1,niter
- 
-  qin_all = 0.0
-  !Calculate qin
-  qout = area*qout
-  call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,qout,qin_all)
+ !do iter = 1,niter
+ !
+ ! qin_all = 0.0
+ ! !Calculate qin
+ ! qout = area*qout
+ ! call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,qout,qin_all)
   !print*,qin_all
   !Split up the qin among hrus and outlet hrus
  ! call scsrsgemv('N',nhsu,nhsu,1.0,weights,nhsu,qout*area,1,0.0,qin,1)
@@ -123,22 +136,22 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   !qin_all(:) = 0.0001
   !!!OMP PARALLEL END DO 
   !Divide by the area to get the flux (hrus and outlets)
-  qin = qin_all(1:nhsu)/area
-  qin_outlet = qin_all(nhsu+1:nhsu+nhru_outlet)/area_outlet
+ ! qin = qin_all(1:nhsu)/area
+ ! qin_outlet = qin_all(nhsu+1:nhsu+nhru_outlet)/area_outlet
  
   !Calculate qout
-  qout = part1 + part2*qin
+ ! qout = part1 + part2*qin
 
   !Set values below zero to 0
-  where (qout .lt. 0.0) qout = 0.0
+ ! where (qout .lt. 0.0) qout = 0.0
 
   !Determine if the tolerance has been achieved
-  if (maxval(abs(qout_ - qout)) .le. eps) exit
+ ! if (maxval(abs(qout_ - qout)) .le. eps) exit
 
   !Save values for comparison
-  qout_ = qout
+ ! qout_ = qout
 
- enddo
+ !enddo
  
  !Set all negative fluxes to 0
  where (qout < 0.0) qout = 0.0

@@ -3,12 +3,13 @@
 
 python module dynamic_topmodel_tools ! in 
     interface  ! in :dynamic_topmodel_tools
-        subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,qin_outlet,area_outlet,nthreads,nhsu,nvalues,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
+        subroutine update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,qin_outlet,area_outlet,nthreads,nhsu,nvalues,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
             use omp_lib
             real*4 dimension(nhsu),intent(inout) :: recharge
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: storage
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qout
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qin
+            real*4 dimension(nhsu),intent(inout),depend(nhsu) :: q
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: recharge1
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: storage1
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qout1
@@ -28,13 +29,14 @@ python module dynamic_topmodel_tools ! in
             integer, optional,check(len(wvalues)>=nvalues),depend(wvalues) :: nvalues=len(wvalues)
             integer, optional,check(len(qin_outlet)>=nhru_outlet),depend(qin_outlet) :: nhru_outlet=len(qin_outlet)
         end subroutine update
-        subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,recharge1,area,dx,dtt,celerity,celerity1,wvalues,wcolumns,wrowindex,area_outlet,qin_outlet,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
+        subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,q,storage1,qout1,qin1,recharge1,area,dx,dtt,celerity,celerity1,wvalues,wcolumns,wrowindex,area_outlet,qin_outlet,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
             integer, optional,intent(in),check(len(storage)>=nhsu),depend(storage) :: nhsu=len(storage)
             integer, optional,intent(in),check(len(wvalues)>=nvalues),depend(wvalues) :: nvalues=len(wvalues)
             real*4 dimension(nhsu),intent(inout) :: storage
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qout
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qin
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: recharge
+            real*4 dimension(nhsu),intent(inout),depend(nhsu) :: q
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: storage1
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qout1
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: qin1
