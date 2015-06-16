@@ -1,6 +1,9 @@
 import numpy as np
 import time
 import dynamic_topmodel_tools as dtt
+import scipy
+import scipy.sparse
+import scipy.sparse.linalg
 
 class Dynamic_Topmodel:
 
@@ -72,7 +75,7 @@ class Dynamic_Topmodel:
 
   #Update the surface runoff
   #tic = time.time()
-  self.update_surface_fortran(ncores)
+  #self.update_surface_fortran(ncores)
   #print time.time() - tic
 
   return
@@ -131,10 +134,16 @@ class Dynamic_Topmodel:
   #Solve for the given time step
   #dx = np.copy(self.dx)
   #dx[:] = 1.0
-  dtt.update(self.r,si,self.qout,self.qin,self.q_subsurface,
+  '''dtt.update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.w.indptr,
+             self.qin_outlet,self.area_outlet,ncores,0)'''
+  Update(self.r,si,self.qout,self.qin,self.q_subsurface,
+             self.r1,si1,self.qout1,self.qin1,
+             self.area,self.dx,self.dt,self.c,self.c1,
+             #self.w.data,self.w.indices,self.w.indptr,
+             self.w,
              self.qin_outlet,self.area_outlet,ncores,0)
 
   #print 'after:',-si
@@ -171,3 +180,78 @@ class Dynamic_Topmodel:
  def Calculate_Celerity_Surface(self,):
 
   return self.surface_velocity
+
+def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
+                  area,dx,dt,celerity,celerity1,flow_matrix,
+                  qin_outlet,area_outlet,nthreads,model_type):
+
+ #Determine the appropriate time step
+ dt_minimum = np.min(dx/celerity)
+ ntt = 2*(int(np.ceil(dt/dt_minimum)) + 1)
+ dtt = dt/ntt
+
+ #Initialize variables to average the sub time steps
+ storage_ = np.zeros(storage.size,dtype=np.float32)
+ qout_ = np.zeros(storage.size,dtype=np.float32)
+ storage1_ = np.copy(storage)
+ qout1_ = np.copy(qout)
+ qin1_ = np.copy(qin)
+ qin_outlet_ = np.zeros(storage.size,dtype=np.float32)
+ qin_ = np.zeros(storage.size,dtype=np.float32)
+
+ #Define some constatns
+ w = 1.0#0.5
+ I = scipy.sparse.identity(storage.size)
+ F = flow_matrix[0:storage.size,0:storage.size]
+
+ #Process the smaller time steps
+ for itime in xrange(ntt):
+
+  #Solve the kinematic wave for this time step
+  #Define the constants
+  denominator = (1 + dtt*w*celerity/dx)
+  numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
+  numerator2 = dtt*w*celerity/dx
+  #F = F.T
+  p1 = numerator1/denominator
+  p2 = scipy.sparse.csr_matrix(numerator2/denominator)
+  #F = scipy.sparse.csr_matrix(np.ones(F.shape))
+  b = p1.T
+  A = F.multiply(scipy.sparse.csr_matrix(p2/area).T).multiply(scipy.sparse.csr_matrix(area))
+  #A = F.multiply(scipy.sparse.csr_matrix(p2))
+  #A = (part2.multiply(part3)).multiply(F.T)
+  #b = (scipy.sparse.csr_matrix(part1).multiply(part3).T).todense()
+  Aprime = I - A
+
+  #Solve for this time step
+  #print Aprime.shape
+  #print p1
+  #print b.shape,p1.size
+  qout = scipy.sparse.linalg.bicgstab(Aprime,b,tol=10**-20)[0]#,x0 = qout1)
+  #print qout[1]
+  #qout = qout[0]
+  #qout = scipy.sparse.linalg.spsolve(Aprime,b)
+  #print 'in',area*q
+  #print 'out',area*qout
+
+  #Set all negative fluxes to 0 
+  qout[qout < 0.0] = 0.0
+
+  #Calculate qin
+  qin = (area*qout*F)/area
+
+  #Adjust the storages
+  storage = storage + dtt*((qin - qout)/dx + recharge)
+
+  #Set the next time step's info
+  qout1[:] = qout[:]
+  qin1[:] = qin[:]
+
+  #Update celerity?
+
+ #Save the variables
+ qout1[:] = qout1_[:]
+ storage1[:] = storage1_[:]
+ qin1[:] = qin1_[:]
+
+ return
