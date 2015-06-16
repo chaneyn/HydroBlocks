@@ -97,11 +97,15 @@ class Dynamic_Topmodel:
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.w.data,self.w.indices,self.w.indptr,
-             self.qin_outlet_surface,self.area_outlet,ncores)
+             self.qin_outlet_surface,self.area_outlet,ncores,1)
   #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
   #	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
   #	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
   #           self.w.data,self.w.indices,self.w.indptr,ncores)
+
+  #Correct the surface storage
+  #print self.storage_surface
+  #self.storage_surface[self.storage_surface < 0] = 0.0
 
   return
 
@@ -111,6 +115,7 @@ class Dynamic_Topmodel:
   #if self.itime == 0:
   self.q_subsurface[:] = self.Calculate_Flux_Subsurface(self.si)
   self.q_subsurface[self.q_subsurface < 0.0] = 0.0
+  #print self.q_subsurface[:]
 
   #Calculate the celerities
   self.c1[:] = self.c
@@ -122,7 +127,7 @@ class Dynamic_Topmodel:
   #print 'before:',self.si
   #self.r[np.isnan(self.r) == 1] = 0
   #print self.r
-
+ 
   #Solve for the given time step
   #dx = np.copy(self.dx)
   #dx[:] = 1.0
@@ -130,7 +135,7 @@ class Dynamic_Topmodel:
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.w.indptr,
-             self.qin_outlet,self.area_outlet,ncores)
+             self.qin_outlet,self.area_outlet,ncores,0)
 
   #print 'after:',-si
 
@@ -152,6 +157,7 @@ class Dynamic_Topmodel:
  def Calculate_Flux_Subsurface(self,si):
 
   return self.T0*np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
+  #return 10*self.T0#np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
   #return self.T0*np.tan(self.beta)*(np.exp(-si/self.m))
 
  def Calculate_Celerity_Subsurface(self,m,q):

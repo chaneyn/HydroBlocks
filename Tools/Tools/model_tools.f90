@@ -52,19 +52,19 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
 
  end subroutine calculate_connections
 
- subroutine calculate_connections_d8(HSUs,d8dir,hrus_dst,hrus_org,nhsu,&
+ subroutine calculate_connections_d8(HSUs,d8dir,area,hrus_dst,hrus_org,nhsu,&
   max_nhsu,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8,n,m)
 
  implicit none
  integer :: i,j,k,n,m,ipos
  integer,intent(in) :: nhsu,max_nhsu
- real*8,intent(in),dimension(n,m) :: HSUs,d8dir
+ real*8,intent(in),dimension(n,m) :: HSUs,d8dir,area
  !real*8,intent(out),dimension(nhsu,nhsu) :: transition_probabilities
  integer,intent(out),dimension(max_nhsu) :: hrus_dst,hrus_org
  integer,intent(out),dimension(max_nhsu) :: outlet_icoord,outlet_jcoord
  integer,intent(out),dimension(max_nhsu) :: outlet_hru,outlet_d8
  real*8,dimension(nhsu,nhsu) :: transition_probabilities
- real :: hsu_org,hsu_dst
+ real :: hsu_org,hsu_dst,minimum_area,maxarea
  hrus_dst(:) = -9999
  hrus_org(:) = -9999
  outlet_icoord(:) = -9999
@@ -72,6 +72,8 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
  outlet_hru(:) = -9999
  outlet_d8(:) = -9999
  ipos = 1
+ minimum_area = 10**5
+ maxarea = maxval(area)
 
  !Iterate through the cells and determine the connections
  do i = 1,n
@@ -95,10 +97,21 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      if (d8dir(i,j) == 7) hsu_dst = HSUs(i-1,j-1) !NW
      !If the grid cell is an outlet...
      if (isnan(hsu_dst)) then
-      outlet_icoord(ipos) = i
-      outlet_jcoord(ipos) = j
-      outlet_hru(ipos) = HSUs(i,j) + 1
-      outlet_d8(ipos) = d8dir(i,j)
+      !if (area(i,j) .lt. minimum_area) then
+       hsu_dst = HSUs(i,j) + 1
+       hsu_org = HSUs(i,j) + 1
+      !else
+      ! print*,area(i,j)
+      ! outlet_icoord(ipos) = i
+      ! outlet_jcoord(ipos) = j
+      ! outlet_hru(ipos) = HSUs(i,j) + 1
+      ! outlet_d8(ipos) = d8dir(i,j)
+      !endif
+     else if (area(i,j) .eq. maxarea) then
+       outlet_icoord(ipos) = i
+       outlet_jcoord(ipos) = j
+       outlet_hru(ipos) = HSUs(i,j) + 1
+       outlet_d8(ipos) = d8dir(i,j)
      else
       hsu_dst = hsu_dst + 1
       !Determine the HSU it comes from

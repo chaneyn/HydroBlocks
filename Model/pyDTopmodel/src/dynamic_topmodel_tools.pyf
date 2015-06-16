@@ -3,7 +3,7 @@
 
 python module dynamic_topmodel_tools ! in 
     interface  ! in :dynamic_topmodel_tools
-        subroutine update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,qin_outlet,area_outlet,nthreads,nhsu,nvalues,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
+        subroutine update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,qin_outlet,area_outlet,nthreads,model_type,nhsu,nvalues,nhru_outlet) ! in :dynamic_topmodel_tools:dynamic_topmodel_tools.f90
             use omp_lib
             real*4 dimension(nhsu),intent(inout) :: recharge
             real*4 dimension(nhsu),intent(inout),depend(nhsu) :: storage
@@ -25,6 +25,7 @@ python module dynamic_topmodel_tools ! in
             real*4 dimension(nhru_outlet),intent(inout) :: qin_outlet
             real*4 dimension(nhru_outlet),intent(in),depend(nhru_outlet) :: area_outlet
             integer intent(in) :: nthreads
+            integer intent(in) :: model_type
             integer, optional,check(len(recharge)>=nhsu),depend(recharge) :: nhsu=len(recharge)
             integer, optional,check(len(wvalues)>=nvalues),depend(wvalues) :: nvalues=len(wvalues)
             integer, optional,check(len(qin_outlet)>=nhru_outlet),depend(qin_outlet) :: nhru_outlet=len(qin_outlet)

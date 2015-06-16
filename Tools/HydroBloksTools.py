@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 3#100
+ nclusters = 3
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -39,7 +39,7 @@ def Deterministic(info):
   dir = info['dir']
   #Define the parameters
   parameters = {}
-  parameters['log10m'] = -0.1#-2.582977995297425888e+00
+  parameters['log10m'] = 1.0#-2.582977995297425888e+00
   parameters['lnTe'] = 0.0#-1.963648774068431635e-01
   parameters['log10soil'] = 1.389834359162560144e-02
   parameters['sdmax'] = 1.938762117265730334e+00
@@ -66,7 +66,7 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  Prepare_Model_Input_Data(hydrobloks_info)
+  #Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -663,24 +663,29 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask == True],},
         #'slope':{'data':covariates['cslope'][mask == True],},
-        ##'sms':{'data':covariates['MAXSMC'][mask == True],},
+        #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
         #'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        #'ti':{'data':covariates['ti'][mask_woc == True],},
-        ##'dem':{'data':covariates['dem'][mask == True],},
+        #'ti':{'data':covariates['ti'][mask == True],},
+        #'dem':{'data':covariates['dem'][mask == True],},
         #'lats':{'data':covariates['lats'][mask == True],},
         #'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  argsort = np.argsort(info[var]['data'])
-  pcts = np.copy(info[var]['data'])
-  pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  info[var]['data'] = pcts
+  if var == 'test':#'area':
+   tmp = np.log(info[var]['data'])
+   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+   info[var]['data'] = tmp
+  else:
+   argsort = np.argsort(info[var]['data'])
+   pcts = np.copy(info[var]['data'])
+   pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+   info[var]['data'] = pcts
 
  #Create the LHS bins
  import sklearn.cluster
@@ -849,7 +854,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  cluster_ids_copy[mask1] = np.nan
  max_nhru = np.sum(cluster_ids >= 0)
  #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
- (hrus_dst,hrus_org,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
+ (hrus_dst,hrus_org,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],covariates['carea'],nclusters,max_nhru)
  #Only use the non -9999 values
  hrus_dst = hrus_dst[hrus_dst != -9999]-1
  hrus_org = hrus_org[hrus_org != -9999]-1

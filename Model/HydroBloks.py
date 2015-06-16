@@ -185,7 +185,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
  model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
- model.surface_velocity[:] = 1000.0/dt #m/s
+ model.surface_velocity[:] = np.array([1000.0,1000.0,1000.0])/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
  #Set outlet informationA
  model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
@@ -232,7 +232,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 1#4
+ ntt = 4
  #NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
@@ -340,8 +340,8 @@ def run_model(info):
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
   if (date.hour == 0) and (date.day == 1):
-   print date
    testvar = 1
+   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat)
    #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil
   if (date.month == 1) and (date.day == 1) and (date.hour == 0):
    et = 0
@@ -354,26 +354,26 @@ def run_model(info):
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
   #Calculate initial NOAH water balance
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
-  #beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
-  #dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
+  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
+  beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
+  dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
 
   #Update model
   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
 
   #Calculate final water balance
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
-  #end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
+  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
+  end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
 
   #Update the water balance error
-  #tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
-  #errwat += tmp# - tmp
-  #q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb)
-  #et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  #etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
-  #ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
-  #esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
-  #prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+  tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
+  errwat += tmp# - tmp
+  q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
+  et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
+  ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
+  esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
+  prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update output
   #Write to netcdf
@@ -490,15 +490,15 @@ def Create_Netcdf_File(info):
              #'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
              #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
              #'et':{'description':'Evapotranspiration','units':'mm/s'},
-             #'qexcess':{'description':'Excess runoff','units':'mm/s'},
-             #'qsurface':{'description':'Surface runoff','units':'mm/s'},
+             'qexcess':{'description':'Excess runoff','units':'mm/s'},
+             'qsurface':{'description':'Surface runoff','units':'mm/s'},
              #'prcp':{'description':'Precipitation','units':'mm/s'},
              'smc1':{'description':'Soil water content','units':'m3/m3'},
              #'smc2':{'description':'Soil water content','units':'m3/m3'},
              #'smc3':{'description':'Soil water content','units':'m3/m3'},
              #'smc4':{'description':'Soil water content','units':'m3/m3'},
              'swd':{'description':'Soil water deficit','units':'mm'},
-             #'sstorage':{'description':'Surface storage','units':'mm'},
+             'sstorage':{'description':'Surface storage','units':'mm'},
              #'sndpth':{'description':'Snow depth','units':'mm'},
              #'swe':{'description':'Snow water equivalent','units':'mm'},
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
@@ -534,6 +534,8 @@ def Create_Netcdf_File(info):
   ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
  dx = 30.0
  grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
+ grp.variables['hru_org'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_org'][:]
+ grp.variables['hru_dst'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'][:]
 
  #Create the metadata
  print 'Creating the metadata group'
@@ -596,10 +598,13 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
  grp.variables['sh'][itime,:] = np.copy(NOAH.fsh) #W/m2
  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
+ grp.variables['qexcess'][itime,:] = np.copy(NOAH.runsb) #m2/s
+ grp.variables['qsurface'][itime,:] = np.copy(NOAH.runsf) #m2/s
  #TOPMODEL
  grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
  grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
  grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
+ grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
 
  #Update the variables (outlet)
  grp = info['output_fp'].groups['outlet']
