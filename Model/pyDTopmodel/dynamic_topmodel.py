@@ -56,7 +56,9 @@ class Dynamic_Topmodel:
   self.c1 = np.zeros(ngroups,dtype=np.float32)
   self.r1 = np.zeros(ngroups,dtype=np.float32)
   self.qout1 = np.zeros(ngroups,dtype=np.float32)
+  self.qout1[:] = -9999.0
   self.qin1 = np.zeros(ngroups,dtype=np.float32)
+  self.qin1[:] = -9999.0
 
   #Outlet information
   self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float32)
@@ -118,7 +120,10 @@ class Dynamic_Topmodel:
   #if self.itime == 0:
   self.q_subsurface[:] = self.Calculate_Flux_Subsurface(self.si)
   self.q_subsurface[self.q_subsurface < 0.0] = 0.0
-  #print self.q_subsurface[:]
+
+  #Initialize qout1 and qin1
+  if self.qout1[0] == -9999.0:
+   self.qout1[:] = self.q_subsurface[:]
 
   #Calculate the celerities
   self.c1[:] = self.c
@@ -139,12 +144,15 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.w.indptr,
              self.qin_outlet,self.area_outlet,ncores,0)'''
-  Update(self.r,si,self.qout,self.qin,self.q_subsurface,
+  #t0 = time.time()
+  (si,si1,self.qout,self.qout1,self.qin,self.qin1) = Update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              #self.w.data,self.w.indices,self.w.indptr,
              self.w,
              self.qin_outlet,self.area_outlet,ncores,0)
+  print self.qout*self.area
+  #print time.time() - t0
 
   #print 'after:',-si
 
@@ -166,7 +174,7 @@ class Dynamic_Topmodel:
  def Calculate_Flux_Subsurface(self,si):
 
   return self.T0*np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
-  #return 10*self.T0#np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
+  #return 100*self.T0#np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
   #return self.T0*np.tan(self.beta)*(np.exp(-si/self.m))
 
  def Calculate_Celerity_Subsurface(self,m,q):
@@ -200,9 +208,11 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
  qin_ = np.zeros(storage.size,dtype=np.float32)
 
  #Define some constatns
- w = 1.0#0.5
+ w = 0.5
  I = scipy.sparse.identity(storage.size)
  F = flow_matrix[0:storage.size,0:storage.size]
+ area_sp = scipy.sparse.csr_matrix(area)
+ p2 = scipy.sparse.csr_matrix(np.ones(area.size))
 
  #Process the smaller time steps
  for itime in xrange(ntt):
@@ -212,27 +222,15 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   denominator = (1 + dtt*w*celerity/dx)
   numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator2 = dtt*w*celerity/dx
-  #F = F.T
   p1 = numerator1/denominator
-  p2 = scipy.sparse.csr_matrix(numerator2/denominator)
-  #F = scipy.sparse.csr_matrix(np.ones(F.shape))
+  t0 = time.time()
+  p2.data = numerator2/denominator
+  p2.data = p2.data/area_sp.data
   b = p1.T
-  A = F.multiply(scipy.sparse.csr_matrix(p2/area).T).multiply(scipy.sparse.csr_matrix(area))
-  #A = F.multiply(scipy.sparse.csr_matrix(p2))
-  #A = (part2.multiply(part3)).multiply(F.T)
-  #b = (scipy.sparse.csr_matrix(part1).multiply(part3).T).todense()
-  Aprime = I - A
+  A = F.multiply(p2.T).multiply(area_sp)
 
   #Solve for this time step
-  #print Aprime.shape
-  #print p1
-  #print b.shape,p1.size
-  qout = scipy.sparse.linalg.bicgstab(Aprime,b,tol=10**-20)[0]#,x0 = qout1)
-  #print qout[1]
-  #qout = qout[0]
-  #qout = scipy.sparse.linalg.spsolve(Aprime,b)
-  #print 'in',area*q
-  #print 'out',area*qout
+  qout = scipy.sparse.linalg.spsolve(I-A,b)
 
   #Set all negative fluxes to 0 
   qout[qout < 0.0] = 0.0
@@ -248,10 +246,11 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   qin1[:] = qin[:]
 
   #Update celerity?
+ #print area*qout
 
  #Save the variables
  qout1[:] = qout1_[:]
  storage1[:] = storage1_[:]
  qin1[:] = qin1_[:]
 
- return
+ return (storage,storage1,qout,qout1,qin,qin1)
