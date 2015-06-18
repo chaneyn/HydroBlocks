@@ -4,6 +4,7 @@ import dynamic_topmodel_tools as dtt
 import scipy
 import scipy.sparse
 import scipy.sparse.linalg
+import copy
 
 class Dynamic_Topmodel:
 
@@ -36,6 +37,7 @@ class Dynamic_Topmodel:
   self.qout_surface = np.zeros(ngroups,dtype=np.float32)
   self.storage1_surface = np.zeros(ngroups,dtype=np.float32)
   self.qout1_surface = np.zeros(ngroups,dtype=np.float32)
+  self.qout1_surface[:] = -9999.0
   self.qin1_surface = np.zeros(ngroups,dtype=np.float32)
   self.qsurf = np.zeros(ngroups,dtype=np.float32)
   self.recharge_surface = np.zeros(ngroups,dtype=np.float32)
@@ -58,7 +60,6 @@ class Dynamic_Topmodel:
   self.qout1 = np.zeros(ngroups,dtype=np.float32)
   self.qout1[:] = -9999.0
   self.qin1 = np.zeros(ngroups,dtype=np.float32)
-  self.qin1[:] = -9999.0
 
   #Outlet information
   self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float32)
@@ -77,7 +78,7 @@ class Dynamic_Topmodel:
 
   #Update the surface runoff
   #tic = time.time()
-  #self.update_surface_fortran(ncores)
+  self.update_surface_fortran(ncores)
   #print time.time() - tic
 
   return
@@ -89,24 +90,30 @@ class Dynamic_Topmodel:
   self.recharge_surface[:] = self.qsurf + self.ex
   #self.recharge_surface[:] = 0#self.qsurf + self.ex
 
-  #Estimate the flux
-  self.q_surface = self.Calculate_Flux_Surface(self.storage_surface)
-  self.q_surface[self.q_surface < 0] = 0.0
-
-  #Set the celerities
-  self.celerity1_surface[:] = self.celerity_surface
-  self.celerity_surface[:] = self.Calculate_Celerity_Surface()
+  #Initialize q,qout1,qin1,c,and c1
+  if self.qout1_surface[0] == -9999.0:
+   #self.storage_surface[:] = np.array([0.05,0.05,0.05])
+   #self.q_surface[:] = np.array([0.01,0.01,0.01])#Calculate_Flux_Surface(self.storage_surface,self.surface_velocity)
+   self.qout1_surface[:] = self.q_surface[:]
+   self.qin1_surface[:] = 0.0
+   self.celerity_surface[:] = Calculate_Celerity_Surface(self.surface_velocity)
 
   #Solve for the given time step
-  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,self.q_surface,
-             self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
+  #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,self.q_surface,
+  #           self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
+  #           self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
+  #           self.w.data,self.w.indices,self.w.indptr,
+  #           self.qin_outlet_surface,self.area_outlet,ncores,1)
+  (self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
+             self.qin_surface,self.qin1_surface,self.celerity_surface,
+             self.celerity1_surface) = Update(self.recharge_surface,self.storage_surface,
+             self.qout_surface,self.qin_surface,self.q_surface,
+             self.recharge1_surface,self.storage1_surface,
+             self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             self.w.data,self.w.indices,self.w.indptr,
-             self.qin_outlet_surface,self.area_outlet,ncores,1)
-  #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
-  #	     self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
-  #	     self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-  #           self.w.data,self.w.indices,self.w.indptr,ncores)
+             self.w,
+             self.qin_outlet_surface,self.area_outlet,ncores,'surface',
+             self.T0,self.beta,self.m,self.sdmax,self.surface_velocity)
 
   #Correct the surface storage
   #print self.storage_surface
@@ -116,25 +123,18 @@ class Dynamic_Topmodel:
 
  def update_subsurface_fortran(self,ncores):
 
-  #Compute the flux
-  #if self.itime == 0:
-  self.q_subsurface[:] = self.Calculate_Flux_Subsurface(self.si)
-  self.q_subsurface[self.q_subsurface < 0.0] = 0.0
-
-  #Initialize qout1 and qin1
+  #Initialize q,qout1,qin1,c,and c1
   if self.qout1[0] == -9999.0:
+   self.q_subsurface[:] = Calculate_Flux_Subsurface(self.si,self.T0,self.beta,self.m,self.sdmax)
+   self.q_subsurface[self.q_subsurface < 0.0] = 0.0
    self.qout1[:] = self.q_subsurface[:]
-
-  #Calculate the celerities
-  self.c1[:] = self.c
-  self.c[:] = self.Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
+   self.qin1[:] = 0.0
+   self.c[:] = Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
+   self.c1[:] = self.c[:]
 
   #Set deficit in the form that the solver wants
   si = np.copy(-self.si)
   si1 = np.copy(-self.si1)
-  #print 'before:',self.si
-  #self.r[np.isnan(self.r) == 1] = 0
-  #print self.r
  
   #Solve for the given time step
   #dx = np.copy(self.dx)
@@ -145,16 +145,16 @@ class Dynamic_Topmodel:
              self.w.data,self.w.indices,self.w.indptr,
              self.qin_outlet,self.area_outlet,ncores,0)'''
   #t0 = time.time()
-  (si,si1,self.qout,self.qout1,self.qin,self.qin1) = Update(self.r,si,self.qout,self.qin,self.q_subsurface,
+  (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
+             self.c1) = Update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              #self.w.data,self.w.indices,self.w.indptr,
              self.w,
-             self.qin_outlet,self.area_outlet,ncores,0)
-  print self.qout*self.area
+             self.qin_outlet,self.area_outlet,ncores,'subsurface',
+             self.T0,self.beta,self.m,self.sdmax,self.surface_velocity)
   #print time.time() - t0
-
-  #print 'after:',-si
+  #print self.qout*self.area
 
   #Revert the deficits to their original form
   self.si[:] = -si
@@ -171,86 +171,109 @@ class Dynamic_Topmodel:
 
   return
 
- def Calculate_Flux_Subsurface(self,si):
-
-  return self.T0*np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
-  #return 100*self.T0#np.sin(self.beta)*(np.exp(-si/self.m*np.cos(self.beta)) - np.exp(-self.sdmax/self.m*np.cos(self.beta)))
-  #return self.T0*np.tan(self.beta)*(np.exp(-si/self.m))
-
- def Calculate_Celerity_Subsurface(self,m,q):
- 
-  return q/m
-
- def Calculate_Flux_Surface(self,storage_surface):
-
-  return self.surface_velocity*storage_surface
-
- def Calculate_Celerity_Surface(self,):
-
-  return self.surface_velocity
-
 def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
                   area,dx,dt,celerity,celerity1,flow_matrix,
-                  qin_outlet,area_outlet,nthreads,model_type):
+                  qin_outlet,area_outlet,nthreads,model_type,
+                  T0,beta,m,sdmax,surface_velocity):
 
  #Determine the appropriate time step
  dt_minimum = np.min(dx/celerity)
- ntt = 2*(int(np.ceil(dt/dt_minimum)) + 1)
+ ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
  dtt = dt/ntt
 
  #Initialize variables to average the sub time steps
- storage_ = np.zeros(storage.size,dtype=np.float32)
- qout_ = np.zeros(storage.size,dtype=np.float32)
- storage1_ = np.copy(storage)
- qout1_ = np.copy(qout)
- qin1_ = np.copy(qin)
- qin_outlet_ = np.zeros(storage.size,dtype=np.float32)
- qin_ = np.zeros(storage.size,dtype=np.float32)
+ #storage_ = np.zeros(storage.size,dtype=np.float32)
+ #qout_ = np.zeros(storage.size,dtype=np.float32)
+ #storage1_ = np.copy(storage)
+ #qout1_ = np.copy(qout)
+ #qin1_ = np.copy(qin)
+ #qin_outlet_ = np.zeros(storage.size,dtype=np.float32)
+ #qin_ = np.zeros(storage.size,dtype=np.float32)
 
  #Define some constatns
  w = 0.5
  I = scipy.sparse.identity(storage.size)
  F = flow_matrix[0:storage.size,0:storage.size]
- area_sp = scipy.sparse.csr_matrix(area)
- p2 = scipy.sparse.csr_matrix(np.ones(area.size))
+ dummy1 = scipy.sparse.dia_matrix(F.shape)
+ dummy2 = scipy.sparse.dia_matrix(F.shape)
+ dummy2.setdiag(area)
 
- #Process the smaller time steps
  for itime in xrange(ntt):
 
+  #Update the flux and celerity
+  if model_type == 'subsurface':
+   q[:] = Calculate_Flux_Subsurface(-storage,T0,beta,m,sdmax)
+   q[q < 0.0] = 0.0
+   celerity[:] = Calculate_Celerity_Subsurface(m,q)
+   qout[:] = q[:]
+  if model_type == 'surface':
+   a = 1.67
+   n = 0.030
+   b = np.tan(beta)**0.5/n
+   surface_velocity = Calculate_Surface_Velocity(a,b,storage)
+   qout[:] = Calculate_Flux_Surface(storage,surface_velocity)
+   celerity[:] = Calculate_Celerity_Surface(surface_velocity)
   #Solve the kinematic wave for this time step
   #Define the constants
-  denominator = (1 + dtt*w*celerity/dx)
+  '''denominator = (1 + dtt*w*celerity/dx)
   numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator2 = dtt*w*celerity/dx
   p1 = numerator1/denominator
-  t0 = time.time()
-  p2.data = numerator2/denominator
-  p2.data = p2.data/area_sp.data
+  p2 = numerator2/denominator
+  dummy1.setdiag(p2/area)
   b = p1.T
-  A = F.multiply(p2.T).multiply(area_sp)
+  #A = F.multiply(p2.T).multiply(area_sp)
+  t0 = time.time()
+  A = ((F*dummy2).T*dummy1).T
 
   #Solve for this time step
-  qout = scipy.sparse.linalg.spsolve(I-A,b)
+  #qout[:] = scipy.sparse.linalg.spsolve(I-A,b)
+  qout[:] = scipy.sparse.linalg.bicg(I-A,b,tol=10**-15)[0]'''
 
   #Set all negative fluxes to 0 
-  qout[qout < 0.0] = 0.0
+  #qout[qout < 0.0] = 0.0
 
   #Calculate qin
-  qin = (area*qout*F)/area
+  scarea = area/dx
+  qin = (scarea*qout*F)/scarea #Changed F
 
   #Adjust the storages
   storage = storage + dtt*((qin - qout)/dx + recharge)
+  #storage[storage < 0] = 0.0
 
   #Set the next time step's info
   qout1[:] = qout[:]
   qin1[:] = qin[:]
+  celerity1[:] = celerity[:]
 
   #Update celerity?
+  #print 'here',area*qout
  #print area*qout
 
  #Save the variables
- qout1[:] = qout1_[:]
- storage1[:] = storage1_[:]
- qin1[:] = qin1_[:]
+ #qout1[:] = qout1_[:]
+ #storage1[:] = storage1_[:]
+ #qin1[:] = qin1_[:]
 
- return (storage,storage1,qout,qout1,qin,qin1)
+ return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
+
+def Calculate_Flux_Subsurface(si,T0,beta,m,sdmax):
+
+ #return T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))
+ return T0*np.tan(beta)*(np.exp(-si/m))
+
+def Calculate_Surface_Velocity(a,b,h):
+
+ return b*h**a
+
+def Calculate_Celerity_Subsurface(m,q):
+
+ return q/m
+
+def Calculate_Flux_Surface(storage_surface,surface_velocity):
+
+ return surface_velocity*storage_surface
+
+def Calculate_Celerity_Surface(surface_velocity):
+
+ return surface_velocity

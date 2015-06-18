@@ -39,7 +39,7 @@ def Deterministic(info):
   dir = info['dir']
   #Define the parameters
   parameters = {}
-  parameters['log10m'] = 1.0#-2.582977995297425888e+00
+  parameters['log10m'] = -0.1#-2.582977995297425888e+00
   parameters['lnTe'] = 0.0#-1.963648774068431635e-01
   parameters['log10soil'] = 1.389834359162560144e-02
   parameters['sdmax'] = 1.938762117265730334e+00
@@ -661,7 +661,7 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask == True],},
+ info = {#'area':{'data':covariates['carea'][mask == True],},
         #'slope':{'data':covariates['cslope'][mask == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
@@ -670,7 +670,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
         #'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
-        #'dem':{'data':covariates['dem'][mask == True],},
+        'dem':{'data':covariates['dem'][mask == True],},
         #'lats':{'data':covariates['lats'][mask == True],},
         #'lons':{'data':covariates['lons'][mask == True],},
         }

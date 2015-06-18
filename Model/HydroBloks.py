@@ -185,7 +185,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
  model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
- model.surface_velocity[:] = np.array([1000.0,1000.0,1000.0])/dt #m/s
+ model.surface_velocity[:] = np.array([100,100,1000])/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
  #Set outlet informationA
  model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
@@ -341,7 +341,7 @@ def run_model(info):
  while date <= fdate:
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
-   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat)
+   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),TOPMODEL.qout,TOPMODEL.qout_surface
    #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil
   if (date.month == 1) and (date.day == 1) and (date.hour == 0):
    et = 0
