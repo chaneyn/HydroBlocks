@@ -46,6 +46,7 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
                                 recharge1,scarea,dx,dtt,celerity,celerity1,&
                                 wvalues,wcolumns,wrowindex)
  use mkl_dss
+ use omp_lib
  implicit none
  integer,intent(in) :: nhsu,nvalues
  real*4,intent(in) :: dtt
@@ -61,7 +62,9 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  integer*4 :: i,j
  type(MKL_DSS_HANDLE) :: handle ! Allocate storage for the solver handle.
  integer :: opt,error,perm(nhsu)
+ integer :: t0,t1
 
+ t0 = omp_get_wtime()
  !Initialize the solver
  opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING
  error = dss_create(handle,opt)
@@ -124,6 +127,8 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  !Set the next time step's info
  qout1 = qout
  qin1 = qin
+ t1 = omp_get_wtime()
+ print*,t1 - t0
 
 end subroutine
 

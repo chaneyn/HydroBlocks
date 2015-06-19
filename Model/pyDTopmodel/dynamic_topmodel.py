@@ -215,7 +215,6 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
   #Solve for this time step
   tmp = scipy.sparse.linalg.spsolve((I-A).T,b)
   #print tmp
-  return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
   qout[:] = tmp[:]
 
   #Set all negative fluxes to 0 
