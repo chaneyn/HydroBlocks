@@ -73,10 +73,10 @@ class Dynamic_Topmodel:
  def update(self,ncores):
   
   #Update the subsurface runoff
-  #self.update_subsurface_fortran(ncores)
+  self.update_subsurface_fortran(ncores)
 
   #Update the surface runoff
-  #self.update_surface_fortran(ncores)
+  self.update_surface_fortran(ncores)
 
   if self.itime % 10 == 0: print self.itime,self.qout_surface
 
