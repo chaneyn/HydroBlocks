@@ -73,7 +73,7 @@ class Dynamic_Topmodel:
  def update(self,ncores):
   
   #Update the subsurface runoff
-  self.update_subsurface_fortran(ncores)
+  #self.update_subsurface_fortran(ncores)
 
   #Update the surface runoff
   self.update_surface_fortran(ncores)
@@ -83,6 +83,7 @@ class Dynamic_Topmodel:
   return
 
  def update_surface_fortran(self,ncores):
+  self.storage_surface[:] = 10**-8 #CAREFUL!!!
 
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
@@ -111,7 +112,6 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
              self.qin_outlet_surface,self.area_outlet,ncores)
-  print self.flow_matrix.data
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
             self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
