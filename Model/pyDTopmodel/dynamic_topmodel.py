@@ -76,7 +76,7 @@ class Dynamic_Topmodel:
   #self.update_subsurface_fortran(ncores)
 
   #Update the surface runoff
-  self.update_surface_fortran(ncores)
+  #self.update_surface_fortran(ncores)
 
   if self.itime % 10 == 0: print self.itime,self.qout_surface
 
@@ -111,12 +111,10 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
              self.qin_outlet_surface,self.area_outlet,ncores)'''
-  #F = scipy.sparse.csr_matrix(self.flow_matrix.todense().T)
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
             self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             #self.flow_matrix.data,self.flow_matrix.indices,self.flow_matrix.indptr,
-             F.data,F.indices,F.indptr,
+             self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
              ncores)
 
   #Correct the surface storage
@@ -153,12 +151,17 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.flow_matrix.indptr,
              self.qin_outlet,self.area_outlet,ncores,0)'''
-  (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
+  '''(si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
              self.c1) = Update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.flow_matrix,
-             self.qin_outlet,self.area_outlet,ncores)
+             self.qin_outlet,self.area_outlet,ncores)'''
+  dtt.update(self.r,si,self.qout,self.qin,
+             self.r1,si1,self.qout1,self.qin1,
+             self.area,self.dx,self.dt,self.c,self.c1,
+             self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
+             ncores)
 
   #Revert the deficits to their original form
   self.si[:] = -si

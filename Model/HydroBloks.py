@@ -208,6 +208,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
 			          info['input_fp'].groups['flow_matrix'].variables['indptr'][:]),
  				  dtype=np.float32)
  model.flow_matrix = flow_matrix[0:ncells,0:ncells]
+ model.flow_matrix_T = sparse.csr_matrix(model.flow_matrix.T) #transposed
 
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0
