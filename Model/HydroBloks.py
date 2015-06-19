@@ -203,22 +203,12 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.sti = model.sti - (lnT0 - lnTe)
 
  #Set weight matrix
- #model.outlet_hsu = int(info['input_fp'].groups['metadata'].outlet_hsu)#int(data['outlet']['hsu'])
- #hsu = model.outlet_hsu
  flow_matrix = sparse.csr_matrix((info['input_fp'].groups['flow_matrix'].variables['data'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indices'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indptr'][:]),
  				  dtype=np.float32)
- #flow_matrix.data = info['input_fp'].groups['flow_matrix'].variables['data'][:]
- #flow_matrix.indices = info['input_fp'].groups['flow_matrix'].variables['indices'][:]
- #flow_matrix.indptr = info['input_fp'].groups['flow_matrix'].variables['indptr'][:]
- #data['tp'][hsu,hsu] = data['tp'][model.outlet_hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
- #flow_matrix[hsu,hsu] = flow_matrix[hsu,hsu] - model.dx[hsu]**2/model.area[hsu]
- #model.w = sparse.csr_matrix(data['tp'].T,dtype=np.float32)
- model.w = flow_matrix
- #print model.w.shape
- #exit()
- #model.wfull[:] = data['tp'].T
+ model.flow_matrix = flow_matrix[0:ncells,0:ncells]
+
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0
  

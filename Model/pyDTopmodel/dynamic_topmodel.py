@@ -68,7 +68,7 @@ class Dynamic_Topmodel:
   self.nhru_outlet = nhru_outlet
 
   #weights
-  self.w = []
+  self.flow_matrix = []
 
  def update(self,ncores):
   
@@ -78,6 +78,8 @@ class Dynamic_Topmodel:
   #Update the surface runoff
   self.update_surface_fortran(ncores)
 
+  if self.itime % 10 == 0: print self.itime,self.qout_surface
+
   return
 
  def update_surface_fortran(self,ncores):
@@ -85,7 +87,6 @@ class Dynamic_Topmodel:
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
   self.recharge_surface[:] = self.qsurf + self.ex
-  #self.recharge_surface[:] = 0#self.qsurf + self.ex
 
   #Initialize q,qout1,qin1,c,and c1
   if self.qout1_surface[0] == -9999.0:
@@ -101,21 +102,22 @@ class Dynamic_Topmodel:
   self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
 
   #Solve for the given time step
-  #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,self.q_surface,
-  #           self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
-  #           self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-  #           self.w.data,self.w.indices,self.w.indptr,
-  #           self.qin_outlet_surface,self.area_outlet,ncores,1)
   (self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
              self.qin_surface,self.qin1_surface,self.celerity_surface,
              self.celerity1_surface) = Update(self.recharge_surface,self.storage_surface,
-             self.qout_surface,self.qin_surface,self.q_surface,
+             self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,
              self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             self.w,
-             self.qin_outlet_surface,self.area_outlet,ncores,'surface',
-             self.T0,self.beta,self.m,self.sdmax,self.surface_velocity,self.itime)
+             self.flow_matrix,
+             self.qin_outlet_surface,self.area_outlet,ncores)
+  print self.flow_matrix.data
+  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+             self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
+            self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
+             self.flow_matrix.data,self.flow_matrix.indices,self.flow_matrix.indptr,
+             ncores)
+  exit()
 
   #Correct the surface storage
   #Determine the amount of water that is "missing"
@@ -136,6 +138,11 @@ class Dynamic_Topmodel:
    self.c[:] = Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
    self.c1[:] = self.c[:]
 
+  #Update the celerity
+  self.q_subsurface[:] = Calculate_Flux_Subsurface(self.si,self.T0,self.beta,self.m,self.sdmax)
+  self.c1[:] = self.c[:]
+  self.c[:] = Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
+
   #Set deficit in the form that the solver wants
   si = np.copy(-self.si)
   si1 = np.copy(-self.si1)
@@ -144,15 +151,14 @@ class Dynamic_Topmodel:
   '''dtt.update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             self.w.data,self.w.indices,self.w.indptr,
+             self.w.data,self.w.indices,self.flow_matrix.indptr,
              self.qin_outlet,self.area_outlet,ncores,0)'''
   (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
-             self.c1) = Update(self.r,si,self.qout,self.qin,self.q_subsurface,
+             self.c1) = Update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             self.w,
-             self.qin_outlet,self.area_outlet,ncores,'subsurface',
-             self.T0,self.beta,self.m,self.sdmax,self.surface_velocity,self.itime)
+             self.flow_matrix,
+             self.qin_outlet,self.area_outlet,ncores)
 
   #Revert the deficits to their original form
   self.si[:] = -si
@@ -169,10 +175,9 @@ class Dynamic_Topmodel:
 
   return
 
-def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
+def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
                   area,dx,dt,celerity,celerity1,flow_matrix,
-                  qin_outlet,area_outlet,nthreads,model_type,
-                  T0,beta,m,sdmax,surface_velocity,timestamp):
+                  qin_outlet,area_outlet,nthreads):
 
  #Determine the appropriate time step
  dt_minimum = np.min(np.abs(dx/celerity))
@@ -187,24 +192,13 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
  #Define some constatns
  w = 0.5
  I = scipy.sparse.identity(storage.size)
- F = flow_matrix[0:storage.size,0:storage.size]
+ F = flow_matrix
  scarea = area/dx
  dummy1 = scipy.sparse.dia_matrix(F.shape)
  dummy2 = scipy.sparse.dia_matrix(F.shape)
  dummy2.setdiag(scarea)
- if timestamp % 10 == 0: print timestamp,storage,qout,ntt
 
  for itime in xrange(ntt):
-
-  #Update the flux and celerity
-  if model_type == 'subsurface':
-   q[:] = Calculate_Flux_Subsurface(-storage,T0,beta,m,sdmax)
-   q[q < 0.0] = 0.0
-   celerity[:] = Calculate_Celerity_Subsurface(m,q)
-  if model_type == 'surface':
-   a = 1.67
-   n = 0.030
-   b = np.tan(beta)**0.5/n
 
   #Solve the kinematic wave for this time step
   #Define the constants
@@ -232,7 +226,6 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   #Set the next time step's info
   qout1[:] = qout[:]
   qin1[:] = qin[:]
-  celerity1[:] = celerity[:]
 
  return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
 
