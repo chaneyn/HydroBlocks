@@ -187,24 +187,16 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
 
  #Determine the appropriate time step
  dt_minimum = np.min(np.abs(dx/celerity))
- #ntt = 4*(int(np.ceil(dt/dt_minimum)) + 1)
- ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
+ #ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
  ntt = int(np.ceil(dt/dt_minimum))
  if ntt == 0:ntt = 1
- #if (ntt > 100):ntt = 100
  dtt = dt/ntt
 
  #Initialize variables to average the sub time steps
- #storage_ = np.zeros(storage.size,dtype=np.float32)
  qout_ = np.zeros(storage.size,dtype=np.float32)
- #storage1_ = np.copy(storage)
- #qout1_ = np.copy(qout)
- #qin1_ = np.copy(qin)
- #qin_outlet_ = np.zeros(storage.size,dtype=np.float32)
- #qin_ = np.zeros(storage.size,dtype=np.float32)
 
  #Define some constatns
- w = 1.0
+ w = 0.5
  I = scipy.sparse.identity(storage.size)
  F = flow_matrix[0:storage.size,0:storage.size]
  scarea = area/dx
@@ -220,53 +212,30 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
    q[:] = Calculate_Flux_Subsurface(-storage,T0,beta,m,sdmax)
    q[q < 0.0] = 0.0
    celerity[:] = Calculate_Celerity_Subsurface(m,q)
-   #qout[:] = q[:]
   if model_type == 'surface':
    a = 1.67
    n = 0.030
    b = np.tan(beta)**0.5/n
-   #surface_velocity = Calculate_Surface_Velocity(a,b,storage)
-   #qout[:] = Calculate_Flux_Surface(storage,surface_velocity)
-   #storage[storage < 0.0] = 0.0
-   #if itime == 0:celerity[:] = Calculate_Celerity_Surface(a,b,storage)
+
   #Solve the kinematic wave for this time step
   #Define the constants
   denominator = (1 + dtt*w*celerity/dx)
-  #numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator2 = dtt*w*celerity/dx
   p1 = numerator1/denominator
   p2 = numerator2/denominator
-  qout[:] = qout1[:]
-  '''eps = 10.0
-  iter = 0
-  while ((eps > 10**-20) & (iter < 1000)):
-   qin[:] = (scarea*qout*F)/scarea
-   qout[:] = p1 + p2*qin
-   eps = np.max(np.abs(qout - qout_))
-   qout_[:] = qout[:]
-   iter = iter + 1'''
-  #print model_type,qout,recharge
-  #if model_type == 'surface': exit()
   dummy1.setdiag(p2/scarea)
   b = p1
-  #A = F.multiply(p2.T).multiply(area_sp)
-  #t0 = time.time()
-  #A = ((F*dummy2).T*dummy1).T
   A = ((F*dummy1).T*dummy2).T
 
   #Solve for this time step
   qout[:] = scipy.sparse.linalg.spsolve((I-A).T,b)
-  #qout[:] = scipy.sparse.linalg.bicg(I-A,b,tol=10**-15)[0]'''
-  #qout[:] = 0.0
-  #if model_type == 'surface':exit()
-  #qout = p1 + p2*qin1
+
   #Set all negative fluxes to 0 
   qout[qout < 0.0] = 0.0
-  #qout[qout > (recharge+storage/dtt)/storage] = 0.0
 
   #Calculate qin
-  qin = (scarea*qout*F)/scarea #Changed F
+  qin = (scarea*qout*F)/scarea
 
   #Adjust the storages
   storage = storage + dtt*((qin - qout)/dx + recharge)
@@ -275,15 +244,6 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   qout1[:] = qout[:]
   qin1[:] = qin[:]
   celerity1[:] = celerity[:]
-
-  #Update celerity?
-  #print 'here',area*qout
- #print area*qout
-
- #Save the variables
- #qout1[:] = qout1_[:]
- #storage1[:] = storage1_[:]
- #qin1[:] = qin1_[:]
 
  return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
 
