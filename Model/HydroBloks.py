@@ -185,7 +185,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
  model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
- model.surface_velocity[:] = np.array([100,100,1000])/dt #m/s
+ model.surface_velocity[:] = 1000.0/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
  #Set outlet informationA
  model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
