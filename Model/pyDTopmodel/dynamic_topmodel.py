@@ -68,8 +68,7 @@ class Dynamic_Topmodel:
   self.nhru_outlet = nhru_outlet
 
   #weights
-  self.w = []#np.empty((ngroups,ngroups),dtype=np.float32,order='F')
-  #self.wfull = np.empty((ngroups,ngroups),dtype=np.float32,order='F')
+  self.w = []
 
  def update(self,ncores):
   
@@ -77,9 +76,7 @@ class Dynamic_Topmodel:
   self.update_subsurface_fortran(ncores)
 
   #Update the surface runoff
-  #tic = time.time()
   self.update_surface_fortran(ncores)
-  #print time.time() - tic
 
   return
 
@@ -92,9 +89,7 @@ class Dynamic_Topmodel:
 
   #Initialize q,qout1,qin1,c,and c1
   if self.qout1_surface[0] == -9999.0:
-   #self.storage_surface[:] = np.array([0.05,0.05,0.05])
-   #self.q_surface[:] = np.array([0.01,0.01,0.01])#Calculate_Flux_Surface(self.storage_surface,self.surface_velocity)
-   self.qout1_surface[:] = 0.0#self.q_surface[:]
+   self.qout1_surface[:] = 0.0
    self.qin1_surface[:] = 0.0
    self.a = 1.67
    self.n = 0.030
@@ -146,24 +141,18 @@ class Dynamic_Topmodel:
   si1 = np.copy(-self.si1)
  
   #Solve for the given time step
-  #dx = np.copy(self.dx)
-  #dx[:] = 1.0
   '''dtt.update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.w.data,self.w.indices,self.w.indptr,
              self.qin_outlet,self.area_outlet,ncores,0)'''
-  #t0 = time.time()
   (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
              self.c1) = Update(self.r,si,self.qout,self.qin,self.q_subsurface,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
-             #self.w.data,self.w.indices,self.w.indptr,
              self.w,
              self.qin_outlet,self.area_outlet,ncores,'subsurface',
              self.T0,self.beta,self.m,self.sdmax,self.surface_velocity,self.itime)
-  #print time.time() - t0
-  #print self.qout*self.area
 
   #Revert the deficits to their original form
   self.si[:] = -si
@@ -266,8 +255,4 @@ def Calculate_Flux_Surface(storage_surface,surface_velocity):
 
 def Calculate_Celerity_Surface(a,b,h):
 
- maxc = 2000.0
- tmp = a*b*h**(a-1)
- tmp[tmp > maxc/3600.0] = maxc/3600.0
- #tmp = 1000.0/3600.0
- return tmp
+ return a*b*h**(a-1)
