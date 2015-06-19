@@ -105,20 +105,11 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   endif
  enddo
    
-   !print*,i,wcolumns(wrowindex(i)+1:wrowindex(i+1)
-  !A(wrowindex(i)+1:wrowindex(i+1)) = wvalues(wrowindex(i)+1:wrowindex(i+1))*&
-  !                                   scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)*&
-  !                                   part2(i)/scarea(i)
-
- !Take out 1 from the diagonal
-
  ! Factor the matrix.
  error = DSS_FACTOR_REAL( handle, MKL_DSS_DEFAULTS, A)
 
  ! Solve the system of linear equations
  error = DSS_SOLVE_REAL( handle, MKL_DSS_DEFAULTS, part1, 1, qout)
- print*,qout
- stop
 
  !Solve for this time step
  !call mkl_scsrsv('N',nhsu,alpha,'gun',wvalues,wcolumns,&
