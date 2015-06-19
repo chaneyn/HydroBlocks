@@ -112,12 +112,14 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
              self.qin_outlet_surface,self.area_outlet,ncores)
+  F = scipy.sparse.csr_matrix(self.flow_matrix.todense().T)
+  #F = self.flow_matrix
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
             self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
-             self.flow_matrix.data,self.flow_matrix.indices,self.flow_matrix.indptr,
+             #self.flow_matrix.data,self.flow_matrix.indices,self.flow_matrix.indptr,
+             F.data,F.indices,F.indptr,
              ncores)
-  exit()
 
   #Correct the surface storage
   #Determine the amount of water that is "missing"
@@ -212,7 +214,10 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
   A = ((F*dummy1).T*dummy2).T
 
   #Solve for this time step
-  qout[:] = scipy.sparse.linalg.spsolve((I-A).T,b)
+  tmp = scipy.sparse.linalg.spsolve((I-A).T,b)
+  print tmp
+  return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
+  qout[:] = tmp[:]
 
   #Set all negative fluxes to 0 
   qout[qout < 0.0] = 0.0
