@@ -4,7 +4,6 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
                   nthreads,nhsu,nvalues)
 
  use mkl_dss
- !use omp_lib
  implicit none
  integer :: nhsu,nvalues
  real*8,intent(in) :: dt
@@ -17,6 +16,18 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  real*4,dimension(nhsu) :: scarea
  real*4 :: dt_minimum,dtt
  integer :: ntt,itime
+ type(MKL_DSS_HANDLE) :: dss_handle ! Allocate storage for the solver handle.
+ integer :: opt,error,perm(nhsu)
+
+ ! Initialize the solver (Move eventually to beginning and end of entire simulation?)
+ opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING
+ error = dss_create(dss_handle,opt)
+
+ ! Define the non-zero structure of the matrix.
+ error = DSS_DEFINE_STRUCTURE(dss_handle,MKL_DSS_NON_SYMMETRIC,wrowindex,nhsu,nhsu,wcolumns,nvalues)
+
+ ! Reorder the matrix.
+ error = DSS_REORDER(dss_handle,MKL_DSS_DEFAULTS, perm )
 
  !Define the specific catchment area
  scarea = area/dx
@@ -36,15 +47,18 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
    !Solve the kinematic wave for this time step
    call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                              recharge1,scarea,dx,dtt,celerity,celerity1,&
-                             wvalues,wcolumns,wrowindex)
+                             wvalues,wcolumns,wrowindex,dss_handle)
 
  enddo
+
+ ! Finalize the solver
+ error = DSS_DELETE(dss_handle,opt)
 
 end subroutine update
 
 subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                                 recharge1,scarea,dx,dtt,celerity,celerity1,&
-                                wvalues,wcolumns,wrowindex)
+                                wvalues,wcolumns,wrowindex,dss_handle)
  use mkl_dss
  use omp_lib
  implicit none
@@ -55,25 +69,14 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
  real*4,intent(in),dimension(nvalues) :: wvalues
+ type(MKL_DSS_HANDLE),intent(inout) :: dss_handle ! Allocate storage for the solver handle.
  real*4,dimension(nvalues) :: A
  real*4,dimension(nhsu) :: denominator,numerator1,numerator2,part1,part2
  real*4 :: w
  real*4 :: alpha
  integer*4 :: i,j
- type(MKL_DSS_HANDLE) :: handle ! Allocate storage for the solver handle.
  integer :: opt,error,perm(nhsu)
- integer :: t0,t1
-
- t0 = omp_get_wtime()
- !Initialize the solver
- opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING
- error = dss_create(handle,opt)
-
- ! Define the non-zero structure of the matrix.
- error = DSS_DEFINE_STRUCTURE(handle,MKL_DSS_NON_SYMMETRIC,wrowindex,nhsu,nhsu,wcolumns,nvalues)
-
- ! Reorder the matrix.
- error = DSS_REORDER( handle,MKL_DSS_DEFAULTS, perm )
+ real*8 :: t0,t1
 
  !Define implicit scheme parameters
  w = 0.5 
@@ -108,10 +111,10 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  enddo
    
  ! Factor the matrix.
- error = DSS_FACTOR_REAL( handle, MKL_DSS_DEFAULTS, A)
+ error = DSS_FACTOR_REAL( dss_handle, MKL_DSS_DEFAULTS, A)
 
  ! Solve the system of linear equations
- error = DSS_SOLVE_REAL( handle, MKL_DSS_DEFAULTS, part1, 1, qout)
+ error = DSS_SOLVE_REAL( dss_handle, MKL_DSS_DEFAULTS, part1, 1, qout)
 
  !Set all negative fluxes to 0
  where (qout < 0.0) qout = 0.0
@@ -127,8 +130,6 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  !Set the next time step's info
  qout1 = qout
  qin1 = qin
- t1 = omp_get_wtime()
- print*,t1 - t0
 
 end subroutine
 
