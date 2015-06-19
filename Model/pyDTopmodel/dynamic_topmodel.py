@@ -96,7 +96,14 @@ class Dynamic_Topmodel:
    #self.q_surface[:] = np.array([0.01,0.01,0.01])#Calculate_Flux_Surface(self.storage_surface,self.surface_velocity)
    self.qout1_surface[:] = 0.0#self.q_surface[:]
    self.qin1_surface[:] = 0.0
-   self.celerity_surface[:] = 0.0#Calculate_Celerity_Surface(self.surface_velocity)
+   self.a = 1.67
+   self.n = 0.030
+   self.b = np.tan(self.beta)**0.5/self.n
+   self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
+  
+  #Update the celerity
+  self.celerity1_surface[:] = self.celerity_surface[:]
+  self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
 
   #Solve for the given time step
   #dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,self.q_surface,
@@ -116,8 +123,10 @@ class Dynamic_Topmodel:
              self.T0,self.beta,self.m,self.sdmax,self.surface_velocity,self.itime)
 
   #Correct the surface storage
-  #print self.storage_surface
-  #self.storage_surface[self.storage_surface < 0] = 0.0
+  #Determine the amount of water that is "missing"
+  #missing = np.sum(self.area[self.storage_surface < 0.0]*self.storage_surface[self.storage_surface < 0.0])
+  #self.storage_surface[-1] = self.storage_surface[-1] + missing/self.area[-1]
+  self.storage_surface[self.storage_surface < 0] = 0.0
 
   return
 
@@ -178,8 +187,8 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
 
  #Determine the appropriate time step
  dt_minimum = np.min(np.abs(dx/celerity))
- ntt = 4*(int(np.ceil(dt/dt_minimum)) + 1)
- #ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
+ #ntt = 4*(int(np.ceil(dt/dt_minimum)) + 1)
+ ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
  ntt = int(np.ceil(dt/dt_minimum))
  if ntt == 0:ntt = 1
  #if (ntt > 100):ntt = 100
@@ -216,14 +225,14 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
    a = 1.67
    n = 0.030
    b = np.tan(beta)**0.5/n
-   storage[storage < 0] = 0.0
    #surface_velocity = Calculate_Surface_Velocity(a,b,storage)
    #qout[:] = Calculate_Flux_Surface(storage,surface_velocity)
-   celerity[:] = Calculate_Celerity_Surface(a,b,storage)
-   recharge[:] = -recharge[:]
+   #storage[storage < 0.0] = 0.0
+   #if itime == 0:celerity[:] = Calculate_Celerity_Surface(a,b,storage)
   #Solve the kinematic wave for this time step
   #Define the constants
   denominator = (1 + dtt*w*celerity/dx)
+  #numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
   numerator2 = dtt*w*celerity/dx
   p1 = numerator1/denominator
@@ -244,11 +253,12 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   #A = F.multiply(p2.T).multiply(area_sp)
   #t0 = time.time()
   #A = ((F*dummy2).T*dummy1).T
-  A = ((F*dummy2).T*dummy1).T
+  A = ((F*dummy1).T*dummy2).T
 
   #Solve for this time step
   qout[:] = scipy.sparse.linalg.spsolve((I-A).T,b)
-  #qout[:] = scipy.sparse.linalg.bicg(I-A,b,tol=10**-15)[0]
+  #qout[:] = scipy.sparse.linalg.bicg(I-A,b,tol=10**-15)[0]'''
+  #qout[:] = 0.0
   #if model_type == 'surface':exit()
   #qout = p1 + p2*qin1
   #Set all negative fluxes to 0 
@@ -259,8 +269,7 @@ def Update(recharge,storage,qout,qin,q,recharge1,storage1,qout1,qin1,
   qin = (scarea*qout*F)/scarea #Changed F
 
   #Adjust the storages
-  storage = storage - dtt*((qout - qin)/dx + recharge)
-  #storage[storage < 0] = 0.0
+  storage = storage + dtt*((qin - qout)/dx + recharge)
 
   #Set the next time step's info
   qout1[:] = qout[:]
@@ -297,7 +306,8 @@ def Calculate_Flux_Surface(storage_surface,surface_velocity):
 
 def Calculate_Celerity_Surface(a,b,h):
 
- maxc = 100
+ maxc = 2000.0
  tmp = a*b*h**(a-1)
  tmp[tmp > maxc/3600.0] = maxc/3600.0
+ #tmp = 1000.0/3600.0
  return tmp
