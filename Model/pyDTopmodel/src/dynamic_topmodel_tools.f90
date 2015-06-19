@@ -93,7 +93,6 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   !                                   scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)
  enddo
 
- !print*,A
  !I - A
  i = 0
  do j = 1,nvalues
@@ -110,11 +109,6 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
 
  ! Solve the system of linear equations
  error = DSS_SOLVE_REAL( handle, MKL_DSS_DEFAULTS, part1, 1, qout)
-
- !Solve for this time step
- !call mkl_scsrsv('N',nhsu,alpha,'gun',wvalues,wcolumns,&
- !                wrowindex(1:nhsu),wrowindex(2:nhsu+1),part1,qout)
- !qout[:] = scipy.sparse.linalg.spsolve((I-A).T,b)
 
  !Set all negative fluxes to 0
  where (qout < 0.0) qout = 0.0

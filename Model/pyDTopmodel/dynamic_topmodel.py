@@ -83,7 +83,6 @@ class Dynamic_Topmodel:
   return
 
  def update_surface_fortran(self,ncores):
-  self.storage_surface[:] = 10**-8 #CAREFUL!!!
 
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
@@ -103,7 +102,7 @@ class Dynamic_Topmodel:
   self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
 
   #Solve for the given time step
-  (self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
+  '''(self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
              self.qin_surface,self.qin1_surface,self.celerity_surface,
              self.celerity1_surface) = Update(self.recharge_surface,self.storage_surface,
              self.qout_surface,self.qin_surface,
@@ -111,7 +110,7 @@ class Dynamic_Topmodel:
              self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
-             self.qin_outlet_surface,self.area_outlet,ncores)
+             self.qin_outlet_surface,self.area_outlet,ncores)'''
   F = scipy.sparse.csr_matrix(self.flow_matrix.todense().T)
   #F = self.flow_matrix
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
@@ -215,7 +214,7 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
 
   #Solve for this time step
   tmp = scipy.sparse.linalg.spsolve((I-A).T,b)
-  print tmp
+  #print tmp
   return (storage,storage1,qout,qout1,qin,qin1,celerity,celerity1)
   qout[:] = tmp[:]
 
