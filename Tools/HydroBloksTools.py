@@ -30,7 +30,8 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,12,31,23)
+ fdate = datetime.datetime(2000,1,1,23)
+ #fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -59,7 +60,7 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',#'full',#'semi',
+        'model_type':'full',#'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -881,6 +882,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  #Update the input to create the sparse matrix
  hrus_dst = np.append(hrus_dst,outlet_hru_dst)
  hrus_org = np.append(hrus_org,outlet_hru_org)
+ hrus_dst[hrus_dst == -1] = outlet_hru_dst[0] #CAREFUL. Designed to push all the extra small outlets to the same exit
 
  #Prepare the sparse matrix
  flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)

@@ -115,7 +115,7 @@ class Dynamic_Topmodel:
              self.qin_outlet_surface,self.area_outlet,ncores)'''
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
-            self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
+             self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
              ncores,maxntt)
 

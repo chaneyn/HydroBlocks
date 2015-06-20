@@ -43,6 +43,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  ntt = int(ceiling(dt/dt_minimum))
  if (ntt .gt. maxntt) ntt = maxntt
  if (ntt .le. 0) ntt = 1
+ ntt = 50!
  dtt = dt/ntt
           
  !Process the smaller time steps

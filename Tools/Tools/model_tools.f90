@@ -96,10 +96,14 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      !if (d8dir(i,j) == 7) hsu_dst = HSUs(i+1,j-1) !NW
      if (d8dir(i,j) == 7) hsu_dst = HSUs(i-1,j-1) !NW
      !If the grid cell is an outlet...
-     if (isnan(hsu_dst)) then
+     if (isnan(hsu_dst) .and. (area(i,j) .ne. maxarea)) then
       !if (area(i,j) .lt. minimum_area) then
-       hsu_dst = HSUs(i,j) + 1
-       hsu_org = HSUs(i,j) + 1
+      hsu_dst = HSUs(i,j) + 1
+      hsu_org = HSUs(i,j) + 1
+      !hrus_dst(ipos) = hsu_dst
+      hrus_org(ipos) = hsu_org
+      !Send all this directly to the "outlet"
+      hrus_dst(ipos) = 0
       !else
       ! print*,area(i,j)
       ! outlet_icoord(ipos) = i
@@ -108,10 +112,10 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
       ! outlet_d8(ipos) = d8dir(i,j)
       !endif
      else if (area(i,j) .eq. maxarea) then
-       outlet_icoord(ipos) = i
-       outlet_jcoord(ipos) = j
-       outlet_hru(ipos) = HSUs(i,j) + 1
-       outlet_d8(ipos) = d8dir(i,j)
+      outlet_icoord(ipos) = i
+      outlet_jcoord(ipos) = j
+      outlet_hru(ipos) = HSUs(i,j) + 1
+      outlet_d8(ipos) = d8dir(i,j)
      else
       hsu_dst = hsu_dst + 1
       !Determine the HSU it comes from
