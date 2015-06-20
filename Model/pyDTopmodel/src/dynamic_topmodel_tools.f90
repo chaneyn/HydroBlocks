@@ -96,6 +96,10 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   A(wrowindex(i)+1:wrowindex(i+1)) = wvalues(wrowindex(i)+1:wrowindex(i+1))*&
                                      scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)*&
                                      part2(i)/scarea(i)
+  !A(wrowindex(i)+1:wrowindex(i+1)) = wvalues(wrowindex(i)+1:wrowindex(i+1))*&
+  !                                   scarea(i)*&
+  !                                   part2(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)/&
+  !                                   scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)
  enddo
 
  !I - A
@@ -121,6 +125,7 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
 
  !Calculate qin
  call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
+ !call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
  qin = qin/scarea
 
  !Adjust the storages

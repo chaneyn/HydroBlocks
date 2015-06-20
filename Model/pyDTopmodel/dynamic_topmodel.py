@@ -79,11 +79,11 @@ class Dynamic_Topmodel:
   self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  t0 = time.time() 
+  #t0 = time.time() 
   self.update_surface_fortran(ncores,maxntt,isw)
-  print time.time() - t0
+  #print time.time() - t0
 
-  #if self.itime % 100 == 0: print self.itime,self.qout_surface
+  if self.itime % 100 == 0: print self.itime,self.qout_surface
 
   return
 
@@ -115,7 +115,7 @@ class Dynamic_Topmodel:
              self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
-             self.qin_outlet_surface,self.area_outlet,ncores)'''
+             self.qin_outlet_surface,self.area_outlet,ncores,maxntt)'''
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
@@ -180,13 +180,14 @@ class Dynamic_Topmodel:
 
 def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
                   area,dx,dt,celerity,celerity1,flow_matrix,
-                  qin_outlet,area_outlet,nthreads):
+                  qin_outlet,area_outlet,nthreads,maxntt):
 
  #Determine the appropriate time step
  dt_minimum = np.min(np.abs(dx/celerity))
  #ntt = 1*(int(np.ceil(dt/dt_minimum)) + 1)
  ntt = int(np.ceil(dt/dt_minimum))
  if ntt == 0:ntt = 1
+ if ntt > maxntt: ntt = maxntt
  dtt = dt/ntt
 
  #Initialize variables to average the sub time steps
