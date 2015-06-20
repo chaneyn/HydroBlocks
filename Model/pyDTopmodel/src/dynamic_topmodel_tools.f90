@@ -27,14 +27,18 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  call mkl_set_dynamic(1)
 
  ! Initialize the solver (Move eventually to beginning and end of entire simulation?)
- opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING
+ opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + &
+       MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING + &
+       MKL_DSS_REFINEMENT_ON
  error = dss_create(dss_handle,opt)
 
  ! Define the non-zero structure of the matrix.
- error = DSS_DEFINE_STRUCTURE(dss_handle,MKL_DSS_NON_SYMMETRIC,wrowindex,nhsu,nhsu,wcolumns,nvalues)
+ opt = MKL_DSS_NON_SYMMETRIC
+ error = DSS_DEFINE_STRUCTURE(dss_handle,opt,wrowindex,nhsu,nhsu,wcolumns,nvalues)
 
  ! Reorder the matrix.
- error = DSS_REORDER(dss_handle,MKL_DSS_DEFAULTS, perm )
+ opt = MKL_DSS_DEFAULTS!MKL_DSS_METIS_OPENMP_ORDER
+ error = DSS_REORDER(dss_handle,opt,perm )
 
  !Define the specific catchment area
  scarea = area/dx
@@ -106,10 +110,11 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  enddo
    
  ! Factor the matrix.
- error = DSS_FACTOR_REAL( dss_handle, MKL_DSS_DEFAULTS, A)
+ error = DSS_FACTOR_REAL(dss_handle,MKL_DSS_DEFAULTS,A)
 
  ! Solve the system of linear equations
- error = DSS_SOLVE_REAL( dss_handle, MKL_DSS_DEFAULTS, part1, 1, qout)
+ opt = MKL_DSS_DEFAULTS
+ error = DSS_SOLVE_REAL(dss_handle,opt,part1,1,qout)
 
  !Set all negative fluxes to 0
  where (qout < 0.0) qout = 0.0
