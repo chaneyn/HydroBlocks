@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 3
+ nclusters = 25
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -661,18 +661,18 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {#'area':{'data':covariates['carea'][mask == True],},
-        #'slope':{'data':covariates['cslope'][mask == True],},
-        #'sms':{'data':covariates['MAXSMC'][mask == True],},
-        #'smw':{'data':covariates['WLTSMC'][mask == True],},
+ info = {'area':{'data':covariates['carea'][mask == True],},
+        'slope':{'data':covariates['cslope'][mask == True],},
+        'sms':{'data':covariates['MAXSMC'][mask == True],},
+        'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
         'dem':{'data':covariates['dem'][mask == True],},
-        #'lats':{'data':covariates['lats'][mask == True],},
-        #'lons':{'data':covariates['lons'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles

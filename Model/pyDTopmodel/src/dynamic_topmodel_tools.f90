@@ -1,7 +1,7 @@
 INCLUDE 'mkl_dss.f90' ! Include the standard DSS "header file."
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
                   area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,&
-                  nthreads,nhsu,nvalues)
+                  nthreads,maxntt,nhsu,nvalues)
 
  use mkl_dss
  implicit none
@@ -12,12 +12,18 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
  real*4,intent(in),dimension(nvalues) :: wvalues
- integer,intent(in) :: nthreads
+ integer,intent(in) :: nthreads,maxntt
  real*4,dimension(nhsu) :: scarea
  real*4 :: dt_minimum,dtt
  integer :: ntt,itime
  type(MKL_DSS_HANDLE) :: dss_handle ! Allocate storage for the solver handle.
  integer :: opt,error,perm(nhsu)
+
+ !Set the number of threads
+ call mkl_set_num_threads(nthreads)
+
+ !Fix the number of threads
+ call mkl_set_dynamic(1)
 
  ! Initialize the solver (Move eventually to beginning and end of entire simulation?)
  opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING
@@ -35,11 +41,9 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  !Determine the required time step
  dt_minimum = minval(dx/celerity)
  ntt = int(ceiling(dt/dt_minimum))
+ if (ntt .gt. maxntt) ntt = maxntt
  if (ntt .le. 0) ntt = 1
  dtt = dt/ntt
-
- !Set the number of threads
- call mkl_set_num_threads(nthreads)
           
  !Process the smaller time steps
  do itime = 1,ntt
