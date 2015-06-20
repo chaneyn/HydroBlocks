@@ -23,15 +23,15 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 25
+ nclusters = 3
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,1,23)
- #fdate = datetime.datetime(2000,12,31,23)
+ #fdate = datetime.datetime(2000,1,1,23)
+ fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -60,14 +60,14 @@ def Deterministic(info):
         'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',#'semi',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -662,18 +662,18 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask == True],},
-        'slope':{'data':covariates['cslope'][mask == True],},
-        'sms':{'data':covariates['MAXSMC'][mask == True],},
-        'smw':{'data':covariates['WLTSMC'][mask == True],},
+ info = {#'area':{'data':covariates['carea'][mask == True],},
+        #'slope':{'data':covariates['cslope'][mask == True],},
+        #'sms':{'data':covariates['MAXSMC'][mask == True],},
+        #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
         'dem':{'data':covariates['dem'][mask == True],},
-        'lats':{'data':covariates['lats'][mask == True],},
-        'lons':{'data':covariates['lons'][mask == True],},
+        #'lats':{'data':covariates['lats'][mask == True],},
+        #'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
@@ -882,7 +882,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  #Update the input to create the sparse matrix
  hrus_dst = np.append(hrus_dst,outlet_hru_dst)
  hrus_org = np.append(hrus_org,outlet_hru_org)
- hrus_dst[hrus_dst == -1] = outlet_hru_dst[0] #CAREFUL. Designed to push all the extra small outlets to the same exit
+ hrus_dst[hrus_dst == -1] = outlet_hru_org[0] #CAREFUL. Designed to push all the extra small outlets to the same exit
 
  #Prepare the sparse matrix
  flow_matrix = sparse.coo_matrix((np.ones(hrus_dst.size),(hrus_org,hrus_dst)),dtype=np.float32)

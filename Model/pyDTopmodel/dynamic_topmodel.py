@@ -72,19 +72,20 @@ class Dynamic_Topmodel:
 
  def update(self,ncores):
   
-  maxntt = 1
+  maxntt = 1000 #maximum number of sub timesteps
+  isw = np.float32(0.5) #implicit scheme weight
 
   #Update the subsurface runoff
-  self.update_subsurface_fortran(ncores,maxntt)
+  self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  self.update_surface_fortran(ncores,maxntt)
+  self.update_surface_fortran(ncores,maxntt,isw)
 
   #if self.itime % 100 == 0: print self.itime,self.qout_surface
 
   return
 
- def update_surface_fortran(self,ncores,maxntt):
+ def update_surface_fortran(self,ncores,maxntt,isw):
 
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
@@ -117,7 +118,7 @@ class Dynamic_Topmodel:
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
-             ncores,maxntt)
+             ncores,maxntt,isw)
 
   #Correct the surface storage
   #Determine the amount of water that is "missing"
@@ -127,7 +128,7 @@ class Dynamic_Topmodel:
 
   return
 
- def update_subsurface_fortran(self,ncores,maxntt):
+ def update_subsurface_fortran(self,ncores,maxntt,isw):
 
   #Initialize q,qout1,qin1,c,and c1
   if self.qout1[0] == -9999.0:
@@ -158,7 +159,7 @@ class Dynamic_Topmodel:
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
-             ncores,maxntt)
+             ncores,maxntt,isw)
 
   #Revert the deficits to their original form
   self.si[:] = -si

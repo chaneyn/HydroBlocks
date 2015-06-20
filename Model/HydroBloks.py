@@ -234,7 +234,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  for i in xrange(ntt):
   NOAH.run_model(ncores)
  NOAH.dt = np.copy(dt)
- print "Update Noah",time.time() - t0
+ #print "Update Noah",time.time() - t0
 
  #Calculate the updated soil moisture deficit
  si0 = np.copy(NOAH.si0)
@@ -254,7 +254,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  #print "Update TOPMODEL"
  t0 = time.time()
  TOPMODEL.update(ncores)
- print"Update TOPMODEL",time.time() - t0
+ #print"Update TOPMODEL",time.time() - t0
 
  #Calculate the change in deficit
  TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
@@ -333,7 +333,7 @@ def run_model(info):
  while date <= fdate:
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
-   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),TOPMODEL.qout,TOPMODEL.qout_surface
+   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat)
    #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil
   if (date.month == 1) and (date.day == 1) and (date.hour == 0):
    et = 0

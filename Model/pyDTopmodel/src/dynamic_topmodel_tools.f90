@@ -1,12 +1,13 @@
 INCLUDE 'mkl_dss.f90' ! Include the standard DSS "header file."
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
                   area,dx,dt,celerity,celerity1,wvalues,wcolumns,wrowindex,&
-                  nthreads,maxntt,nhsu,nvalues)
+                  nthreads,maxntt,isw,nhsu,nvalues)
 
  use mkl_dss
  implicit none
  integer :: nhsu,nvalues
  real*8,intent(in) :: dt
+ real*4,intent(in) :: isw
  real*4,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
  real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
  integer*4,intent(in),dimension(nvalues) :: wcolumns
@@ -43,7 +44,6 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  ntt = int(ceiling(dt/dt_minimum))
  if (ntt .gt. maxntt) ntt = maxntt
  if (ntt .le. 0) ntt = 1
- ntt = 50!
  dtt = dt/ntt
           
  !Process the smaller time steps
@@ -52,7 +52,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
    !Solve the kinematic wave for this time step
    call solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                              recharge1,scarea,dx,dtt,celerity,celerity1,&
-                             wvalues,wcolumns,wrowindex,dss_handle)
+                             wvalues,wcolumns,wrowindex,isw,dss_handle)
 
  enddo
 
@@ -63,12 +63,11 @@ end subroutine update
 
 subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,qout1,qin1,&
                                 recharge1,scarea,dx,dtt,celerity,celerity1,&
-                                wvalues,wcolumns,wrowindex,dss_handle)
+                                wvalues,wcolumns,wrowindex,w,dss_handle)
  use mkl_dss
- use omp_lib
  implicit none
  integer,intent(in) :: nhsu,nvalues
- real*4,intent(in) :: dtt
+ real*4,intent(in) :: dtt,w
  real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
  real*4,intent(in),dimension(nhsu) :: scarea,dx,celerity,celerity1
  integer*4,intent(in),dimension(nvalues) :: wcolumns
@@ -77,15 +76,9 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  type(MKL_DSS_HANDLE),intent(inout) :: dss_handle ! Allocate storage for the solver handle.
  real*4,dimension(nvalues) :: A
  real*4,dimension(nhsu) :: denominator,numerator1,numerator2,part1,part2
- real*4 :: w
- real*4 :: alpha
  integer*4 :: i,j
  integer :: opt,error,perm(nhsu)
  real*8 :: t0,t1
-
- !Define implicit scheme parameters
- w = 0.5 
- alpha = 1.0
 
  !Calculate as many constants as possible before going into the iterations
  denominator = (1 + dtt*w*celerity/dx)
@@ -99,9 +92,6 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
   A(wrowindex(i)+1:wrowindex(i+1)) = wvalues(wrowindex(i)+1:wrowindex(i+1))*&
                                      scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)*&
                                      part2(i)/scarea(i)
-  !A(wrowindex(i)+1:wrowindex(i+1)) = wvalues(wrowindex(i)+1:wrowindex(i+1))*scarea(i)*&
-  !                                   part2(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)/&
-  !                                   scarea(wcolumns(wrowindex(i)+1:wrowindex(i+1))+1)
  enddo
 
  !I - A
@@ -125,7 +115,6 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  where (qout < 0.0) qout = 0.0
 
  !Calculate qin
- !call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
  call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
  qin = qin/scarea
 
@@ -137,6 +126,4 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  qin1 = qin
 
 end subroutine
-
-
 
