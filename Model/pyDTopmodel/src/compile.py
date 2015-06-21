@@ -3,8 +3,11 @@ os.system('rm -f *.mod')
 os.system('rm -f *.pyf')
 os.system('rm -f *.o')
 
+#User defined info
+mkl_include = '/opt/intel/mkl/include'
+
 #Compile the code to create the module
-cmd = 'gfortran -c dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -w -O3 -funroll-loops -m64 -Wl,--no-as-needed -openmp -fopenmp -g -fbacktrace -o dynamic_topmodel_tools.o'
+cmd = 'gfortran -c dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -w -O3 -funroll-loops -m64 -Wl,--no-as-needed -openmp -fopenmp -g -fbacktrace -o dynamic_topmodel_tools.o -I%s' % (mkl_include,)
 os.system(cmd)
 
 #Create a version with the include commented out
