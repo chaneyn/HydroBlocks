@@ -73,6 +73,10 @@ class Dynamic_Topmodel:
   #Error information
   self.water_balance_error_surface = 0
 
+  #Storage masks
+  self.storage_mask_subsurface = np.zeros(ngroups,dtype=np.int32)
+  self.storage_mask_surface = np.zeros(ngroups,dtype=np.int32)
+
  def update(self,ncores):
   
   maxntt = 1 #maximum number of sub timesteps
@@ -82,9 +86,7 @@ class Dynamic_Topmodel:
   self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  #t0 = time.time() 
   self.update_surface_fortran(ncores,maxntt,isw)
-  #print time.time() - t0
 
   #Check catchment water balance
   self.check_water_balance()
@@ -134,6 +136,9 @@ class Dynamic_Topmodel:
   self.celerity1_surface[:] = self.celerity_surface[:]
   self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
 
+  #Set the storage mask
+  self.storage_mask_surface[:] = 1 
+
   #Solve for the given time step
   '''(self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
              self.qin_surface,self.qin1_surface,self.celerity_surface,
@@ -147,6 +152,7 @@ class Dynamic_Topmodel:
   dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
+             self.storage_mask_surface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
              ncores,maxntt,isw)
 
@@ -174,6 +180,10 @@ class Dynamic_Topmodel:
   self.c1[:] = self.c[:]
   self.c[:] = Calculate_Celerity_Subsurface(self.m,self.q_subsurface)
 
+  #Set the storage mask
+  self.storage_mask_subsurface[:] = 1
+  self.storage_mask_subsurface[self.si >= self.sdmax] = 0
+
   #Set deficit in the form that the solver wants
   si = np.copy(-self.si)
   si1 = np.copy(-self.si1)
@@ -187,7 +197,7 @@ class Dynamic_Topmodel:
              self.qin_outlet,self.area_outlet,ncores)'''
   dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
-             self.area,self.dx,self.dt,self.c,self.c1,
+             self.area,self.dx,self.dt,self.c,self.c1,self.storage_mask_subsurface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
              ncores,maxntt,isw)
 
