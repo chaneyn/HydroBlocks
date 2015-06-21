@@ -70,6 +70,9 @@ class Dynamic_Topmodel:
   #weights
   self.flow_matrix = []
 
+  #Error information
+  self.water_balance_error_surface = 0
+
  def update(self,ncores):
   
   maxntt = 1 #maximum number of sub timesteps
@@ -83,7 +86,29 @@ class Dynamic_Topmodel:
   self.update_surface_fortran(ncores,maxntt,isw)
   #print time.time() - t0
 
-  if self.itime % 100 == 0: print self.itime,self.qout_surface
+  #Check catchment water balance
+  self.check_water_balance()
+
+  if self.itime % 100 == 0: print self.itime,self.water_balance_error_surface
+
+  return
+
+ def check_water_balance(self,):
+
+  #Define some parameters
+  scarea = np.sum(self.area/self.dx)
+
+  #Surface runoff (outlet) [qout_surface + storage + recharge]
+  qout_surface = self.dt*self.qout_surface[-1]/scarea
+  recharge_surface = self.dt*np.sum(self.pct*self.recharge_surface)
+  storage_surface = np.sum(self.pct*self.storage_surface)
+  storage1_surface = np.sum(self.pct*self.storage1_surface)
+  storage_actual = 1000.0*(storage1_surface - qout_surface + recharge_surface)
+  storage_estimated = 1000.0*storage_surface
+  ds = storage_actual - storage_estimated
+
+  #Store the water balance error information
+  self.water_balance_error_surface += ds
 
   return
 
@@ -92,6 +117,9 @@ class Dynamic_Topmodel:
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
   self.recharge_surface[:] = self.qsurf + self.ex
+
+  #Remember the previous time step storage
+  self.storage1_surface[:] = self.storage_surface[:] #HERE
 
   #Initialize q,qout1,qin1,c,and c1
   if self.qout1_surface[0] == -9999.0:

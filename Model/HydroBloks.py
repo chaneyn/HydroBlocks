@@ -267,7 +267,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  dsi = np.copy(si1 - TOPMODEL.si)
 
  #Update the soil moisture values
- NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex-TOPMODEL.dt*TOPMODEL.r)
+ NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
  TOPMODEL.ex[:] = 0.0
 
  return (NOAH,TOPMODEL)
