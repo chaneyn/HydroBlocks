@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 3
+ nclusters = 500
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -67,7 +67,7 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -663,17 +663,17 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask == True],},
-        #'slope':{'data':covariates['cslope'][mask == True],},
-        #'sms':{'data':covariates['MAXSMC'][mask == True],},
+        'slope':{'data':covariates['cslope'][mask == True],},
+        'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
         'dem':{'data':covariates['dem'][mask == True],},
-        #'lats':{'data':covariates['lats'][mask == True],},
-        #'lons':{'data':covariates['lons'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
@@ -737,7 +737,8 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
  areas = []
  for cid in xrange(nclusters):
   msk = cluster_ids == cid
-  areas.append(np.nanmean(covariates['carea'][msk]))
+  #areas.append(np.nanmean(covariates['carea'][msk]))
+  areas.append(np.nanmax(covariates['carea'][msk]))
  argsort = np.argsort(np.array(areas))
  cluster_ids_new = np.copy(cluster_ids)
  for cid in xrange(nclusters):

@@ -76,7 +76,7 @@ class Dynamic_Topmodel:
  def update(self,ncores):
   
   maxntt = 1 #maximum number of sub timesteps
-  isw = np.float32(1.0) #implicit scheme weight
+  isw = np.float32(0.5) #implicit scheme weight
 
   #Update the subsurface runoff
   self.update_subsurface_fortran(ncores,maxntt,isw)
