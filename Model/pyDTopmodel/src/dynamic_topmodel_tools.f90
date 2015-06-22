@@ -1,4 +1,50 @@
 INCLUDE 'mkl_dss.f90' ! Include the standard DSS "header file."
+
+module dss_variables
+
+ use mkl_dss
+ implicit none
+ type(MKL_DSS_HANDLE) :: dss_handle ! Allocate storage for the solver handle.
+ public :: dss_handle
+
+end module
+
+subroutine initialize_dss(wcolumns,wrowindex,nhsu,nvalues)
+
+ use dss_variables
+ implicit none
+ integer*4,intent(in) :: nhsu,nvalues
+ integer*4,intent(inout),dimension(nvalues) :: wcolumns
+ integer*4,intent(inout),dimension(nhsu+1) :: wrowindex
+ integer*4 :: opt,perm(nhsu)
+ integer*8 :: error
+
+ ! Initialize the solver 
+ opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + MKL_DSS_ZERO_BASED_INDEXING
+ error = dss_create(dss_handle,opt)
+
+ ! Define the non-zero structure of the matrix.
+ opt = MKL_DSS_NON_SYMMETRIC
+ error = DSS_DEFINE_STRUCTURE(dss_handle,opt,wrowindex,nhsu,nhsu,wcolumns,nvalues)
+
+ ! Reorder the matrix.
+ opt = MKL_DSS_AUTO_ORDER
+ error = DSS_REORDER(dss_handle,opt,perm )
+
+end subroutine
+
+subroutine finalize_dss()
+
+ use dss_variables
+ implicit none
+ integer :: opt,error
+
+ ! Delete the solver
+ opt = MKL_DSS_DEFAULTS
+ error = dss_delete(dss_handle,opt)
+
+end subroutine
+
 subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
                   area,dx,dt,celerity,celerity1,storage_mask,wvalues,wcolumns,&
                   wrowindex,nthreads,maxntt,isw,nhsu,nvalues)
