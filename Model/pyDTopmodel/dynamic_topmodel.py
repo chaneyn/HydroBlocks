@@ -101,14 +101,27 @@ class Dynamic_Topmodel:
   #Define some parameters
   scarea = np.sum(self.area/self.dx)
 
-  #Surface runoff (outlet) [qout_surface + storage + recharge]
+  #
+  '''qout = self.qout_surface[:]
+  qin = self.qin_surface[:] 
+  r = self.recharge_surface[:]
+  s1 = self.storage1_surface[:]
+  sactual = s1 + self.dt*((qin - qout)/self.dx + r)
+  sestimated = self.storage_surface
+  ds = np.sum(self.pct*(sactual-sestimated))'''
+
+  #Surface runoff (outlet) [-qout_surface(t) + storage(t-1) + recharge(t)]
   qout_surface = self.dt*self.qout_surface[-1]/scarea
   recharge_surface = self.dt*np.sum(self.pct*self.recharge_surface)
   storage_surface = np.sum(self.pct*self.storage_surface)
   storage1_surface = np.sum(self.pct*self.storage1_surface)
-  storage_actual = 1000.0*(storage1_surface - qout_surface + recharge_surface)
-  storage_estimated = 1000.0*storage_surface
-  ds = storage_actual - storage_estimated
+  storage_actual = storage1_surface - qout_surface + recharge_surface
+  storage_estimated = np.sum(self.pct*storage_surface)
+  ds = 1000.0*(storage_actual - storage_estimated)
+  #Use this information to scale the storages to ensure water balance
+  self.storage_surface = self.storage_surface/storage_estimated*storage_actual
+  storage_estimated = np.sum(self.pct*self.storage_surface)
+  ds = 1000.0*(storage_actual - storage_estimated)
 
   #Store the water balance error information
   self.water_balance_error_surface += ds

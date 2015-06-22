@@ -198,7 +198,7 @@ def Initialize_DTopmodel(ncells,dt,info):
  model.flow_matrix = sparse.csr_matrix((info['input_fp'].groups['flow_matrix'].variables['data'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indices'][:],
 			          info['input_fp'].groups['flow_matrix'].variables['indptr'][:]),
- 				  dtype=np.float32)[0:ncells,0:ncells]
+ 				  dtype=np.float64)[0:ncells,0:ncells]
  model.flow_matrix.setdiag(model.flow_matrix.diagonal()) #Ensure the zeros are not sparse (for kinematic wave solution).
  model.flow_matrix_T = sparse.csr_matrix(model.flow_matrix.T) #transposed
  model.flow_matrix_T.setdiag(model.flow_matrix_T.diagonal()) #Ensure the zeros are not sparse  (for kinematic wave solution).

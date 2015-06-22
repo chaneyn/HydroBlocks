@@ -88,7 +88,7 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  real*8 :: t0,t1
 
  !Calculate as many constants as possible before going into the iterations
- denominator = (1 + dtt*w*celerity/dx)
+ denominator = (1.0 + dtt*w*celerity/dx)
  numerator1 = qout1 + dtt*w*celerity*recharge + dtt*(1.0 - w)*celerity1*((qin1 - qout1)/dx + recharge1)
  numerator2 = dtt*w*celerity/dx
  part1 = numerator1/denominator
@@ -124,10 +124,10 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  error = DSS_SOLVE_REAL(dss_handle,opt,part1,1,qout)
 
  !Set all negative fluxes to 0
- where (qout < 0.0) qout = 0.0
+ !where (qout < 0.0) qout = 0.0
  
  !Set outflows to 0 where the storage is below a threshold
- where (storage_mask .eq. 0) qout = 0.0
+ !where (storage_mask .eq. 0) qout = 0.0
 
  !Calculate qin
  !call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
