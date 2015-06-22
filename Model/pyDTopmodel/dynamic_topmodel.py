@@ -95,7 +95,7 @@ class Dynamic_Topmodel:
   #Check catchment water balance
   self.check_water_balance()
 
-  if self.itime % 1 == 0: print self.itime,self.water_balance_error_surface
+  #if self.itime % 1 == 0: print self.itime,self.water_balance_error_surface
 
   return
 

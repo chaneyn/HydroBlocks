@@ -30,8 +30,8 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- fdate = datetime.datetime(2000,1,1,23)
- #fdate = datetime.datetime(2000,12,31,23)
+ #fdate = datetime.datetime(2000,1,1,23)
+ fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -61,7 +61,7 @@ def Deterministic(info):
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),

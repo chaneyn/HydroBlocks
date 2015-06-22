@@ -232,7 +232,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  for i in xrange(ntt):
   NOAH.run_model(ncores)
  NOAH.dt = np.copy(dt)
- print "Update Noah",time.time() - t0
+ #print "Update Noah",time.time() - t0
 
  #Calculate the updated soil moisture deficit
  si0 = np.copy(NOAH.si0)
@@ -252,7 +252,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  #print "Update TOPMODEL"
  t0 = time.time()
  TOPMODEL.update(ncores)
- print"Update TOPMODEL",time.time() - t0
+ #print"Update TOPMODEL",time.time() - t0
 
  #Calculate the change in deficit
  TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
