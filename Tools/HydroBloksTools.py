@@ -39,11 +39,11 @@ def Deterministic(info):
   print icatch
   dir = info['dir']
   #Define the parameters
-  parameters = {}
-  parameters['log10m'] = -0.1#-2.582977995297425888e+00
-  parameters['lnTe'] = 0.0#-1.963648774068431635e-01
-  parameters['log10soil'] = 1.389834359162560144e-02
-  parameters['sdmax'] = 0.5#1.938762117265730334e+00
+  #parameters = {}
+  #parameters['log10m'] = -0.1#-2.582977995297425888e+00
+  #parameters['lnTe'] = 0.0#-1.963648774068431635e-01
+  #parameters['log10soil'] = 1.389834359162560144e-02
+  #parameters['sdmax'] = 0.5#1.938762117265730334e+00
   #parmaters m,pte,psoil,sdmax,n_channel,n_overland
 
   #Define the info
@@ -58,7 +58,7 @@ def Deterministic(info):
         'ncores':ncores,
         'idate':idate,
         'fdate':fdate,
-        'parameters':parameters,
+        #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
         'model_type':'semi',
@@ -69,10 +69,9 @@ def Deterministic(info):
 
   #Cluster the data
   Prepare_Model_Input_Data(hydrobloks_info)
-  exit()
 
   #Run the model
-  HB.run_model(hydrobloks_info)
+  #HB.run_model(hydrobloks_info)
 
  return
 
@@ -618,7 +617,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  vars = ['slope','area_pct','land_cover','channel',
         'dem','soil_texture_class','ti','carea','area',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
-        'novf','nchan','m','psoil','pt0','sdmax']
+        'mannings','m','psoil','pksat','sdmax']
  for var in vars:
   grp.createVariable(var,'f4',('hsu',))
   grp.variables[var][:] = data['hsu'][var]
@@ -793,7 +792,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
          'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
          'land_cover','soil_texture_class',
-         'novf','nchan','m','psoil','pt0','sdmax']
+         'mannings','m','psoil','pksat','sdmax']
  OUTPUT['hsu'] = {}
  for var in vars:
   OUTPUT['hsu'][var] = np.zeros(nclusters)
@@ -823,18 +822,18 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Average Catchment Area
   OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
-  OUTPUT['hsu']['channel'][hsu] = np.mean(covariates['channels'][idx])
+  OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
   OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
   #Define the estimate for the model parameters
   OUTPUT['hsu']['m'][hsu] = 0.01 #Form of the exponential decline in conductivity (0.001-0.1)
-  OUTPUT['hsu']['pt0'][hsu] = 1.0 #transmissivity scalar multiplier (0.1-10.0)
+  OUTPUT['hsu']['pksat'][hsu] = 1.0 #saturated hydraulic conductivity scalar multiplier (0.1-1.0)
   OUTPUT['hsu']['psoil'][hsu] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
   OUTPUT['hsu']['sdmax'][hsu] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
-  OUTPUT['hsu']['nchan'][hsu] = 0.05 #manning's n for channel flow (0.01-0.1)
-  OUTPUT['hsu']['novf'][hsu] = 0.4 #manning's n for overland flow (0.01-0.8)
+  if OUTPUT['hsu']['channel'][hsu] >= 1: OUTPUT['hsu']['mannings'][hsu] = 0.05 #manning's n for channel flow (0.01-0.1)
+  elif OUTPUT['hsu']['channel'][hsu] == 0: OUTPUT['hsu']['mannings'][hsu] = 0.4 #manning's n for overland flow (0.01-0.8)
 
 
  return OUTPUT

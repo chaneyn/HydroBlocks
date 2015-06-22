@@ -65,10 +65,8 @@ def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
  #Set initial info
  model.iz0tlnd = 0
  model.z_ml[:] = 2.0
- #psoil = 10**parameters['log10soil']
- #psoil = parameters['psoil']
  tmp = 0.1*np.ones(nsoil)
- model.sldpth[:] = tmp#psoil*tmp
+ model.sldpth[:] = tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
  model.zsnso[:,3::] = model.zsoil[:]
@@ -173,9 +171,8 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.dt = dt #seconds
  model.area[:] = 0.0 #meters^2
  model.dx[:] = dx #meters
- model.m[:] = 10**parameters['log10m'] #HERE
- model.sdmax[:] = parameters['sdmax'] #HERE
- #model.sdmax[:] = 1000.0#parameters['sdmax'] #HERE
+ model.m[:] = info['input_fp'].groups['parameters'].variables['m'][:]
+ model.sdmax[:] = info['input_fp'].groups['parameters'].variables['sdmax'][:]
  dem = []
  #Set cluster information
  model.pct[:] = info['input_fp'].groups['parameters'].variables['area_pct'][:]/100
@@ -185,20 +182,15 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
  model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
  model.channel[:] = info['input_fp'].groups['parameters'].variables['channel'][:]
- model.surface_velocity[:] = 1000.0/dt #m/s
  model.dem[:] = info['input_fp'].groups['parameters'].variables['dem'][:] 
+ model.mannings[:] = info['input_fp'].groups['parameters'].variables['mannings'][:]
  #Set outlet informationA
  model.area_outlet[:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
- #model.sdmax[:] = 0.1#np.array(dem) - np.min(dem)
  model.pct = model.pct/np.sum(model.pct)
  ti_mean = np.sum(model.pct*model.sti[:])
- #lnTe = parameters['lnTe']
  
  #Calculate the sti
- #model.T0[:] = (model.dem - np.min(model.dem))*model.T0
  lnT0 = np.log(model.T0)
- #lnT0 = lnTe*lnT0/np.sum(model.pct*lnT0)
- #model.T0[:] = np.exp(lnT0)
  lnTe = np.sum(model.pct*lnT0)
  model.sti = model.sti - (lnT0 - lnTe)
 
@@ -277,7 +269,7 @@ def run_model(info):
  ncores = info['ncores']
  idate = info['idate']
  fdate = info['fdate']
- parameters = info['parameters']
+ #parameters = info['parameters']
  output_type = info['output_type']
  soil_file = info['soil_file']
  input_file = info['input']
@@ -305,12 +297,12 @@ def run_model(info):
 
  #Initialize the model
  print "Initializing Noah"
- NOAH = Initialize_Model(ncells,dt,nsoil,parameters,info,wbd)
+ NOAH = Initialize_Model(ncells,dt,nsoil,info,wbd)
  output['misc']['zsoil'] = NOAH.zsoil
 
  #Initialize Topmodel
  print "Initializing TOPMODEL"
- TOPMODEL = Initialize_DTopmodel(ncells,dt,parameters,info) 
+ TOPMODEL = Initialize_DTopmodel(ncells,dt,info) 
 
  #Run the model
  #meteorology = {}

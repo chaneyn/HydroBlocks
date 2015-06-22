@@ -29,6 +29,7 @@ class Dynamic_Topmodel:
   self.pct = np.zeros(ngroups,dtype=np.float32)
   self.dsi = np.zeros(ngroups,dtype=np.float32)
   self.sti = np.zeros(ngroups,dtype=np.float32)
+  self.mannings = np.zeros(ngroups,dtype=np.float32)
 
   #Define surface variables
   self.q_surface = np.zeros(ngroups,dtype=np.float32)
@@ -127,14 +128,11 @@ class Dynamic_Topmodel:
   if self.qout1_surface[0] == -9999.0:
    self.qout1_surface[:] = 0.0
    self.qin1_surface[:] = 0.0
-   self.a = 1.67
-   self.n = 0.030
-   self.b = np.tan(self.beta)**0.5/self.n
-   self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
+   self.celerity_surface[:] = Calculate_Celerity_Surface(self.storage_surface,self.mannings,self.beta)
   
   #Update the celerity
   self.celerity1_surface[:] = self.celerity_surface[:]
-  self.celerity_surface[:] = Calculate_Celerity_Surface(self.a,self.b,self.storage_surface)
+  self.celerity_surface[:] = Calculate_Celerity_Surface(self.storage_surface,self.mannings,self.beta)
 
   #Set the storage mask
   self.storage_mask_surface[:] = 1 
@@ -281,8 +279,10 @@ def Calculate_Flux_Subsurface(si,T0,beta,m,sdmax):
  #return T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))
  #return T0*np.tan(beta)*(np.exp(-si/m))
 
-def Calculate_Surface_Velocity(a,b,h):
+def Calculate_Surface_Velocity(h,n,beta):
 
+ a = 0.67
+ b = np.tan(beta)**0.5/n
  return b*h**a
 
 def Calculate_Celerity_Subsurface(m,q):
@@ -293,6 +293,8 @@ def Calculate_Flux_Surface(storage_surface,surface_velocity):
 
  return surface_velocity*storage_surface
 
-def Calculate_Celerity_Surface(a,b,h):
+def Calculate_Celerity_Surface(h,n,beta):
 
+ a = 0.67
+ b = np.tan(beta)**0.5/n
  return a*b*h**(a-1)
