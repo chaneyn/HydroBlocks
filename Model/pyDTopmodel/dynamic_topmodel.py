@@ -182,7 +182,7 @@ class Dynamic_Topmodel:
 
   #Set the storage mask
   self.storage_mask_subsurface[:] = 1
-  self.storage_mask_subsurface[self.si >= self.sdmax] = 0
+  #self.storage_mask_subsurface[self.si >= self.sdmax] = 0
 
   #Set deficit in the form that the solver wants
   si = np.copy(-self.si)
@@ -275,8 +275,11 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
 
 def Calculate_Flux_Subsurface(si,T0,beta,m,sdmax):
 
+ tmp = T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))
+ tmp[tmp < 0] = 0
+ return tmp
  #return T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))
- return T0*np.tan(beta)*(np.exp(-si/m))
+ #return T0*np.tan(beta)*(np.exp(-si/m))
 
 def Calculate_Surface_Velocity(a,b,h):
 

@@ -43,7 +43,7 @@ def Deterministic(info):
   parameters['log10m'] = -0.1#-2.582977995297425888e+00
   parameters['lnTe'] = 0.0#-1.963648774068431635e-01
   parameters['log10soil'] = 1.389834359162560144e-02
-  parameters['sdmax'] = 1.0#1.938762117265730334e+00
+  parameters['sdmax'] = 0.5#1.938762117265730334e+00
 
   #Define the info
   hydrobloks_info = {
