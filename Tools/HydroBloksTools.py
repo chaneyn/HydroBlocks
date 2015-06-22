@@ -23,14 +23,14 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 100
+ nclusters = 25
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
  idate = datetime.datetime(2000,1,1,0)
- #fdate = datetime.datetime(2000,1,1,23)
+ #fdate = datetime.datetime(2000,2,1,23)
  fdate = datetime.datetime(2000,12,31,23)
 
  #Iterate through all the catchments until done
@@ -745,7 +745,11 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  nclusters = hydrobloks_info['nclusters']
  #Initialize the arrays
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
-         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',         'vchan','vof','land_cover','soil_texture_class']
+         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
+         'land_cover','soil_texture_class',
+         'mannings','m','psoil','pksat','sdmax']
+ #vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
+ #        'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',         'vchan','vof','land_cover','soil_texture_class']
  OUTPUT['hsu'] = {}
  for var in vars:
   OUTPUT['hsu'][var] = np.zeros(nclusters) 
@@ -773,10 +777,6 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  OUTPUT['hsu']['carea'][:] = covariates['carea'][mask]
  #Channel?
  OUTPUT['hsu']['channel'][:] = covariates['channels'][mask]
- #Vchan
- OUTPUT['hsu']['vchan'][:] = 1000 #m/hr
- #Vof
- OUTPUT['hsu']['vof'][:] = 100 #m/hr
  #Land cover type  
  land_cover = np.copy(covariates['nlcd'])
  for lc in np.unique(land_cover)[1:]:
@@ -784,6 +784,13 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  OUTPUT['hsu']['land_cover'][:] = land_cover[mask]
  #Soil texture class
  OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
+ #Define the estimate for the model parameters
+ OUTPUT['hsu']['m'][:] = 0.1 #Form of the exponential decline in conductivity (0.01-1.0)
+ OUTPUT['hsu']['pksat'][:] = 1.0 #saturated hydraulic conductivity scalar multiplier (0.1-1.0)
+ OUTPUT['hsu']['psoil'][:] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
+ OUTPUT['hsu']['sdmax'][:] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
+ OUTPUT['hsu']['mannings'][covariates['carea'][mask] >= 100000.0] = 0.03 #manning's n for channel flow (0.01-0.1)
+ OUTPUT['hsu']['mannings'][covariates['carea'][mask] < 100000.0] = 0.15 #manning's n for overland flow (0.01-0.8)
 
  return OUTPUT
 
