@@ -1067,7 +1067,7 @@ subroutine run_model_cell(&
     !Update the water table depth
     call UPDATEWTD  (NSOIL,SLDPTH,SMCEQ,SMCMAX,SMCWLT,-PSISAT,BEXP,I,J,DZWT,ZWT ,SMC, SMH2O ,SMCWTD,QSPRING,&
                      DT,DEEPRECH,DKSAT)
-    DEEPRECH = 0.0
+    DEEPRECH = 0.0  
     !Calculate the soil moisture deficit
     zwt0 = zwt
     call Calculate_Deficit(si0,smcmax,smcwtd,zwt,sldpth,smc,nsoil)

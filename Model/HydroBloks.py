@@ -240,7 +240,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
 
  #Add the surface runoff
- TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0
+ TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0# + NOAH.runsb[:]/1000.0
 
  #Update dynamic topmodel
  #print "Update TOPMODEL"
@@ -254,8 +254,11 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  dsi = np.copy(si1 - TOPMODEL.si)
 
  #Update the soil moisture values
- NOAH.dzwt[:] = np.copy(dsi)#+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
- NOAH.runsf[:] += 1000.0*TOPMODEL.ex
+ NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
+ #NOAH.dzwt[:] = np.copy(dsi)#*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
+ #NOAH.runsf[:] -= 1000.0*TOPMODEL.ex
+ #print 1000.0*TOPMODEL.ex
+ #TOPMODEL.ex[:] = 0.0
 
  return (NOAH,TOPMODEL)
 
