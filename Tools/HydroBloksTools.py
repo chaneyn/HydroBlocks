@@ -44,6 +44,7 @@ def Deterministic(info):
   parameters['lnTe'] = 0.0#-1.963648774068431635e-01
   parameters['log10soil'] = 1.389834359162560144e-02
   parameters['sdmax'] = 0.5#1.938762117265730334e+00
+  #parmaters m,pte,psoil,sdmax,n_channel,n_overland
 
   #Define the info
   hydrobloks_info = {
@@ -67,7 +68,8 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  Prepare_Model_Input_Data(hydrobloks_info)
+  exit()
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -464,22 +466,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  file = '%s/workspace_info.pck' % workspace
  wbd = pickle.load(open(file))
 
- '''#Create the netcdf file
- file_netcdf = hydrobloks_info['input']
- hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
-
- #Create the dimensions (netcdf)
- idate = hydrobloks_info['idate']
- fdate = hydrobloks_info['fdate']
- dt = hydrobloks_info['dt']
- ntime = 24*3600*((fdate - idate).days+1)/dt
- nhsu = hydrobloks_info['nclusters']
- hydrobloks_info['input_fp'].createDimension('hsu',nhsu)
- hydrobloks_info['input_fp'].createDimension('time',ntime)
-
- #Create the groups (netcdf)
- hydrobloks_info['input_fp'].createGroup('meteorology')'''
-
  #Create the dictionary to hold all of the data
  output = {}
 
@@ -629,9 +615,10 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Write the model parameters
  grp = fp.createGroup('parameters')
- vars = ['slope','vof','area_pct','land_cover','channel',
-        'vchan','dem','soil_texture_class','ti','carea','area',
-        'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK']
+ vars = ['slope','area_pct','land_cover','channel',
+        'dem','soil_texture_class','ti','carea','area',
+        'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
+        'novf','nchan','m','psoil','pt0','sdmax']
  for var in vars:
   grp.createVariable(var,'f4',('hsu',))
   grp.variables[var][:] = data['hsu'][var]
@@ -805,7 +792,8 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  #Initialize the arrays
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
          'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
-         'vchan','vof','land_cover','soil_texture_class']
+         'land_cover','soil_texture_class',
+         'novf','nchan','m','psoil','pt0','sdmax']
  OUTPUT['hsu'] = {}
  for var in vars:
   OUTPUT['hsu'][var] = np.zeros(nclusters)
@@ -836,14 +824,18 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
   OUTPUT['hsu']['channel'][hsu] = np.mean(covariates['channels'][idx])
-  #Vchan
-  OUTPUT['hsu']['vchan'][hsu] = 1000 #m/hr
-  #Vof
-  OUTPUT['hsu']['vof'][hsu] = 100 #m/hr
   #Land cover type  
   OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+  #Define the estimate for the model parameters
+  OUTPUT['hsu']['m'][hsu] = 0.01 #Form of the exponential decline in conductivity (0.001-0.1)
+  OUTPUT['hsu']['pt0'][hsu] = 1.0 #transmissivity scalar multiplier (0.1-10.0)
+  OUTPUT['hsu']['psoil'][hsu] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
+  OUTPUT['hsu']['sdmax'][hsu] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
+  OUTPUT['hsu']['nchan'][hsu] = 0.05 #manning's n for channel flow (0.01-0.1)
+  OUTPUT['hsu']['novf'][hsu] = 0.4 #manning's n for overland flow (0.01-0.8)
+
 
  return OUTPUT
 
