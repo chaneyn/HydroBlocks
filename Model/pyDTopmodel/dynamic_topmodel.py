@@ -295,6 +295,7 @@ def Calculate_Flux_Surface(storage_surface,surface_velocity):
 
 def Calculate_Celerity_Surface(h,n,beta):
 
- a = 0.67
+ a = 1.67
  b = np.tan(beta)**0.5/n
- return a*b*h**(a-1)
+ c = a*b*h**(a-1)
+ return c

@@ -71,7 +71,7 @@ def Deterministic(info):
   Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
-  #HB.run_model(hydrobloks_info)
+  HB.run_model(hydrobloks_info)
 
  return
 
@@ -823,6 +823,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
   OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
+  OUTPUT['hsu']['channel'][hsu] = 1.0
   #Land cover type  
   OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
   #Soil texture class

@@ -20,7 +20,7 @@ def Finalize_Model(NOAH,TOPMODEL):
 
  return
 
-def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
+def Initialize_Model(ncells,dt,nsoil,info,wbd):
 
  from NoahMP import model
 
@@ -155,7 +155,7 @@ def Initialize_Model(ncells,dt,nsoil,parameters,info,wbd):
 
  return model
 
-def Initialize_DTopmodel(ncells,dt,parameters,info):
+def Initialize_DTopmodel(ncells,dt,info):
 
  #sys.path.append("topmodel")
  import dynamic_topmodel
@@ -177,7 +177,7 @@ def Initialize_DTopmodel(ncells,dt,parameters,info):
  #Set cluster information
  model.pct[:] = info['input_fp'].groups['parameters'].variables['area_pct'][:]/100
  model.area[:] = info['input_fp'].groups['parameters'].variables['area'][:]
- model.T0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]*(10**parameters['log10m'])
+ model.T0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]*model.m
  model.sti[:] = info['input_fp'].groups['parameters'].variables['ti'][:]
  model.beta[:] = info['input_fp'].groups['parameters'].variables['slope'][:]
  model.carea[:] = info['input_fp'].groups['parameters'].variables['carea'][:]
@@ -269,7 +269,6 @@ def run_model(info):
  ncores = info['ncores']
  idate = info['idate']
  fdate = info['fdate']
- #parameters = info['parameters']
  output_type = info['output_type']
  soil_file = info['soil_file']
  input_file = info['input']
