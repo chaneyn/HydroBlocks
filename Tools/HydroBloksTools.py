@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 10
+ nclusters = 100
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -69,7 +69,6 @@ def Deterministic(info):
 
   #Cluster the data
   Prepare_Model_Input_Data(hydrobloks_info)
-  exit()
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -650,32 +649,32 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {#'area':{'data':covariates['carea'][mask == True],},
-        #'slope':{'data':covariates['cslope'][mask == True],},
-        #'sms':{'data':covariates['MAXSMC'][mask == True],},
+ info = {'area':{'data':covariates['carea'][mask == True],},
+        'slope':{'data':covariates['cslope'][mask == True],},
+        'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
         'dem':{'data':covariates['dem'][mask == True],},
         'strahler':{'data':covariates['strahler'][mask == True],},
-        #'lats':{'data':covariates['lats'][mask == True],},
-        #'lons':{'data':covariates['lons'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  if var in ['strahler',]:
-   tmp = info[var]['data']
-   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-   info[var]['data'] = tmp
-  else:
-   argsort = np.argsort(info[var]['data'])
-   pcts = np.copy(info[var]['data'])
-   pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-   info[var]['data'] = pcts
+  #if var in ['strahler','area','ndvi','sms']:
+  tmp = info[var]['data']
+  tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+  info[var]['data'] = tmp
+  #else:
+  # argsort = np.argsort(info[var]['data'])
+  # pcts = np.copy(info[var]['data'])
+  # pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+  # info[var]['data'] = pcts
 
  #Create the LHS bins
  import sklearn.cluster
@@ -826,18 +825,17 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
   OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
-  OUTPUT['hsu']['channel'][hsu] = 1.0
   #Land cover type  
   OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
   #Define the estimate for the model parameters
-  OUTPUT['hsu']['m'][hsu] = 0.01 #Form of the exponential decline in conductivity (0.001-0.1)
+  OUTPUT['hsu']['m'][hsu] = 0.1 #Form of the exponential decline in conductivity (0.01-1.0)
   OUTPUT['hsu']['pksat'][hsu] = 1.0 #saturated hydraulic conductivity scalar multiplier (0.1-1.0)
   OUTPUT['hsu']['psoil'][hsu] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
   OUTPUT['hsu']['sdmax'][hsu] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
-  if OUTPUT['hsu']['channel'][hsu] >= 1: OUTPUT['hsu']['mannings'][hsu] = 0.05 #manning's n for channel flow (0.01-0.1)
-  elif OUTPUT['hsu']['channel'][hsu] == 0: OUTPUT['hsu']['mannings'][hsu] = 0.4 #manning's n for overland flow (0.01-0.8)
+  if np.max(covariates['carea'][idx]) >= 100000.0: OUTPUT['hsu']['mannings'][hsu] = 0.03 #manning's n for channel flow (0.01-0.1)
+  else: OUTPUT['hsu']['mannings'][hsu] = 0.15 #manning's n for overland flow (0.01-0.8)
 
 
  return OUTPUT
