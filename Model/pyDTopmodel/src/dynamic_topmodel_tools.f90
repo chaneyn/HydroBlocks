@@ -5,21 +5,21 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
 
  use mkl_dss
  implicit none
- integer :: nhsu,nvalues
+ integer*4 :: nhsu,nvalues
  real*8,intent(in) :: dt
- real*4,intent(in) :: isw
- integer*4,intent(in),dimension(nhsu) :: storage_mask
- real*4,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
- real*4,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
+ real*8,intent(in) :: isw
+ integer*8,intent(in),dimension(nhsu) :: storage_mask
+ real*8,intent(in),dimension(nhsu) :: dx,area,celerity,celerity1
+ real*8,intent(inout),dimension(nhsu) :: recharge,storage,recharge1,storage1,qout,qin,qout1,qin1
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
- real*4,intent(in),dimension(nvalues) :: wvalues
- integer,intent(in) :: nthreads,maxntt
- real*4,dimension(nhsu) :: scarea
- real*4 :: dt_minimum,dtt
- integer :: ntt,itime
+ real*8,intent(in),dimension(nvalues) :: wvalues
+ integer*4,intent(in) :: nthreads,maxntt
+ real*8,dimension(nhsu) :: scarea
+ real*8 :: dt_minimum,dtt
+ integer*8 :: ntt,itime,error
  type(MKL_DSS_HANDLE) :: dss_handle ! Allocate storage for the solver handle.
- integer :: opt,error,perm(nhsu)
+ integer*4 :: opt,perm(nhsu)
 
  !Set the number of threads
  call mkl_set_num_threads(nthreads)
@@ -29,8 +29,9 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
 
  ! Initialize the solver (Move eventually to beginning and end of entire simulation?)
  opt = MKL_DSS_MSG_LVL_WARNING + MKL_DSS_TERM_LVL_ERROR + &
-       MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING + &
-       MKL_DSS_REFINEMENT_ON
+       MKL_DSS_ZERO_BASED_INDEXING
+       !MKL_DSS_SINGLE_PRECISION + MKL_DSS_ZERO_BASED_INDEXING + &
+       !MKL_DSS_REFINEMENT_ON
  error = dss_create(dss_handle,opt)
 
  ! Define the non-zero structure of the matrix.
@@ -71,19 +72,19 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
                                 wvalues,wcolumns,wrowindex,w,dss_handle,storage_mask)
  use mkl_dss
  implicit none
- integer,intent(in) :: nhsu,nvalues
- real*4,intent(in) :: dtt,w
- real*4,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
- integer*4,intent(in),dimension(nhsu) :: storage_mask
- real*4,intent(in),dimension(nhsu) :: scarea,dx,celerity,celerity1
+ integer*4,intent(in) :: nhsu,nvalues
+ real*8,intent(in) :: dtt,w
+ real*8,intent(inout),dimension(nhsu) :: storage,qout,qin,recharge,storage1,qout1,qin1,recharge1
+ integer*8,intent(in),dimension(nhsu) :: storage_mask
+ real*8,intent(in),dimension(nhsu) :: scarea,dx,celerity,celerity1
  integer*4,intent(in),dimension(nvalues) :: wcolumns
  integer*4,intent(in),dimension(nhsu+1) :: wrowindex
- real*4,intent(in),dimension(nvalues) :: wvalues
+ real*8,intent(in),dimension(nvalues) :: wvalues
  type(MKL_DSS_HANDLE),intent(inout) :: dss_handle ! Allocate storage for the solver handle.
- real*4,dimension(nvalues) :: A
- real*4,dimension(nhsu) :: denominator,numerator1,numerator2,part1,part2
- integer*4 :: i,j
- integer :: opt,error,perm(nhsu)
+ real*8,dimension(nvalues) :: A
+ real*8,dimension(nhsu) :: denominator,numerator1,numerator2,part1,part2
+ integer*8 :: i,j,error
+ integer*4 :: opt,perm(nhsu)
  real*8 :: t0,t1
 
  !Calculate as many constants as possible before going into the iterations
@@ -129,7 +130,8 @@ subroutine solve_kinematic_wave(nhsu,nvalues,storage,qout,qin,recharge,storage1,
  where (storage_mask .eq. 0) qout = 0.0
 
  !Calculate qin
- call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
+ !call mkl_cspblas_scsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
+ call mkl_cspblas_dcsrgemv('N',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
  !call mkl_cspblas_scsrgemv('T',nhsu,wvalues,wrowindex,wcolumns,scarea*qout,qin)
  qin = qin/scarea
 

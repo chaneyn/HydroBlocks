@@ -13,59 +13,59 @@ class Dynamic_Topmodel:
   #Initialize the variables and parameters
   self.itime = 0 #timestep
   self.ngroups = ngroups
-  self.m = np.zeros(ngroups,dtype=np.float32)
-  self.si = np.zeros(ngroups,dtype=np.float32)
-  self.si1 = np.zeros(ngroups,dtype=np.float32)
-  self.sdmax = np.zeros(ngroups,dtype=np.float32)
+  self.m = np.zeros(ngroups,dtype=np.float64)
+  self.si = np.zeros(ngroups,dtype=np.float64)
+  self.si1 = np.zeros(ngroups,dtype=np.float64)
+  self.sdmax = np.zeros(ngroups,dtype=np.float64)
   self.dt = 0.0 #seconds
-  self.area = np.zeros(ngroups,dtype=np.float32)
-  self.dem = np.zeros(ngroups,dtype=np.float32)
-  self.carea = np.zeros(ngroups,dtype=np.float32)
-  self.channel = np.zeros(ngroups,dtype=np.float32)
-  self.T0 = np.zeros(ngroups,dtype=np.float32)
-  self.beta = np.zeros(ngroups,dtype=np.float32)
-  self.dx = np.zeros(ngroups,dtype=np.float32)
-  self.sideep = np.zeros(ngroups,dtype=np.float32)
-  self.pct = np.zeros(ngroups,dtype=np.float32)
-  self.dsi = np.zeros(ngroups,dtype=np.float32)
-  self.sti = np.zeros(ngroups,dtype=np.float32)
-  self.mannings = np.zeros(ngroups,dtype=np.float32)
+  self.area = np.zeros(ngroups,dtype=np.float64)
+  self.dem = np.zeros(ngroups,dtype=np.float64)
+  self.carea = np.zeros(ngroups,dtype=np.float64)
+  self.channel = np.zeros(ngroups,dtype=np.float64)
+  self.T0 = np.zeros(ngroups,dtype=np.float64)
+  self.beta = np.zeros(ngroups,dtype=np.float64)
+  self.dx = np.zeros(ngroups,dtype=np.float64)
+  self.sideep = np.zeros(ngroups,dtype=np.float64)
+  self.pct = np.zeros(ngroups,dtype=np.float64)
+  self.dsi = np.zeros(ngroups,dtype=np.float64)
+  self.sti = np.zeros(ngroups,dtype=np.float64)
+  self.mannings = np.zeros(ngroups,dtype=np.float64)
 
   #Define surface variables
-  self.q_surface = np.zeros(ngroups,dtype=np.float32)
-  self.storage_surface = np.zeros(ngroups,dtype=np.float32)
-  self.qin_surface = np.zeros(ngroups,dtype=np.float32)
-  self.qout_surface = np.zeros(ngroups,dtype=np.float32)
-  self.storage1_surface = np.zeros(ngroups,dtype=np.float32)
-  self.qout1_surface = np.zeros(ngroups,dtype=np.float32)
+  self.q_surface = np.zeros(ngroups,dtype=np.float64)
+  self.storage_surface = np.zeros(ngroups,dtype=np.float64)
+  self.qin_surface = np.zeros(ngroups,dtype=np.float64)
+  self.qout_surface = np.zeros(ngroups,dtype=np.float64)
+  self.storage1_surface = np.zeros(ngroups,dtype=np.float64)
+  self.qout1_surface = np.zeros(ngroups,dtype=np.float64)
   self.qout1_surface[:] = -9999.0
-  self.qin1_surface = np.zeros(ngroups,dtype=np.float32)
-  self.qsurf = np.zeros(ngroups,dtype=np.float32)
-  self.recharge_surface = np.zeros(ngroups,dtype=np.float32)
-  self.celerity_surface = np.zeros(ngroups,dtype=np.float32)
-  self.recharge1_surface = np.zeros(ngroups,dtype=np.float32)
-  self.celerity1_surface = np.zeros(ngroups,dtype=np.float32)
-  self.surface_velocity = np.zeros(ngroups,dtype=np.float32)
+  self.qin1_surface = np.zeros(ngroups,dtype=np.float64)
+  self.qsurf = np.zeros(ngroups,dtype=np.float64)
+  self.recharge_surface = np.zeros(ngroups,dtype=np.float64)
+  self.celerity_surface = np.zeros(ngroups,dtype=np.float64)
+  self.recharge1_surface = np.zeros(ngroups,dtype=np.float64)
+  self.celerity1_surface = np.zeros(ngroups,dtype=np.float64)
+  self.surface_velocity = np.zeros(ngroups,dtype=np.float64)
  
   #Current time step
-  self.q_subsurface = np.zeros(ngroups,dtype=np.float32)
-  self.r = np.zeros(ngroups,dtype=np.float32)
-  self.qout = np.zeros(ngroups,dtype=np.float32)
-  self.qin = np.zeros(ngroups,dtype=np.float32)
-  self.ex = np.zeros(ngroups,dtype=np.float32)
-  self.c = np.zeros(ngroups,dtype=np.float32)
+  self.q_subsurface = np.zeros(ngroups,dtype=np.float64)
+  self.r = np.zeros(ngroups,dtype=np.float64)
+  self.qout = np.zeros(ngroups,dtype=np.float64)
+  self.qin = np.zeros(ngroups,dtype=np.float64)
+  self.ex = np.zeros(ngroups,dtype=np.float64)
+  self.c = np.zeros(ngroups,dtype=np.float64)
 
   #Previous time step
-  self.c1 = np.zeros(ngroups,dtype=np.float32)
-  self.r1 = np.zeros(ngroups,dtype=np.float32)
-  self.qout1 = np.zeros(ngroups,dtype=np.float32)
+  self.c1 = np.zeros(ngroups,dtype=np.float64)
+  self.r1 = np.zeros(ngroups,dtype=np.float64)
+  self.qout1 = np.zeros(ngroups,dtype=np.float64)
   self.qout1[:] = -9999.0
-  self.qin1 = np.zeros(ngroups,dtype=np.float32)
+  self.qin1 = np.zeros(ngroups,dtype=np.float64)
 
   #Outlet information
-  self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float32)
-  self.qin_outlet_surface = np.zeros(nhru_outlet,dtype=np.float32)
-  self.area_outlet = np.zeros(nhru_outlet,dtype=np.float32)
+  self.qin_outlet = np.zeros(nhru_outlet,dtype=np.float64)
+  self.qin_outlet_surface = np.zeros(nhru_outlet,dtype=np.float64)
+  self.area_outlet = np.zeros(nhru_outlet,dtype=np.float64)
   self.nhru_outlet = nhru_outlet
 
   #weights
@@ -80,8 +80,8 @@ class Dynamic_Topmodel:
 
  def update(self,ncores):
   
-  maxntt = 1 #maximum number of sub timesteps
-  isw = np.float32(0.5) #implicit scheme weight
+  maxntt = np.int32(1) #maximum number of sub timesteps
+  isw = np.float64(0.5) #implicit scheme weight
 
   #Update the subsurface runoff
   self.update_subsurface_fortran(ncores,maxntt,isw)
@@ -227,7 +227,7 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
  dtt = dt/ntt
 
  #Initialize variables to average the sub time steps
- qout_ = np.zeros(storage.size,dtype=np.float32)
+ qout_ = np.zeros(storage.size,dtype=np.float64)
 
  #Define some constatns
  w = 0.5
