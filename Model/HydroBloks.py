@@ -14,6 +14,9 @@ def Finalize_Model(NOAH,TOPMODEL):
  #Deallocate the NOAH memory
  NOAH.finalize()
 
+ #Close the TOPMODEL solver
+ TOPMODEL.dtt.finalize()
+
  #Delete the objects
  del NOAH
  del TOPMODEL
@@ -202,6 +205,9 @@ def Initialize_DTopmodel(ncells,dt,info):
  model.flow_matrix.setdiag(model.flow_matrix.diagonal()) #Ensure the zeros are not sparse (for kinematic wave solution).
  model.flow_matrix_T = sparse.csr_matrix(model.flow_matrix.T) #transposed
  model.flow_matrix_T.setdiag(model.flow_matrix_T.diagonal()) #Ensure the zeros are not sparse  (for kinematic wave solution).
+
+ #Initialize the solver
+ model.dtt.initialize(model.flow_matrix_T.indices,model.flow_matrix_T.indptr)
 
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0

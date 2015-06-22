@@ -78,11 +78,14 @@ class Dynamic_Topmodel:
   self.storage_mask_subsurface = np.zeros(ngroups,dtype=np.int32)
   self.storage_mask_surface = np.zeros(ngroups,dtype=np.int32)
 
+  #Point to the solver
+  self.dtt = dtt
+
  def update(self,ncores):
   
   maxntt = np.int32(1) #maximum number of sub timesteps
   isw = np.float64(0.5) #implicit scheme weight
-
+  
   #Update the subsurface runoff
   self.update_subsurface_fortran(ncores,maxntt,isw)
 
@@ -161,7 +164,7 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
              self.qin_outlet_surface,self.area_outlet,ncores,maxntt)'''
-  dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+  self.dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.storage_mask_surface,
@@ -207,7 +210,7 @@ class Dynamic_Topmodel:
              self.area,self.dx,self.dt,self.c,self.c1,
              self.flow_matrix,
              self.qin_outlet,self.area_outlet,ncores)'''
-  dtt.update(self.r,si,self.qout,self.qin,
+  self.dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,self.storage_mask_subsurface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
