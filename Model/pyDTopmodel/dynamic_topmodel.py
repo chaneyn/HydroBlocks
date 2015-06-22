@@ -92,7 +92,7 @@ class Dynamic_Topmodel:
   #Check catchment water balance
   self.check_water_balance()
 
-  if self.itime % 100 == 0: print self.itime,self.water_balance_error_surface
+  if self.itime % 1 == 0: print self.itime,self.water_balance_error_surface
 
   return
 
@@ -119,7 +119,8 @@ class Dynamic_Topmodel:
   storage_estimated = np.sum(self.pct*storage_surface)
   ds = 1000.0*(storage_actual - storage_estimated)
   #Use this information to scale the storages to ensure water balance
-  self.storage_surface = self.storage_surface/storage_estimated*storage_actual
+  if storage_estimated > 0:
+   self.storage_surface = self.storage_surface/storage_estimated*storage_actual
   storage_estimated = np.sum(self.pct*self.storage_surface)
   ds = 1000.0*(storage_actual - storage_estimated)
 

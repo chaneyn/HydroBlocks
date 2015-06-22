@@ -3,6 +3,7 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
                   area,dx,dt,celerity,celerity1,storage_mask,wvalues,wcolumns,&
                   wrowindex,nthreads,maxntt,isw,nhsu,nvalues)
 
+ use omp_lib
  use mkl_dss
  implicit none
  integer*4 :: nhsu,nvalues
@@ -16,11 +17,11 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  real*8,intent(in),dimension(nvalues) :: wvalues
  integer*4,intent(in) :: nthreads,maxntt
  real*8,dimension(nhsu) :: scarea
- real*8 :: dt_minimum,dtt
+ real*8 :: dt_minimum,dtt,t0,t1
  integer*8 :: ntt,itime,error
  type(MKL_DSS_HANDLE) :: dss_handle ! Allocate storage for the solver handle.
  integer*4 :: opt,perm(nhsu)
-
+ t0 = omp_get_wtime()
  !Set the number of threads
  call mkl_set_num_threads(nthreads)
 
@@ -51,6 +52,10 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
  if (ntt .gt. maxntt) ntt = maxntt
  if (ntt .le. 0) ntt = 1
  dtt = dt/ntt
+
+ t1 = omp_get_wtime()
+ print*,'Initialization',t1 - t0
+ t0 = t1
           
  !Process the smaller time steps
  do itime = 1,ntt
@@ -62,8 +67,16 @@ subroutine update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,&
 
  enddo
 
+ t1 = omp_get_wtime()
+ print*,'Update',t1 - t0
+ t0 = t1
+
  ! Finalize the solver
  error = DSS_DELETE(dss_handle,opt)
+
+ t1 = omp_get_wtime()
+ print*,'Delete',t1 - t0
+ t0 = t1
 
 end subroutine update
 
