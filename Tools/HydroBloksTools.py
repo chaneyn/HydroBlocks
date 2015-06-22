@@ -69,6 +69,7 @@ def Deterministic(info):
 
   #Cluster the data
   Prepare_Model_Input_Data(hydrobloks_info)
+  exit()
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -497,7 +498,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'ndvi':'%s/workspace/ndvi.tif' % hydrobloks_info['dir'],
   'F11':'%s/workspace/F11.tif' % hydrobloks_info['dir'],
   'SATDK':'%s/workspace/SATDK.tif' % hydrobloks_info['dir'],
-  'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir']
+  'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir'],
+  'strahler':'%s/workspace/strahler.tif' % hydrobloks_info['dir']
   }
  wbd['files_meteorology'] = {
   'dlwrf':'%s/workspace/nldas/dlwrf/dlwrf.nc' % hydrobloks_info['dir'],
@@ -648,7 +650,7 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask == True],},
+ info = {#'area':{'data':covariates['carea'][mask == True],},
         #'slope':{'data':covariates['cslope'][mask == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
@@ -658,14 +660,15 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
         'dem':{'data':covariates['dem'][mask == True],},
+        'strahler':{'data':covariates['strahler'][mask == True],},
         #'lats':{'data':covariates['lats'][mask == True],},
         #'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  if var == 'test':#'area':
-   tmp = np.log(info[var]['data'])
+  if var in ['strahler',]:
+   tmp = info[var]['data']
    tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
    info[var]['data'] = tmp
   else:
@@ -736,7 +739,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
   msk = cluster_ids == cid
   areas.append(np.nanmean(covariates['carea'][msk]))
 
- return (cluster_ids,)
+ return (cluster_ids,nclusters)
 
 def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask):
 
@@ -993,7 +996,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print "Computing the HRUs"
  if hydrobloks_info['model_type'] == 'semi':
-  (cluster_ids,) = Compute_HRUs_Semidistributed(covariates,mask,nclusters)
+  (cluster_ids,nclusters) = Compute_HRUs_Semidistributed(covariates,mask,nclusters)
+  hydrobloks_info['nclusters'] = nclusters
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)
   hydrobloks_info['nclusters'] = nclusters
