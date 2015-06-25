@@ -23,15 +23,15 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 25
+ nclusters = 250
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
- idate = datetime.datetime(2000,1,1,0)
- #fdate = datetime.datetime(2000,1,1,23)
- fdate = datetime.datetime(2000,12,31,23)
+ idate = datetime.datetime(2004,1,1,0)
+ #fdate = datetime.datetime(2004,1,31,23)
+ fdate = datetime.datetime(2004,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -52,7 +52,8 @@ def Deterministic(info):
         'rank':rank,
         #'input':'%s/input/data.pck' % dir,
         'input':'%s/catch_%d/input_data.nc' % (dir,icatch),
-        'dt':3600.,
+        'dt':3600.,#seconds
+        'dx':30.,#meters
         'nsoil':20,
         'wbd':wbd[icatch],
         'ncores':ncores,
@@ -68,7 +69,7 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -508,6 +509,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'pres':'%s/workspace/nldas/pres/pres.nc' % hydrobloks_info['dir'],
   'wind':'%s/workspace/nldas/wind/wind.nc' % hydrobloks_info['dir'],
   'rh':'%s/workspace/nldas/rh/rh.nc' % hydrobloks_info['dir'],
+  'apcpsfc':'%s/workspace/stageiv/apcpsfc/apcpsfc.nc' % hydrobloks_info['dir'],
   }
 
  #Create the clusters and their connections
@@ -526,8 +528,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Write the HRU mapping
  #CONUS conus_albers metadata
- metadata = gdal_tools.retrieve_metadata(wbd['files']['ti']) 
- metadata['nodata'] = -10000.0
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
+ metadata['nodata'] = -9999.0
  #Save the conus_albers metadata
  grp = fp.createGroup('conus_albers_mapping')
  grp.createDimension('nx',metadata['nx'])
@@ -556,6 +558,15 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  maxlon = wbd['bbox']['maxlon']
  log = '%s/log.txt' % workspace
  os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+
+ #Write a map for the catchment id
+ file_icatch = '%s/icatch_latlon.tif' % workspace
+ metadata = gdal_tools.retrieve_metadata(file_ll)
+ metadata['nodata'] = -9999.0
+ tmp = gdal_tools.read_raster(file_ll)
+ tmp[tmp >= 0] = hydrobloks_info['icatch']
+ gdal_tools.write_raster(file_icatch,metadata,tmp)
+
  #Add the lat/lon mapping
  #Retrieve the lat/lon metadata
  metadata = gdal_tools.retrieve_metadata(file_ll)
@@ -1147,6 +1158,12 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   mask_fine = gdal_tools.read_raster(file_fine)
   nlat = mask_coarse.shape[0]
   nlon = mask_coarse.shape[1]
+  #import matplotlib.pyplot as plt
+  #print var
+  #mask_coarse[mask_coarse < 0] = np.nan
+  #plt.imshow(mask_fine,interpolation='nearest')
+  #plt.colorbar()
+  #plt.show()
 
   #Compute the mapping for each hsu
   for hsu in np.arange(hydrobloks_info['nclusters']):
@@ -1157,6 +1174,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    for icell in icells:
     ilat = int(np.floor(icell/mask_coarse.shape[1]))
     jlat = icell - ilat*mask_coarse.shape[1]
+    ilat = int(mask_coarse.shape[0] - ilat - 1) #CAREFUL
     pct = float(counts[icell])/float(np.sum(counts))
     coords.append([ilat,jlat])
     pcts.append(pct)

@@ -82,7 +82,7 @@ def Initialize_Model(ncells,dt,nsoil,info,wbd):
  #Initialize snow info
  model.isnow[:] = 0
  #Others
- model.dx = 30.0
+ model.dx = info['dx']
  model.ice[:] = 0
  model.foln[:] = 1.0
  model.ficeold[:] = 0.0
@@ -168,7 +168,7 @@ def Initialize_DTopmodel(ncells,dt,info):
 
  #Initialize Dynamic Topmodel
  model = dynamic_topmodel.Dynamic_Topmodel(ncells,nhru_outlet)
- dx = 30.0 #meters
+ dx = info['dx'] #meters
 
  #Set model parameters
  model.dt = dt #seconds
@@ -285,7 +285,7 @@ def run_model(info):
  dt_timedelta = datetime.timedelta(seconds=dt)
 
  #Open access to the input netcdf file
- info = {}
+ info = {'dt':info['dt'],'dx':info['dx']}
  info['input_fp'] = nc.Dataset(input_file)
 
  #Open access to the output netcdf file
@@ -412,11 +412,11 @@ def Update_Input(NOAH,TOPMODEL,date,info,i):
   q = 0.622*e/NOAH.psfc[:]
   NOAH.q_ml[:] = q #Kg/Kg
   NOAH.qsfc1d[:] = q #Kg/Kg
-  NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s ONLY NLDAS
-  #if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
-  # NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
-  #else:
-  # NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
+  #NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s ONLY NLDAS
+  if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
+   NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
+  else:
+   NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
 
   return (NOAH,TOPMODEL)
 
@@ -484,7 +484,7 @@ def Create_Netcdf_File(info):
              #'et':{'description':'Evapotranspiration','units':'mm/s'},
              'qexcess':{'description':'Excess runoff','units':'mm/s'},
              'qsurface':{'description':'Surface runoff','units':'mm/s'},
-             #'prcp':{'description':'Precipitation','units':'mm/s'},
+             'prcp':{'description':'Precipitation','units':'mm/s'},
              'smc1':{'description':'Soil water content','units':'m3/m3'},
              #'smc2':{'description':'Soil water content','units':'m3/m3'},
              #'smc3':{'description':'Soil water content','units':'m3/m3'},
@@ -524,7 +524,7 @@ def Create_Netcdf_File(info):
  grp.createVariable('area_outlet','i4',('hru_outlet',))
  for var in ['qin_subsurface_outlet','qin_surface_outlet']:
   ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
- dx = 30.0
+ dx = info['dx']
  grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
  grp.variables['hru_org'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_org'][:]
  grp.variables['hru_dst'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'][:]
@@ -585,6 +585,7 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
 
  #Update the variables (catchment)
  grp =info['output_fp'].groups['catchment']
+
  #NoahMP
  grp.variables['smc1'][itime,:] = np.copy(NOAH.smc[:,0]) #m3/m3
  grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
@@ -592,6 +593,8 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
  grp.variables['qexcess'][itime,:] = np.copy(NOAH.runsb) #m2/s
  grp.variables['qsurface'][itime,:] = np.copy(NOAH.runsf) #m2/s
+ grp.variables['prcp'][itime,:] = NOAH.dt*np.copy(NOAH.prcp) #mm
+
  #TOPMODEL
  grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
  grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s

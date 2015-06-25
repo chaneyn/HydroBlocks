@@ -1,7 +1,7 @@
 import os
-Parallel = False#True 
-njobs = 1#800#80000#5000#8000#800#400
-ncores = 32
+Parallel = True 
+njobs = 9#800#80000#5000#8000#800#400
+ncores = 4
 mpi_type = 'mpirun'#'ibrun'
 
 if Parallel == True:
@@ -11,7 +11,7 @@ if Parallel == True:
  if mpi_type == 'ibrun':
   os.system('ibrun python Driver.py parallel')
  if mpi_type == 'mpirun':
-  os.system('mpirun -n %d python Driver.py parallel' % njobs*ncores)
+  os.system('mpirun -n %d python Driver.py parallel' % (njobs,))
 
 elif Parallel == False:
 
