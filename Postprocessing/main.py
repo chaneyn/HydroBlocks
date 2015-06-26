@@ -4,26 +4,29 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-ncores = 5**2
+ncores = 1**2
 
 #Define the parameters
 startdate = datetime.datetime(2004,1,1,0)
-enddate = datetime.datetime(2004,12,31,23)
+#enddate = datetime.datetime(2004,12,31,23)
+enddate = datetime.datetime(2004,1,31,23)
 nt_in = 24*((enddate - startdate).days+1)
-dt = 24
-res = 3
-dir = '/home/freeze/nchaney/LittleWashitaRegion'
+dt = 1#24
+res = 1
+#dir = '/home/freeze/nchaney/LittleWashitaRegion'
+dir = '/home/freeze/nchaney/HydroBloks/Test'
 metadata = {'startdate':startdate,
             'enddate':enddate,
             'dt':dt, #hours
-            'ncatch':9,
+            'ncatch':1,#9,
             'nt_in':nt_in,
             'nt_out':nt_in/dt,
             'dir':dir,
             'res':res, #arcsec
             'vars':['smc1','prcp','lh'],
             'output_dir':'%s/%darsec' % (dir,res),
-            'dir':dir,}
+            'dir':dir,
+            'type':'full'}
              
 
 #Empty out the directory if it exists

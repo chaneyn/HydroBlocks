@@ -30,8 +30,9 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,1,31,23)
- fdate = datetime.datetime(2004,12,31,23)
+ #fdate = datetime.datetime(2004,1,2,23)
+ fdate = datetime.datetime(2004,4,1,23)
+ #fdate = datetime.datetime(2004,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -62,7 +63,7 @@ def Deterministic(info):
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',
+        'model_type':'full',#'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -1174,7 +1175,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    for icell in icells:
     ilat = int(np.floor(icell/mask_coarse.shape[1]))
     jlat = icell - ilat*mask_coarse.shape[1]
-    ilat = int(mask_coarse.shape[0] - ilat - 1) #CAREFUL
+    #ilat = int(mask_coarse.shape[0] - ilat - 1) #CAREFUL
     pct = float(counts[icell])/float(np.sum(counts))
     coords.append([ilat,jlat])
     pcts.append(pct)

@@ -157,6 +157,41 @@ def Create_Upscale_Mapping(info,rank,bbox):
  
  return
 
+def Map_Model_Output_Full(metadata,var,MPI,bbox_metadata):
+
+ ncatch = info['ncatch']
+ nt_in = info['nt_in']
+ startdate = info['startdate']
+ enddate = info['enddate']
+ dt = info['dt']
+ output_dir = info['output_dir']
+ dir = info['dir']
+ nt_out = info['nt_out']
+ rank = MPI.COMM_WORLD.Get_rank()
+
+ #Define the file
+ file = '%s/%s_%d_%d.nc' % (output_dir,var,startdate.year,enddate.year)
+
+ #Define the variables
+ vars = [var,]
+
+ #Create the netcdf file
+ fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
+
+ #Open access to all the catchments
+ for icatch in icatchs:#xrange(ncatch):
+  fp_in = nc.Dataset('%s/catch_%d/output_data.nc' % (dir,icatch)
+
+ #Iterate through time steps
+ '''hmll = fp_in.groups['conus_albers_mapping'].variables['hmca'][:]
+ hmll[hmll < 0] = np.nan
+ itime = 581
+ data = np.empty(hmll.shape)
+ data[:] = np.nan
+ data[np.isnan(hmll) == 0] = fp.groups['catchment'].variables[var][itime,:]'''
+
+ return
+
 def Map_Model_Output(info,var,MPI,bbox):
 
  ncatch = info['ncatch']

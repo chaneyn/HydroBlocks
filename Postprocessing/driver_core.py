@@ -62,18 +62,30 @@ size = comm.size
 
 #Read in the directory
 dir = sys.argv[1]
+print dir
+exit()
 
 #Read in the metadata
 metadata = pickle.load(open('%s/workspace/metadata.pck' % dir))
 
-#Determine the sites box
-bbox_metadata = Determine_Bounding_Box(metadata,MPI)
+if metadata['type'] == 'semi':
 
-#Create upscaling mapping
-upscaling_python.Create_Upscale_Mapping(metadata,rank,bbox_metadata)
+ #Determine the sites box
+ bbox_metadata = Determine_Bounding_Box(metadata,MPI)
 
-#Map the data
-vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
-for var in vars:
- print rank,var
- upscaling_python.Map_Model_Output(metadata,var,MPI,bbox_metadata)
+ #Create upscaling mapping
+ upscaling_python.Create_Upscale_Mapping(metadata,rank,bbox_metadata)
+
+ #Map the data
+ vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
+ for var in vars:
+  print rank,var
+  upscaling_python.Map_Model_Output(metadata,var,MPI,bbox_metadata)
+
+elif metadata['type'] == 'full':
+
+ #Map the data
+ vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
+ for var in vars:
+  print rank,var
+  upscaling_python.Map_Model_Output_Full(metadata,var,MPI,bbox_metadata) 

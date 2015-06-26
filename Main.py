@@ -1,5 +1,5 @@
 import os
-Parallel = True 
+Parallel = False#True 
 njobs = 9#800#80000#5000#8000#800#400
 ncores = 4
 mpi_type = 'mpirun'#'ibrun'
