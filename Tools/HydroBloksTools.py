@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 1000
+ nclusters = 250#1000
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -31,7 +31,7 @@ def Deterministic(info):
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,2,23)
- fdate = datetime.datetime(2004,4,1,23)
+ fdate = datetime.datetime(2004,2,1,23)
  #fdate = datetime.datetime(2004,12,31,23)
 
  #Iterate through all the catchments until done
@@ -63,14 +63,14 @@ def Deterministic(info):
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'semi',
+        'model_type':'full',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
   #Cluster the data
-  Prepare_Model_Input_Data(hydrobloks_info)
+  #Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -500,6 +500,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'F11':'%s/workspace/F11.tif' % hydrobloks_info['dir'],
   'SATDK':'%s/workspace/SATDK.tif' % hydrobloks_info['dir'],
   'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir'],
+  'demns':'%s/workspace/demns.tif' % hydrobloks_info['dir'],
   'strahler':'%s/workspace/strahler.tif' % hydrobloks_info['dir']
   }
  wbd['files_meteorology'] = {
@@ -665,15 +666,16 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
         #'slope':{'data':covariates['cslope'][mask == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
-        #'clay':{'data':covariates['clay'][mask_woc == True],},
-        #'sand':{'data':covariates['sand'][mask_woc == True],},
-        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        'clay':{'data':covariates['clay'][mask == True],},
+        'sand':{'data':covariates['sand'][mask == True],},
+        'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        #'ti':{'data':covariates['ti'][mask == True],},
+        'ti':{'data':covariates['ti'][mask == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
+        #'demns':{'data':covariates['dem'][mask == True],},
         #'strahler':{'data':covariates['strahler'][mask == True],},
-        'lats':{'data':covariates['lats'][mask == True],},
-        'lons':{'data':covariates['lons'][mask == True],},
+        #'lats':{'data':covariates['lats'][mask == True],},
+        #'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles
@@ -1107,7 +1109,7 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    if value < 0:continue
    idx_fine = mask_fine == value
    idx_coarse = np.where(mask_coarse == value)
-   coords['i'][idx_fine] = idx_coarse[0]
+   coords['i'][idx_fine] = nlat - idx_coarse[0] - 1 #Careful
    coords['j'][idx_fine] = idx_coarse[1]
   coords['i'] = coords['i'][mask]
   coords['j'] = coords['j'][mask]
