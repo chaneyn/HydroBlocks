@@ -23,7 +23,7 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 250
+ nclusters = 1000
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
@@ -63,7 +63,7 @@ def Deterministic(info):
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',#'semi',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -661,17 +661,17 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask == True],},
-        'slope':{'data':covariates['cslope'][mask == True],},
-        'sms':{'data':covariates['MAXSMC'][mask == True],},
+ info = {#'area':{'data':covariates['carea'][mask == True],},
+        #'slope':{'data':covariates['cslope'][mask == True],},
+        #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
         #'clay':{'data':covariates['clay'][mask_woc == True],},
         #'sand':{'data':covariates['sand'][mask_woc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        #'ndvi':{'data':covariates['ndvi'][mask ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask == True],},
-        'dem':{'data':covariates['dem'][mask == True],},
-        'strahler':{'data':covariates['strahler'][mask == True],},
+        #'dem':{'data':covariates['dem'][mask == True],},
+        #'strahler':{'data':covariates['strahler'][mask == True],},
         'lats':{'data':covariates['lats'][mask == True],},
         'lons':{'data':covariates['lons'][mask == True],},
         }

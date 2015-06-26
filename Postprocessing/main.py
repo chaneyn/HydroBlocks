@@ -4,7 +4,7 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-ncores = 2**2
+ncores = 5**2
 
 #Define the parameters
 startdate = datetime.datetime(2004,1,1,0)
