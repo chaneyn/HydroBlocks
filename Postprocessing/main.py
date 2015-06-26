@@ -4,7 +4,7 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-ncores = 1**2
+ncores = 2**2
 
 #Define the parameters
 startdate = datetime.datetime(2004,1,1,0)
@@ -26,7 +26,7 @@ metadata = {'startdate':startdate,
             'vars':['smc1','prcp','lh'],
             'output_dir':'%s/%darsec' % (dir,res),
             'dir':dir,
-            'type':'full'}
+            'type':'catchment'}
              
 
 #Empty out the directory if it exists

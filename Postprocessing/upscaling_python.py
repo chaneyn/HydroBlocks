@@ -157,7 +157,7 @@ def Create_Upscale_Mapping(info,rank,bbox):
  
  return
 
-def Map_Model_Output_Full(metadata,var,MPI,bbox_metadata):
+def Map_Model_Output_Full(info,var,MPI):
 
  ncatch = info['ncatch']
  nt_in = info['nt_in']
@@ -168,6 +168,7 @@ def Map_Model_Output_Full(metadata,var,MPI,bbox_metadata):
  dir = info['dir']
  nt_out = info['nt_out']
  rank = MPI.COMM_WORLD.Get_rank()
+ size = MPI.COMM_WORLD.Get_size()
 
  #Define the file
  file = '%s/%s_%d_%d.nc' % (output_dir,var,startdate.year,enddate.year)
@@ -179,16 +180,26 @@ def Map_Model_Output_Full(metadata,var,MPI,bbox_metadata):
  fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
 
  #Open access to all the catchments
- for icatch in icatchs:#xrange(ncatch):
-  fp_in = nc.Dataset('%s/catch_%d/output_data.nc' % (dir,icatch)
+ fp_in = nc.Dataset('%s/catch_%d/output_data.nc' % (dir,0))
+
+ #Read in the mapping
+ hmll = fp_in.groups['latlon_mapping'].variables['hmll'][:].astype(np.int32)
+ tmp = np.zeros(hmll.shape)
+ mask = hmll >= 0
+ hmll = hmll[mask]
 
  #Iterate through time steps
- '''hmll = fp_in.groups['conus_albers_mapping'].variables['hmca'][:]
- hmll[hmll < 0] = np.nan
- itime = 581
- data = np.empty(hmll.shape)
- data[:] = np.nan
- data[np.isnan(hmll) == 0] = fp.groups['catchment'].variables[var][itime,:]'''
+ tmp[:] = -9999.0
+ for itime in np.arange(info['nt_out'])[rank::size]:
+  print rank,itime
+  #Compute the map
+  data = fp_in.groups['catchment'].variables[var][itime,:]
+  tmp[mask] = data[hmll]
+  #Write the data
+  fp[var][itime,:,:] = np.flipud(tmp[:])
+
+ #Close the file
+ fp.close()
 
  return
 
