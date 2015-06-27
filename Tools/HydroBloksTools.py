@@ -673,9 +673,9 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
         'ti':{'data':covariates['ti'][mask == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
-        #'strahler':{'data':covariates['strahler'][mask == True],},
-        #'lats':{'data':covariates['lats'][mask == True],},
-        #'lons':{'data':covariates['lons'][mask == True],},
+        'strahler':{'data':covariates['strahler'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles

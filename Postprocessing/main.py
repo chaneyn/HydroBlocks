@@ -23,7 +23,7 @@ metadata = {'startdate':startdate,
             'nt_out':nt_in/dt,
             'dir':dir,
             'res':res, #arcsec
-            'vars':['smc1','prcp','lh'],
+            'vars':['smc1','prcp','lh','qout_surface'],
             'output_dir':'%s/%darsec' % (dir,res),
             'dir':dir,
             'type':'catchment'}
