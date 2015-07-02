@@ -83,14 +83,19 @@ class Dynamic_Topmodel:
 
  def update(self,ncores):
   
-  maxntt = np.int32(10) #maximum number of sub timesteps
+  maxntt = np.int32(1) #maximum number of sub timesteps
   isw = np.float64(0.5) #implicit scheme weight
   
   #Update the subsurface runoff
   self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  self.update_surface_fortran(ncores,maxntt,isw)
+  ntt = 1
+  dt_old = self.dt
+  self.dt = self.dt/ntt
+  for itt in xrange(ntt):
+   self.update_surface_fortran(ncores,maxntt,isw)
+  self.dt = dt_old
 
   #Check catchment water balance
   self.check_water_balance()
@@ -114,18 +119,19 @@ class Dynamic_Topmodel:
   ds = np.sum(self.pct*(sactual-sestimated))'''
 
   #Surface runoff (outlet) [-qout_surface(t) + storage(t-1) + recharge(t)]
-  qout_surface = self.dt*self.qout_surface[-1]/scarea
+  idx = np.where(self.carea == np.max(self.carea))[0][0]
+  qout_surface = self.dt*self.qout_surface/scarea
   recharge_surface = self.dt*np.sum(self.pct*self.recharge_surface)
   storage_surface = np.sum(self.pct*self.storage_surface)
   storage1_surface = np.sum(self.pct*self.storage1_surface)
-  storage_actual = storage1_surface - qout_surface + recharge_surface
+  storage_actual = storage1_surface - qout_surface[idx] + recharge_surface
   storage_estimated = np.sum(self.pct*storage_surface)
   ds = 1000.0*(storage_actual - storage_estimated)
   #Use this information to scale the storages to ensure water balance
-  if storage_estimated > 0:
+  '''if storage_estimated > 0:
    self.storage_surface = self.storage_surface/storage_estimated*storage_actual
   storage_estimated = np.sum(self.pct*self.storage_surface)
-  ds = 1000.0*(storage_actual - storage_estimated)
+  ds = 1000.0*(storage_actual - storage_estimated)'''
 
   #Store the water balance error information
   self.water_balance_error_surface += ds
