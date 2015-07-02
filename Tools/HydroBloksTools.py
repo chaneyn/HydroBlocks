@@ -31,12 +31,13 @@ def Deterministic(info):
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,2,23)
- fdate = datetime.datetime(2004,2,1,23)
- #fdate = datetime.datetime(2004,12,31,23)
+ #fdate = datetime.datetime(2004,2,1,23)
+ fdate = datetime.datetime(2005,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
 
+  if icatch != 165:continue
   print icatch
   dir = info['dir']
   #Define the parameters
@@ -63,7 +64,7 @@ def Deterministic(info):
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters':nclusters,
-        'model_type':'full',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
@@ -500,7 +501,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'F11':'%s/workspace/F11.tif' % hydrobloks_info['dir'],
   'SATDK':'%s/workspace/SATDK.tif' % hydrobloks_info['dir'],
   'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir'],
-  'demns':'%s/workspace/demns.tif' % hydrobloks_info['dir'],
+  #'demns':'%s/workspace/demns.tif' % hydrobloks_info['dir'],
   'strahler':'%s/workspace/strahler.tif' % hydrobloks_info['dir']
   }
  wbd['files_meteorology'] = {
@@ -673,9 +674,9 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
         'ti':{'data':covariates['ti'][mask == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
-        #'strahler':{'data':covariates['strahler'][mask == True],},
-        #'lats':{'data':covariates['lats'][mask == True],},
-        #'lons':{'data':covariates['lons'][mask == True],},
+        'strahler':{'data':covariates['strahler'][mask == True],},
+        'lats':{'data':covariates['lats'][mask == True],},
+        'lons':{'data':covariates['lons'][mask == True],},
         }
 
  #Scale all the variables (Calculate the percentiles

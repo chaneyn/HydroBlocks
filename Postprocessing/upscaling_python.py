@@ -6,6 +6,7 @@ import os
 import gdal_tools
 import cPickle as pickle
 import datetime
+import time
 import upscaling_fortran
 
 def Initialize_Output_Files(info):
@@ -15,20 +16,30 @@ def Initialize_Output_Files(info):
  nt_out = info['nt_out']
  dt = info['dt']
  vars = info['vars']
+ nstripes = info['nstripes']
+ ncores = info['ncores']
 
  for var in vars:
 
   #Define the dimensions
   metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
+  nlon_chunk = int(metadata['nx']/ncores**0.5)
+  nlat_chunk = int(metadata['ny']/ncores**0.5)
   dims = {'nlat':metadata['ny'],
          'nlon':metadata['nx'],
          'res':metadata['resx'],
          'minlon':metadata['minx'] + metadata['resx']/2,
          'minlat':metadata['miny'] + metadata['resy']/2,
-         'undef':-9999.0}
+         'undef':-9999.0,
+         'chunksize':(1,nlat_chunk,nlon_chunk)}
+
+  #Define the directory
+  vardir = '%s/%s' % (info['output_dir'],var)
+  os.system('mkdir -p %s' % vardir)
+  os.system('lfs setstripe -c %d %s' % (nstripes,vardir))
 
   #Define the file
-  file = '%s/%s_%d_%d.nc' % (info['output_dir'],var,startdate.year,enddate.year)
+  file = '%s/%s_%d_%d.nc' % (vardir,var,startdate.year,enddate.year)
 
   #Define the variables
   vars = [var,]
@@ -108,12 +119,12 @@ def Create_Upscale_Mapping(info,rank,bbox):
  #Iterate through all upscaled cells and find their mappings
  lats_upscale = list(lats_upscale)
  lons_upscale = list(lons_upscale)
- "Determining the mapping"
+ print rank,"Determining the mapping"
  Output = {}
  icell = 0
  for lat in lats_upscale:
   ilat = lats_upscale.index(lat)
-  print "cell %d" % icell
+  #print "cell %d" % icell
   mask_lats = np.where((lats_finescale >= lats_upscale[ilat]-res_upscale/2) & 
                       (lats_finescale < lats_upscale[ilat]+res_upscale/2))[0]
   #for ilon in ilons_upscale[0:-1]:
@@ -139,7 +150,7 @@ def Create_Upscale_Mapping(info,rank,bbox):
     for icatch in np.unique(icatchs).astype(np.int):
      mask_icatch = icatchs == icatch
      info[icatch] = {'hru':[],'pct':[]}
-     for hru in np.unique(hrus).astype(np.int):
+     for hru in np.unique(hrus[mask_icatch]).astype(np.int):
        mask_hru = hrus[mask_icatch] == hru
        pct = float(np.sum(mask_hru))/float(ncells)
        info[icatch]['hru'].append(hru)
@@ -152,7 +163,7 @@ def Create_Upscale_Mapping(info,rank,bbox):
    icell += 1
 
  #Output the mapping
- print "Writing out the mapping info"
+ print rank,"Writing out the mapping info"
  pickle.dump(Output,open('%s/workspace/mapping_%d.pck' % (output_dir,rank),'wb'),pickle.HIGHEST_PROTOCOL)
  
  return
@@ -216,7 +227,8 @@ def Map_Model_Output(info,var,MPI,bbox):
  rank = MPI.COMM_WORLD.Get_rank()
 
  #Define the file
- file = '%s/%s_%d_%d.nc' % (output_dir,var,startdate.year,enddate.year)
+ vardir = '%s/%s' % (info['output_dir'],var)
+ file = '%s/%s_%d_%d.nc' % (vardir,var,startdate.year,enddate.year)
 
  #Define the variables
  vars = [var,]
@@ -255,8 +267,9 @@ def Map_Model_Output(info,var,MPI,bbox):
  output = np.zeros((nt_out,nlat,nlon))
 
  #Iterate through all the cachments
+ print rank,"Reading and preparing the output"
  for icatch in icatchs:#xrange(ncatch):
-  print 'catchment: %d' % icatch
+  #print 'catchment: %d' % icatch
   data_catchment = fps[icatch].groups['catchment'].variables[var][:,:]
 
   #Iterate through all the cell ids
@@ -282,7 +295,15 @@ def Map_Model_Output(info,var,MPI,bbox):
  
  #Write the data
  #fp[var][:,ilats_upscale[0]:ilats_upscale[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = np.fliplr(output[:])
- fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = np.fliplr(output[:])
+ print rank,"Writing the data"
+ dset = fp[var]
+ output = np.fliplr(output[:])
+ t0 = time.time()
+ #for itime in xrange(output.shape[0]):
+ # print rank,itime
+ # dset[itime,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[itime,:,:]
+ dset[:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[:]
+ print rank,"Done writing in %f" % (time.time() - t0)
 
  #Close the file
  fp.close()
