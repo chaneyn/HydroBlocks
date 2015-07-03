@@ -1,6 +1,6 @@
 import os
 Parallel = True 
-njobs = 1#256#800#80000#5000#8000#800#400
+njobs = 256#800#80000#5000#8000#800#400
 ncores = 2
 mpi_type = 'ibrun'
 python = '/home1/02179/chaneyna/libraries/python/lib/python2.7/site-packages/mpi4py/bin/python-mpi'

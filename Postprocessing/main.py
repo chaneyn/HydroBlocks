@@ -9,10 +9,10 @@ ncores = 16**2
 #Define the parameters
 mpi_type = 'ibrun'
 startdate = datetime.datetime(2004,1,1,0)
-#enddate = datetime.datetime(2004,12,31,23)
-enddate = datetime.datetime(2004,1,31,23)
+enddate = datetime.datetime(2004,12,31,23)
+#enddate = datetime.datetime(2004,1,31,23)
 nt_in = 24*((enddate - startdate).days+1)
-dt = 3#24
+dt = 24
 res = 30
 #dir = '/home/freeze/nchaney/LittleWashitaRegion'
 #dir = '/home/freeze/nchaney/HydroBloks/Test'

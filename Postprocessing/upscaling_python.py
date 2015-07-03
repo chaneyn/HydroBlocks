@@ -23,15 +23,16 @@ def Initialize_Output_Files(info):
 
   #Define the dimensions
   metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
-  nlon_chunk = int(metadata['nx']/ncores**0.5)
-  nlat_chunk = int(metadata['ny']/ncores**0.5)
+  nlon_chunk = int(metadata['nx']/ncores**0.5)/2
+  nlat_chunk = int(metadata['ny']/ncores**0.5)/2
+  ntime_chunk = 200
   dims = {'nlat':metadata['ny'],
          'nlon':metadata['nx'],
          'res':metadata['resx'],
          'minlon':metadata['minx'] + metadata['resx']/2,
          'minlat':metadata['miny'] + metadata['resy']/2,
          'undef':-9999.0,
-         'chunksize':(1,nlat_chunk,nlon_chunk)}
+         'chunksize':(200,nlat_chunk,nlon_chunk)}
 
   #Define the directory
   vardir = '%s/%s' % (info['output_dir'],var)
