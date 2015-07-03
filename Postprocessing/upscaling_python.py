@@ -22,6 +22,7 @@ def Initialize_Output_Files(info):
  date = startdate
  dt = 1
  nt_out = 24
+ nt = 24*((enddate - startdate).days + 1)
  
  #Define the dimensions
  metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
@@ -57,6 +58,12 @@ def Initialize_Output_Files(info):
 
   #Update the time step
   date = date + datetime.timedelta(hours=nt_out)
+
+ #Create the control file
+ tstep = '1hr'
+ file_template = '^%s.nc' % ('%y4%m2%d2',)
+ ctl_file = '%s/hydrobloks_output.ctl' % output_dir
+ netcdf_tools.Update_Control_File('nc',startdate,dims,nt,tstep,file_template,ctl_file)
 
  return
 
@@ -309,15 +316,23 @@ def Map_Model_Output(info,vars,MPI,bbox):
  for var in vars:
   output[var][:,mask == 0] = -9999.0
  
- dates = []
- #Create the dates array
+ #Create the dates array (hourly)
+ dates_hourly = []
  date = datetime.datetime(startdate.year,startdate.month,startdate.day,0,0,0)
  fdate = datetime.datetime(enddate.year,enddate.month,enddate.day,0,0,0)
  timedelta = datetime.timedelta(hours=1)
  while date <= fdate:
-  dates.append(date)
+  dates_hourly.append(date)
   date = date + timedelta
- dates = np.array(dates)
+ dates_hourly = np.array(dates_hourly)
+ #Create the dates array (daily)
+ dates_daily = []
+ timedelta = datetime.timedelta(hours=24)
+ date = startdate
+ while date <= enddate:
+  dates_daily.append(date)
+  date = date + timedelta
+ dates_daily = np.array(dates_daily)
  #Write the data
  #fp[var][:,ilats_upscale[0]:ilats_upscale[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = np.fliplr(output[:])
  for var in output:
@@ -325,12 +340,11 @@ def Map_Model_Output(info,vars,MPI,bbox):
  print rank,"Writing the data"
  #Define the file
  #vardir = '%s/%s' % (info['output_dir'],var)
- timedelta = datetime.timedelta(hours=24)
- date = startdate
- while date <= enddate:
+ np.random.shuffle(dates_daily)
+ for date in dates_daily:
   print rank,date
   file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
-  mask = (dates >= date) & (dates < date + timedelta)
+  mask = (dates_hourly >= date) & (dates_hourly < date + timedelta)
   #Open the netcdf file
   #fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
   #fp.atomic = True
@@ -340,8 +354,6 @@ def Map_Model_Output(info,vars,MPI,bbox):
    fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[var][mask,:,:]
   #Close the file
   fp.close()
-  #Update the time step
-  date = date + timedelta
 
  return
 
