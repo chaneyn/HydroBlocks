@@ -18,36 +18,45 @@ def Initialize_Output_Files(info):
  vars = info['vars']
  nstripes = info['nstripes']
  ncores = info['ncores']
-
- for var in vars:
-
-  #Define the dimensions
-  metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
-  nlon_chunk = int(metadata['nx']/ncores**0.5)/2
-  nlat_chunk = int(metadata['ny']/ncores**0.5)/2
-  ntime_chunk = 200
-  dims = {'nlat':metadata['ny'],
+ output_dir = info['output_dir']
+ date = startdate
+ dt = 1
+ nt_out = 24
+ 
+ #Define the dimensions
+ metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
+ nlon_chunk = int(metadata['nx']/ncores**0.5)/2
+ nlat_chunk = int(metadata['ny']/ncores**0.5)/2
+ ntime_chunk = nt_out
+ dims = {'nlat':metadata['ny'],
          'nlon':metadata['nx'],
          'res':metadata['resx'],
          'minlon':metadata['minx'] + metadata['resx']/2,
          'minlat':metadata['miny'] + metadata['resy']/2,
          'undef':-9999.0,
-         'chunksize':(200,nlat_chunk,nlon_chunk)}
+         'chunksize':(nt_out,nlat_chunk,nlon_chunk)}
 
-  #Define the directory
-  vardir = '%s/%s' % (info['output_dir'],var)
-  os.system('mkdir -p %s' % vardir)
-  os.system('lfs setstripe -c %d %s' % (nstripes,vardir))
+ #Define the directory
+ #vardir = '%s/%s' % (info['output_dir'],var)
+ #os.system('mkdir -p %s' % vardir)
+ #os.system('lfs setstripe -c %d %s' % (nstripes,vardir))
 
+ while date <= enddate:
+
+  print "Creating the file for ",date
   #Define the file
-  file = '%s/%s_%d_%d.nc' % (vardir,var,startdate.year,enddate.year)
-
-  #Define the variables
-  vars = [var,]
+  file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
 
   #Create the netcdf file
   fp = netcdf_tools.Create_NETCDF_File(dims,file,vars,vars,startdate,'%dhour' % dt,nt_out)
+
+  #fill in the data
+  for var in vars:
+   fp.variables[var][:] = 0.1
   fp.close()
+
+  #Update the time step
+  date = date + datetime.timedelta(hours=nt_out)
 
  return
 
@@ -215,7 +224,7 @@ def Map_Model_Output_Full(info,var,MPI):
 
  return
 
-def Map_Model_Output(info,var,MPI,bbox):
+def Map_Model_Output(info,vars,MPI,bbox):
 
  ncatch = info['ncatch']
  nt_in = info['nt_in']
@@ -228,14 +237,14 @@ def Map_Model_Output(info,var,MPI,bbox):
  rank = MPI.COMM_WORLD.Get_rank()
 
  #Define the file
- vardir = '%s/%s' % (info['output_dir'],var)
- file = '%s/%s_%d_%d.nc' % (vardir,var,startdate.year,enddate.year)
+ #vardir = '%s/%s' % (info['output_dir'],var)
+ #file = '%s/%s_%d_%d.nc' % (vardir,var,startdate.year,enddate.year)
 
  #Define the variables
- vars = [var,]
+ #vars = [var,]
 
  #Create the netcdf file
- fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
+ #fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
  #fp.atomic = True
 
  #Read in the mapping info
@@ -265,13 +274,17 @@ def Map_Model_Output(info,var,MPI,bbox):
   fps[icatch] = nc.Dataset('%s/catch_%d/output_data.nc' % (dir,icatch))
 
  #Initialize the output
- output = np.zeros((nt_out,nlat,nlon))
+ output = {}
+ for var in vars:
+  output[var] = np.zeros((nt_out,nlat,nlon))
 
  #Iterate through all the cachments
  print rank,"Reading and preparing the output"
  for icatch in icatchs:#xrange(ncatch):
   #print 'catchment: %d' % icatch
-  data_catchment = fps[icatch].groups['catchment'].variables[var][:,:]
+  data_catchment = {}
+  for var in vars:
+   data_catchment[var] = fps[icatch].groups['catchment'].variables[var][:,:]
 
   #Iterate through all the cell ids
   #cid = 0
@@ -282,9 +295,10 @@ def Map_Model_Output(info,var,MPI,bbox):
    if icatch in info:
     hrus = info[icatch]['hru']
     pcts = info[icatch]['pct']
-    data = np.sum(pcts*data_catchment[0:nt_in,hrus],axis=1)
-    #Save the output
-    output[:,ilat,ilon] += upscaling_fortran.time_average(data,nt_out)
+    for var in vars:
+     data = np.sum(pcts*data_catchment[var][0:nt_in,hrus],axis=1)
+     #Save the output
+     output[var][:,ilat,ilon] += upscaling_fortran.time_average(data,nt_out)
     #Add to the mask
     mask[ilat,ilon] += 1
 
@@ -292,22 +306,42 @@ def Map_Model_Output(info,var,MPI,bbox):
     cid += 1
 
  #Clear up the undefined
- output[:,mask == 0] = -9999.0
+ for var in vars:
+  output[var][:,mask == 0] = -9999.0
  
+ dates = []
+ #Create the dates array
+ date = datetime.datetime(startdate.year,startdate.month,startdate.day,0,0,0)
+ fdate = datetime.datetime(enddate.year,enddate.month,enddate.day,0,0,0)
+ timedelta = datetime.timedelta(hours=1)
+ while date <= fdate:
+  dates.append(date)
+  date = date + timedelta
+ dates = np.array(dates)
  #Write the data
  #fp[var][:,ilats_upscale[0]:ilats_upscale[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = np.fliplr(output[:])
+ for var in output:
+  output[var] = np.fliplr(output[var][:])
  print rank,"Writing the data"
- dset = fp[var]
- output = np.fliplr(output[:])
- t0 = time.time()
- #for itime in xrange(output.shape[0]):
- # print rank,itime
- # dset[itime,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[itime,:,:]
- dset[:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[:]
- print rank,"Done writing in %f" % (time.time() - t0)
-
- #Close the file
- fp.close()
+ #Define the file
+ #vardir = '%s/%s' % (info['output_dir'],var)
+ timedelta = datetime.timedelta(hours=24)
+ date = startdate
+ while date <= enddate:
+  print rank,date
+  file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
+  mask = (dates >= date) & (dates < date + timedelta)
+  #Open the netcdf file
+  #fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
+  #fp.atomic = True
+  fp = h5py.File(file,'a')
+  for var in vars:
+   #dset = fp[var]
+   fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[var][mask,:,:]
+  #Close the file
+  fp.close()
+  #Update the time step
+  date = date + timedelta
 
  return
 

@@ -75,10 +75,10 @@ if metadata['type'] == 'regional':
  upscaling_python.Create_Upscale_Mapping(metadata,rank,bbox_metadata)
 
  #Map the data
- vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
- for var in vars:
-  print rank,var
-  upscaling_python.Map_Model_Output(metadata,var,MPI,bbox_metadata)
+ #vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
+ vars = ['smc1','lh']
+ #for var in vars:
+ upscaling_python.Map_Model_Output(metadata,vars,MPI,bbox_metadata)
 
 elif metadata['type'] == 'catchment':
 

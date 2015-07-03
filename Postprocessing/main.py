@@ -4,15 +4,15 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-ncores = 16**2
+ncores = 5**2
 
 #Define the parameters
 mpi_type = 'ibrun'
 startdate = datetime.datetime(2004,1,1,0)
-enddate = datetime.datetime(2004,12,31,23)
-#enddate = datetime.datetime(2004,1,31,23)
+#enddate = datetime.datetime(2004,12,31,23)
+enddate = datetime.datetime(2004,1,31,23)
 nt_in = 24*((enddate - startdate).days+1)
-dt = 24
+dt = 1
 res = 30
 #dir = '/home/freeze/nchaney/LittleWashitaRegion'
 #dir = '/home/freeze/nchaney/HydroBloks/Test'
@@ -35,17 +35,17 @@ metadata = {'startdate':startdate,
              
 
 #Empty out the directory if it exists
-os.system('rm -rf %s' % metadata['output_dir'])
-os.system('mkdir -p %s/workspace' % metadata['output_dir'])
+'''os.system('rm -rf %s' % metadata['output_dir'])
+os.system('mkdir -p %s/workspace' % metadata['output_dir'])'''
 
 #Save the metadata
 pickle.dump(metadata,open('%s/workspace/metadata.pck' % metadata['output_dir'],'w'))
-
+'''
 #Create the virtual rasters
 upscaling_python.Create_Virtual_Rasters(metadata)
 
 #Create the main files
-upscaling_python.Create_Upscale_Template(metadata)
+upscaling_python.Create_Upscale_Template(metadata)'''
 
 #Initialize the output files
 upscaling_python.Initialize_Output_Files(metadata)
