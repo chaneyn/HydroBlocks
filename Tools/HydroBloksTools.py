@@ -31,8 +31,8 @@ def Deterministic(info):
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,2,23)
- #fdate = datetime.datetime(2004,2,1,23)
- fdate = datetime.datetime(2004,12,31,23)
+ fdate = datetime.datetime(2004,1,31,23)
+ #fdate = datetime.datetime(2005,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -1199,10 +1199,12 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   date = idate
   file = wbd['files_meteorology'][data_var]
   fp = nc.Dataset(file)
+  #fp = h5py.File(file)
   #Determine the time steps to retrieve
   dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
+  #dates = nc.num2date(fp['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
   mask_dates = (dates >= idate) & (dates <= fdate)
-  data = np.ma.getdata(fp.variables[var][mask_dates])
+  data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
   fp.close()
   #Assing to hsus
   for hsu in mapping_info[var]:

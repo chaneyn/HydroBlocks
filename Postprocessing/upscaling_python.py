@@ -1,5 +1,6 @@
 import netCDF4 as nc
 import h5py
+#import h5pyswmr as h5py
 import netcdf_tools
 import numpy as np
 import os
@@ -9,7 +10,7 @@ import datetime
 import time
 import upscaling_fortran
 
-def Initialize_Output_Files(info):
+def Initialize_Output_Files(info,rank,size):
 
  startdate = info['startdate']
  enddate = info['enddate']
@@ -23,6 +24,14 @@ def Initialize_Output_Files(info):
  dt = 1
  nt_out = 24
  nt = 24*((enddate - startdate).days + 1)
+
+ #Create dates array
+ dates = []
+ date = startdate
+ while date <= enddate:
+  dates.append(date)
+  date = date + datetime.timedelta(hours=24)
+ dates = np.array(dates)
  
  #Define the dimensions
  metadata = gdal_tools.retrieve_metadata('%s/workspace/mapping.tif' % info['output_dir'])
@@ -42,7 +51,7 @@ def Initialize_Output_Files(info):
  #os.system('mkdir -p %s' % vardir)
  #os.system('lfs setstripe -c %d %s' % (nstripes,vardir))
 
- while date <= enddate:
+ for date in dates[rank::size]:
 
   print "Creating the file for ",date
   #Define the file
@@ -53,7 +62,7 @@ def Initialize_Output_Files(info):
 
   #fill in the data
   for var in vars:
-   fp.variables[var][:] = 0.1
+   fp.variables[var][:] = 0.0
   fp.close()
 
   #Update the time step
@@ -346,12 +355,18 @@ def Map_Model_Output(info,vars,MPI,bbox):
   file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
   mask = (dates_hourly >= date) & (dates_hourly < date + timedelta)
   #Open the netcdf file
-  #fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
+  fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
   #fp.atomic = True
-  fp = h5py.File(file,'a')
+  #fp = h5py.File(file,'a')
+  #fp.swmr_mode = True
+  ilats = ilats_upscale_flipped#np.arange(ilats_upscale_flipped[0],ilats_upscale_flipped[-1]+1)
+  ilons = ilons_upscale#np.arange(ilons_upscale[0],ilons_upscale[-1]+1)
   for var in vars:
-   #dset = fp[var]
-   fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[var][mask,:,:]
+   dset = fp[var]
+   #fp[var].id.refresh()
+   #fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[var][mask,:,:]
+   dset[:,ilats[0]:ilats[-1]+1,ilons[0]:ilons[-1]+1] = output[var][mask,:,:]
+   #fp.flush()
   #Close the file
   fp.close()
 

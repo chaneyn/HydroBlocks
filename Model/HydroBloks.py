@@ -482,7 +482,7 @@ def Create_Netcdf_File(info):
              #'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
              #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
              #'et':{'description':'Evapotranspiration','units':'mm/s'},
-             'qexcess':{'description':'Excess runoff','units':'mm/s'},
+             'qbase':{'description':'Excess runoff','units':'mm/s'},
              'qsurface':{'description':'Surface runoff','units':'mm/s'},
              'prcp':{'description':'Precipitation','units':'mm/s'},
              'smc1':{'description':'Soil water content','units':'m3/m3'},
@@ -591,8 +591,8 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
  grp.variables['sh'][itime,:] = np.copy(NOAH.fsh) #W/m2
  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
- grp.variables['qexcess'][itime,:] = np.copy(NOAH.runsb) #m2/s
- grp.variables['qsurface'][itime,:] = np.copy(NOAH.runsf) #m2/s
+ grp.variables['qbase'][itime,:] = NOAH.dt*np.copy(NOAH.runsb) #mm
+ grp.variables['qsurface'][itime,:] = NOAH.dt*np.copy(NOAH.runsf) #mm
  grp.variables['prcp'][itime,:] = NOAH.dt*np.copy(NOAH.prcp) #mm
 
  #TOPMODEL
@@ -624,7 +624,7 @@ def update_output(output,NOAH,TOPMODEL,date,output_type):
              'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
              'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
              'et':{'description':'Evapotranspiration','units':'mm/s'},
-             'qexcess':{'description':'Excess runoff','units':'mm/s'},
+             'qbase':{'description':'Baseflow','units':'mm/s'},
              'qsurface':{'description':'Surface runoff','units':'mm/s'},
              'prcp':{'description':'Precipitation','units':'mm/s'},
 	     'smc1':{'description':'Soil water content','units':'m3/m3'},

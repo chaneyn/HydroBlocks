@@ -62,11 +62,12 @@ size = comm.size
 
 #Read in the directory
 dir = sys.argv[1]
+function = sys.argv[2]
 
 #Read in the metadata
 metadata = pickle.load(open('%s/workspace/metadata.pck' % dir))
 
-if metadata['type'] == 'regional':
+if (function == 'upscale') & (metadata['type'] == 'regional'):
 
  #Determine the sites box
  bbox_metadata = Determine_Bounding_Box(metadata,MPI)
@@ -80,10 +81,14 @@ if metadata['type'] == 'regional':
  #for var in vars:
  upscaling_python.Map_Model_Output(metadata,vars,MPI,bbox_metadata)
 
-elif metadata['type'] == 'catchment':
+elif (function == 'upscale') & (metadata['type'] == 'catchment'):
 
  #Map the data
  vars = metadata['vars']#['smc1',]#'prcp','smc1','lh','sh','qout_surface','qout_subsurface']
  for var in vars:
   print rank,var
   upscaling_python.Map_Model_Output_Full(metadata,var,MPI) 
+
+elif function == 'file_creation':
+
+ upscaling_python.Initialize_Output_Files(metadata,rank,size)
