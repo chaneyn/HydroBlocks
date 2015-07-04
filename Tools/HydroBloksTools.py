@@ -30,22 +30,15 @@ def Deterministic(info):
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,1,2,23)
+ fdate = datetime.datetime(2004,1,2,23)
  #fdate = datetime.datetime(2004,3,31,23)
- fdate = datetime.datetime(2006,12,31,23)
+ #fdate = datetime.datetime(2006,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
 
   print icatch
   dir = info['dir']
-  #Define the parameters
-  #parameters = {}
-  #parameters['log10m'] = -0.1#-2.582977995297425888e+00
-  #parameters['lnTe'] = 0.0#-1.963648774068431635e-01
-  #parameters['log10soil'] = 1.389834359162560144e-02
-  #parameters['sdmax'] = 0.5#1.938762117265730334e+00
-  #parmaters m,pte,psoil,sdmax,n_channel,n_overland
 
   #Define the info
   hydrobloks_info = {

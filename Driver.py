@@ -6,7 +6,8 @@ import HydroBloksTools as HBM
 #parallel_flag = sys.argv[1]
 parallel_flag = sys.argv[1]
 #dir = '/scratch/02179/chaneyna/catchments'#'../LittleWashitaRegion'#'Test'
-dir = '/scratch/02179/chaneyna/conus30m/CONUS_SIMULATIONS/catchments'
+#dir = '/scratch/02179/chaneyna/conus30m/CONUS_SIMULATIONS/catchments'
+dir = 'Test'
 wbd_file = '%s/catchments.pck' % dir#'Test/catchments.pck'
 #wbd_file = '../test.pck'
 #run_flag = 'Convergence Analysis'
