@@ -4,14 +4,14 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-#ncores = 40**2
-ncores = 16**2
+ncores = 40**2
+#ncores = 16**2
 
 #Define the parameters
 mpi_type = 'ibrun'
 startdate = datetime.datetime(2004,1,1,0)
-#enddate = datetime.datetime(2004,12,31,23)
-enddate = datetime.datetime(2004,1,31,23)
+enddate = datetime.datetime(2006,12,31,23)
+#enddate = datetime.datetime(2004,3,31,23)
 nt_in = 24*((enddate - startdate).days+1)
 dt = 1
 res = 30
@@ -30,7 +30,7 @@ metadata = {'startdate':startdate,
             'nt_out':nt_in/dt,
             'dir':dir,
             'res':res, #arcsec
-            'vars':['smc1','prcp','lh','sh','g','qbase','qsurface'],
+            'vars':['smc1','prcp','lh'],#,'sh','g','qbase','qsurface'],
             'output_dir':'%s/%darcsec' % (dir,res),
             'dir':dir,
 	    'nstripes':10,
@@ -62,3 +62,6 @@ upscaling_python.Create_Upscale_Template(metadata)'''
 # os.system('mpirun -n %d python driver_core.py %s' % (ncores,metadata['output_dir']))
 #elif mpi_type == 'ibrun':
 os.system('ibrun -np %d %s driver_core.py %s %s' % (ncores,python,metadata['output_dir'],'upscale'))
+
+#Create the output files
+os.system('ibrun -np %d %s driver_core.py %s %s' % (ncores,python,metadata['output_dir'],'file_creation'))

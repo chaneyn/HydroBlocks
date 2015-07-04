@@ -6240,8 +6240,8 @@ contains
 ! APPLY PHYSICAL BOUNDS TO FLERCHINGER SOLUTION
 ! ----------------------------------------------------------------------
        IF (KCOUNT == 0) THEN
-          write(message, '("Flerchinger used in NEW version. Iterations=", I6)') NLOG
-          call wrf_message(trim(message))
+          !write(message, '("Flerchinger used in NEW version. Iterations=", I6)') NLOG
+          !call wrf_message(trim(message))
           FK = ( ( (hfus / (GRAV * ( - PSISAT)))*                    &
                ( (TKELV - TFRZ)/ TKELV))** ( -1/ BX))* SMCMAX
           IF (FK < 0.02) FK = 0.02

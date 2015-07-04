@@ -1,6 +1,6 @@
 import netCDF4 as nc
 import h5py
-#import h5pyswmr as h5py
+import glob
 import netcdf_tools
 import numpy as np
 import os
@@ -10,7 +10,7 @@ import datetime
 import time
 import upscaling_fortran
 
-def Initialize_Output_Files(info,rank,size):
+def Create_Output_Files(info,rank,size):
 
  startdate = info['startdate']
  enddate = info['enddate']
@@ -55,24 +55,43 @@ def Initialize_Output_Files(info,rank,size):
 
   print "Creating the file for ",date
   #Define the file
-  file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
+  ncfile = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
 
   #Create the netcdf file
-  fp = netcdf_tools.Create_NETCDF_File(dims,file,vars,vars,startdate,'%dhour' % dt,nt_out)
+  fp = netcdf_tools.Create_NETCDF_File(dims,ncfile,vars,vars,startdate,'%dhour' % dt,nt_out)
 
-  #fill in the data
-  for var in vars:
-   fp.variables[var][:] = 0.0
+  #Iterate through all the files
+  files = glob.glob('%s/workspace/%04d%02d%02d/*.pck' % (output_dir,date.year,date.month,date.day))
+  for file in files:
+   output = pickle.load(open(file))
+   ilats = output['coords']['ilats']
+   ilons = output['coords']['ilons']
+   vars = output['vars'].keys()
+   for var in vars:
+    fp.variables[var][:,ilats[0]:ilats[-1]+1,ilons[0]:ilons[-1]+1] = output['vars'][var]
+   del output
+
+  #Close the file
   fp.close()
+
+  #Compress the file
+  print "Compressing the file for ",date
+  tmp = '%s/workspace/%04d%02d%02d/tmp.nc' % (output_dir,date.year,date.month,date.day)
+  os.system('nccopy -k 3 -d 4 %s %s' % (ncfile,tmp))
+  os.system('mv %s %s' % (tmp,ncfile))
+
+  #Remove the workspace
+  os.system('rm -rf %s/workspace/%04d%02d%02d' % (output_dir,date.year,date.month,date.day))
 
   #Update the time step
   date = date + datetime.timedelta(hours=nt_out)
 
  #Create the control file
- tstep = '1hr'
- file_template = '^%s.nc' % ('%y4%m2%d2',)
- ctl_file = '%s/hydrobloks_output.ctl' % output_dir
- netcdf_tools.Update_Control_File('nc',startdate,dims,nt,tstep,file_template,ctl_file)
+ if rank == 0:
+  tstep = '1hr'
+  file_template = '^%s.nc' % ('%y4%m2%d2',)
+  ctl_file = '%s/hydrobloks_output.ctl' % output_dir
+  netcdf_tools.Update_Control_File('nc',startdate,dims,nt,tstep,file_template,ctl_file)
 
  return
 
@@ -328,7 +347,7 @@ def Map_Model_Output(info,vars,MPI,bbox):
  #Create the dates array (hourly)
  dates_hourly = []
  date = datetime.datetime(startdate.year,startdate.month,startdate.day,0,0,0)
- fdate = datetime.datetime(enddate.year,enddate.month,enddate.day,0,0,0)
+ fdate = datetime.datetime(enddate.year,enddate.month,enddate.day,23,0,0)
  timedelta = datetime.timedelta(hours=1)
  while date <= fdate:
   dates_hourly.append(date)
@@ -351,24 +370,31 @@ def Map_Model_Output(info,vars,MPI,bbox):
  #vardir = '%s/%s' % (info['output_dir'],var)
  np.random.shuffle(dates_daily)
  for date in dates_daily:
-  print rank,date
-  file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
+  #file = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
+  daily_dir = '%s/workspace/%04d%02d%02d' % (output_dir,date.year,date.month,date.day)
+  os.system('mkdir -p %s' % daily_dir)
+  file = '%s/%d.pck' % (daily_dir,rank)
   mask = (dates_hourly >= date) & (dates_hourly < date + timedelta)
   #Open the netcdf file
-  fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
+  #fp = h5py.File(file,'a',driver='mpio',comm=MPI.COMM_WORLD)
   #fp.atomic = True
   #fp = h5py.File(file,'a')
   #fp.swmr_mode = True
-  ilats = ilats_upscale_flipped#np.arange(ilats_upscale_flipped[0],ilats_upscale_flipped[-1]+1)
-  ilons = ilons_upscale#np.arange(ilons_upscale[0],ilons_upscale[-1]+1)
+  #ilats = ilats_upscale_flipped#np.arange(ilats_upscale_flipped[0],ilats_upscale_flipped[-1]+1)
+  output_daily = {'coords':{'ilats':ilats_upscale_flipped,'ilons':ilons_upscale},
+                  'vars':{}}
   for var in vars:
-   dset = fp[var]
+   output_daily['vars'][var] = output[var][mask,:,:]
+   #dset = fp[var]
    #fp[var].id.refresh()
    #fp[var][:,ilats_upscale_flipped[0]:ilats_upscale_flipped[-1]+1,ilons_upscale[0]:ilons_upscale[-1]+1] = output[var][mask,:,:]
-   dset[:,ilats[0]:ilats[-1]+1,ilons[0]:ilons[-1]+1] = output[var][mask,:,:]
+   #dset[:,ilats[0]:ilats[-1]+1,ilons[0]:ilons[-1]+1] = output[var][mask,:,:]
    #fp.flush()
+
+  #Save the data
+  pickle.dump(output_daily,open(file,'wb'),pickle.HIGHEST_PROTOCOL)
   #Close the file
-  fp.close()
+  #fp.close()
 
  return
 

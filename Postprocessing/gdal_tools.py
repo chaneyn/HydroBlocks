@@ -47,7 +47,6 @@ def read_raster_subarea(file,metadata):
  dataset = gdal.Open(file)
 
  #Get dimensons
- print metadata
  nx = metadata['nx']#dataset.RasterXSize
  ny = metadata['ny']#dataset.RasterYSize
  ixmin = metadata['ixmin']

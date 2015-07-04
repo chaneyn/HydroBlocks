@@ -31,8 +31,8 @@ def Deterministic(info):
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
  #fdate = datetime.datetime(2004,1,2,23)
- fdate = datetime.datetime(2004,1,31,23)
- #fdate = datetime.datetime(2005,12,31,23)
+ #fdate = datetime.datetime(2004,3,31,23)
+ fdate = datetime.datetime(2006,12,31,23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:

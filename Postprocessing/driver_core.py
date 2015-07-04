@@ -91,4 +91,4 @@ elif (function == 'upscale') & (metadata['type'] == 'catchment'):
 
 elif function == 'file_creation':
 
- upscaling_python.Initialize_Output_Files(metadata,rank,size)
+ upscaling_python.Create_Output_Files(metadata,rank,size)
