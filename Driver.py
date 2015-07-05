@@ -2,20 +2,16 @@ import sys
 sys.path.append('Tools')
 import HydroBloksTools as HBM
 
-#INFO
-#parallel_flag = sys.argv[1]
-parallel_flag = sys.argv[1]
-#dir = '/scratch/02179/chaneyna/catchments'#'../LittleWashitaRegion'#'Test'
-#dir = '/scratch/02179/chaneyna/conus30m/CONUS_SIMULATIONS/catchments'
-dir = 'Test'
-wbd_file = '%s/catchments.pck' % dir#'Test/catchments.pck'
-#wbd_file = '../test.pck'
-#run_flag = 'Convergence Analysis'
-#run_flag = 'Latin Hypercube Sample'
-run_flag = 'Deterministic'
-ncores = 32
+#Read in the metadata file
+metadata_file = sys.argv[1]
+metadata = HBM.Read_Metadata_File(metadata_file)
+parallel_flag = metadata['parallel_flag']
+ncores = metadata['parallel_ncores']
+run_flag = metadata['run_type']
+dir = metadata['directory']
+wbd_file = '%s/catchments.pck' % dir
 
-if parallel_flag == 'parallel':
+if parallel_flag == True:
  from mpi4py import MPI
  comm = MPI.COMM_WORLD
  
@@ -27,7 +23,7 @@ if parallel_flag == 'parallel':
 	'ncores':ncores,
 	}
 
-elif parallel_flag == 'serial':
+elif parallel_flag == False:
   info = {
         'rank':0,
         'size':1,
@@ -37,7 +33,7 @@ elif parallel_flag == 'serial':
         }
 
 #Deterministic
-if run_flag == 'Deterministic': HBM.Deterministic(info)
+if run_flag == 'deterministic': HBM.Deterministic(info)
 
 #Latin Hypercube Sample (CURRENTLY NOT WORKING)
 if run_flag == 'Latin Hypercube Sample': HBM.Latin_Hypercube_Sample(info)

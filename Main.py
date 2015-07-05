@@ -1,12 +1,7 @@
 import os
 import sys
-
-def Read_Metadata_File(file):
-
- import json
- metadata = json.load(open(file))
-
- return metadata
+sys.path.append('Tools')
+from HydroBloksTools import Read_Metadata_File
 
 #Read in the metadata file
 metadata_file = sys.argv[1]
@@ -22,11 +17,11 @@ if Parallel == True:
  #Run the model using MPI (w/OMP)
  #os.system('aprun -n %d -d %d python Driver.py parallel' % (njobs,ncores))
  if mpi_type == 'ibrun':
-  os.system('ibrun -np %d %s Driver.py parallel %s' % (njobs,python,metadata_file))
+  os.system('ibrun -np %d %s Driver.py %s' % (njobs,python,metadata_file))
  if mpi_type == 'mpirun':
-  os.system('mpirun -n %d python Driver.py parallel %s' % (njobs,metadata_file))
+  os.system('mpirun -n %d python Driver.py %s' % (njobs,metadata_file))
 
 elif Parallel == False:
 
  #Run the model without MPI (w/OMP)
- os.system('python Driver.py serial %s' % metadata_file)
+ os.system('python Driver.py %s' % metadata_file)

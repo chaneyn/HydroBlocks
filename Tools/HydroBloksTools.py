@@ -1502,3 +1502,10 @@ def Update_Soils(input,soilfile,parameters,icatch,rank):
  input['files']['soils'] = soils_lookup
 
  return input
+
+def Read_Metadata_File(file):
+
+ import json
+ metadata = json.load(open(file))
+
+ return metadata
