@@ -23,14 +23,16 @@ def Deterministic(info):
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- nclusters = 250#1000
+ #nclusters = 250#1000
+ nclusters_nc = 900#200#100#200
+ nclusters_c = 100#50#100#50
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2004,1,2,23)
+ fdate = datetime.datetime(2004,12,31,23)
  #fdate = datetime.datetime(2004,3,31,23)
  #fdate = datetime.datetime(2006,12,31,23)
 
@@ -55,7 +57,9 @@ def Deterministic(info):
         'fdate':fdate,
         #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
-        'nclusters':nclusters,
+        'nclusters_nc':nclusters_nc,
+        'nclusters_c':nclusters_c,
+        'nclusters':nclusters_nc + nclusters_c,
         'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
@@ -652,24 +656,42 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 
  return (cluster_ids,)
 
-def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
+def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
+
+ #Define the number of requested hrus (channel and non-channel)
+ nclusters_c = hydrobloks_info['nclusters_c']
+ nclusters_nc = hydrobloks_info['nclusters_nc']
+ 
+ #Find the mask for and without channels
+ mask_c = (covariates['carea'] >= 30000.0) & (mask == True)
+ mask_nc = (covariates['carea'] < 30000.0) & (mask == True)
+ #mask_c = (covariates['channels'] >= 1) | (covariates['channels'] == -1)
+ #mask_nc = (covariates['channels'] == 0)
 
  #Define the covariates
- info = {#'area':{'data':covariates['carea'][mask == True],},
+ info = {#'area':{'data':covariates['carea'][mask_nc == True],},
         #'slope':{'data':covariates['cslope'][mask == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
-        'clay':{'data':covariates['clay'][mask == True],},
-        'sand':{'data':covariates['sand'][mask == True],},
-        'ndvi':{'data':covariates['ndvi'][mask ==True],},
+        'clay':{'data':covariates['clay'][mask_nc == True],},
+        'sand':{'data':covariates['sand'][mask_nc == True],},
+        #'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        'ti':{'data':covariates['ti'][mask == True],},
+        'ti':{'data':covariates['ti'][mask_nc == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
-        'strahler':{'data':covariates['strahler'][mask == True],},
-        'lats':{'data':covariates['lats'][mask == True],},
-        'lons':{'data':covariates['lons'][mask == True],},
+        'strahler':{'data':covariates['strahler'][mask_nc == True],},
+        'lats':{'data':covariates['lats'][mask_nc == True],},
+        'lons':{'data':covariates['lons'][mask_nc == True],},
         }
+
+ #Define the covariates for the channels
+ info_channels = {
+		 'area':{'data':np.log(covariates['carea'][mask_c == True]),},
+                 #'strahler':{'data':covariates['strahler'][mask_c == True],},
+                 #'lats':{'data':covariates['lats'][mask_c == True],},
+                 #'lons':{'data':covariates['lons'][mask_c == True],},
+                 }
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
@@ -682,9 +704,13 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
   # pcts = np.copy(info[var]['data'])
   # pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
   # info[var]['data'] = pcts
+ for var in info_channels:
+  tmp = info_channels[var]['data']
+  tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+  info_channels[var]['data'] = tmp
 
- #Create the LHS bins
  import sklearn.cluster
+ #Cluster the non channels regions
  bins,data = [],[]
  X = []
  for id in info:
@@ -702,10 +728,10 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
  else:
   Xf = X
  #Initialize all points at the 0.5 point
- init = 0.5*np.ones((nclusters,Xf.shape[1]))
- batch_size = 25*nclusters
+ init = 0.5*np.ones((nclusters_nc,Xf.shape[1]))
+ batch_size = 25*nclusters_nc
  init_size = 3*batch_size
- clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters_nc,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
  clf.fit(Xf)#
  clf_output = clf.predict(X)
  #Reassign the ids
@@ -714,12 +740,47 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
   clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
- cluster_ids[mask == True] = clf_output
- nclusters_old = nclusters
- nclusters = np.unique(clf_output).size
+ cluster_ids[mask_nc == True] = clf_output
+ nclusters_old = nclusters_nc
+ nclusters_nc = np.unique(clf_output).size
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
- print 'clustering %d->%d' % (nclusters_old,nclusters),time.time() - time0
+ print 'clustering (non-channels) %d->%d' % (nclusters_old,nclusters_nc),time.time() - time0
 
+ #Cluster the channels
+ bins,data = [],[]
+ X = []
+ for id in info_channels:
+  #Set all nans to the mean
+  info_channels[id]['data'][np.isnan(info_channels[id]['data']) == 1] = np.nanmean(info_channels[id]['data'])
+  X.append(info_channels[id]['data'])
+
+ time0 = time.time()
+ X = np.array(X).T
+ #Subsample the array
+ np.random.seed(1)
+ minsamples = 10**5
+ if X.shape[0] > minsamples:
+  Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
+ else:
+  Xf = X
+ #Initialize all points at the 0.5 point
+ init = 0.5*np.ones((nclusters_c,Xf.shape[1]))
+ batch_size = 25*nclusters_c
+ init_size = 3*batch_size
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters_c,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ clf.fit(Xf)#
+ clf_output = clf.predict(X)
+ #Reassign the ids
+ clf_output_copy = np.copy(clf_output)
+ for cid in xrange(len(np.unique(clf_output))):
+  clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
+ #cluster_ids = np.empty(covariates['ti'].shape)
+ #cluster_ids[:] = -9999
+ cluster_ids[mask_c == True] = clf_output + np.nanmax(cluster_ids) + 1
+ nclusters_old = nclusters_c
+ nclusters_c = np.unique(clf_output).size
+ #Redefine the number of clusters (We are sampling regions that just don't have data...)
+ print 'clustering (channels) %d->%d' % (nclusters_old,nclusters_c),time.time() - time0
  #Add in the channel clusters
  #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
  #for channel in channels:
@@ -727,6 +788,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters):
  # idx = np.where(covariates['channels'] == channel)
  # cluster_ids[idx] = cid
  # nclusters = nclusters + 1
+ nclusters = nclusters_nc + nclusters_c
 
  #Reorder according to areas
  areas = []
@@ -1008,7 +1070,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print "Computing the HRUs"
  if hydrobloks_info['model_type'] == 'semi':
-  (cluster_ids,nclusters) = Compute_HRUs_Semidistributed(covariates,mask,nclusters)
+  (cluster_ids,nclusters) = Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info)
   hydrobloks_info['nclusters'] = nclusters
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)

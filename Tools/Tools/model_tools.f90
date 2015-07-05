@@ -128,7 +128,6 @@ subroutine calculate_connections(HSUs,dinfangle,transition_probabilities,nhsu,n,
      ipos = ipos + 1
   enddo
  enddo
-
  !Compute the transition probabilities
  !do i = 1,nhsu
  ! if (sum(transition_probabilities(i,:)) .eq. 0) cycle

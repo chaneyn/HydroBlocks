@@ -4,20 +4,21 @@ import datetime
 import pickle
 
 #Define the number of cores (1,4,16,...)
-ncores = 40**2
+#ncores = 40**2
 #ncores = 16**2
+ncores = 5**2
 
 #Define the parameters
-mpi_type = 'ibrun'
+mpi_type = 'openmpi'#'ibrun'
 startdate = datetime.datetime(2004,1,1,0)
 enddate = datetime.datetime(2006,12,31,23)
 #enddate = datetime.datetime(2004,3,31,23)
 nt_in = 24*((enddate - startdate).days+1)
 dt = 1
-res = 30
+res = 1#30
 #dir = '/home/freeze/nchaney/LittleWashitaRegion'
-#dir = '/home/freeze/nchaney/HydroBloks/Test'
-dir = '/scratch/02179/chaneyna/conus30m/CONUS_SIMULATIONS/catchments'
+dir = '/home/freeze/nchaney/HydroBloks/Test'
+#dir = '/scratch/02179/chaneyna/conus30m/CONUS_SIMULATIONS/catchments'
 #Determine the number of catchments
 file = '%s/catchments.pck' % dir
 ncatch = len(pickle.load(open(file)))
