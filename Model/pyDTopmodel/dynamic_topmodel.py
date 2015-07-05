@@ -90,10 +90,18 @@ class Dynamic_Topmodel:
   self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  self.update_surface_fortran(ncores,maxntt,isw)
+  #dt_minimum = np.min(self.dx/self.celerity_surface)
+  #ntt = np.floor(self.dt/dt_minimum).astype(np.int)/5
+  #if ntt == 0:ntt = 1
+  #ntt = 1
+  #dtold = self.dt
+  #self.dt = dtold/ntt
+  #for i in xrange(ntt):
+  #self.update_surface_fortran(ncores,maxntt,isw)
+  #self.dt = dtold
 
   #Check catchment water balance
-  self.check_water_balance()
+  #self.check_water_balance()
 
   #if self.itime % 1000 == 0: 
   # print self.itime,self.water_balance_error_surface
@@ -317,4 +325,5 @@ def Calculate_Celerity_Surface(h,n,beta):
  a = 1.67
  b = np.tan(beta)**0.5/n
  c = a*b*h**(a-1)
+ c[c > 2.0] = 2.0
  return c
