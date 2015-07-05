@@ -1,8 +1,20 @@
 import os
-Parallel = False#True 
-njobs = 800#1600#800#80000#5000#8000#800#400
-ncores = 2
-mpi_type = 'ibrun'
+import sys
+
+def Read_Metadata_File(file):
+
+ import json
+ metadata = json.load(open(file))
+
+ return metadata
+
+#Read in the metadata file
+metadata_file = sys.argv[1]
+metadata = Read_Metadata_File(metadata_file)
+Parallel = metadata['parallel_flag']#False#True 
+njobs = metadata['parallel_nnodes']#800#1600#800#80000#5000#8000#800#400
+ncores = metadata['parallel_ncores']#2
+mpi_type = metadata['parallel_mpitype']#'ibrun'
 python = '/home1/02179/chaneyna/libraries/python/lib/python2.7/site-packages/mpi4py/bin/python-mpi'
 
 if Parallel == True:
@@ -10,11 +22,11 @@ if Parallel == True:
  #Run the model using MPI (w/OMP)
  #os.system('aprun -n %d -d %d python Driver.py parallel' % (njobs,ncores))
  if mpi_type == 'ibrun':
-  os.system('ibrun -np %d %s Driver.py parallel' % (njobs,python))
+  os.system('ibrun -np %d %s Driver.py parallel %s' % (njobs,python,metadata_file))
  if mpi_type == 'mpirun':
-  os.system('mpirun -n %d python Driver.py parallel' % (njobs,))
+  os.system('mpirun -n %d python Driver.py parallel %s' % (njobs,metadata_file))
 
 elif Parallel == False:
 
  #Run the model without MPI (w/OMP)
- os.system('python Driver.py serial')
+ os.system('python Driver.py serial %s' % metadata_file)
