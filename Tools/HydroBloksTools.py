@@ -24,15 +24,15 @@ def Deterministic(info):
  size = info['size']
  ncores = info['ncores']
  #nclusters = 250#1000
- nclusters_nc = 5#200#100#200
- nclusters_c = 250#50#100#50
+ nclusters_nc = 200#100#200
+ nclusters_c = 50#50#100#50
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
  idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,12,31,23)
+ fdate = datetime.datetime(2004,12,31,23)
  #fdate = datetime.datetime(2004,3,31,23)
  #fdate = datetime.datetime(2006,12,31,23)
 
@@ -60,14 +60,14 @@ def Deterministic(info):
         'nclusters_nc':nclusters_nc,
         'nclusters_c':nclusters_c,
         'nclusters':nclusters_nc + nclusters_c,
-        'model_type':'full',#'semi',
+        'model_type':'semi',
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
         }
 
   #Cluster the data
-  Prepare_Model_Input_Data(hydrobloks_info)
+  #Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)

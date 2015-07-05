@@ -331,6 +331,10 @@ def run_model(info):
  NOAH.dzwt[:] = 0.0
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
+
+  #Memorize time stamp
+  time0 = time.time()
+
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
    print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat)
@@ -366,6 +370,10 @@ def run_model(info):
   ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
   esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
   prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+
+  #Update time and date
+  info['time'] = time.time() - time0#seconds
+  info['date'] = date
 
   #Update output
   #Write to netcdf
@@ -501,10 +509,10 @@ def Create_Netcdf_File(info):
  print 'Creating the dimensions'
  ntime = len(fp_in.dimensions['time'])
  nhsu = len(fp_in.dimensions['hsu'])
- nsoil = 4
+ #nsoil = 4
  fp_out.createDimension('hsu',nhsu)
  fp_out.createDimension('time',ntime)
- fp_out.createDimension('soil',nsoil)
+ #fp_out.createDimension('soil',nsoil)
 
  #Create the output
  print 'Creating the catchment group'
@@ -515,23 +523,28 @@ def Create_Netcdf_File(info):
   ncvar.units = metadata[var]['units']
 
  #Create the outlet group 
- print 'Creating the outlet group'
- grp = fp_out.createGroup('outlet')
- grp.createDimension('hru_outlet',len(fp_in.groups['outlet'].groups['summary'].dimensions['hru']))
- grp.createVariable('hru_org','i4',('hru_outlet',))
- grp.createVariable('hru_dst','i4',('hru_outlet',))
- grp.createVariable('counts','i4',('hru_outlet',))
- grp.createVariable('area_outlet','i4',('hru_outlet',))
- for var in ['qin_subsurface_outlet','qin_surface_outlet']:
-  ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
- dx = info['dx']
- grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
- grp.variables['hru_org'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_org'][:]
- grp.variables['hru_dst'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'][:]
+ #print 'Creating the outlet group'
+ #grp = fp_out.createGroup('outlet')
+ #grp.createDimension('hru_outlet',len(fp_in.groups['outlet'].groups['summary'].dimensions['hru']))
+ #grp.createVariable('hru_org','i4',('hru_outlet',))
+ #grp.createVariable('hru_dst','i4',('hru_outlet',))
+ #grp.createVariable('counts','i4',('hru_outlet',))
+ #grp.createVariable('area_outlet','i4',('hru_outlet',))
+ #for var in ['qin_subsurface_outlet','qin_surface_outlet']:
+ # ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
+ #dx = info['dx']
+ #grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
+ #grp.variables['hru_org'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_org'][:]
+ #grp.variables['hru_dst'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'][:]
 
  #Create the metadata
  print 'Creating the metadata group'
  grp = fp_out.createGroup('metadata')
+ #Time
+ grp.createVariable('time','f8',('time',))
+ dates = grp.createVariable('date','f8',('time',))
+ dates.units = 'hours since 1900-01-01'
+ dates.calendar = 'standard'
  #dates
  '''times = grp.createVariable('dates','f8',('time',))
  dates = []
@@ -583,8 +596,14 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  #Create the netcdf file
  if itime == 0: Create_Netcdf_File(info)
 
+ #General info
+ grp = info['output_fp'].groups['metadata']
+ grp.variables['time'][itime] = info['time'] #Seconds
+ dates = grp.variables['date']
+ dates[itime] = nc.date2num(info['date'],units=dates.units,calendar=dates.calendar)
+
  #Update the variables (catchment)
- grp =info['output_fp'].groups['catchment']
+ grp = info['output_fp'].groups['catchment']
 
  #NoahMP
  grp.variables['smc1'][itime,:] = np.copy(NOAH.smc[:,0]) #m3/m3
@@ -602,9 +621,9 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
 
  #Update the variables (outlet)
- grp = info['output_fp'].groups['outlet']
- grp.variables['qin_subsurface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet) #m2/s
- grp.variables['qin_surface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet_surface) #m2/s
+ #grp = info['output_fp'].groups['outlet']
+ #grp.variables['qin_subsurface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet) #m2/s
+ #grp.variables['qin_surface_outlet'][itime,:] = np.copy(TOPMODEL.qin_outlet_surface) #m2/s
  
  return
 
