@@ -1,9 +1,7 @@
 import warnings
 warnings.filterwarnings('ignore')
 import sys
-sys.path.append('Model')
 sys.path.append('Tools')
-import HydroBloks as HB
 import cPickle as pickle
 import datetime
 import gdal_tools
@@ -17,445 +15,6 @@ import netCDF4 as nc
 import time
 import glob
 
-def Deterministic(info):
-
- #Define the metadata
- metadata = info['metadata']
- rank = info['rank']
- size = info['size']
- ncores = info['ncores']
- nclusters_nc = metadata['nhru_nonchannels']
- nclusters_c = metadata['nhru_channels']
- nclusters = nclusters_nc + nclusters_c
- dt = metadata['dt']
- dtt = metadata['dtt']
- dx = metadata['dx']
- nsoil = metadata['nsoil']
- model_type = metadata['model_type']
- output_dir = metadata['output_dir']
- input_dir = metadata['input_dir']
-
- #Read in the catchment database
- wbd = pickle.load(open(info['wbd']))
-
- #Define the dates
- idate = datetime.datetime(metadata['startdate']['year'],
-                           metadata['startdate']['month'],
-                           metadata['startdate']['day'],0)
- fdate = datetime.datetime(metadata['enddate']['year'],
-                           metadata['enddate']['month'],
-                           metadata['enddate']['day'],23)
-
- #Iterate through all the catchments until done
- for icatch in np.arange(len(wbd))[rank::size]:
-
-  print icatch
-  dir = info['dir']
-
-  #Create the input and output directories
-  os.system('mkdir -p %s/catch_%d' % (metadata['output_dir'],icatch))
-  os.system('mkdir -p %s/catch_%d' % (metadata['input_dir'],icatch))
-  os.system('mkdir -p %s/catch_%d' % (metadata['soil_dir'],icatch))
-
-  #Define the info
-  hydrobloks_info = {
-        'icatch':icatch,
-        'rank':rank,
-        'input':'%s/catch_%d/input_nhru_%d.nc' % (input_dir,icatch,nclusters),
-        'surface_flow_flag':metadata['surface_flow_flag'],
-        'subsurface_flow_flag':metadata['subsurface_flow_flag'],
-        'dt':dt,#seconds
-        'dtt':dtt,#seconds
-        'dx':dx,#meters
-        'nsoil':nsoil,
-        'wbd':wbd[icatch],
-        'ncores':ncores,
-        'idate':idate,
-        'fdate':fdate,
-        'dir':'%s/catch_%d' % (dir,icatch),
-        'nclusters_nc':nclusters_nc,
-        'nclusters_c':nclusters_c,
-        'nclusters':nclusters_nc + nclusters_c,
-        'model_type':model_type,
-        'output_type':'Full',
-        'soil_file':'%s/catch_%d/SOILPARM_nhru_%d.TBL' % (metadata['soil_dir'],icatch,nclusters),
-        #'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
-        'output':'%s/catch_%d/output_nhru_%d.nc' % (metadata['output_dir'],icatch,nclusters),
-        }
-
-  #Cluster the data
-  if metadata['calculate_hrus'] == True:Prepare_Model_Input_Data(hydrobloks_info)
-
-  #Run the model
-  HB.run_model(hydrobloks_info)
-
- return
-
-def Convergence_Analysis(info):
-
- #Define the rank and size
- rank = info['rank']
- size = info['size']
- ncores = info['ncores']
-
- #Read in the catchment database
- wbd = pickle.load(open(info['wbd']))
-
- #Read all the catchments
- catchments = glob.glob('%s/*' % info['dir'])
- icatchs = []
- for dir in catchments:
-  icatchs.append(int(dir.split('/')[-1].split('_')[-1]))
- #Shuffle the catchments
- icatchs = np.array(icatchs)
- #MISSING CATCHMENTS REPLACE!!!!!!!!!!!!
- #icatchs = pickle.load(open('/u/sciteam/nchaney/projects/HydroBloks/Output/miscellanous/screened.pck'))
- np.random.seed(1)
- np.random.shuffle(icatchs)
- icatchs = [8072,3637,8756,500]#icatchs[0:1]#1000]#1000]#1000] #SUBSET
- #icatchs = icatchs[:]#[0:5000]#1000]#1000] #SUBSET
-
- #Define the dates
- idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2004,1,31,23)
- fdate = datetime.datetime(2007,12,31,23)
-
- #Initialize the element count
- ielement = 0
- nens = 1000#12#50#400
- elements = {}
-
- #Create a dictionary of information
- for icatch in icatchs:#xrange(800):#[501,502,503,504]:#[8756,500,3637]:#len(wbd.keys()):
-
-  dir = info['dir']
-  #Define the parameters
-  parameters = {'log10m': -1.279675506557842, 'log10soil': 0.17854995314368682, 'sdmax': 0.73625873496330596, 'lnTe': -15.163693541009348}
-  #parameters = {}
-  #parameters['log10m'] = -2.0#-2.582977995297425888e+00
-  #parameters['lnTe'] = -3.12#-1.963648774068431635e-01
-  #parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
-  #parameters['sdmax'] = 1.0#1.938762117265730334e+00
-
-  #Cycle through the ensemble of clusters
-  for iens in xrange(nens):
-  
-   #Define the number of bins
-   #nclusters = int(np.linspace(2,1000,nens)[iens])#np.random.randint(1,1000)
-   #nclusters = int(np.logspace(2,1000,nens)[iens])#np.random.randint(1,1000)
-   nclusters = np.logspace(np.log(2),np.log(2000),nens,base=np.exp(1))
-   np.random.seed(1)
-   np.random.shuffle(nclusters)
-   nclusters = np.int(np.ceil(nclusters[iens]))
-   #nclusters = np.ceil(int(np.logspace(np.log(2),np.log(2000),nens,base=np.exp(1))[iens]))
-   #nclusters = 200#250#100#250#25#2500
-
-   #Add the info to the dictionary
-   elements[ielement] = {
-		'parameters':parameters,
-		'nclusters':nclusters,
-		'icatch':icatch,
-		'iens':iens,
-		 } 
-
-   #Update the element
-   ielement += 1
-
- #Initialize metrics dictionary
- metrics = {'icatch':[],'dt':[],'nclusters':[],'vars':{}}
-
- #Add the output variables
- vars = ['lh','sh','smc1','prcp','qexcess','qsurface','swe']
- #vars = ['smc1',]
- for var in vars:
-  metrics['vars'][var] = {'mean':[],'std':[]}
-
- #Setup output redirection
- fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
- so,se = os.dup(1),os.dup(2)
-
- #Randomize the data to minimize cores repeating the hard tasks
- #np.random.seed(1)
- ielements = np.arange(len(elements.keys()))
- #np.random.shuffle(ielements)
-
- #Iterate through the dictionary elements
- for ielement in ielements[rank::size]:
-
-  #Define the info
-  element = elements[ielement]
-
-  #Print where we are at
-  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters']
-
-  #Define the info
-  hydrobloks_info = {
-        'input':'%s/input/data.pck' % dir,
-        'dt':3600.,
-        'nsoil':20,
-        'wbd':wbd[element['icatch']],
-        'ncores':ncores,
-        'idate':idate,
-        'fdate':fdate,
-        'parameters':parameters,
-        'dir':'%s/catch_%d' % (dir,element['icatch']),
-	'nclusters':element['nclusters']
-        }
-
-  try:
-   #if 1 == 1:
-
-   #Cluster the data
-   time0 = time.time()
-   input = Prepare_Model_Input_Data(hydrobloks_info)
-   elements['nclusters'] = input['nclusters']
-   dt = time.time() - time0
-   print "time to prepare the data",element['nclusters'],dt
-   #pickle.dump(input,open('data.pck','wb')) 
-   #exit()
-
-   #Flush out the output
-   sys.stdout.flush()
-   #sys.stderr.flush()
-
-   #Redirect output
-   #os.dup2(fout, 1),os.dup2(ferr,2)
-   os.dup2(fout,1)
-
-   #Run the model
-   time0 = time.time()
-   output = HB.run_model(hydrobloks_info,input,output_type='Summary')
-   dt = time.time() - time0
-
-   #Flush out the output
-   sys.stdout.flush()
-   #sys.stderr.flush()
-
-   #Redirect the output back to the terminal 
-   #os.dup2(so, 1),os.dup2(se,2)
-   os.dup2(so,1)
-   print 'time to run HydroBloks',element['nclusters'],dt
-
-   #Compute heterogeneity metrics
-   pcts = output['misc']['pct']
-   nclusters = len(pcts)
-   metrics['icatch'].append(element['icatch'])
-   metrics['nclusters'].append(element['nclusters'])
-   metrics['dt'].append(dt)
-   for var in vars:
-    metrics['vars'][var]['mean'].append(np.array(output['variables'][var]['mean']))
-    metrics['vars'][var]['std'].append(np.array(output['variables'][var]['std']))
-
-  except:
-   #else:
-
-   print "catchment %d Failed" % element['icatch']
-
- #Save time info and metrics to file
- #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
- #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/missing/%d.pck' % rank
- file = '/u/sciteam/nchaney/projects/HydroBloks/Output/output/%d.pck' % rank
- #file = '/u/sciteam/nchaney/scratch/data/CONUS_SIMULATIONS_HUC10/output/%d.pck' % rank
- pickle.dump(metrics,open(file,'wb'))
-
- return
-
-def Latin_Hypercube_Sample(info):
-
- sys.path.append('Tools')
- from SALib.sample import latin_hypercube
- from SALib.util import scale_samples
- import random as rd
- import netCDF4 as nc
-
- #Define the rank and size
- rank = info['rank']
- size = info['size']
- ncores = info['ncores']
- nens = 250
-
- #Read in the catchment database
- wbd = pickle.load(open(info['wbd']))
-
- #Read all the catchments
- catchments = glob.glob('%s/*' % info['dir'])
- icatchs = []
- for dir in catchments:
-  icatchs.append(int(dir.split('/')[-1].split('_')[-1]))
- #Shuffle the catchments
- icatchs = np.array(icatchs)
- np.random.seed(1)
- np.random.shuffle(icatchs)
- icatchs = [8072,3637,8756,500]#icatchs[0:1] #SUBSET
- clusters_info = {8072:469,3637:794,8756:379,500:393}
- #clusters_info = {8072:100,3637:100,8756:100,500:100}##393}
- #icatchs = [3637,]#3637,]
-
- #Define the dates
- idate = datetime.datetime(2004,1,1,0)
- #fdate = datetime.datetime(2005,12,31,23)
- #fdate = datetime.datetime(2006,12,31,23)
- fdate = datetime.datetime(2009,12,31,23)
-
- #Obtain Latin Hypercube Sample 
- #1.Set random seed
- np.random.seed(1)
- rd.seed(1)
-
- #Define parameters and ranges
- parameters = []
- parameters.append(['log10m',np.log10(0.001),np.log10(10.0)])
- #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
- #parameters.append(['lnTe',np.log(np.exp(-8.0)/3600.0),np.log(np.exp(8.0)/3600.0)])
- #parameters.append(['log10soil',np.log10(1.0),np.log10(2.00)])
- #parameters.append(['psoil',1.0,1.0])
- parameters.append(['psoil',0.01,1.0])
- parameters.append(['pksat',0.25,4.0])
- parameters.append(['sdmax',0.1,1.0])
-
- #Generate samples (choose method here)
- param_values = latin_hypercube.sample(nens,len(parameters))
- bounds = []
- for iparam in xrange(len(parameters)):
-  bounds.append([parameters[iparam][1],parameters[iparam][2]])
- scale_samples(param_values,np.array(bounds))
-
- #Initialize the element count
- ielement = 0
- elements = {}
-
- #Create a dictionary of information
- for icatch in icatchs:
-
-  #Define the directory
-  dir = info['dir']
-
-  #Define the number of clusters (Change to catchment)
-  nclusters = clusters_info[icatch]
-
-  #Cycle through the ensemble of clusters
-  for iens in xrange(nens):
-
-   #Define the parameters
-   parameters = {}
-   parameters['log10m'] = param_values[iens,0]
-   #parameters['lnTe'] = param_values[iens,1]
-   #parameters['log10soil'] = param_values[iens,2]
-   parameters['psoil'] = param_values[iens,1]
-   parameters['pksat'] = param_values[iens,2]
-   parameters['sdmax'] = param_values[iens,3]
-
-   #RIGGED
-   #parameters = {}
-   #parameters['log10m'] = -2.0#-2.582977995297425888e+00
-   #parameters['lnTe'] = -3.12#-1.963648774068431635e-01
-   #parameters['log10soil'] = np.log10(1.0)#1.389834359162560144e-02
-   #parameters['sdmax'] = 1.0#1.938762117265730334e+00
-
-   #Add the info to the dictionary
-   elements[ielement] = {
-		'parameters':parameters,
-		'nclusters':nclusters,
-		'icatch':icatch,
-		'iens':iens,
-                'cdir':'%s/catch_%d' % (dir,icatch)
-		 } 
-
-   #Update the element
-   ielement += 1
-
- #Setup output redirection
- fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
- so,se = os.dup(1),os.dup(2)
-
- #Iterate through the dictionary elements
- icatch = -9999
- nelements_rank = len(icatchs)*nens/size#int(len(icatchs)*float(nens/float(size)))
- ncatch_rank = int(float(nens)/(float(size)/float(len(icatchs))))
- for ielement in np.arange(len(elements.keys()))[rank*nelements_rank:(rank+1)*nelements_rank]:
-
-  #Define the info
-  element = elements[ielement]
-
-  #Print where we are at
-  print 'Catchment %d, Ensemble %d' % (element['icatch'],element['iens']),element['nclusters'],element['parameters']
-
-  #Define the info
-  hydrobloks_info = {
-        'icatch':element['icatch'],
-	'rank':rank,
-        'input':'%s/input/data.pck' % dir,
-        'dt':3600.,
-        #'dt':900.,
-        'nsoil':20,
-        'wbd':wbd[element['icatch']],
-        'ncores':ncores,
-        'idate':idate,
-        'fdate':fdate,
-        'parameters':element['parameters'],
-        'dir':'%s/catch_%d' % (dir,element['icatch']),
-        'nclusters':element['nclusters']
-        }
-
-  #If a new catchment then prepare the data
-  if element['icatch'] != icatch:
-   time0 = time.time()
-   input = Prepare_Model_Input_Data(hydrobloks_info)
-   #pickle.dump(input,open('%d.pck' % icatch,'wb')) 
-   #input = pickle.load(open('%d.pck' % icatch)) 
-   #exit()
-   elements['nclusters'] = input['nclusters']
-   dt = time.time() - time0
-   print "time to prepare the data",element['nclusters'],dt
-   #Memorize the original soil file
-   soilfile = input['files']['soils']
-   #exit()
-
-  #Update the soils file
-  input = Update_Soils(input,soilfile,element['parameters'],element['icatch'],rank)
-
-  #Flush out the output
-  sys.stdout.flush()
-  #sys.stderr.flush()
-
-  #Redirect output
-  #os.dup2(fout, 1),os.dup2(ferr,2)
-  #os.dup2(fout,1)
-
-  #Run the model
-  time0 = time.time()
-  output = HB.run_model(hydrobloks_info,input,output_type='Full')
-  dt = time.time() - time0
-  print 'time to run HydroBloks',element['nclusters'],dt
-
-  #Flush out the output
-  sys.stdout.flush()
-  #sys.stderr.flush()
-
-  #Redirect the output back to the terminal 
-  #os.dup2(so, 1),os.dup2(se,2)
-  #os.dup2(so,1)
-
-  #Save info to netcdf
-  print 'Catchment number: %d, Ensemble number: %d (Writing to netcdf)' % (element['icatch'],element['iens'])
-  #Determine the rank of the ensemble
-  nfile = element['iens']/ncatch_rank
-  file_netcdf = 'LHSoutput/%d_%d.nc' % (element['icatch'],nfile)
-  #Set ensemble number
-  iens = element['iens']
-  if nfile > 0:iens = iens % nfile
-  #Update the netcdf file
-  vars = output['variables'].keys()
-  for var in vars:
-   if var not in ['smc1','lh']:del output['variables'][var]
-  if element['iens'] < ncatch_rank: update_netcdf(element['cdir'],iens,nens,parameters,file_netcdf,input,output,nfile)
-  else: update_netcdf(element['cdir'],iens,ncatch_rank,parameters,file_netcdf,input,output,nfile)
-
-  #Remember the catchment number
-  icatch = element['icatch']
-
- return
-
 def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Prepare the info dictionary
@@ -467,10 +26,10 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  info['time_info']['enddate'] = hydrobloks_info['fdate']
 
  #Define the workspace
- workspace = '%s/workspace' % hydrobloks_info['dir']
+ workspace = hydrobloks_info['workspace']
 
  #Define the model input data directory
- input_dir = workspace#'%s/input' % hydrobloks_info['dir']
+ input_dir = workspace#'%s/input' % workspace
 
  #Read in the metadata
  file = '%s/workspace_info.pck' % workspace
@@ -483,48 +42,47 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  nclusters = hydrobloks_info['nclusters']
  ncores = hydrobloks_info['ncores']
  icatch = hydrobloks_info['icatch']
- rank = hydrobloks_info['rank']
 
  #Prepare the input file
  wbd['files'] = {
-  'WLTSMC':'%s/workspace/WLTSMC.tif' % hydrobloks_info['dir'],
-  'TEXTURE_CLASS':'%s/workspace/TEXTURE_CLASS.tif' % hydrobloks_info['dir'],
-  'cslope':'%s/workspace/cslope.tif' % hydrobloks_info['dir'],
-  'MAXSMC':'%s/workspace/MAXSMC.tif' % hydrobloks_info['dir'],
-  'BB':'%s/workspace/BB.tif' % hydrobloks_info['dir'],
-  'DRYSMC':'%s/workspace/DRYSMC.tif' % hydrobloks_info['dir'],
-  'fdir':'%s/workspace/fdir.tif' % hydrobloks_info['dir'],
-  'QTZ':'%s/workspace/QTZ.tif' % hydrobloks_info['dir'],
-  'SATDW':'%s/workspace/SATDW.tif' % hydrobloks_info['dir'],
-  'REFSMC':'%s/workspace/REFSMC.tif' % hydrobloks_info['dir'],
-  'mask':'%s/workspace/mask.tif' % hydrobloks_info['dir'],
-  'channels':'%s/workspace/channels.tif' % hydrobloks_info['dir'],
-  'SATDW':'%s/workspace/SATDW.tif' % hydrobloks_info['dir'],
-  'REFSMC':'%s/workspace/REFSMC.tif' % hydrobloks_info['dir'],
-  'SATPSI':'%s/workspace/SATPSI.tif' % hydrobloks_info['dir'],
-  'nlcd':'%s/workspace/nlcd.tif' % hydrobloks_info['dir'],
-  'carea':'%s/workspace/carea.tif' % hydrobloks_info['dir'],
-  'ti':'%s/workspace/ti.tif' % hydrobloks_info['dir'],
-  'ndvi':'%s/workspace/ndvi.tif' % hydrobloks_info['dir'],
-  'F11':'%s/workspace/F11.tif' % hydrobloks_info['dir'],
-  'SATDK':'%s/workspace/SATDK.tif' % hydrobloks_info['dir'],
-  'dem':'%s/workspace/dem.tif' % hydrobloks_info['dir'],
-  #'demns':'%s/workspace/demns.tif' % hydrobloks_info['dir'],
-  'strahler':'%s/workspace/strahler.tif' % hydrobloks_info['dir']
+  'WLTSMC':'%s/WLTSMC.tif' % workspace,
+  'TEXTURE_CLASS':'%s/TEXTURE_CLASS.tif' % workspace,
+  'cslope':'%s/cslope.tif' % workspace,
+  'MAXSMC':'%s/MAXSMC.tif' % workspace,
+  'BB':'%s/BB.tif' % workspace,
+  'DRYSMC':'%s/DRYSMC.tif' % workspace,
+  'fdir':'%s/fdir.tif' % workspace,
+  'QTZ':'%s/QTZ.tif' % workspace,
+  'SATDW':'%s/SATDW.tif' % workspace,
+  'REFSMC':'%s/REFSMC.tif' % workspace,
+  'mask':'%s/mask.tif' % workspace,
+  'channels':'%s/channels.tif' % workspace,
+  'SATDW':'%s/SATDW.tif' % workspace,
+  'REFSMC':'%s/REFSMC.tif' % workspace,
+  'SATPSI':'%s/SATPSI.tif' % workspace,
+  'nlcd':'%s/nlcd.tif' % workspace,
+  'carea':'%s/carea.tif' % workspace,
+  'ti':'%s/ti.tif' % workspace,
+  'ndvi':'%s/ndvi.tif' % workspace,
+  'F11':'%s/F11.tif' % workspace,
+  'SATDK':'%s/SATDK.tif' % workspace,
+  'dem':'%s/dem.tif' % workspace,
+  #'demns':'%s/workspace/demns.tif' % workspace,
+  'strahler':'%s/strahler.tif' % workspace
   }
  wbd['files_meteorology'] = {
-  'dlwrf':'%s/workspace/nldas/dlwrf/dlwrf.nc' % hydrobloks_info['dir'],
-  'dswrf':'%s/workspace/nldas/dswrf/dswrf.nc' % hydrobloks_info['dir'],
-  'tair':'%s/workspace/nldas/tair/tair.nc' % hydrobloks_info['dir'],
-  'prec':'%s/workspace/nldas/prec/prec.nc' % hydrobloks_info['dir'],
-  'pres':'%s/workspace/nldas/pres/pres.nc' % hydrobloks_info['dir'],
-  'wind':'%s/workspace/nldas/wind/wind.nc' % hydrobloks_info['dir'],
-  'rh':'%s/workspace/nldas/rh/rh.nc' % hydrobloks_info['dir'],
-  'apcpsfc':'%s/workspace/stageiv/apcpsfc/apcpsfc.nc' % hydrobloks_info['dir'],
+  'dlwrf':'%s/nldas/dlwrf/dlwrf.nc' % workspace,
+  'dswrf':'%s/nldas/dswrf/dswrf.nc' % workspace,
+  'tair':'%s/nldas/tair/tair.nc' % workspace,
+  'prec':'%s/nldas/prec/prec.nc' % workspace,
+  'pres':'%s/nldas/pres/pres.nc' % workspace,
+  'wind':'%s/nldas/wind/wind.nc' % workspace,
+  'rh':'%s/nldas/rh/rh.nc' % workspace,
+  'apcpsfc':'%s/stageiv/apcpsfc/apcpsfc.nc' % workspace,
   }
 
  #Create the clusters and their connections
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info)
+ output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,info,hydrobloks_info)
 
  #Extract the meteorological forcing
  print "Preparing the meteorology"
@@ -536,6 +94,11 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Write out the files to the netcdf file
  fp = hydrobloks_info['input_fp']
  data = output
+
+ #Write out the metadata
+ grp = fp.createGroup('metadata')
+ grp.latitude = (wbd['bbox']['minlat'] + wbd['bbox']['maxlat'])/2
+ grp.longitude = (360.0+(wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2)
 
  #Write the HRU mapping
  #CONUS conus_albers metadata
@@ -979,7 +542,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
 
  return (flow_matrix.T,outlet)
 
-def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank):
+def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
 
  #Read in table of NOAH soil parameter values
  fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
@@ -1074,7 +637,7 @@ def Create_and_Curate_Covariates(wbd):
  
  return (covariates,mask)
 
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,icatch,rank,info,hydrobloks_info):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,ncores,info,hydrobloks_info):
  
  print "Creating and curating the covariates"
  (covariates,mask) = Create_and_Curate_Covariates(wbd)
@@ -1090,7 +653,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nclusters)
 
  #Create the netcdf file
- file_netcdf = hydrobloks_info['input']
+ file_netcdf = hydrobloks_info['input_file']
  hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions (netcdf)
@@ -1134,10 +697,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Create the soil parameters file
  print "Creating the soil file"
- soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank)
-
- #Save the soils file name to the model input
- #OUTPUT['files'] = {'soils':soils_lookup,}
+ soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
 
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
@@ -1228,12 +788,6 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   mask_fine = gdal_tools.read_raster(file_fine)
   nlat = mask_coarse.shape[0]
   nlon = mask_coarse.shape[1]
-  #import matplotlib.pyplot as plt
-  #print var
-  #mask_coarse[mask_coarse < 0] = np.nan
-  #plt.imshow(mask_fine,interpolation='nearest')
-  #plt.colorbar()
-  #plt.show()
 
   #Compute the mapping for each hsu
   for hsu in np.arange(hydrobloks_info['nclusters']):
@@ -1290,230 +844,6 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   grp.variables[data_var][:] = meteorology[data_var][:]
 
  return 
-
-def create_netcdf_file(file_netcdf,output,nens,cdir,rank):
-
- #Create the file
- fp = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
-
- #Create the dimensions
- print 'Creating the dimensions'
- #ntime = output['variables']['smc1'].shape[0]/24
- ntime = output['variables']['smc1'].shape[0]
- nhsu = output['variables']['smc1'].shape[1]
- nsoil = 4
- fp.createDimension('hsu',nhsu)
- fp.createDimension('time',ntime)
- fp.createDimension('ensemble',nens)
- fp.createDimension('soil',nsoil)
-
- #Create the summary group and its variables
- print 'Creating the summary group'
- grp = fp.createGroup('summary')
- for var in output['variables']:
-  ncvar = grp.createVariable(var,'f4',('time','ensemble'))
-  ncvar.description = output['misc']['metadata'][var]['description']
-  ncvar.units = output['misc']['metadata'][var]['units']
-
- #Create the output
- print 'Creating the catchment group'
- grp = fp.createGroup('catchment')
- for var in output['variables']:
-  grp.createVariable(var,'f4',('time','hsu','ensemble'))
-  ncvar.description = output['misc']['metadata'][var]['description']
-  ncvar.units = output['misc']['metadata'][var]['units']
-
- if rank != 0: 
-  fp.close()
-  return
-
- #Create the metadata
- print 'Creating the metadata group'
- grp = fp.createGroup('metadata')
- #dates
- times = grp.createVariable('dates','f8',('time',))
- dates = []
- for date in output['misc']['dates']:
-  #if date.hour == 0:dates.append(date)
-  dates.append(date)
- times.units = 'days since 1900-01-01'
- times.calendar = 'standard'
- times[:] = nc.date2num(np.array(dates),units=times.units,calendar=times.calendar)
- #Soil depth
- print 'Setting the soil depth'
- nsoil = 4
- soil = grp.createVariable('soil','f4',('soil',))
- soil[:] = output['misc']['sldpth'][0,0:nsoil]
- soil.units = 'meters'
- soil.description = 'soil depth'
- #HSU percentage coverage
- print 'Setting the HRU percentage coverage'
- pcts = grp.createVariable('pct','f4',('hsu',))
- pcts[:] = 100*np.array(output['misc']['pct'])
- pcts.description = 'hsu percentage coverage'
- pcts.units = '%'
- #HSU Spatial resolution
- print 'Setting the spatial resolution'
- dx = grp.createVariable('dx','f4',('hsu',))
- dx[:] = np.array(output['misc']['dx'])
- dx.units = 'meters'
- #HSU area
- print 'Setting the HRU areal coverage'
- area = grp.createVariable('area','f4',('hsu',))
- area[:] = np.array(output['misc']['area'])
- area.units = 'meters squared'
- #HSU ids
- print 'Defining the HRU ids'
- hsu = grp.createVariable('hsu','i4',('hsu',))
- hsus =[]
- for value in xrange(len(output['misc']['pct'])):hsus.append(value)
- hsu[:] = np.array(hsus)
- hsu.description = 'hsu ids'
- #Add wbd metadata
- #grp.HUC = input['wbd']['HUC10']
- #Define outlet hsu
- #grp.outlet_hsu = int(output['misc']['outlet_hsu'])
- #Define catchment name
- #grp.catchment_name = input['wbd']['Name']
- #Define catchment area
- #grp.AreaSqKm = input['wbd']['AreaSqKm']
- #Add HSU transition probability matrix
- #tp = grp.createVariable('tpm','f4',('hsu','hsu'))
- #tp.description = 'Transition probability matrix between hsus'
- #tp[:] =  input['tp']
-
- #Retrieve the conus_albers metadata
- #metadata = gdal_tools.retrieve_metadata(input['wbd']['files']['ti']) 
- #metadata['nodata'] = -10000.0
- #Save the conus_albers metadata
- #fp.createDimension('nx',metadata['nx'])
- #fp.createDimension('ny',metadata['ny'])
- #hmca = grp.createVariable('hmca','f4',('ny','nx')) 
- #hmca.gt = metadata['gt']
- #hmca.projection = metadata['projection']
- #hmca.description = 'HSU mapping (conus albers)'
- #hmca.nodata = metadata['nodata']
- #Save the conus albers mapping
- #hsu_map = np.copy(input['hsu_map'])
- #hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
- #hmca[:] = hsu_map
- '''#Write out the mapping
- file_ca = '%s/workspace/hsu_mapping_conus_albers.tif' % cdir
- gdal_tools.write_raster(file_ca,metadata,hsu_map)
-
- #Map the mapping to regular lat/lon
- file_ll = '%s/workspace/hsu_mapping_latlon.tif' % cdir
- os.system('rm -f %s' % file_ll)
- res = input['wbd']['bbox']['res']
- minlat = input['wbd']['bbox']['minlat']
- minlon = input['wbd']['bbox']['minlon']
- maxlat = input['wbd']['bbox']['maxlat']
- maxlon = input['wbd']['bbox']['maxlon']
- log = '%s/workspace/log.txt' % cdir
- os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
- #Add the lat/lon mapping
- #Retrieve the lat/lon metadata
- metadata = gdal_tools.retrieve_metadata(file_ll)
- metadata['nodata'] = -9999.0
- #Save the lat/lon metadata
- fp.createDimension('nlon',metadata['nx'])
- fp.createDimension('nlat',metadata['ny'])
- hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
- hmll.gt = metadata['gt']
- hmll.projection = metadata['projection']
- hmll.description = 'HSU mapping (regular lat/lon)'
- hmll.nodata = metadata['nodata']
- #Save the lat/lon mapping
- hsu_map = np.copy(gdal_tools.read_raster(file_ll))
- hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
- hmll[:] = hsu_map'''
- 
- #Close the file 
- fp.close()
-
- return
-
-def update_netcdf(cdir,iens,nens,parameters,file_netcdf,output,rank):
- 
- #Convert variables to arrays
- for var in output['variables']:
-  output['variables'][var] = np.array(output['variables'][var])
-
- #Create the netcdf file if necessary
- if iens == 0: create_netcdf_file(file_netcdf,output,nens,cdir,rank)
-
- #Open the file
- fp = nc.Dataset(file_netcdf, 'a')
- 
- #Output the data
- for var in output['variables']:
-  
-  #Compute the daily average
-  data = []
-  #for itime in xrange(output['variables'][var].shape[0]/24):
-  for itime in xrange(output['variables'][var].shape[0]):
-   #data.append(np.mean(output['variables'][var][itime],axis=0))
-   data.append(output['variables'][var][itime])
-   #data.append(np.mean(output['variables'][var][24*itime:24*(itime+1)],axis=0))
-  data = np.array(data)
-
-  #Write the catchment info
-  fp.groups['catchment'].variables[var][:,:,iens] = data
-
-  #Compute the catchment summary 
-  if var not in ['qout_surface','qout_subsurface']:
-   data = np.sum(output['misc']['pct']*data,axis=1)
-  #else:
-  # imax = output['misc']['outlet_hsu']
-  # data = data[:,imax]
-
-  #Write the catchment summary
-  fp.groups['summary'].variables[var][:,iens] = data
-
- #Close the file
- fp.close()
-
- return
-
-def Update_Soils(input,soilfile,parameters,icatch,rank):
-
- #Read in table of NOAH soil parameter values
- dtype = {'names':('ID','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ'),
-          'formats':('d4','f4','f4','f4','f4','f4','f4','f4','f4','f4','f4')}
-          
- soils_data = np.loadtxt(soilfile,skiprows=3,delimiter=',',dtype=dtype)
- soilsdir = "/".join(soilfile.split('/')[0:-1])
- soils_lookup = '%s/SOILPARM_ensemble_%d_%d.TBL' % (soilsdir,icatch,rank)
- nhsus = soils_data['ID'].size
- soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
- fp = open(soils_lookup,'w')
- fp.write('Soil Parameters\n')
- fp.write('CUST\n')
- fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
- for hsu in input['hsu']:
-  fp.write('%d, ' % (hsu+1))
-  idx = soils_data['ID'] == hsu + 1
-  for var in soil_vars:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC']:
-   if var in ['DRYSMC','WLTSMC','REFSMC']:
-    tmp = parameters['psoil']*soils_data[var][idx]
-    #tmp = soils_data[var][idx]
-    input['hsu'][hsu]['soil_parameters'][var] = tmp
-    fp.write('%.10f, ' % tmp)
-   elif var in ['SATDK',]:
-    tmp = parameters['pksat']*soils_data[var][idx]
-    #tmp = soils_data[var][idx]
-    input['hsu'][hsu]['soil_parameters'][var] = tmp
-    fp.write('%.10f, ' % tmp)
-   else:
-    fp.write('%.10f, ' % soils_data[var][idx])
-  fp.write('\n')
- fp.close()
-
- #Save the soils file name to the model input
- input['files']['soils'] = soils_lookup
-
- return input
 
 def Read_Metadata_File(file):
 

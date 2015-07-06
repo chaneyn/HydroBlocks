@@ -1,5 +1,0 @@
-#
-#run_flag = 'Deterministic'
-#dir = '../LittleWashitaRegion'
-#omp_cores = 4
-#mpi_nodes = 1
