@@ -20,21 +20,30 @@ import glob
 def Deterministic(info):
 
  #Define the metadata
+ metadata = info['metadata']
  rank = info['rank']
  size = info['size']
  ncores = info['ncores']
- #nclusters = 250#1000
- nclusters_nc = 200#100#200
- nclusters_c = 50#50#100#50
+ nclusters_nc = metadata['nhru_nonchannels']
+ nclusters_c = metadata['nhru_channels']
+ nclusters = nclusters_nc + nclusters_c
+ dt = metadata['dt']
+ dx = metadata['dx']
+ nsoil = metadata['nsoil']
+ model_type = metadata['model_type']
+ output_dir = metadata['output_dir']
+ input_dir = metadata['input_dir']
 
  #Read in the catchment database
  wbd = pickle.load(open(info['wbd']))
 
  #Define the dates
- idate = datetime.datetime(2004,1,1,0)
- fdate = datetime.datetime(2004,12,31,23)
- #fdate = datetime.datetime(2004,3,31,23)
- #fdate = datetime.datetime(2006,12,31,23)
+ idate = datetime.datetime(metadata['startdate']['year'],
+                           metadata['startdate']['month'],
+                           metadata['startdate']['day'],0)
+ fdate = datetime.datetime(metadata['enddate']['year'],
+                           metadata['enddate']['month'],
+                           metadata['enddate']['day'],23)
 
  #Iterate through all the catchments until done
  for icatch in np.arange(len(wbd))[rank::size]:
@@ -42,32 +51,34 @@ def Deterministic(info):
   print icatch
   dir = info['dir']
 
+  #Create the input and output directories
+  os.system('mkdir -p %s/catch_%d' % (metadata['output_dir'],icatch))
+  os.system('mkdir -p %s/catch_%d' % (metadata['input_dir'],icatch))
+
   #Define the info
   hydrobloks_info = {
         'icatch':icatch,
         'rank':rank,
-        #'input':'%s/input/data.pck' % dir,
-        'input':'%s/catch_%d/input_data.nc' % (dir,icatch),
-        'dt':3600.,#seconds
-        'dx':30.,#meters
-        'nsoil':20,
+        'input':'%s/catch_%d/input_nhru_%d.nc' % (input_dir,icatch,nclusters),
+        'dt':dt,#seconds
+        'dx':dx,#meters
+        'nsoil':nsoil,
         'wbd':wbd[icatch],
         'ncores':ncores,
         'idate':idate,
         'fdate':fdate,
-        #'parameters':parameters,
         'dir':'%s/catch_%d' % (dir,icatch),
         'nclusters_nc':nclusters_nc,
         'nclusters_c':nclusters_c,
         'nclusters':nclusters_nc + nclusters_c,
-        'model_type':'semi',
+        'model_type':model_type,
         'output_type':'Full',
         'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
-        'output':'%s/catch_%d/output_data.nc' % (dir,icatch),
+        'output':'%s/catch_%d/output_nhru_%d.nc' % (metadata['output_dir'],icatch,nclusters),
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -443,11 +454,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Prepare the info dictionary
  info = {}
-
- #Define the binaries
- info['binaries'] = {}
- info['binaries']['grads'] = '/u/sciteam/nchaney/libraries/opengrads/Contents/grads'
- info['binaries']['gdalwarp'] = '/u/sciteam/nchaney/local/bin/gdalwarp'
 
  #Define the start/end dates
  info['time_info'] = {}

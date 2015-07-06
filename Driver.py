@@ -21,6 +21,7 @@ if parallel_flag == True:
 	'wbd':wbd_file,
 	'dir':dir,
 	'ncores':ncores,
+        'metadata':metadata,
 	}
 
 elif parallel_flag == False:
@@ -30,6 +31,7 @@ elif parallel_flag == False:
         'wbd':wbd_file,
         'dir':dir,
 	'ncores':ncores,
+        'metadata':metadata,
         }
 
 #Deterministic
