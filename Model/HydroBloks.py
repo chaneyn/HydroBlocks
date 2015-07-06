@@ -222,7 +222,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 1
+ ntt = 4
  #NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
