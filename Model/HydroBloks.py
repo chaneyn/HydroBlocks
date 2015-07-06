@@ -52,7 +52,7 @@ class HydroBloks:
   self.ecan = 0.0
   self.prcp = 0.0
   self.q = 0.0
-  self.errwat = np.zeros(nhru,dtype=np.float32)
+  self.errwat = 0.0#np.zeros(nhru,dtype=np.float32)
   self.dzwt0 = np.zeros(nhru,dtype=np.float32)
   self.beg_wb = np.zeros(nhru,dtype=np.float32)
   self.end_wb = np.zeros(nhru,dtype=np.float32)
@@ -78,7 +78,7 @@ class HydroBloks:
 
   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
-  self.errwat += tmp
+  self.errwat += np.sum(TOPMODEL.pct*tmp)
   self.q = self.q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
   self.et = self.et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
   self.etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
@@ -383,15 +383,7 @@ def run_model(info):
  #Run the model
  date = idate
  i = 0
- #dE = 0
  tic = time.time()
- #errwat = 0
- #r = 0
- #dr = 0
- #et,etran,esoil,ecan = 0,0,0,0
- #prcp = 0
- #q = 0
- #errwat = 0
  NOAH.dzwt[:] = 0.0
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
@@ -401,48 +393,29 @@ def run_model(info):
 
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
-   print date,time.time() - tic,'et:%f'%HB.et,'prcp:%f'%HB.prcp,'q:%f'%HB.q,'WB ERR:%f' % np.sum(TOPMODEL.pct*HB.errwat)
+   print date,time.time() - tic,'et:%f'%HB.et,'prcp:%f'%HB.prcp,'q:%f'%HB.q,'WB ERR:%f' % HB.errwat
  
   #Update input data
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
   #Calculate initial NOAH water balance
   HB.Initialize_Water_Balance(NOAH,TOPMODEL)
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
-  #beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
-  #dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
 
   #Update model
   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
 
   #Calculate final water balance
   HB.Finalize_Water_Balance(NOAH,TOPMODEL)
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
-  #end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
 
   #Update the water balance error
   HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,dt)
-  #tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
-  #errwat += tmp# - tmp
-  #q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
-  #et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  #etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
-  #ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
-  #esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
-  #prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update time and date
   info['time'] = time.time() - time0#seconds
   info['date'] = date
 
   #Update output
-  #Write to netcdf
-  #file_netcdf = hydrobloks_info['output'] 
-  ##Update the netcdf file
-  #vars = output['variables'].keys()
-  #update_netcdf(hydrobloks_info['dir'],0,1,parameters,file_netcdf,output,0)
   Update_Output(info,i,NOAH,TOPMODEL)
-  #output = Update_Output(output,NOAH,TOPMODEL,date,output_type)
 
   #Update time step
   date = date + dt_timedelta
