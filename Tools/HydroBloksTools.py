@@ -78,7 +78,7 @@ def Deterministic(info):
         }
 
   #Cluster the data
-  Prepare_Model_Input_Data(hydrobloks_info)
+  #Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)

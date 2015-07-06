@@ -23,6 +23,71 @@ def Finalize_Model(NOAH,TOPMODEL):
 
  return
 
+class HydroBloks:
+
+ def __init__(self,nhru):
+
+  #NOAH-MP
+  self.smc1 = np.zeros(nhru,dtype=np.float32)
+  self.g = np.zeros(nhru,dtype=np.float32)
+  self.sh = np.zeros(nhru,dtype=np.float32)
+  self.lh = np.zeros(nhru,dtype=np.float32)
+  self.qbase = np.zeros(nhru,dtype=np.float32)
+  self.qsurface = np.zeros(nhru,dtype=np.float32)
+  self.prcp = np.zeros(nhru,dtype=np.float32)
+
+  #TOPMODEL
+  self.swd = np.zeros(nhru,dtype=np.float32)
+  self.qout_subsurface = np.zeros(nhru,dtype=np.float32)
+  self.qout_surface = np.zeros(nhru,dtype=np.float32)
+  self.qout_sstorage = np.zeros(nhru,dtype=np.float32)
+
+  #Summary
+  self.dE = 0.0
+  self.r = 0.0
+  self.dr = 0.0
+  self.et = 0.0
+  self.etran = 0.0
+  self.esoil = 0.0
+  self.ecan = 0.0
+  self.prcp = 0.0
+  self.q = 0.0
+  self.errwat = np.zeros(nhru,dtype=np.float32)
+  self.dzwt0 = np.zeros(nhru,dtype=np.float32)
+  self.beg_wb = np.zeros(nhru,dtype=np.float32)
+  self.end_wb = np.zeros(nhru,dtype=np.float32)
+
+  return
+
+ def Initialize_Water_Balance(self,NOAH,TOPMODEL):
+
+  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
+  self.beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
+  self.dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
+
+  return 
+
+ def Finalize_Water_Balance(self,NOAH,TOPMODEL):
+
+  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
+  self.end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
+
+  return
+
+ def Calculate_Water_Balance_Error(self,NOAH,TOPMODEL,dt):
+
+  tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
+        NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
+  self.errwat += tmp
+  self.q = self.q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
+  self.et = self.et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  self.etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
+  self.ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
+  self.esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
+  self.prcp = self.prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+
+  return
+
 def Initialize_Model(ncells,dt,nsoil,info,wbd):
 
  from NoahMP import model
@@ -222,7 +287,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 4
+ ntt = 1
  #NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
  dt = np.copy(NOAH.dt)
@@ -312,22 +377,21 @@ def run_model(info):
  print "Initializing TOPMODEL"
  TOPMODEL = Initialize_DTopmodel(ncells,dt,info) 
 
+ #Initialize the coupler
+ HB = HydroBloks(ncells)
+
  #Run the model
- #meteorology = {}
- #for var in info['input_fp'].groups['meteorology'].variables:
- # meteorology[var] = info['input_fp'].groups['meteorology'].variables[var][:]
- #meteorology = data['meteorology']
  date = idate
  i = 0
- dE = 0
+ #dE = 0
  tic = time.time()
  #errwat = 0
- r = 0
- dr = 0
- et,etran,esoil,ecan = 0,0,0,0
- prcp = 0
- q = 0
- errwat = 0
+ #r = 0
+ #dr = 0
+ #et,etran,esoil,ecan = 0,0,0,0
+ #prcp = 0
+ #q = 0
+ #errwat = 0
  NOAH.dzwt[:] = 0.0
  TOPMODEL.ex[:] = 0.0
  while date <= fdate:
@@ -337,39 +401,35 @@ def run_model(info):
 
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
-   print date,time.time() - tic,'et:%f'%et,'prcp:%f'%prcp,'q:%f'%q,'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat)
-   #print date,np.sum(TOPMODEL.pct*TOPMODEL.si),time.time() - tic,et,prcp,'q:%f'%q,np.sum(TOPMODEL.pct*NOAH.smcwtd),np.sum(TOPMODEL.pct*NOAH.zwt),'WB ERR:%f' % np.sum(TOPMODEL.pct*errwat),'etran:%f'%etran,'ecan:%f'%ecan,'esoil:%f'%esoil
-  if (date.month == 1) and (date.day == 1) and (date.hour == 0):
-   et = 0
-   prcp = 0
-   q = 0
-   ecan,etran,esoil = 0,0,0
+   print date,time.time() - tic,'et:%f'%HB.et,'prcp:%f'%HB.prcp,'q:%f'%HB.q,'WB ERR:%f' % np.sum(TOPMODEL.pct*HB.errwat)
  
   #Update input data
-  #Update_Input(NOAH,TOPMODEL,date,meteorology,i)
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
   #Calculate initial NOAH water balance
-  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
-  beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
-  dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
+  HB.Initialize_Water_Balance(NOAH,TOPMODEL)
+  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
+  #beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
+  #dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
 
   #Update model
   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
 
   #Calculate final water balance
-  smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
-  end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
+  HB.Finalize_Water_Balance(NOAH,TOPMODEL)
+  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
+  #end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
 
   #Update the water balance error
-  tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
-  errwat += tmp# - tmp
-  q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
-  et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
-  ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
-  esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
-  prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+  HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,dt)
+  #tmp = np.copy(end_wb - beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*dzwt0)
+  #errwat += tmp# - tmp
+  #q = q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
+  #et = et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  #etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
+  #ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
+  #esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
+  #prcp = prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
 
   #Update time and date
   info['time'] = time.time() - time0#seconds
