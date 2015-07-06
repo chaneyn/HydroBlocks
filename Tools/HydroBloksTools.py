@@ -28,6 +28,7 @@ def Deterministic(info):
  nclusters_c = metadata['nhru_channels']
  nclusters = nclusters_nc + nclusters_c
  dt = metadata['dt']
+ dtt = metadata['dtt']
  dx = metadata['dx']
  nsoil = metadata['nsoil']
  model_type = metadata['model_type']
@@ -54,13 +55,17 @@ def Deterministic(info):
   #Create the input and output directories
   os.system('mkdir -p %s/catch_%d' % (metadata['output_dir'],icatch))
   os.system('mkdir -p %s/catch_%d' % (metadata['input_dir'],icatch))
+  os.system('mkdir -p %s/catch_%d' % (metadata['soil_dir'],icatch))
 
   #Define the info
   hydrobloks_info = {
         'icatch':icatch,
         'rank':rank,
         'input':'%s/catch_%d/input_nhru_%d.nc' % (input_dir,icatch,nclusters),
+        'surface_flow_flag':metadata['surface_flow_flag'],
+        'subsurface_flow_flag':metadata['subsurface_flow_flag'],
         'dt':dt,#seconds
+        'dtt':dtt,#seconds
         'dx':dx,#meters
         'nsoil':nsoil,
         'wbd':wbd[icatch],
@@ -73,12 +78,13 @@ def Deterministic(info):
         'nclusters':nclusters_nc + nclusters_c,
         'model_type':model_type,
         'output_type':'Full',
-        'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
+        'soil_file':'%s/catch_%d/SOILPARM_nhru_%d.TBL' % (metadata['soil_dir'],icatch,nclusters),
+        #'soil_file':'%s/catch_%d/workspace/soils/SOILPARM_%d_%d.TBL' % (dir,icatch,icatch,rank),
         'output':'%s/catch_%d/output_nhru_%d.nc' % (metadata['output_dir'],icatch,nclusters),
         }
 
   #Cluster the data
-  #Prepare_Model_Input_Data(hydrobloks_info)
+  if metadata['calculate_hrus'] == True:Prepare_Model_Input_Data(hydrobloks_info)
 
   #Run the model
   HB.run_model(hydrobloks_info)
@@ -1002,7 +1008,7 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir,icatch,rank):
  nhsus = hydrobloks_info['nclusters']
  soilsdir = '%s/soils' % input_dir
  os.system('mkdir -p %s' % soilsdir)
- soils_lookup = '%s/SOILPARM_%d_%d.TBL' % (soilsdir,icatch,rank)
+ soils_lookup = hydrobloks_info['soil_file']
  fp = open(soils_lookup,'w')
  fp.write('Soil Parameters\n')
  fp.write('CUST\n')

@@ -81,24 +81,22 @@ class Dynamic_Topmodel:
   #Point to the solver
   self.dtt = dtt
 
+  #Flags
+  self.surface_flow_flag = True
+  self.subsurface_flow_flag = True
+
+  return
+
  def update(self,ncores):
   
   maxntt = np.int32(1) #maximum number of sub timesteps
   isw = np.float64(0.5) #implicit scheme weight
   
   #Update the subsurface runoff
-  self.update_subsurface_fortran(ncores,maxntt,isw)
+  if self.subsurface_flow_flag == True:self.update_subsurface_fortran(ncores,maxntt,isw)
 
   #Update the surface runoff
-  #dt_minimum = np.min(self.dx/self.celerity_surface)
-  #ntt = np.floor(self.dt/dt_minimum).astype(np.int)/5
-  #if ntt == 0:ntt = 1
-  #ntt = 1
-  #dtold = self.dt
-  #self.dt = dtold/ntt
-  #for i in xrange(ntt):
-  #self.update_surface_fortran(ncores,maxntt,isw)
-  #self.dt = dtold
+  if self.surface_flow_flag == True:self.update_surface_fortran(ncores,maxntt,isw)
 
   #Check catchment water balance
   #self.check_water_balance()

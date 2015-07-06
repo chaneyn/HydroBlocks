@@ -235,6 +235,10 @@ def Initialize_DTopmodel(ncells,dt,info):
  model = dynamic_topmodel.Dynamic_Topmodel(ncells,nhru_outlet)
  dx = info['dx'] #meters
 
+ #Set flags
+ model.surface_flow_flag = info['surface_flow_flag']
+ model.subsurface_flow_flag = info['subsurface_flow_flag']
+
  #Set model parameters
  model.dt = dt #seconds
  model.area[:] = 0.0 #meters^2
@@ -287,16 +291,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
- ntt = 1
- #NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
- NOAH.dzwt[:] = NOAH.dzwt[:]/ntt
- dt = np.copy(NOAH.dt)
- NOAH.dt = dt/ntt
- #print "Update Noah",ncores
- t0 = time.time()
- for i in xrange(ntt):
-  NOAH.run_model(ncores)
- NOAH.dt = np.copy(dt)
+ NOAH.run_model(ncores)
  #print "Update Noah",time.time() - t0
 
  #Calculate the updated soil moisture deficit
@@ -338,6 +333,7 @@ def run_model(info):
  #data = pickle.load(open(info['input']))
  #Define the metadata
  dt = info['dt']
+ dtt = info['dtt']
  nsoil = info['nsoil']
  wbd = info['wbd']
  ncores = info['ncores']
@@ -350,7 +346,7 @@ def run_model(info):
  dt_timedelta = datetime.timedelta(seconds=dt)
 
  #Open access to the input netcdf file
- info = {'dt':info['dt'],'dx':info['dx']}
+ #info = {'dt':info['dt'],'dx':info['dx']}
  info['input_fp'] = nc.Dataset(input_file)
 
  #Open access to the output netcdf file
@@ -398,17 +394,30 @@ def run_model(info):
   #Update input data
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
-  #Calculate initial NOAH water balance
-  HB.Initialize_Water_Balance(NOAH,TOPMODEL)
+  #Run sub-timesteps
+  ntt = int(dt/dtt)
+  NOAH.dt = dtt
+  TOPMODEL.dt = dtt
 
-  #Update model
-  (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
+  for itt in xrange(ntt):
 
-  #Calculate final water balance
-  HB.Finalize_Water_Balance(NOAH,TOPMODEL)
+   #Calculate initial NOAH water balance
+   HB.Initialize_Water_Balance(NOAH,TOPMODEL)
 
-  #Update the water balance error
-  HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,dt)
+   #Update model
+   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
+
+   #Calculate final water balance
+   HB.Finalize_Water_Balance(NOAH,TOPMODEL)
+
+   #Update the water balance error
+   HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
+
+   #Update output
+
+  #Redefine other info
+  NOAH.dt = dt
+  TOPMODEL.dt = dt
 
   #Update time and date
   info['time'] = time.time() - time0#seconds
