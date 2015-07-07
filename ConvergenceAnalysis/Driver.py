@@ -29,8 +29,10 @@ for nhru in nhrus[rank::size]:
  #Save the metadata file
  file = '%s/metadata.json' % (dir,)
  json.dump(metadata,open(file,'w'))
+ #Create the input files
+ os.system('python ../Preprocessing/Driver.py %s' % file)
  #Run hydrobloks
- os.system('python ../Driver.py %s' % file)
+ os.system('python ../Model/Driver.py %s' % file)
  
  
 

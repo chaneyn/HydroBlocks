@@ -2,13 +2,19 @@
 #sys.path.append('Preprocessing')
 #sys.path.append('Model')
 import datetime
-from Preprocessing import Preprocessing
-from Model import HydroBloks as HB
+import HydroBloks as HB
 import sys
+
+def Read_Metadata_File(file):
+
+ import json
+ metadata = json.load(open(file))
+
+ return metadata
 
 #Read in the metadata file
 metadata_file = sys.argv[1]
-metadata = Preprocessing.Read_Metadata_File(metadata_file)
+metadata = Read_Metadata_File(metadata_file)
 ncores = metadata['parallel_ncores']
 
 #Define the dates
@@ -40,9 +46,6 @@ hydrobloks_info = {
 	'nclusters':metadata['nhru_nc'] + metadata['nhru_c'],
 	'model_type':metadata['model_type'],
 	}
-
-#Cluster the data
-if metadata['calculate_hrus'] == True:Preprocessing.Prepare_Model_Input_Data(hydrobloks_info)
 
 #Run the model
 HB.Run_Model(hydrobloks_info)
