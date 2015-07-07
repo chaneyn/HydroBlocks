@@ -100,10 +100,10 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
  #model.lsoil[:] = 'STAS'
  model.lsoil[:] = 'CUST'
- model.vegparm_file[:] = info['VEGPARM']#'data/VEGPARM.TBL'
- model.genparm_file[:] = info['GENPARM']#'data/GENPARM.TBL'
- model.soilparm_file[:] = info['SOILPARM']
- model.mptable_file[:] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
+ model.vegparm_file[0:len(info['VEGPARM'])] = info['VEGPARM']#'data/VEGPARM.TBL'
+ model.genparm_file[0:len(info['GENPARM'])] = info['GENPARM']#'data/GENPARM.TBL'
+ model.soilparm_file[0:len(info['SOILPARM'])] = info['SOILPARM']
+ model.mptable_file[0:len(info['MPTABLE'])] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
  #Define the options
  model.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
  model.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)

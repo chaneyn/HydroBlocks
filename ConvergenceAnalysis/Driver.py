@@ -6,7 +6,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 nhrus = np.arange(10,110,40)
-workspace = 'workspace'
+workspace = '/scratch/02179/chaneyna/convergence_analysis/workspace'
 
 #Iterate through the hru numbers
 for nhru in nhrus[rank::size]:
@@ -25,6 +25,7 @@ for nhru in nhrus[rank::size]:
  metadata['input_file'] = '%s/input_file.nc' % dir
  metadata['output_file'] = '%s/output_file.nc' % dir
  metadata['soil_file'] = '%s/soil_file.txt' % dir
+ metadata['workspace'] = '/scratch/02179/chaneyna/convergence_analysis/LittleWashita/workspace'
  #Save the metadata file
  file = '%s/metadata.json' % (dir,)
  json.dump(metadata,open(file,'w'))
