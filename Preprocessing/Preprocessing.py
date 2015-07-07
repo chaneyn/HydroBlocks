@@ -545,7 +545,8 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
 def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
 
  #Read in table of NOAH soil parameter values
- fp = open('Model/pyNoahMP/data/SOILPARM.TBL')
+ dir = os.path.dirname(os.path.abspath(__file__))
+ fp = open('%s/../Model/pyNoahMP/data/SOILPARM.TBL' % dir)
  iline = 0
  soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[],'ID':[],'BB':[],'F11':[],'SATPSI':[],'SATDK':[]
 ,'SATDW':[],'WLTSMC':[],'QTZ':[]}

@@ -1,13 +1,14 @@
-import sys
-sys.path.append('Preprocessing')
-sys.path.append('Model')
+#import sys
+#sys.path.append('Preprocessing')
+#sys.path.append('Model')
 import datetime
-import HydroBloksTools as HBT
-import HydroBloks as HB
+from Preprocessing import Preprocessing
+from Model import HydroBloks as HB
+import sys
 
 #Read in the metadata file
 metadata_file = sys.argv[1]
-metadata = HBT.Read_Metadata_File(metadata_file)
+metadata = Preprocessing.Read_Metadata_File(metadata_file)
 ncores = metadata['parallel_ncores']
 
 #Define the dates
@@ -41,7 +42,7 @@ hydrobloks_info = {
 	}
 
 #Cluster the data
-if metadata['calculate_hrus'] == True:HBT.Prepare_Model_Input_Data(hydrobloks_info)
+if metadata['calculate_hrus'] == True:Preprocessing.Prepare_Model_Input_Data(hydrobloks_info)
 
 #Run the model
 HB.Run_Model(hydrobloks_info)

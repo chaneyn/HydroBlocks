@@ -90,7 +90,8 @@ class HydroBloks:
 
 def Initialize_Model(ncells,dt,nsoil,info):
 
- from NoahMP import model
+ from pyNoahMP.NoahMP import model
+ #from NoahMP import model
 
  model.ncells = ncells
  model.nsoil = nsoil
@@ -103,18 +104,6 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.genparm_file[:] = info['GENPARM']#'data/GENPARM.TBL'
  model.soilparm_file[:] = info['SOILPARM']
  model.mptable_file[:] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
- #Read in the soil parameter file
- #fp = open(info['SOILPARM'])
- #iline = 0
- #soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[]}
- #for line in fp:
- # if (iline > 2) & (iline < 15):
- #  tmp = line.split(',')
- #  soils_data['MAXSMC'].append(float(tmp[4]))
- #  soils_data['DRYSMC'].append(float(tmp[2]))
- #  soils_data['REFSMC'].append(float(tmp[5]))
- # iline = iline + 1
- #fp.close()
  #Define the options
  model.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
  model.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -228,7 +217,7 @@ def Initialize_Model(ncells,dt,nsoil,info):
 def Initialize_DTopmodel(ncells,dt,info):
 
  #sys.path.append("topmodel")
- import dynamic_topmodel
+ from pyDTopmodel import dynamic_topmodel
 
  #Define some metadata
  nhru_outlet = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'].size
@@ -353,9 +342,10 @@ def Run_Model(info):
  info['output_fp'] = nc.Dataset(output_file,'w',format='NETCDF4')
   
  #Define the parameter files
- info['VEGPARM'] = 'Model/pyNoahMP/data/VEGPARM.TBL'#'data/VEGPARM.TBL'
- info['GENPARM'] = 'Model/pyNoahMP/data/GENPARM.TBL'#'data/GENPARM.TBL'
- info['MPTABLE'] = 'Model/pyNoahMP/data/MPTABLE.TBL'#'pyNoahMP/data/MPTABLE.TBL'
+ dir = os.path.dirname(os.path.abspath(__file__))
+ info['VEGPARM'] = '%s/pyNoahMP/data/VEGPARM.TBL' % dir#'data/VEGPARM.TBL'
+ info['GENPARM'] = '%s/pyNoahMP/data/GENPARM.TBL' % dir#'data/GENPARM.TBL'
+ info['MPTABLE'] = '%s/pyNoahMP/data/MPTABLE.TBL' % dir#'pyNoahMP/data/MPTABLE.TBL'
  info['SOILPARM'] = soil_file
  
  #Set the number of cells (hsus)

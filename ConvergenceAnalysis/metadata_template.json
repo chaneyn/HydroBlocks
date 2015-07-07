@@ -1,0 +1,20 @@
+{
+  "catchment_id": 0,
+  "parallel_ncores": 32,
+  "nhru_nc": 2,
+  "nhru_c": 1,
+  "startdate":{"year":2004,"month":1,"day":1},
+  "enddate":{"year":2004,"month":12,"day":31},
+  "dt":3600.0,
+  "dtt":3600.0,
+  "dx":30.0,
+  "nsoil":5,
+  "model_type":"semi",
+  "output_file":"/home/freeze/nchaney/LittleWashita/output_file.nc",
+  "input_file":"/home/freeze/nchaney/LittleWashita/input_file.nc",
+  "noahmp_tables_dir":"/home/freeze/nchaney/LittleWashita/tables",
+  "workspace":"/home/freeze/nchaney/LittleWashita/workspace",
+  "subsurface_flow_flag": true,
+  "surface_flow_flag": false,
+  "calculate_hrus": true
+}
