@@ -15,5 +15,5 @@
   "soil_file":"/scratch/02179/chaneyna/convergence_analysis/LittleWashita/soil_file.txt",
   "workspace":"/scratch/02179/chaneyna/convergence_analysis/LittleWashita/workspace",
   "subsurface_flow_flag": true,
-  "surface_flow_flag": false,
+  "surface_flow_flag": false
 }

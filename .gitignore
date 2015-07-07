@@ -3,6 +3,5 @@
 *.mod
 *.so
 *.o
-Test
 *.tar.gz
 Model/pyNoahMP/src/Noah/*.f90
