@@ -118,46 +118,49 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
  hmca[:] = hsu_map
 
- #Write out the mapping
- file_ca = '%s/hsu_mapping_conus_albers.tif' % workspace
- gdal_tools.write_raster(file_ca,metadata,hsu_map)
+ if hydrobloks_info['create_mask_flag'] == True:
 
- #Map the mapping to regular lat/lon
- file_ll = '%s/hsu_mapping_latlon.tif' % workspace
- os.system('rm -f %s' % file_ll)
- res = wbd['bbox']['res']
- minlat = wbd['bbox']['minlat']
- minlon = wbd['bbox']['minlon']
- maxlat = wbd['bbox']['maxlat']
- maxlon = wbd['bbox']['maxlon']
- log = '%s/log.txt' % workspace
- os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+  #Write out the mapping
+  file_ca = '%s/hsu_mapping_conus_albers.tif' % workspace
+  gdal_tools.write_raster(file_ca,metadata,hsu_map)
 
- #Write a map for the catchment id
- file_icatch = '%s/icatch_latlon.tif' % workspace
- metadata = gdal_tools.retrieve_metadata(file_ll)
- metadata['nodata'] = -9999.0
- tmp = gdal_tools.read_raster(file_ll)
- tmp[tmp >= 0] = hydrobloks_info['icatch']
- gdal_tools.write_raster(file_icatch,metadata,tmp)
+  #Map the mapping to regular lat/lon
+  file_ll = '%s/hsu_mapping_latlon.tif' % workspace
+  os.system('rm -f %s' % file_ll)
+  res = wbd['bbox']['res']
+  minlat = wbd['bbox']['minlat']
+  minlon = wbd['bbox']['minlon']
+  maxlat = wbd['bbox']['maxlat']
+  maxlon = wbd['bbox']['maxlon']
+  log = '%s/log.txt' % workspace
+  os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
 
- #Add the lat/lon mapping
- #Retrieve the lat/lon metadata
- metadata = gdal_tools.retrieve_metadata(file_ll)
- metadata['nodata'] = -9999.0
- #Save the lat/lon metadata
- grp = fp.createGroup('latlon_mapping')
- grp.createDimension('nlon',metadata['nx'])
- grp.createDimension('nlat',metadata['ny'])
- hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
- hmll.gt = metadata['gt']
- hmll.projection = metadata['projection']
- hmll.description = 'HSU mapping (regular lat/lon)'
- hmll.nodata = metadata['nodata']
- #Save the lat/lon mapping
- hsu_map = np.copy(gdal_tools.read_raster(file_ll))
- hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
- hmll[:] = hsu_map
+ 
+  #Write a map for the catchment id
+  file_icatch = '%s/icatch_latlon.tif' % workspace
+  metadata = gdal_tools.retrieve_metadata(file_ll)
+  metadata['nodata'] = -9999.0
+  tmp = gdal_tools.read_raster(file_ll)
+  tmp[tmp >= 0] = hydrobloks_info['icatch']
+  gdal_tools.write_raster(file_icatch,metadata,tmp)
+
+  #Add the lat/lon mapping
+  #Retrieve the lat/lon metadata
+  metadata = gdal_tools.retrieve_metadata(file_ll)
+  metadata['nodata'] = -9999.0
+  #Save the lat/lon metadata
+  grp = fp.createGroup('latlon_mapping')
+  grp.createDimension('nlon',metadata['nx'])
+  grp.createDimension('nlat',metadata['ny'])
+  hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+  hmll.gt = metadata['gt']
+  hmll.projection = metadata['projection']
+  hmll.description = 'HSU mapping (regular lat/lon)'
+  hmll.nodata = metadata['nodata']
+  #Save the lat/lon mapping
+  hsu_map = np.copy(gdal_tools.read_raster(file_ll))
+  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+  hmll[:] = hsu_map
 
  #Write the flow matrix
  flow_matrix = output['flow_matrix']

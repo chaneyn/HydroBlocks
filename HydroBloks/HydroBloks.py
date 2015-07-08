@@ -558,16 +558,17 @@ def Create_Netcdf_File(info):
  hsu.description = 'hsu ids'
 
  #Create the mapping
- grp = fp_out.createGroup('latlon_mapping')
- grp.createDimension('nlon',len(fp_in.groups['latlon_mapping'].dimensions['nlon']))
- grp.createDimension('nlat',len(fp_in.groups['latlon_mapping'].dimensions['nlat']))
- hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
- hmll.gt = fp_in.groups['latlon_mapping'].variables['hmll'].gt
- hmll.projection = fp_in.groups['latlon_mapping'].variables['hmll'].projection
- hmll.description = 'HSU mapping (regular lat/lon)'
- hmll.nodata = fp_in.groups['latlon_mapping'].variables['hmll'].nodata
- #Save the lat/lon mapping
- hmll[:] = fp_in.groups['latlon_mapping'].variables['hmll'][:]
+ if info['create_mask_flag'] == True:
+  grp = fp_out.createGroup('latlon_mapping')
+  grp.createDimension('nlon',len(fp_in.groups['latlon_mapping'].dimensions['nlon']))
+  grp.createDimension('nlat',len(fp_in.groups['latlon_mapping'].dimensions['nlat']))
+  hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+  hmll.gt = fp_in.groups['latlon_mapping'].variables['hmll'].gt
+  hmll.projection = fp_in.groups['latlon_mapping'].variables['hmll'].projection
+  hmll.description = 'HSU mapping (regular lat/lon)'
+  hmll.nodata = fp_in.groups['latlon_mapping'].variables['hmll'].nodata
+  #Save the lat/lon mapping
+  hmll[:] = fp_in.groups['latlon_mapping'].variables['hmll'][:]
 
  return
 

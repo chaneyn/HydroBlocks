@@ -35,19 +35,8 @@ hydrobloks_info = {
 	'nclusters_c':metadata['nhru_c'],
 	'nclusters':metadata['nhru_nc'] + metadata['nhru_c'],
 	'model_type':metadata['model_type'],
+        'create_mask_flag':metadata['create_mask_flag']
 	}
 
 #Cluster the data
 Preprocessing.Prepare_Model_Input_Data(hydrobloks_info)
-
-#Setup output redirection
-#fout,ferr = os.open('/dev/null',os.O_RDWR|os.O_CREAT),os.open('/dev/null',os.O_RDWR|os.O_CREAT)
-#so,se = os.dup(1),os.dup(2)
-
-#Flush out the output
-#sys.stdout.flush()
-#sys.stderr.flush()
-
-#Redirect the output back to the terminal 
-#os.dup2(so, 1),os.dup2(se,2)
-#os.dup2(so,1)
