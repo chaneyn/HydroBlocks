@@ -1432,7 +1432,16 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
                 WLTSMC(LC), QTZ(LC)
         ENDDO
      ENDIF
+     !bb(1:nhru) = bb0(1:nhru)
+     drysmc(1:nhru) = drysmc0(1:nhru)
+     !f11(1:nhru) = refsmc0(1:nhru)
+     maxsmc(1:nhru) = maxsmc0(1:nhru)
      refsmc(1:nhru) = refsmc0(1:nhru)
+     !satpsi(1:nhru) = refsmc0(1:nhru)
+     !satdk(1:nhru) = satdk0(1:nhru)
+     !satdw(1:nhru) = refsmc0(1:nhru)
+     !wltsmc(1:nhru) = wltsmc0(1:nhru)
+     !qtz(1:nhru) = refsmc0(1:nhru)
 
 2003 CONTINUE
 

@@ -205,8 +205,10 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp = fp.createGroup('parameters')
  vars = ['slope','area_pct','land_cover','channel',
         'dem','soil_texture_class','ti','carea','area',
+        'BB','F11','SATPSI','SATDW','QTZ'
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
         'mannings','m','psoil','pksat','sdmax']
+
  for var in vars:
   grp.createVariable(var,'f4',('hsu',))
   grp.variables[var][:] = data['hsu'][var]
