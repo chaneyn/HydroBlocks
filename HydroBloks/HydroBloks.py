@@ -117,8 +117,9 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
  model.iopt_tbot = 1#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
  model.iopt_stc = 1#1#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
- #Initialize the model
- model.initialize()
+ #Allocate memory
+ #model.initialize()
+ model.initialize_general()
  #Set initial info
  model.iz0tlnd = 0
  model.z_ml[:] = 2.0
@@ -180,22 +181,22 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.smcdry[:] = info['input_fp'].groups['parameters'].variables['DRYSMC'][:]
  for ilayer in xrange(model.sh2o.shape[1]):
   model.sh2o[:,ilayer] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
- '''for hsu in data['hsu']:
-  ihsu = data['hsu'].keys().index(hsu)
-  model.vegtyp[ihsu] = data['hsu'][hsu]['land_cover'] #HERE
-  model.soiltyp[ihsu] = ihsu + 1 #data['hsu'][hsu]['soil_texture_class']#1#ihsu+1 #HERE
-  model.smcmax[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC'] #soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
-  model.sh2o[ihsu] = data['hsu'][hsu]['soil_parameters']['MAXSMC'] #soils_data['MAXSMC'][model.soiltyp[ihsu]-1]
-  model.smcref[ihsu] = data['hsu'][hsu]['soil_parameters']['REFSMC'] #soils_data['REFSMC'][model.soiltyp[ihsu]-1]
-  model.smcdry[ihsu] = data['hsu'][hsu]['soil_parameters']['DRYSMC'] #soils_data['DRYSMC'][model.soiltyp[ihsu]-1]
- '''
  model.smc[:] = model.sh2o[:]
  model.smcwtd[:] = model.sh2o[:,0]
+ #Initialize the soil parameters
+ model.bb0[:] = info['input_fp'].groups['parameters'].variables['BB'][:]
+ model.drysmc0[:] = info['input_fp'].groups['parameters'].variables['DRYSMC'][:]
+ model.f110[:] = info['input_fp'].groups['parameters'].variables['F11'][:]
+ model.maxsmc0[:] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
+ model.refsmc0[:] = info['input_fp'].groups['parameters'].variables['REFSMC'][:]
+ model.satpsi0[:] = info['input_fp'].groups['parameters'].variables['SATPSI'][:]
+ model.satdk0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]
+ model.satdw0[:] = info['input_fp'].groups['parameters'].variables['SATDW'][:]
+ model.wltsmc0[:] = info['input_fp'].groups['parameters'].variables['WLTSMC'][:]
+ model.qtz0[:] = info['input_fp'].groups['parameters'].variables['QTZ'][:]
  #Set lat/lon (declination calculation)
  model.lat[:] = 0.0174532925*info['input_fp'].groups['metadata'].latitude
- #(wbd['bbox']['minlat'] + wbd['bbox']['maxlat'])/2
  model.lon[:] = 0.0174532925*info['input_fp'].groups['metadata'].longitude
- #(360.0+(wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2)
 
  #Initialize output
  model.tg[:] = 285.0
@@ -211,6 +212,9 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.fveg[:] = 1.0
  model.fvgmax[:] = 1.0
  model.tbot[:] = 285.0
+
+ #Define the parameters
+ model.initialize_parameters()
 
  return model
 

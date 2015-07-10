@@ -345,7 +345,7 @@ contains
 
  end subroutine finalize
 
- subroutine initialize()
+ subroutine initialize_general()
  
   USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
   implicit none
@@ -778,6 +778,14 @@ contains
   snice = badval
   snliq = badval
   ficeold = badval
+
+ end subroutine
+
+ subroutine initialize_parameters()
+
+  USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
+  implicit none
+  integer :: i
 
   ! Read our lookup tables and parameter tables:  VEGPARM.TBL, SOILPARM.TBL, GENPARM.TBL
   call soil_veg_gen_parm(llanduse,lsoil,vegparm_file,soilparm_file,genparm_file,&
@@ -1424,7 +1432,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
                 WLTSMC(LC), QTZ(LC)
         ENDDO
      ENDIF
-     !wltsmc(1:nhru) = wltsmc0(1:nhru)
+     refsmc(1:nhru) = refsmc0(1:nhru)
 
 2003 CONTINUE
 
