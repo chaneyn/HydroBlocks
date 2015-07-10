@@ -184,16 +184,16 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.smc[:] = model.sh2o[:]
  model.smcwtd[:] = model.sh2o[:,0]
  #Initialize the soil parameters
- #model.bb0[:] = info['input_fp'].groups['parameters'].variables['BB'][:]
+ model.bb0[:] = info['input_fp'].groups['parameters'].variables['BB'][:]
  model.drysmc0[:] = info['input_fp'].groups['parameters'].variables['DRYSMC'][:]
- #model.f110[:] = info['input_fp'].groups['parameters'].variables['F11'][:]
+ model.f110[:] = info['input_fp'].groups['parameters'].variables['F11'][:]
  model.maxsmc0[:] = info['input_fp'].groups['parameters'].variables['MAXSMC'][:]
  model.refsmc0[:] = info['input_fp'].groups['parameters'].variables['REFSMC'][:]
- #model.satpsi0[:] = info['input_fp'].groups['parameters'].variables['SATPSI'][:]
+ model.satpsi0[:] = info['input_fp'].groups['parameters'].variables['SATPSI'][:]
  model.satdk0[:] = info['input_fp'].groups['parameters'].variables['SATDK'][:]
- #model.satdw0[:] = info['input_fp'].groups['parameters'].variables['SATDW'][:]
+ model.satdw0[:] = info['input_fp'].groups['parameters'].variables['SATDW'][:]
  model.wltsmc0[:] = info['input_fp'].groups['parameters'].variables['WLTSMC'][:]
- #model.qtz0[:] = info['input_fp'].groups['parameters'].variables['QTZ'][:]
+ model.qtz0[:] = info['input_fp'].groups['parameters'].variables['QTZ'][:]
  #Set lat/lon (declination calculation)
  model.lat[:] = 0.0174532925*info['input_fp'].groups['metadata'].latitude
  model.lon[:] = 0.0174532925*info['input_fp'].groups['metadata'].longitude

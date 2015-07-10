@@ -205,7 +205,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp = fp.createGroup('parameters')
  vars = ['slope','area_pct','land_cover','channel',
         'dem','soil_texture_class','ti','carea','area',
-        'BB','F11','SATPSI','SATDW','QTZ'
+        'BB','F11','SATPSI','SATDW','QTZ',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
         'mannings','m','psoil','pksat','sdmax']
 
@@ -590,6 +590,7 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
    else:
     idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
     fp.write(',%.10f ' % soils_data[var][idx])
+    OUTPUT['hsu'][var][hsu] = soils_data[var][idx]
   fp.write('\n')
  fp.close()
 
