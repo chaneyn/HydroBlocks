@@ -576,25 +576,26 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
  soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
  nhsus = hydrobloks_info['nclusters']
  soilsdir = '%s/soils' % input_dir
- os.system('mkdir -p %s' % soilsdir)
- soils_lookup = hydrobloks_info['soil_file']
- fp = open(soils_lookup,'w')
- fp.write('Soil Parameters\n')
- fp.write('CUST\n')
- fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
+ #os.system('mkdir -p %s' % soilsdir)
+ #soils_lookup = hydrobloks_info['soil_file']
+ #fp = open(soils_lookup,'w')
+ #fp.write('Soil Parameters\n')
+ #fp.write('CUST\n')
+ #fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
  for hsu in np.arange(nhsus):
-  fp.write('%d ' % (hsu+1))
+  #fp.write('%d ' % (hsu+1))
   for var in soil_vars:
    if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
-    fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
+    donothing = 1
+    # fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
    else:
     idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
-    fp.write(',%.10f ' % soils_data[var][idx])
+    # fp.write(',%.10f ' % soils_data[var][idx])
     OUTPUT['hsu'][var][hsu] = soils_data[var][idx]
-  fp.write('\n')
- fp.close()
+  #fp.write('\n')
+ #fp.close()
 
- return soils_lookup
+ return #soils_lookup
 
 def Create_and_Curate_Covariates(wbd):
 
@@ -704,7 +705,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
 
  #Create the soil parameters file
  print "Creating the soil file"
- soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
+ Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
+ #soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
 
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
