@@ -165,6 +165,16 @@ module model
  real,dimension(:),allocatable :: minzwt ! minimum water table depth
  real,dimension(:),allocatable :: co2air
  real,dimension(:),allocatable :: o2air
+ real,dimension(:),allocatable :: bb0
+ real,dimension(:),allocatable :: drysmc0
+ real,dimension(:),allocatable :: f110
+ real,dimension(:),allocatable :: maxsmc0
+ real,dimension(:),allocatable :: refsmc0
+ real,dimension(:),allocatable :: satpsi0
+ real,dimension(:),allocatable :: satdk0
+ real,dimension(:),allocatable :: satdw0
+ real,dimension(:),allocatable :: wltsmc0
+ real,dimension(:),allocatable :: qtz0
 
  !Multi layer
  real,dimension(:,:),allocatable :: stc ! snow/soil temperatures
@@ -310,6 +320,16 @@ contains
   if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
   if (allocated(co2air) .eqv. .True.) deallocate(co2air)
   if (allocated(o2air) .eqv. .True.) deallocate(o2air)
+  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
+  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
+  if (allocated(f110) .eqv. .True.) deallocate(f110)
+  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
+  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
+  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
+  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
+  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
+  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
+  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -587,6 +607,26 @@ contains
   allocate(co2air(ncells))
   if (allocated(o2air) .eqv. .True.) deallocate(o2air)
   allocate(o2air(ncells))
+  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
+  allocate(bb0(ncells))
+  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
+  allocate(drysmc0(ncells))
+  if (allocated(f110) .eqv. .True.) deallocate(f110)
+  allocate(f110(ncells))
+  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
+  allocate(maxsmc0(ncells))
+  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
+  allocate(refsmc0(ncells))
+  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
+  allocate(satpsi0(ncells))
+  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
+  allocate(satdk0(ncells))
+  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
+  allocate(satdw0(ncells))
+  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
+  allocate(wltsmc0(ncells))
+  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
+  allocate(qtz0(ncells))
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -740,7 +780,8 @@ contains
   ficeold = badval
 
   ! Read our lookup tables and parameter tables:  VEGPARM.TBL, SOILPARM.TBL, GENPARM.TBL
-  call soil_veg_gen_parm(llanduse,lsoil,vegparm_file,soilparm_file,genparm_file)
+  call soil_veg_gen_parm(llanduse,lsoil,vegparm_file,soilparm_file,genparm_file,&
+         BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0,ncells)
 
   ! Read the Noah-MP table
   call read_mp_veg_parameters(llanduse,mptable_file)
@@ -1187,12 +1228,16 @@ subroutine run_model_cell(&
 end subroutine run_model_cell
 
 !-----------------------------------------------------------------
-SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPARM_FILE)
+SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPARM_FILE,&
+           BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0,NHRU)
 !-----------------------------------------------------------------
 
   USE module_sf_noahmplsm
   IMPLICIT NONE
 
+  integer :: nhru
+  real,dimension(nhru) :: bb0,drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0
+  real,dimension(nhru) :: satdw0,wltsmc0,qtz0
   CHARACTER(LEN=*), INTENT(IN) :: MMINLU, MMINSL
   character(len=256) :: vegparm_file,soilparm_file,genparm_file
   integer :: LUMATCH, IINDEX, LC, NUM_SLOPE
@@ -1379,6 +1424,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
                 WLTSMC(LC), QTZ(LC)
         ENDDO
      ENDIF
+     !wltsmc(1:nhru) = wltsmc0(1:nhru)
 
 2003 CONTINUE
 
