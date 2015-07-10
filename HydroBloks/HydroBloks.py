@@ -102,7 +102,7 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.lsoil[:] = 'CUST'
  model.vegparm_file[0:len(info['VEGPARM'])] = info['VEGPARM']#'data/VEGPARM.TBL'
  model.genparm_file[0:len(info['GENPARM'])] = info['GENPARM']#'data/GENPARM.TBL'
- model.soilparm_file[0:len(info['SOILPARM'])] = info['SOILPARM']
+ #model.soilparm_file[0:len(info['SOILPARM'])] = info['SOILPARM']
  model.mptable_file[0:len(info['MPTABLE'])] = info['MPTABLE']#'pyNoahMP/data/MPTABLE.TBL'
  #Define the options
  model.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
@@ -333,7 +333,7 @@ def Run_Model(info):
  ncores = info['ncores']
  idate = info['idate']
  fdate = info['fdate']
- soil_file = info['soil_file']
+ #soil_file = info['soil_file']
  input_file = info['input_file']
  output_file = info['output_file']
  dt_timedelta = datetime.timedelta(seconds=dt)
@@ -350,7 +350,7 @@ def Run_Model(info):
  info['VEGPARM'] = '%s/pyNoahMP/data/VEGPARM.TBL' % dir#'data/VEGPARM.TBL'
  info['GENPARM'] = '%s/pyNoahMP/data/GENPARM.TBL' % dir#'data/GENPARM.TBL'
  info['MPTABLE'] = '%s/pyNoahMP/data/MPTABLE.TBL' % dir#'pyNoahMP/data/MPTABLE.TBL'
- info['SOILPARM'] = soil_file
+ #info['SOILPARM'] = soil_file
  
  #Set the number of cells (hsus)
  ncells = len(info['input_fp'].dimensions['hsu'])

@@ -1388,50 +1388,52 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
 !
-  IF ( wrf_dm_on_monitor() ) THEN
-     OPEN(19, FILE=SOILPARM_FILE,FORM='FORMATTED',STATUS='OLD',IOSTAT=ierr)
-     IF(ierr .NE. OPEN_OK ) THEN
-        WRITE(message,FMT='(A)') &
-             'module_sf_noahlsm.F: soil_veg_gen_parm: failure opening SOILPARM.TBL'
-        CALL wrf_error_fatal ( message )
-     END IF
+!  IF ( wrf_dm_on_monitor() ) THEN
+!     OPEN(19, FILE=SOILPARM_FILE,FORM='FORMATTED',STATUS='OLD',IOSTAT=ierr)
+!     IF(ierr .NE. OPEN_OK ) THEN
+!        WRITE(message,FMT='(A)') &
+!             'module_sf_noahlsm.F: soil_veg_gen_parm: failure opening SOILPARM.TBL'
+!        CALL wrf_error_fatal ( message )
+!     END IF
 
-     WRITE(mess,*) 'INPUT SOIL TEXTURE CLASSIFICAION = ', TRIM ( MMINSL )
+!     WRITE(mess,*) 'INPUT SOIL TEXTURE CLASSIFICAION = ', TRIM ( MMINSL )
      !CALL wrf_message( mess )
 
-     LUMATCH=0
+!     LUMATCH=0
 
-     READ (19,*)
-     READ (19,2000,END=2003)SLTYPE
-2000 FORMAT (A4)
-     READ (19,*)SLCATS,IINDEX
-     IF(SLTYPE.EQ.MMINSL)THEN
-        WRITE( mess , * ) 'SOIL TEXTURE CLASSIFICATION = ', TRIM ( SLTYPE ) , ' FOUND', &
-             SLCATS,' CATEGORIES'
-        !CALL wrf_message ( mess )
-        LUMATCH=1
-     ENDIF
+!     READ (19,*)
+!     READ (19,2000,END=2003)SLTYPE
+!2000 FORMAT (A4)
+!     READ (19,*)SLCATS,IINDEX
+!     IF(SLTYPE.EQ.MMINSL)THEN
+!        WRITE( mess , * ) 'SOIL TEXTURE CLASSIFICATION = ', TRIM ( SLTYPE ) , ' FOUND', &
+!             SLCATS,' CATEGORIES'
+!        !CALL wrf_message ( mess )
+!        LUMATCH=1
+!     ENDIF
 ! prevent possible array overwrite, Bill Bovermann, IBM, May 6, 2008
-     print*,size(bb),slcats
-     IF ( SIZE(BB    ) < SLCATS .OR. &
-          SIZE(DRYSMC) < SLCATS .OR. &
-          SIZE(F11   ) < SLCATS .OR. &
-          SIZE(MAXSMC) < SLCATS .OR. &
-          SIZE(REFSMC) < SLCATS .OR. &
-          SIZE(SATPSI) < SLCATS .OR. &
-          SIZE(SATDK ) < SLCATS .OR. &
-          SIZE(SATDW ) < SLCATS .OR. &
-          SIZE(WLTSMC) < SLCATS .OR. &
-          SIZE(QTZ   ) < SLCATS  ) THEN
-        CALL wrf_error_fatal('Table sizes too small for value of SLCATS in module_sf_noahdrv.F')
-     ENDIF
-     IF(SLTYPE.EQ.MMINSL)THEN
-        DO LC=1,SLCATS
-           READ (19,*) IINDEX,BB(LC),DRYSMC(LC),F11(LC),MAXSMC(LC),&
-                REFSMC(LC),SATPSI(LC),SATDK(LC), SATDW(LC),   &
-                WLTSMC(LC), QTZ(LC)
-        ENDDO
-     ENDIF
+!     print*,size(bb),slcats
+!     IF ( SIZE(BB    ) < SLCATS .OR. &
+!          SIZE(DRYSMC) < SLCATS .OR. &
+!          SIZE(F11   ) < SLCATS .OR. &
+!          SIZE(MAXSMC) < SLCATS .OR. &
+!          SIZE(REFSMC) < SLCATS .OR. &
+!          SIZE(SATPSI) < SLCATS .OR. &
+!          SIZE(SATDK ) < SLCATS .OR. &
+!          SIZE(SATDW ) < SLCATS .OR. &
+!          SIZE(WLTSMC) < SLCATS .OR. &
+!          SIZE(QTZ   ) < SLCATS  ) THEN
+!        CALL wrf_error_fatal('Table sizes too small for value of SLCATS in module_sf_noahdrv.F')
+!     ENDIF
+!     IF(SLTYPE.EQ.MMINSL)THEN
+!        DO LC=1,SLCATS
+!           READ (19,*) IINDEX,BB(LC),DRYSMC(LC),F11(LC),MAXSMC(LC),&
+!                REFSMC(LC),SATPSI(LC),SATDK(LC), SATDW(LC),   &
+!                WLTSMC(LC), QTZ(LC)
+!        ENDDO
+!     ENDIF
+     print*,'NoahMP: Defining the soil properties'
+     slcats = nhru
      bb(1:nhru) = bb0(1:nhru)
      drysmc(1:nhru) = drysmc0(1:nhru)
      f11(1:nhru) = f110(1:nhru)
@@ -1443,10 +1445,10 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
      wltsmc(1:nhru) = wltsmc0(1:nhru)
      qtz(1:nhru) = qtz0(1:nhru)
 
-2003 CONTINUE
+!2003 CONTINUE
 
-     CLOSE (19)
-  ENDIF
+!     CLOSE (19)
+!  ENDIF
 
   CALL wrf_dm_bcast_integer ( LUMATCH , 1 )
   CALL wrf_dm_bcast_string  ( SLTYPE  , 4 )

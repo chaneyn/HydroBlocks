@@ -30,7 +30,7 @@ hydrobloks_info = {
         'icatch':metadata['catchment_id'],
 	'input_file':metadata['input_file'],
 	'output_file':metadata['output_file'],
-        'soil_file':metadata['soil_file'],
+        #'soil_file':metadata['soil_file'],
         'workspace':metadata['workspace'],
 	'surface_flow_flag':metadata['surface_flow_flag'],
 	'subsurface_flow_flag':metadata['subsurface_flow_flag'],
