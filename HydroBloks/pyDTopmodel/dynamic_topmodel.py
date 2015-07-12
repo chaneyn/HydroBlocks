@@ -299,6 +299,7 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
 def Calculate_Flux_Subsurface(si,T0,beta,m,sdmax):
 
  tmp = T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))
+ #tmp = T0*np.tan(beta)*(np.exp(-si/m))
  tmp[tmp < 0] = 0
  return tmp
  #return T0*np.sin(beta)*(np.exp(-si/m*np.cos(beta)) - np.exp(-sdmax/m*np.cos(beta)))

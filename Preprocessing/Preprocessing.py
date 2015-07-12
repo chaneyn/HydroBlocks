@@ -249,30 +249,33 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #mask_nc = (covariates['channels'] == 0)
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask_nc == True],},
-        'slope':{'data':covariates['cslope'][mask_nc == True],},
+ info = {#'area':{'data':np.log10(covariates['carea'][mask_nc == True]),},
+        #'slope':{'data':covariates['cslope'][mask_nc == True],},
         #'satdk':{'data':covariates['SATDK'][mask_nc == True],},
+        'sti':{'data':covariates['sti'][mask_nc == True],},
         #'sms':{'data':covariates['MAXSMC'][mask_nc == True],},
         #'smw':{'data':covariates['WLTSMC'][mask_nc == True],},
         #'smfc':{'data':covariates['REFSMC'][mask_nc == True],},
-        'clay':{'data':covariates['clay'][mask_nc == True],},
-        'sand':{'data':covariates['sand'][mask_nc == True],},
-        'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
+        ##'clay':{'data':covariates['clay'][mask_nc == True],},
+        ##'sand':{'data':covariates['sand'][mask_nc == True],},
+        ##'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask_nc == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
         #'strahler':{'data':covariates['strahler'][mask_nc == True],},
-        'lats':{'data':covariates['lats'][mask_nc == True],},
-        'lons':{'data':covariates['lons'][mask_nc == True],},
+        ##'lats':{'data':covariates['lats'][mask_nc == True],},
+        ##'lons':{'data':covariates['lons'][mask_nc == True],},
         }
 
  #Define the covariates for the channels
  info_channels = {
-		 'area':{'data':np.log(covariates['carea'][mask_c == True]),},
+		 #'area':{'data':np.log10(covariates['carea'][mask_c == True]),},
                  #'slope':{'data':covariates['cslope'][mask_c == True],},
                  #'satdk':{'data':covariates['SATDK'][mask_c == True],},
+                 'sti':{'data':covariates['sti'][mask_c == True],},
 		 #'slope':{'data':np.log(covariates['cslope'][mask_c == True]),},
+		 #'ti':{'data':np.log(covariates['ti'][mask_c == True]),},
                  #'strahler':{'data':covariates['strahler'][mask_c == True],},
                  #'lats':{'data':covariates['lats'][mask_c == True],},
                  #'lons':{'data':covariates['lons'][mask_c == True],},
@@ -284,7 +287,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
   tmp = info[var]['data']
   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
   info[var]['data'] = tmp
-  #else:
+  #if var in ['sti',]:
   # argsort = np.argsort(info[var]['data'])
   # pcts = np.copy(info[var]['data'])
   # pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
@@ -477,7 +480,10 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
    else:
     OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
   #Average Slope
+  #OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
   OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
+  #print np.min(covariates['cslope'][idx]),np.mean(covariates['cslope'][idx]),np.max(covariates['cslope'][idx])
+  #print OUTPUT['hsu']['slope'][hsu]
   #Topographic index
   OUTPUT['hsu']['ti'][hsu] = np.mean(covariates['ti'][idx])
   #DEM
@@ -621,6 +627,10 @@ def Create_and_Curate_Covariates(wbd):
  lats, lons = np.meshgrid(lats, lons)
  covariates['lats'] = lats.T
  covariates['lons'] = lons.T
+
+ #Add sti
+ sti = covariates['ti'] - np.log(0.1*covariates['SATDK']) + np.log(np.mean(0.1*covariates['SATDK']))
+ covariates['sti'] = sti
 
  #Define the mask
  mask = np.copy(covariates['mask'])
