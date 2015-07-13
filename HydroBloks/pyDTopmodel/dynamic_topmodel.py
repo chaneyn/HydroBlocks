@@ -241,7 +241,7 @@ class Dynamic_Topmodel:
 
 def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
                   area,dx,dt,celerity,celerity1,flow_matrix,
-                  qin_outlet,area_outlet,nthreads,maxntt):
+                  qin_outlet,area_outlet,nthreads,maxntt,w):
 
  #Determine the appropriate time step
  dt_minimum = np.min(np.abs(dx/celerity))
@@ -255,7 +255,6 @@ def Update(recharge,storage,qout,qin,recharge1,storage1,qout1,qin1,
  qout_ = np.zeros(storage.size,dtype=np.float64)
 
  #Define some constatns
- w = 0.5
  I = scipy.sparse.identity(storage.size)
  F = flow_matrix
  scarea = area/dx

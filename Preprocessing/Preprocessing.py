@@ -242,14 +242,11 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  
  #Find the mask for and without channels
  minchannelarea = 3*10**4
- mask_c = (covariates['carea'] >= minchannelarea) & (mask == True)
- mask_nc = (covariates['carea'] < minchannelarea) & (mask == True)
-
- #Determine the unique number of vegetation types
- print np.unique(covariates['nlcd'][mask_c])
- print np.unique(covariates['nlcd'][mask_nc])
- #mask_c = (covariates['channels'] >= 1) | (covariates['channels'] == -1)
- #mask_nc = (covariates['channels'] == 0)
+ if nclusters_c > 0:
+  mask_c = (covariates['carea'] >= minchannelarea) & (mask == True)
+  mask_nc = (covariates['carea'] < minchannelarea) & (mask == True)
+ else:
+  mask_nc = mask
 
  #Define the covariates
  info = {'area':{'data':covariates['carea'][mask_nc == True],},
@@ -269,7 +266,7 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
         }
 
  #Define the covariates for the channels
- info_channels = {
+ if nclusters_c > 0:info_channels = {
 		 'area':{'data':np.log(covariates['carea'][mask_c == True]),},
 		 'slope':{'data':covariates['cslope'][mask_c == True],},
 		 #'ti':{'data':covariates['ti'][mask_c == True],},
@@ -292,10 +289,11 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
   # pcts = np.copy(info[var]['data'])
   # pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
   # info[var]['data'] = pcts
- for var in info_channels:
-  tmp = info_channels[var]['data']
-  tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-  info_channels[var]['data'] = tmp
+ if nclusters_c > 0:
+  for var in info_channels:
+   tmp = info_channels[var]['data']
+   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+   info_channels[var]['data'] = tmp
 
  import sklearn.cluster
  #Cluster the non channels regions
@@ -334,48 +332,51 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
  print 'clustering (non-channels) %d->%d' % (nclusters_old,nclusters_nc),time.time() - time0
 
- #Cluster the channels
- bins,data = [],[]
- X = []
- for id in info_channels:
-  #Set all nans to the mean
-  info_channels[id]['data'][np.isnan(info_channels[id]['data']) == 1] = np.nanmean(info_channels[id]['data'])
-  X.append(info_channels[id]['data'])
+ if nclusters_c > 0:
 
- time0 = time.time()
- X = np.array(X).T
- #Subsample the array
- np.random.seed(1)
- minsamples = 10**5
- if X.shape[0] > minsamples:
-  Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
- else:
-  Xf = X
- #Initialize all points at the 0.5 point
- init = 0.5*np.ones((nclusters_c,Xf.shape[1]))
- batch_size = 25*nclusters_c
- init_size = 3*batch_size
- clf = sklearn.cluster.MiniBatchKMeans(nclusters_c,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
- clf.fit(Xf)#
- clf_output = clf.predict(X)
- #Reassign the ids
- clf_output_copy = np.copy(clf_output)
- for cid in xrange(len(np.unique(clf_output))):
-  clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
- #cluster_ids = np.empty(covariates['ti'].shape)
- #cluster_ids[:] = -9999
- cluster_ids[mask_c == True] = clf_output + np.nanmax(cluster_ids) + 1
- nclusters_old = nclusters_c
- nclusters_c = np.unique(clf_output).size
- #Redefine the number of clusters (We are sampling regions that just don't have data...)
- print 'clustering (channels) %d->%d' % (nclusters_old,nclusters_c),time.time() - time0
- #Add in the channel clusters
- #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
- #for channel in channels:
- # cid = int(np.nanmax(cluster_ids) + 1)
- # idx = np.where(covariates['channels'] == channel)
- # cluster_ids[idx] = cid
- # nclusters = nclusters + 1
+  #Cluster the channels
+  bins,data = [],[]
+  X = []
+  for id in info_channels:
+   #Set all nans to the mean
+   info_channels[id]['data'][np.isnan(info_channels[id]['data']) == 1] = np.nanmean(info_channels[id]['data'])
+   X.append(info_channels[id]['data'])
+
+  time0 = time.time()
+  X = np.array(X).T
+  #Subsample the array
+  np.random.seed(1)
+  minsamples = 10**5
+  if X.shape[0] > minsamples:
+   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
+  else:
+   Xf = X
+  #Initialize all points at the 0.5 point
+  init = 0.5*np.ones((nclusters_c,Xf.shape[1]))
+  batch_size = 25*nclusters_c
+  init_size = 3*batch_size
+  clf = sklearn.cluster.MiniBatchKMeans(nclusters_c,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+  clf.fit(Xf)#
+  clf_output = clf.predict(X)
+  #Reassign the ids
+  clf_output_copy = np.copy(clf_output)
+  for cid in xrange(len(np.unique(clf_output))):
+   clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
+  #cluster_ids = np.empty(covariates['ti'].shape)
+  #cluster_ids[:] = -9999
+  cluster_ids[mask_c == True] = clf_output + np.nanmax(cluster_ids) + 1
+  nclusters_old = nclusters_c
+  nclusters_c = np.unique(clf_output).size
+  #Redefine the number of clusters (We are sampling regions that just don't have data...)
+  print 'clustering (channels) %d->%d' % (nclusters_old,nclusters_c),time.time() - time0
+  #Add in the channel clusters
+  #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
+  #for channel in channels:
+  # cid = int(np.nanmax(cluster_ids) + 1)
+  # idx = np.where(covariates['channels'] == channel)
+  # cluster_ids[idx] = cid
+  # nclusters = nclusters + 1
+ #Define the actual number of clusters
  nclusters = nclusters_nc + nclusters_c
 
  #Reorder according to areas
