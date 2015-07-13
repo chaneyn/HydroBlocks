@@ -1,8 +1,8 @@
 {
   "catchment_id": 0,
   "parallel_ncores": 32,
-  "nhru_nc": 2,
-  "nhru_c": 1,
+  "nhru_nc": 10,
+  "nhru_c": 10,
   "startdate":{"year":2004,"month":1,"day":1},
   "enddate":{"year":2004,"month":12,"day":31},
   "dt":3600.0,

@@ -241,8 +241,9 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  nclusters_nc = hydrobloks_info['nclusters_nc']
  
  #Find the mask for and without channels
- mask_c = (covariates['carea'] >= 30000.0) & (mask == True)
- mask_nc = (covariates['carea'] < 30000.0) & (mask == True)
+ minchannelarea = 3*10**4
+ mask_c = (covariates['carea'] >= minchannelarea) & (mask == True)
+ mask_nc = (covariates['carea'] < minchannelarea) & (mask == True)
 
  #Determine the unique number of vegetation types
  print np.unique(covariates['nlcd'][mask_c])
@@ -251,18 +252,18 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #mask_nc = (covariates['channels'] == 0)
 
  #Define the covariates
- info = {#'area':{'data':covariates['carea'][mask_nc == True],},
-        #'slope':{'data':covariates['cslope'][mask == True],},
+ info = {'area':{'data':covariates['carea'][mask_nc == True],},
+        'slope':{'data':covariates['cslope'][mask_nc == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
         'clay':{'data':covariates['clay'][mask_nc == True],},
-        'sand':{'data':covariates['sand'][mask_nc == True],},
+        #'sand':{'data':covariates['sand'][mask_nc == True],},
+        #'nlcd':{'data':covariates['nlcd'][mask_nc ==True],},
         #'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
-        #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
-        'ti':{'data':covariates['ti'][mask_nc == True],},
+        #'ti':{'data':covariates['ti'][mask_nc == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
-        'strahler':{'data':covariates['strahler'][mask_nc == True],},
+        #'strahler':{'data':covariates['strahler'][mask_nc == True],},
         'lats':{'data':covariates['lats'][mask_nc == True],},
         'lons':{'data':covariates['lons'][mask_nc == True],},
         }
@@ -270,9 +271,14 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #Define the covariates for the channels
  info_channels = {
 		 'area':{'data':np.log(covariates['carea'][mask_c == True]),},
+		 'slope':{'data':covariates['cslope'][mask_c == True],},
+		 #'ti':{'data':covariates['ti'][mask_c == True],},
+		 #'ndvi':{'data':covariates['ndvi'][mask_c == True],},
+                 'clay':{'data':covariates['clay'][mask_c == True],},
+		 #'nlcd':{'data':covariates['nlcd'][mask_c == True],},
                  #'strahler':{'data':covariates['strahler'][mask_c == True],},
-                 #'lats':{'data':covariates['lats'][mask_c == True],},
-                 #'lons':{'data':covariates['lons'][mask_c == True],},
+                 'lats':{'data':covariates['lats'][mask_c == True],},
+                 'lons':{'data':covariates['lons'][mask_c == True],},
                  }
 
  #Scale all the variables (Calculate the percentiles
@@ -618,6 +624,11 @@ def Create_and_Curate_Covariates(wbd):
   if lc < 0:continue
   tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
  covariates['nlcd'][:] = tmp[:]
+
+ #Curate the NDVI to match NLCD
+ for lc in np.unique(covariates['nlcd']):
+  masklc = covariates['nlcd'] == lc
+  covariates['ndvi'][masklc] = np.mean(covariates['ndvi'][masklc])
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
