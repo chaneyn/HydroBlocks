@@ -243,6 +243,10 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #Find the mask for and without channels
  mask_c = (covariates['carea'] >= 30000.0) & (mask == True)
  mask_nc = (covariates['carea'] < 30000.0) & (mask == True)
+
+ #Determine the unique number of vegetation types
+ print np.unique(covariates['nlcd'][mask_c])
+ print np.unique(covariates['nlcd'][mask_nc])
  #mask_c = (covariates['channels'] >= 1) | (covariates['channels'] == -1)
  #mask_nc = (covariates['channels'] == 0)
 
@@ -402,7 +406,7 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu'][var] = np.zeros(nclusters) 
 
  #Metadata
- NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
 
  #Calculate area per hsu
  OUTPUT['hsu']['area'][:] = metadata['resx']**2
@@ -426,8 +430,8 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  OUTPUT['hsu']['channel'][:] = covariates['channels'][mask]
  #Land cover type  
  land_cover = np.copy(covariates['nlcd'])
- for lc in np.unique(land_cover)[1:]:
-  land_cover[land_cover == lc] = NLCD2NOAH[lc]
+ #for lc in np.unique(land_cover)[1:]:
+ # land_cover[land_cover == lc] = NLCD2NOAH[lc]
  OUTPUT['hsu']['land_cover'][:] = land_cover[mask]
  #Soil texture class
  OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
@@ -454,7 +458,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu'][var] = np.zeros(nclusters)
 
  #Metadata
- NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  for hsu in np.arange(nclusters):
 
   #Set indices
@@ -480,7 +484,8 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Channel?
   OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
-  OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  #OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  OUTPUT['hsu']['land_cover'][hsu] = stats.mode(covariates['nlcd'][idx])[0][0]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
   #Define the estimate for the model parameters
@@ -605,6 +610,14 @@ def Create_and_Curate_Covariates(wbd):
   if file == 'cslope':
    mask = covariates[file] == 0.0
    covariates[file][mask] = 0.000001
+
+ #Map the NLCD to IGBP
+ NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ tmp = np.copy(covariates['nlcd'])
+ for lc in np.unique(covariates['nlcd']):
+  if lc < 0:continue
+  tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
+ covariates['nlcd'][:] = tmp[:]
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
