@@ -599,5 +599,44 @@ class DynamicTopmodel(unittest.TestCase):
     qout_true = np.array([1.333333333,2.2222222222,2.81481481481])
     self.assertTrue(np.allclose(qout,qout_true,rtol=1e-05, atol=1e-08))
 
+
+  def test_kinematic_wave_solution_mkl_implicit_3hru_backflow(self):
+
+    nhru = 3
+    storage_mask_subsurface = np.ones(nhru)
+    qout = np.zeros(nhru)
+    qin = np.zeros(nhru)
+    storage1 = np.zeros(nhru)
+    qin1 = np.zeros(nhru)
+    qin_outlet = np.zeros(nhru)
+    area_outlet = np.zeros(nhru)
+    storage = 0.0*np.ones(nhru)
+    qout1 = np.ones(nhru)
+    recharge1 = 1.0*np.ones(nhru)
+    recharge = 1.0*np.ones(nhru)
+    celerity = 1.0*np.ones(nhru)
+    celerity1 = np.ones(nhru)
+    area = 1.0*np.ones(nhru)
+    dx = 1.0*np.ones(nhru)
+    dt = 2.0
+    ncores = 1
+    maxntt = 1
+    isw = 0.5
+    flow_matrix = scipy.sparse.csr_matrix(np.array([[0.,1.,0],[0.5,0.,0.5],[0.,0.,0]]).T)
+    flow_matrix.setdiag(flow_matrix.diagonal())
+    #Initialize the solver
+    dtt.initialize(flow_matrix.indices,flow_matrix.indptr)
+    #Solve the system of equations
+    dtt.update(recharge,storage,qout,qin,
+             recharge1,storage1,qout1,qin1,
+             area,dx,dt,celerity,celerity1,storage_mask_subsurface,
+             flow_matrix.data,flow_matrix.indices,flow_matrix.indptr,
+             ncores,maxntt,isw)
+    #Finalize the solver
+    dtt.finalize()
+    #Compare
+    qout_true = np.array([1.42857142857,1.71428571429,1.42857142857])
+    self.assertTrue(np.allclose(qout,qout_true,rtol=1e-05, atol=1e-08))
+
 suite = unittest.TestLoader().loadTestsFromTestCase(DynamicTopmodel)
 unittest.TextTestRunner(verbosity=2).run(suite)
