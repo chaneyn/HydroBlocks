@@ -249,46 +249,58 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
   mask_nc = mask
 
  #Define the covariates
- info = {'area':{'data':covariates['carea'][mask_nc == True],},
-        'slope':{'data':covariates['cslope'][mask_nc == True],},
+ info = {#'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
+        #'slope':{'data':covariates['cslope'][mask_nc == True],},
         #'sms':{'data':covariates['MAXSMC'][mask == True],},
         #'smw':{'data':covariates['WLTSMC'][mask == True],},
-        'clay':{'data':covariates['clay'][mask_nc == True],},
+        #'clay':{'data':covariates['clay'][mask_nc == True],},
         #'sand':{'data':covariates['sand'][mask_nc == True],},
         #'nlcd':{'data':covariates['nlcd'][mask_nc ==True],},
         #'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
-        #'ti':{'data':covariates['ti'][mask_nc == True],},
+        'ti':{'data':covariates['ti'][mask_nc == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
         #'demns':{'data':covariates['dem'][mask == True],},
         #'strahler':{'data':covariates['strahler'][mask_nc == True],},
-        'lats':{'data':covariates['lats'][mask_nc == True],},
-        'lons':{'data':covariates['lons'][mask_nc == True],},
+        #'lats':{'data':covariates['lats'][mask_nc == True],},
+        #'lons':{'data':covariates['lons'][mask_nc == True],},
         }
 
  #Define the covariates for the channels
  if nclusters_c > 0:info_channels = {
-		 'area':{'data':np.log(covariates['carea'][mask_c == True]),},
-		 'slope':{'data':covariates['cslope'][mask_c == True],},
+		 #'area':{'data':np.log(covariates['carea'][mask_c == True]),},
+		 #'slope':{'data':covariates['cslope'][mask_c == True],},
 		 #'ti':{'data':covariates['ti'][mask_c == True],},
 		 #'ndvi':{'data':covariates['ndvi'][mask_c == True],},
-                 'clay':{'data':covariates['clay'][mask_c == True],},
+                 #'clay':{'data':covariates['clay'][mask_c == True],},
 		 #'nlcd':{'data':covariates['nlcd'][mask_c == True],},
                  #'strahler':{'data':covariates['strahler'][mask_c == True],},
-                 'lats':{'data':covariates['lats'][mask_c == True],},
-                 'lons':{'data':covariates['lons'][mask_c == True],},
+                 #'lats':{'data':covariates['lats'][mask_c == True],},
+                 #'lons':{'data':covariates['lons'][mask_c == True],},
                  }
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  #if var in ['strahler','area','ndvi','sms']:
-  tmp = info[var]['data']
-  tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-  info[var]['data'] = tmp
-  #else:
-  # argsort = np.argsort(info[var]['data'])
-  # pcts = np.copy(info[var]['data'])
-  # pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  # info[var]['data'] = pcts
+  #if var in ['clay','ndvi','ti','lats','lons']:
+  if var in ['clay','ndvi','lats','lons']:
+   print var
+   argsort = np.argsort(info[var]['data'])
+   pcts = np.copy(info[var]['data'])
+   pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+   uniques,counts = np.unique(info[var]['data'],return_counts=True)
+   for ival in xrange(uniques.size):
+    value = uniques[ival]
+    count = counts[ival]
+    if count <= 10:continue
+    pcts[info[var]['data'] == value] = np.mean(pcts[info[var]['data'] == value])
+   info[var]['data'][:] = pcts[:]
+  else:
+   tmp = info[var]['data']
+   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+   info[var]['data'] = tmp
+  #argsort = np.argsort(info[var]['data'])
+  #pcts = np.copy(info[var]['data'])
+  #pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
+  #info[var]['data'] = pcts
  if nclusters_c > 0:
   for var in info_channels:
    tmp = info_channels[var]['data']
@@ -634,6 +646,15 @@ def Create_and_Curate_Covariates(wbd):
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
  lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
+
+ #Constrain the lat/lon grid by the effective resolution (4km...)
+ nres = int(np.floor(2000.0/30.0))
+ for ilat in xrange(0,lats.size,nres):
+  lats[ilat:ilat+nres] = np.mean(lats[ilat:ilat+nres])
+ for ilon in xrange(0,lons.size,nres):
+  lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])
+ 
+ #Need to fix so that it doesn't suck up all the clustering:
  lats, lons = np.meshgrid(lats, lons)
  covariates['lats'] = lats.T
  covariates['lons'] = lons.T
