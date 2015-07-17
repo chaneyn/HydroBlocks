@@ -249,40 +249,38 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
   mask_nc = mask
 
  #Define the covariates
- info = {#'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
-        #'slope':{'data':covariates['cslope'][mask_nc == True],},
-        #'sms':{'data':covariates['MAXSMC'][mask == True],},
-        #'smw':{'data':covariates['WLTSMC'][mask == True],},
-        #'clay':{'data':covariates['clay'][mask_nc == True],},
-        #'sand':{'data':covariates['sand'][mask_nc == True],},
-        #'nlcd':{'data':covariates['nlcd'][mask_nc ==True],},
-        #'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
+ info_general = {'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
+        'slope':{'data':covariates['cslope'][mask_nc == True],},
+        'sms':{'data':covariates['MAXSMC'][mask == True],},
+        'smw':{'data':covariates['WLTSMC'][mask == True],},
+        'clay':{'data':covariates['clay'][mask_nc == True],},
+        'sand':{'data':covariates['sand'][mask_nc == True],},
+        'nlcd':{'data':covariates['nlcd'][mask_nc ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         'ti':{'data':covariates['ti'][mask_nc == True],},
-        #'dem':{'data':covariates['dem'][mask == True],},
-        #'demns':{'data':covariates['dem'][mask == True],},
-        #'strahler':{'data':covariates['strahler'][mask_nc == True],},
-        #'lats':{'data':covariates['lats'][mask_nc == True],},
-        #'lons':{'data':covariates['lons'][mask_nc == True],},
+        'dem':{'data':covariates['dem'][mask == True],},
+        'demns':{'data':covariates['dem'][mask == True],},
+        'strahler':{'data':covariates['strahler'][mask_nc == True],},
+        'lats':{'data':covariates['lats'][mask_nc == True],},
+        'lons':{'data':covariates['lons'][mask_nc == True],},
         }
 
- #Define the covariates for the channels
- if nclusters_c > 0:info_channels = {
-		 #'area':{'data':np.log(covariates['carea'][mask_c == True]),},
-		 #'slope':{'data':covariates['cslope'][mask_c == True],},
-		 #'ti':{'data':covariates['ti'][mask_c == True],},
-		 #'ndvi':{'data':covariates['ndvi'][mask_c == True],},
-                 #'clay':{'data':covariates['clay'][mask_c == True],},
-		 #'nlcd':{'data':covariates['nlcd'][mask_c == True],},
-                 #'strahler':{'data':covariates['strahler'][mask_c == True],},
-                 #'lats':{'data':covariates['lats'][mask_c == True],},
-                 #'lons':{'data':covariates['lons'][mask_c == True],},
-                 }
+ #Subset the chosen ones for the non-channels
+ info = {}
+ for var in hydrobloks_info['covariates']:
+  info[var] = info_general[var]
+
+ if nclusters_c > 0:
+  info_channels = {}
+  #Subset the chosen ones for the channels
+  for var in hydrobloks_info['covariates']:
+   info_channels[var] = info_general[var]
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
+  print var
   #if var in ['clay','ndvi','ti','lats','lons']:
-  if var in ['clay','ndvi','lats','lons']:
-   print var
+  if hydrobloks_info['covariates'][var] == 'p':
    argsort = np.argsort(info[var]['data'])
    pcts = np.copy(info[var]['data'])
    pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
