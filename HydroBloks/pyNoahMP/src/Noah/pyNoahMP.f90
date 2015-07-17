@@ -1299,7 +1299,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 
         IF(LUTYPE.EQ.MMINLU)THEN
            WRITE( mess , * ) 'LANDUSE TYPE = ' // TRIM ( LUTYPE ) // ' FOUND', LUCATS,' CATEGORIES'
-           !CALL wrf_message( mess )
+           CALL wrf_message( mess )
            LUMATCH=1
         ELSE
            call wrf_message ( "Skipping over LUTYPE = " // TRIM ( LUTYPE ) )
