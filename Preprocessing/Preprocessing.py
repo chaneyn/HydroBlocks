@@ -68,7 +68,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'SATDK':'%s/SATDK.tif' % workspace,
   'dem':'%s/dem.tif' % workspace,
   #'demns':'%s/workspace/demns.tif' % workspace,
-  'strahler':'%s/strahler.tif' % workspace
+  'strahler':'%s/strahler.tif' % workspace,
+  'qbase':'%s/qbase.tif' % workspace
   }
  wbd['files_meteorology'] = {
   'dlwrf':'%s/nldas/dlwrf/dlwrf.nc' % workspace,
@@ -252,13 +253,14 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  info = {#'area':{'data':np.log10(covariates['carea'][mask_nc == True]),},
         #'slope':{'data':covariates['cslope'][mask_nc == True],},
         #'satdk':{'data':covariates['SATDK'][mask_nc == True],},
-        'sti':{'data':covariates['sti'][mask_nc == True],},
+        #'sti':{'data':covariates['sti'][mask_nc == True],},
+        #'qbase':{'data':covariates['qbase'][mask_nc == True],},
         #'sms':{'data':covariates['MAXSMC'][mask_nc == True],},
         #'smw':{'data':covariates['WLTSMC'][mask_nc == True],},
         #'smfc':{'data':covariates['REFSMC'][mask_nc == True],},
         ##'clay':{'data':covariates['clay'][mask_nc == True],},
         ##'sand':{'data':covariates['sand'][mask_nc == True],},
-        ##'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
+        'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         #'nlcd':{'data':covariates['nlcd'][mask_woc ==True],},
         #'ti':{'data':covariates['ti'][mask_nc == True],},
         #'dem':{'data':covariates['dem'][mask == True],},
@@ -270,10 +272,12 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
 
  #Define the covariates for the channels
  info_channels = {
+                 'ndvi':{'data':covariates['ndvi'][mask_c ==True],},
 		 #'area':{'data':np.log10(covariates['carea'][mask_c == True]),},
                  #'slope':{'data':covariates['cslope'][mask_c == True],},
                  #'satdk':{'data':covariates['SATDK'][mask_c == True],},
-                 'sti':{'data':covariates['sti'][mask_c == True],},
+                 #'sti':{'data':covariates['sti'][mask_c == True],},
+                 #'qbase':{'data':covariates['qbase'][mask_c == True],},
 		 #'slope':{'data':np.log(covariates['cslope'][mask_c == True]),},
 		 #'ti':{'data':np.log(covariates['ti'][mask_c == True]),},
                  #'strahler':{'data':covariates['strahler'][mask_c == True],},
@@ -480,8 +484,10 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
    else:
     OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
   #Average Slope
-  #OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
   OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
+  #print 'mean',np.mean(np.sin(covariates['cslope'][idx]))
+  #print 'arcsin mean',np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
+  #OUTPUT['hsu']['slope'][hsu] = np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
   #print np.min(covariates['cslope'][idx]),np.mean(covariates['cslope'][idx]),np.max(covariates['cslope'][idx])
   #print OUTPUT['hsu']['slope'][hsu]
   #Topographic index
@@ -494,6 +500,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
   OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[stats.mode(covariates['nlcd'][idx])[0][0]]
+  #OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[95]#stats.mode(covariates['nlcd'][idx])[0][0]]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
   #Define the estimate for the model parameters
