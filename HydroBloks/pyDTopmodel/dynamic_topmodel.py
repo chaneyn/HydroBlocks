@@ -93,10 +93,10 @@ class Dynamic_Topmodel:
   isw = np.float64(0.5) #implicit scheme weight
   
   #Update the subsurface runoff
-  if self.subsurface_flow_flag == True:self.update_subsurface_fortran(ncores,maxntt,isw)
+  if self.subsurface_flow_flag == True:self.update_subsurface(ncores,maxntt,isw)
 
   #Update the surface runoff
-  if self.surface_flow_flag == True:self.update_surface_fortran(ncores,maxntt,isw)
+  if self.surface_flow_flag == True:self.update_surface(ncores,maxntt,isw)
 
   #Check catchment water balance
   #self.check_water_balance()
@@ -140,7 +140,7 @@ class Dynamic_Topmodel:
 
   return
 
- def update_surface_fortran(self,ncores,maxntt,isw):
+ def update_surface(self,ncores,maxntt,isw):
 
   #Set the recharge to be the sum of surface and excess runoff
   self.recharge1_surface[:] = self.recharge_surface
@@ -187,7 +187,7 @@ class Dynamic_Topmodel:
 
   return
 
- def update_subsurface_fortran(self,ncores,maxntt,isw):
+ def update_subsurface(self,ncores,maxntt,isw):
 
   #Initialize q,qout1,qin1,c,and c1
   if self.qout1[0] == -9999.0:
@@ -212,17 +212,17 @@ class Dynamic_Topmodel:
   si1 = np.copy(-self.si1)
  
   #Solve for the given time step
-  '''(si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
+  (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
              self.c1) = Update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.flow_matrix,
-             self.qin_outlet,self.area_outlet,ncores)'''
-  self.dtt.update(self.r,si,self.qout,self.qin,
+             self.qin_outlet,self.area_outlet,ncores,maxntt,isw)
+  '''self.dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,self.storage_mask_subsurface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
-             ncores,maxntt,isw)
+             ncores,maxntt,isw)'''
 
   #Revert the deficits to their original form
   self.si[:] = -si
