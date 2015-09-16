@@ -16,6 +16,7 @@
   "workspace":"",
   "subsurface_flow_flag": true,
   "surface_flow_flag": false,
+  "mkl_flag":false,
   "covariates":{"ti":"n",
                 "clay":"n",
                 "ndvi":"n",

@@ -9,13 +9,13 @@ sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 import pickle
 
-def Finalize_Model(NOAH,TOPMODEL):
+def Finalize_Model(NOAH,TOPMODEL,info):
 
  #Deallocate the NOAH memory
  NOAH.finalize()
 
  #Close the TOPMODEL solver
- TOPMODEL.dtt.finalize()
+ if info['mkl_flag']: TOPMODEL.dtt.finalize()
 
  #Delete the objects
  del NOAH
@@ -227,7 +227,7 @@ def Initialize_DTopmodel(ncells,dt,info):
  nhru_outlet = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'].size
 
  #Initialize Dynamic Topmodel
- model = dynamic_topmodel.Dynamic_Topmodel(ncells,nhru_outlet)
+ model = dynamic_topmodel.Dynamic_Topmodel(ncells,nhru_outlet,info['mkl_flag'])
  dx = info['dx'] #meters
 
  #Set flags
@@ -271,7 +271,7 @@ def Initialize_DTopmodel(ncells,dt,info):
  model.flow_matrix_T.setdiag(model.flow_matrix_T.diagonal()) #Ensure the zeros are not sparse  (for kinematic wave solution).
 
  #Initialize the solver
- model.dtt.initialize(model.flow_matrix_T.indices,model.flow_matrix_T.indptr)
+ if info['mkl_flag']:model.dtt.initialize(model.flow_matrix_T.indices,model.flow_matrix_T.indptr)
 
  #Initialize the soil moisture deficit values
  model.si[:] = 0.0
@@ -336,6 +336,7 @@ def Run_Model(info):
  #soil_file = info['soil_file']
  input_file = info['input_file']
  output_file = info['output_file']
+ mkl_flag = info['mkl_flag']
  dt_timedelta = datetime.timedelta(seconds=dt)
 
  #Open access to the input netcdf file
@@ -350,6 +351,7 @@ def Run_Model(info):
  info['VEGPARM'] = '%s/pyNoahMP/data/VEGPARM.TBL' % dir#'data/VEGPARM.TBL'
  info['GENPARM'] = '%s/pyNoahMP/data/GENPARM.TBL' % dir#'data/GENPARM.TBL'
  info['MPTABLE'] = '%s/pyNoahMP/data/MPTABLE.TBL' % dir#'pyNoahMP/data/MPTABLE.TBL'
+ info['mkl_flag'] = mkl_flag
  #info['SOILPARM'] = soil_file
  
  #Set the number of cells (hsus)
@@ -421,7 +423,7 @@ def Run_Model(info):
   i = i + 1
 
  #Finalize the model
- Finalize_Model(NOAH,TOPMODEL)
+ Finalize_Model(NOAH,TOPMODEL,info)
 
  #Close the input and output files
  info['input_fp'].close()

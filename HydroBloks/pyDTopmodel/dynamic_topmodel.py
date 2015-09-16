@@ -1,6 +1,6 @@
 import numpy as np
 import time
-import dynamic_topmodel_tools as dtt
+#import dynamic_topmodel_tools as dtt
 import scipy
 import scipy.sparse
 import scipy.sparse.linalg
@@ -8,7 +8,7 @@ import copy
 
 class Dynamic_Topmodel:
 
- def __init__(self,ngroups,nhru_outlet):
+ def __init__(self,ngroups,nhru_outlet,mkl_flag):
 
   #Initialize the variables and parameters
   self.itime = 0 #timestep
@@ -79,11 +79,14 @@ class Dynamic_Topmodel:
   self.storage_mask_surface = np.zeros(ngroups,dtype=np.int32)
 
   #Point to the solver
-  self.dtt = dtt
+  if mkl_flag == True:
+   import dynamic_topmodel_tools as dtt
+   self.dtt = dtt
 
   #Flags
   self.surface_flow_flag = True
   self.subsurface_flow_flag = True
+  self.mkl_flag = mkl_flag
 
   return
 
@@ -163,7 +166,7 @@ class Dynamic_Topmodel:
   self.storage_mask_surface[:] = 1 
 
   #Solve for the given time step
-  '''(self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
+  if self.mkl_flag == False:(self.storage_surface,self.storage_surface1,self.qout_surface,self.qout1_surface,
              self.qin_surface,self.qin1_surface,self.celerity_surface,
              self.celerity1_surface) = Update(self.recharge_surface,self.storage_surface,
              self.qout_surface,self.qin_surface,
@@ -171,8 +174,8 @@ class Dynamic_Topmodel:
              self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
-             self.qin_outlet_surface,self.area_outlet,ncores,maxntt)'''
-  self.dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
+             self.qin_outlet_surface,self.area_outlet,ncores,maxntt)
+  else:self.dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.storage_mask_surface,
@@ -212,17 +215,17 @@ class Dynamic_Topmodel:
   si1 = np.copy(-self.si1)
  
   #Solve for the given time step
-  (si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
+  if self.mkl_flag == False:(si,si1,self.qout,self.qout1,self.qin,self.qin1,self.c,
              self.c1) = Update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,
              self.flow_matrix,
              self.qin_outlet,self.area_outlet,ncores,maxntt,isw)
-  '''self.dtt.update(self.r,si,self.qout,self.qin,
+  else:self.dtt.update(self.r,si,self.qout,self.qin,
              self.r1,si1,self.qout1,self.qin1,
              self.area,self.dx,self.dt,self.c,self.c1,self.storage_mask_subsurface,
              self.flow_matrix_T.data,self.flow_matrix_T.indices,self.flow_matrix_T.indptr,
-             ncores,maxntt,isw)'''
+             ncores,maxntt,isw)
 
   #Revert the deficits to their original form
   self.si[:] = -si
