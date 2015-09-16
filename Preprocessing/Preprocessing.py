@@ -5,7 +5,6 @@ sys.path.append('Tools')
 import cPickle as pickle
 import datetime
 import gdal_tools
-import grads_tools
 import numpy as np
 import scipy.sparse as sparse
 import scipy.stats as stats
@@ -69,7 +68,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'dem':'%s/dem.tif' % workspace,
   #'demns':'%s/workspace/demns.tif' % workspace,
   'strahler':'%s/strahler.tif' % workspace,
-  'qbase':'%s/qbase.tif' % workspace
+  #'qbase':'%s/qbase.tif' % workspace
   }
  wbd['files_meteorology'] = {
   'dlwrf':'%s/nldas/dlwrf/dlwrf.nc' % workspace,

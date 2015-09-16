@@ -13,35 +13,27 @@ HydroBloks relies on a number of packages. Please make sure you have the followi
    pip install netCDF4
 5. gdal (Python) 
    pip install gdal
-6. pygrads (Python) 
-   wget http://sourceforge.net/projects/opengrads/files/python-grads/1.1.9/pygrads-1.1.9.tar.gz/download
-   tar -xvzf pygrads-1.1.9.tar.gz
-   cd pygrads-1.1.9
-   python setup.pt install
 4. Openblas 
    yum install openblas-devel
 5. Netcdf 
    yum install netcdf-devel
-6. grads
-   yum install grads
 7. proj4
-
-Enter into the directory Tools/Tools and insert "python compile.py" to prepare the model tools library
 
 Now we can compile the different model libraries by following these steps:
 
-1. cd Model/pyNoahMP
-   python make.py
-   cd ..
-2. Model/pyDTopmodel
-   python Model/pyDTopmodel/src
-   python compile.py
+1. cd Preprocessing
+   python setup.py
 
-*Note - Before compiling dynamic topmodel, you will need to ensure that the intel MKL library is installed.
+2. cd HydroBloks
+   python setup.py
 
-To run the model on a test dataset, please download and untar the following file within the HydroBloks directory:
+*Note - Before compiling HydroBloks, you will need to ensure that the intel MKL library is installed.
 
-http://hydrology.princeton.edu/~nchaney/HydroBloks/Test.tar.gz
+To run the model on a test dataset, please download and untar the following file:
+
+http://hydrology.princeton.edu/~nchaney/HydroBloks/LittleWashita.tar.gz
+
+Make sure
 
 To ensure that the data can be prepared for HydroBloks, please add the following line at the end of the esri_extra.wkt file which you can find generally at /usr/local/share/gdal/esri_extra.wkt
 
