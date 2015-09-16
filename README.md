@@ -10,12 +10,12 @@ HydroBloks relies on a number python libraries. To make this straightforward use
 
 Note: If you have the intel mkl library on your machine, we recommend that you set the mkl_flag variable in setup.py to True.
 
-To run the model on a test dataset, follow the following steps
+To run the model on a test dataset, do the following:
 
-wget http://hydrology.princeton.edu/~nchaney/HydroBloks/LittleWashita.tar.gz
-untar -xvzf LittleWashita.tar.gz
-cd LittleWashita
-python ../HydroBloks/Preprocessing/Driver.py metadata_littlewashita.json
-python ../HydroBloks/HydroBloks/Driver.py metadata_littlewashita.json
+1. wget http://hydrology.princeton.edu/~nchaney/HydroBloks/LittleWashita.tar.gz
+2. untar -xvzf LittleWashita.tar.gz
+3. cd LittleWashita
+4. python ../HydroBloks/Preprocessing/Driver.py metadata_littlewashita.json
+5. python ../HydroBloks/HydroBloks/Driver.py metadata_littlewashita.json
 
 
