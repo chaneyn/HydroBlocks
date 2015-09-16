@@ -1,7 +1,7 @@
 HydroBloks
 ==========
 
-HydroBloks relies on a number python libraries. Please make sure you have the following packages installed when running the model. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. 
+HydroBloks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
 
 1. conda install gdal
 2. conda install scikit-learn
