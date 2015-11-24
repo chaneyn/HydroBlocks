@@ -884,7 +884,9 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   fp = nc.Dataset(file)
   #fp = h5py.File(file)
   #Determine the time steps to retrieve
-  dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
+  fidate = ' '.join(fp.variables['t'].units.split(' ')[2::])
+  #dates = nc.num2date(fp.variables['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
+  dates = nc.num2date(fp.variables['t'][:],units='hours since %s' % fidate)
   #dates = nc.num2date(fp['t'][:],units='hours since %02d-%02d-%02d 00:00:00' % (idate.year,idate.month,idate.day))
   mask_dates = (dates >= idate) & (dates <= fdate)
   data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
