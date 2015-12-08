@@ -619,8 +619,10 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
    if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
     donothing = 1
     # fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
-   elif var == 'DRYSMC':
-    OUTPUT['hsu'][var][hsu] = 0.0
+   #elif var == 'DRYSMC':
+   # OUTPUT['hsu'][var][hsu] = 0.0
+   #elif var == 'SATDW':
+   # OUTPUT['hsu'][var][hsu] = 0.0
    else:
     idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
     # fp.write(',%.10f ' % soils_data[var][idx])
