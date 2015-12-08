@@ -123,7 +123,15 @@ def Initialize_Model(ncells,dt,nsoil,info):
  #Set initial info
  model.iz0tlnd = 0
  model.z_ml[:] = 2.0
- tmp = 0.1*np.ones(nsoil)
+ #tmp = []
+ #val = 0.0
+ #for i in xrange(nsoil):
+ # val = val + 0.025
+ # tmp.append(val)
+ #tmp = np.array(tmp)
+ z = np.linspace(0.0,2.0,nsoil+1)
+ tmp = z[1:] - z[0:-1]
+ #tmp = 0.1*np.ones(nsoil)
  model.sldpth[:] = tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
@@ -593,7 +601,10 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp = info['output_fp'].groups['catchment']
 
  #NoahMP
- grp.variables['smc1'][itime,:] = np.copy(NOAH.smc[:,0]) #m3/m3
+ cs = np.cumsum(NOAH.sldpth[0,:])
+ mask = cs <= 0.1
+ pct = NOAH.sldpth[0,mask]/np.sum(NOAH.sldpth[0,mask])
+ grp.variables['smc1'][itime,:] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
  grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
  grp.variables['sh'][itime,:] = np.copy(NOAH.fsh) #W/m2
  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2

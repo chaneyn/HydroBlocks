@@ -253,6 +253,9 @@ def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
  #Define the covariates
  info_general = {'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
         'slope':{'data':covariates['cslope'][mask_nc == True],},
+        'ksat':{'data':covariates['SATDK'][mask_nc == True],},
+        'bc_b':{'data':covariates['BB'][mask_nc == True],},
+        'bc_psisat':{'data':covariates['SATPSI'][mask_nc == True],},
         'sms':{'data':covariates['MAXSMC'][mask == True],},
         'smw':{'data':covariates['WLTSMC'][mask == True],},
         'clay':{'data':covariates['clay'][mask_nc == True],},
@@ -492,6 +495,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
     OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])
    else:
     OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
+  #OUTPUT['hsu']['SATDW'][hsu] = 0.0
   #Average Slope
   OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
   #print 'mean',np.mean(np.sin(covariates['cslope'][idx]))
@@ -519,7 +523,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['sdmax'][hsu] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
   if np.max(covariates['carea'][idx]) >= 100000.0: OUTPUT['hsu']['mannings'][hsu] = 0.03 #manning's n for channel flow (0.01-0.1)
   else: OUTPUT['hsu']['mannings'][hsu] = 0.15 #manning's n for overland flow (0.01-0.8)
-
 
  return OUTPUT
 
@@ -612,9 +615,12 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
  for hsu in np.arange(nhsus):
   #fp.write('%d ' % (hsu+1))
   for var in soil_vars:
-   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK']:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
+   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
     donothing = 1
     # fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
+   elif var == 'DRYSMC':
+    OUTPUT['hsu'][var][hsu] = 0.0
    else:
     idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
     # fp.write(',%.10f ' % soils_data[var][idx])
@@ -757,7 +763,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT = Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
 
  #Create the soil parameters file
- print "Creating the soil file"
+ #print "Creating the soil file"
  Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
  #soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
 
@@ -897,10 +903,14 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    coords = mapping_info[var][hsu]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
-   tmp = pcts*data[:,coords[0],coords[1]]
+   tmp = data[:,coords[0],coords[1]]
+   m1 = tmp < -999
+   m2 = tmp > -999
+   tmp = pcts*tmp
    #Combine stage iv and nldas here
-   if data_var not in ['apcpsfc',]:tmp[tmp < -999] = np.mean(tmp[tmp > -999])
+   if data_var not in ['apcpsfc',]:tmp[m1] = np.mean(tmp[m2])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
+   #print data_var,np.unique(meteorology[data_var][:,:])
 
   #Write the meteorology to the netcdf file (single chunk for now...)
   grp = hydrobloks_info['input_fp'].groups['meteorology']
