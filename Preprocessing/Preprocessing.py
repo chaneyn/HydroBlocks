@@ -244,7 +244,8 @@ def Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_
  time0 = time.time()
  dem = covariates['demns']
  res = hydrobloks_info['dx']
- nclusters = 10 #characteristic hillslope
+ hillslope_info = hydrobloks_info['hillslope_info']
+ nclusters = hillslope_info['nhillslopes'] #characteristic hillslope
  #Calculate mfd accumulation area
  mfd_area = terrain_tools.ttf.calculate_mfd_acc(dem,res,1)
  mfd_area[mask == 0] = 0.0
@@ -270,9 +271,9 @@ def Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_
  (hillslopes_clusters,nhillslopes) = terrain_tools.cluster_hillslopes(hp,hillslopes,nclusters)
  #Create the hrus
  covariates = {#'depth2channel':{'data':depth2channel,'nbins':nclusters_tiles},
-              'clay':{'data':covariates['clay'],'nbins':5},
-              'ndvi':{'data':covariates['ndvi'],'nbins':5},
-              'ti':{'data':mfd_ti,'nbins':5},
+              'clay':{'data':covariates['clay'],'nbins':hillslope_info['clay']},
+              'ndvi':{'data':covariates['ndvi'],'nbins':hillslope_info['ndvi']},
+              'ti':{'data':mfd_ti,'nbins':hillslope_info['ti']},
               }
  hrus = terrain_tools.create_nd_histogram(hillslopes_clusters,covariates)-1
  hrus = hrus.astype(np.float32)

@@ -37,7 +37,8 @@ hydrobloks_info = {
 	'model_type':metadata['model_type'],
         'create_mask_flag':metadata['create_mask_flag'],
         'covariates':metadata['covariates'],
-        'clustering_type':metadata['clustering_type']
+        'clustering_type':metadata['clustering_type'],
+        'hillslope_info':metadata['hillslope_info']
 	}
 
 #Cluster the data
