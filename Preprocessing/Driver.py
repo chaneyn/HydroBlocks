@@ -36,7 +36,8 @@ hydrobloks_info = {
 	'nclusters':metadata['nhru_nc'] + metadata['nhru_c'],
 	'model_type':metadata['model_type'],
         'create_mask_flag':metadata['create_mask_flag'],
-        'covariates':metadata['covariates']
+        'covariates':metadata['covariates'],
+        'clustering_type':metadata['clustering_type']
 	}
 
 #Cluster the data

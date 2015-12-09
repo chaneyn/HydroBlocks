@@ -4,7 +4,7 @@ import sys
 sys.path.append('Tools')
 import cPickle as pickle
 import datetime
-import gdal_tools
+#import gdal_tools
 import numpy as np
 import scipy.sparse as sparse
 import scipy.stats as stats
@@ -13,6 +13,9 @@ import os
 import netCDF4 as nc
 import time
 import glob
+from geospatialtools import gdal_tools
+from geospatialtools import terrain_tools
+import matplotlib.pyplot as plt
 
 def Prepare_Model_Input_Data(hydrobloks_info):
 
@@ -66,7 +69,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'F11':'%s/F11.tif' % workspace,
   'SATDK':'%s/SATDK.tif' % workspace,
   'dem':'%s/dem.tif' % workspace,
-  #'demns':'%s/workspace/demns.tif' % workspace,
+  'demns':'%s/demns.tif' % workspace,
   'strahler':'%s/strahler.tif' % workspace,
   #'qbase':'%s/qbase.tif' % workspace
   }
@@ -236,7 +239,50 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 
  return (cluster_ids,)
 
-def Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info):
+def Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info):
+
+ time0 = time.time()
+ dem = covariates['demns']
+ res = hydrobloks_info['dx']
+ nclusters = 10 #characteristic hillslope
+ #Calculate mfd accumulation area
+ mfd_area = terrain_tools.ttf.calculate_mfd_acc(dem,res,1)
+ mfd_area[mask == 0] = 0.0
+ #Calculate mfd topographic index
+ mfd_ti = np.log(mfd_area/res/covariates['cslope'])
+ #Calculate d8 accumulation area
+ (area,fdir) = terrain_tools.ttf.calculate_d8_acc(dem,res)
+ area[mask == 0] = 0.0
+ #Define the channels
+ channels = terrain_tools.ttf.calculate_channels(area,10**6,3*10**7,fdir)
+ #Define the basins
+ basins = terrain_tools.ttf.delineate_basins(channels,mask,fdir)
+ #Define the depth to channel
+ depth2channel = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,dem)
+ #Define the hillslopes
+ hillslopes = terrain_tools.ttf.calculate_hillslopesd8(channels,basins,fdir)
+ #Calculate the hillslope properties
+ latitude = covariates['lats'].T
+ longitude = covariates['lons'].T
+ hp = terrain_tools.calculate_hillslope_properties(hillslopes,dem,
+                       basins,res,latitude.T,longitude.T,depth2channel)
+ #Cluster the hillslopes
+ (hillslopes_clusters,nhillslopes) = terrain_tools.cluster_hillslopes(hp,hillslopes,nclusters)
+ #Create the hrus
+ covariates = {#'depth2channel':{'data':depth2channel,'nbins':nclusters_tiles},
+              'clay':{'data':covariates['clay'],'nbins':5},
+              'ndvi':{'data':covariates['ndvi'],'nbins':5},
+              'ti':{'data':mfd_ti,'nbins':5},
+              }
+ hrus = terrain_tools.create_nd_histogram(hillslopes_clusters,covariates)-1
+ hrus = hrus.astype(np.float32)
+ hrus[channels > 0] = np.max(hrus) + 1
+ nhrus = int(np.max(hrus) + 1)
+ print '%d hrus' % (nhrus),time.time() - time0
+
+ return (hrus,nhrus)
+
+def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info):
 
  #Define the number of requested hrus (channel and non-channel)
  nclusters_c = hydrobloks_info['nclusters_c']
@@ -482,7 +528,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  #Metadata
  #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  for hsu in np.arange(nclusters):
-
   #Set indices
   idx = np.where(cluster_ids == hsu)
   #Calculate area per hsu
@@ -533,6 +578,15 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  covariates['fdir'][mask1] = -9999.0
  cluster_ids_copy = np.copy(cluster_ids)
  cluster_ids_copy[mask1] = np.nan
+ mask2 = cluster_ids_copy < 0 #new
+ covariates['fdir'][mask2] = -9999.0 #new
+ cluster_ids_copy[mask2] = np.nan #new
+ covariates['carea'][mask1] = -9999.0 #new
+ covariates['carea'][mask2] = -9999.0 #new
+ #plt.imshow(covariates['fdir'])
+ #plt.imshow(cluster_ids_copy)
+ #plt.show()
+ #exit()
  max_nhru = np.sum(cluster_ids >= 0)
  #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
  (hrus_dst,hrus_org,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],covariates['carea'],nclusters,max_nhru)
@@ -714,7 +768,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print "Computing the HRUs"
  if hydrobloks_info['model_type'] == 'semi':
-  (cluster_ids,nclusters) = Compute_HRUs_Semidistributed(covariates,mask,nclusters,hydrobloks_info)
+  if hydrobloks_info['clustering_type'] == 'kmeans':
+   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info)
+  elif hydrobloks_info['clustering_type'] == 'hillslope':
+   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info)
   hydrobloks_info['nclusters'] = nclusters
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)
