@@ -21,5 +21,10 @@
                 "clay":"n",
                 "ndvi":"n",
                 "lats":"n",
-                "lons":"n"}
+                "lons":"n"},
+  "clustering_type":"kmeans",
+  "hillslope_info":{"nhillslopes":5,
+                    "clay":5,
+                    "ndvi":5,
+                    "ti":5}
 }
