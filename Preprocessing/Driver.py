@@ -38,7 +38,8 @@ hydrobloks_info = {
         'create_mask_flag':metadata['create_mask_flag'],
         'covariates':metadata['covariates'],
         'clustering_type':metadata['clustering_type'],
-        'hillslope_info':metadata['hillslope_info']
+        'hillslope_info':metadata['hillslope_info'],
+        'basin_info':metadata['basin_info'],
 	}
 
 #Cluster the data

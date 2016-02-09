@@ -239,6 +239,47 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 
  return (cluster_ids,)
 
+def Compute_HRUs_Semidistributed_Basin(covariates,mask,nclusters,hydrobloks_info):
+
+ time0 = time.time()
+ dem = covariates['demns']
+ res = hydrobloks_info['dx']
+ basin_info = hydrobloks_info['basin_info']
+ nbasins = basin_info['nbasins'] #characteristic hillslope
+ #Calculate mfd accumulation area
+ mfd_area = terrain_tools.ttf.calculate_mfd_acc(dem,res,1)
+ mfd_area[mask == 0] = 0.0
+ #Calculate mfd topographic index
+ mfd_ti = np.log(mfd_area/res/covariates['cslope'])
+ #Calculate d8 accumulation area
+ (area,fdir) = terrain_tools.ttf.calculate_d8_acc(dem,res)
+ area[mask == 0] = 0.0
+ #Define the channels
+ channels = terrain_tools.ttf.calculate_channels(area,10**6,10**6,fdir)
+ #Define the basins
+ basins = terrain_tools.ttf.delineate_basins(channels,mask,fdir)
+ #Calculate the basin properties
+ lats = np.linspace(0,1,basins.shape[0])
+ lons = np.linspace(0,1,basins.shape[1])
+ (latitude,longitude) = np.meshgrid(lats,lons)
+ bp = terrain_tools.calculate_basin_properties(basins,res,latitude.T,longitude.T,fdir)
+ #Reduce the number of basins to the desired number
+ basins = terrain_tools.reduce_basin_number(basins,bp,nbasins)
+ covariates = {#'depth2channel':{'data':depth2channel,'nbins':nclusters_tiles},
+              'clay':{'data':covariates['clay'],'nbins':basin_info['clay']},
+              'ndvi':{'data':covariates['ndvi'],'nbins':basin_info['ndvi']},
+              'ti':{'data':mfd_ti,'nbins':basin_info['ti']},
+              }
+ hrus = terrain_tools.create_nd_histogram(basins,covariates)-1
+ hrus = hrus.astype(np.float32) 
+ hrus[hrus < 0] = -9999
+ #hrus[channels > 0] = np.max(hrus) + 1
+ #nhrus = int(np.max(hrus) + 1)
+ nhrus = int(np.max(hrus))
+ print '%d hrus' % (nhrus),time.time() - time0
+
+ return (hrus,nhrus)
+
 def Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info):
 
  time0 = time.time()
@@ -773,6 +814,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
    (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info)
   elif hydrobloks_info['clustering_type'] == 'hillslope':
    (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info)
+  elif hydrobloks_info['clustering_type'] == 'basin':
+   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Basin(covariates,mask,nclusters,hydrobloks_info)
   hydrobloks_info['nclusters'] = nclusters
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)
