@@ -294,8 +294,8 @@ def Compute_HRUs_Semidistributed_Basin(covariates,mask,nclusters,hydrobloks_info
               #'d2c':{'data':depth2channel},
               'acc':{'data':np.log10(area)},
               #'sti':{'data':covariates['sti']},
-              #'lats':{'data':covariates['lats']},
-              #'lons':{'data':covariates['lons']},
+              'lats':{'data':covariates['lats']},
+              'lons':{'data':covariates['lons']},
               }
  hrus = terrain_tools.create_tiles_kmeans(basins,covariates,ntiles)
  #hrus = terrain_tools.create_nd_histogram(basins,covariates)-1
