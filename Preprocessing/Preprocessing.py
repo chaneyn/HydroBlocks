@@ -789,7 +789,7 @@ def Create_and_Curate_Covariates(wbd):
  NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  tmp = np.copy(covariates['nlcd'])
  for lc in np.unique(covariates['nlcd']):
-  if lc < 0:continue
+  if lc <= 0:continue
   tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
  covariates['nlcd'][:] = tmp[:]
 
