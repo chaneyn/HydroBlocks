@@ -26,6 +26,6 @@
   "hillslope_info":{"nhillslopes":5,
                     "clay":5,
                     "ndvi":5,
-                    "ti":5}
-  "basin_info":{"nbasins":1,"nclusters":100},
+                    "ti":5},
+  "basin_info":{"nbasins":1,"nclusters":100}
 }
