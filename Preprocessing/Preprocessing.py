@@ -26,6 +26,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  info['time_info'] = {}
  info['time_info']['startdate'] = hydrobloks_info['idate']
  info['time_info']['enddate'] = hydrobloks_info['fdate']
+ info['time_info']['dt'] = hydrobloks_info['dt']
 
  #Define the workspace
  workspace = hydrobloks_info['workspace']
@@ -34,8 +35,8 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  input_dir = workspace#'%s/input' % workspace
 
  #Read in the metadata
- file = '%s/workspace_info.pck' % workspace
- wbd = pickle.load(open(file))
+ #file = '%s/workspace_info.pck' % workspace
+ #wbd = pickle.load(open(file))
 
  #Create the dictionary to hold all of the data
  output = {}
@@ -45,43 +46,47 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  ncores = hydrobloks_info['ncores']
  icatch = hydrobloks_info['icatch']
 
+ #Get metadata
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ 
  #Prepare the input file
+ wbd = {}
+ wbd['bbox'] = {'minlat':md['miny'],'maxlat':md['maxy'],
+                'minlon':md['minx'],'maxlon':md['maxx'],
+                'res':abs(md['resx'])}
+
  wbd['files'] = {
-  'WLTSMC':'%s/WLTSMC.tif' % workspace,
-  'TEXTURE_CLASS':'%s/TEXTURE_CLASS.tif' % workspace,
-  'cslope':'%s/cslope.tif' % workspace,
-  'MAXSMC':'%s/MAXSMC.tif' % workspace,
-  'BB':'%s/BB.tif' % workspace,
-  'DRYSMC':'%s/DRYSMC.tif' % workspace,
-  'fdir':'%s/fdir.tif' % workspace,
-  'QTZ':'%s/QTZ.tif' % workspace,
-  'SATDW':'%s/SATDW.tif' % workspace,
-  'REFSMC':'%s/REFSMC.tif' % workspace,
-  'mask':'%s/mask.tif' % workspace,
-  'channels':'%s/channels.tif' % workspace,
-  #'SATDW':'%s/SATDW.tif' % workspace,
-  #'REFSMC':'%s/REFSMC.tif' % workspace,
-  'SATPSI':'%s/SATPSI.tif' % workspace,
-  'nlcd':'%s/nlcd.tif' % workspace,
-  'carea':'%s/carea.tif' % workspace,
-  'ti':'%s/ti.tif' % workspace,
-  'ndvi':'%s/ndvi.tif' % workspace,
-  'F11':'%s/F11.tif' % workspace,
-  'SATDK':'%s/SATDK.tif' % workspace,
-  'dem':'%s/dem.tif' % workspace,
-  'demns':'%s/demns.tif' % workspace,
-  'strahler':'%s/strahler.tif' % workspace,
-  #'qbase':'%s/qbase.tif' % workspace
+  'WLTSMC':'%s/theta1500_ea.tif' % workspace,
+  'TEXTURE_CLASS':'%s/texture_class_ea.tif' % workspace,
+  'cslope':'%s/cslope_ea.tif' % workspace,
+  'MAXSMC':'%s/thetas_ea.tif' % workspace,
+  'BB':'%s/bb_ea.tif' % workspace,
+  'DRYSMC':'%s/thetar_ea.tif' % workspace,
+  'fdir':'%s/fdir_ea.tif' % workspace,
+  'QTZ':'%s/qtz_ea.tif' % workspace,
+  'SATDW':'%s/dsat_ea.tif' % workspace,
+  'REFSMC':'%s/theta33_ea.tif' % workspace,
+  'mask':'%s/mask_ea.tif' % workspace,
+  'SATPSI':'%s/psisat_ea.tif' % workspace,
+  'lc':'%s/lc_ea.tif' % workspace,
+  'carea':'%s/carea_ea.tif' % workspace,
+  'ti':'%s/ti_ea.tif' % workspace,
+  'ndvi':'%s/ndvi_ea.tif' % workspace,
+  'F11':'%s/f11_ea.tif' % workspace,
+  'SATDK':'%s/ksat_ea.tif' % workspace,
+  'dem':'%s/dem_ea.tif' % workspace,
+  'demns':'%s/demns_ea.tif' % workspace,
+  'sand':'%s/sand_ea.tif' % workspace,
+  'clay':'%s/clay_ea.tif' % workspace,
   }
  wbd['files_meteorology'] = {
-  'dlwrf':'%s/nldas/dlwrf/dlwrf.nc' % workspace,
-  'dswrf':'%s/nldas/dswrf/dswrf.nc' % workspace,
-  'tair':'%s/nldas/tair/tair.nc' % workspace,
-  'prec':'%s/nldas/prec/prec.nc' % workspace,
-  'pres':'%s/nldas/pres/pres.nc' % workspace,
-  'wind':'%s/nldas/wind/wind.nc' % workspace,
-  'rh':'%s/nldas/rh/rh.nc' % workspace,
-  'apcpsfc':'%s/stageiv/apcpsfc/apcpsfc.nc' % workspace,
+  'lwdown':'%s/lwdown.nc' % workspace,
+  'swdown':'%s/swdown.nc' % workspace,
+  'tair':'%s/tair.nc' % workspace,
+  'precip':'%s/precip.nc' % workspace,
+  'psurf':'%s/psurf.nc' % workspace,
+  'wind':'%s/wind.nc' % workspace,
+  'spfh':'%s/spfh.nc' % workspace,
   }
 
  #Create the clusters and their connections
@@ -101,7 +106,10 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  #Write out the metadata
  grp = fp.createGroup('metadata')
  grp.latitude = (wbd['bbox']['minlat'] + wbd['bbox']['maxlat'])/2
- grp.longitude = (360.0+(wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2)
+ lon = (wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2 
+ if lon < 0:lon += 360
+ grp.longitude = lon
+ #grp.longitude = (360.0+(wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2)
 
  #Write the HRU mapping
  #CONUS conus_albers metadata
@@ -121,49 +129,45 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
  hmca[:] = hsu_map
 
- if hydrobloks_info['create_mask_flag'] == True:
+ #Write out the mapping
+ file_ca = '%s/hsu_mapping_ea.tif' % workspace
+ gdal_tools.write_raster(file_ca,metadata,hsu_map)
 
-  #Write out the mapping
-  file_ca = '%s/hsu_mapping_conus_albers.tif' % workspace
-  gdal_tools.write_raster(file_ca,metadata,hsu_map)
+ #Map the mapping to regular lat/lon
+ file_ll = '%s/hsu_mapping_latlon.tif' % workspace
+ os.system('rm -f %s' % file_ll)
+ res = wbd['bbox']['res']
+ minlat = wbd['bbox']['minlat']
+ minlon = wbd['bbox']['minlon']
+ maxlat = wbd['bbox']['maxlat']
+ maxlon = wbd['bbox']['maxlon']
+ log = '%s/log.txt' % workspace
+ os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs \'+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
 
-  #Map the mapping to regular lat/lon
-  file_ll = '%s/hsu_mapping_latlon.tif' % workspace
-  os.system('rm -f %s' % file_ll)
-  res = wbd['bbox']['res']
-  minlat = wbd['bbox']['minlat']
-  minlon = wbd['bbox']['minlon']
-  maxlat = wbd['bbox']['maxlat']
-  maxlon = wbd['bbox']['maxlon']
-  log = '%s/log.txt' % workspace
-  os.system('gdalwarp -tr %.16f %.16f -dstnodata %.16f -t_srs EPSG:4326 -s_srs EPSG:102039 -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+ #Write a map for the catchment id
+ file_icatch = '%s/icatch_latlon.tif' % workspace
+ metadata = gdal_tools.retrieve_metadata(file_ll)
+ metadata['nodata'] = -9999.0
+ tmp = gdal_tools.read_raster(file_ll)
+ tmp[tmp >= 0] = hydrobloks_info['icatch']
+ gdal_tools.write_raster(file_icatch,metadata,tmp)
 
- 
-  #Write a map for the catchment id
-  file_icatch = '%s/icatch_latlon.tif' % workspace
-  metadata = gdal_tools.retrieve_metadata(file_ll)
-  metadata['nodata'] = -9999.0
-  tmp = gdal_tools.read_raster(file_ll)
-  tmp[tmp >= 0] = hydrobloks_info['icatch']
-  gdal_tools.write_raster(file_icatch,metadata,tmp)
-
-  #Add the lat/lon mapping
-  #Retrieve the lat/lon metadata
-  metadata = gdal_tools.retrieve_metadata(file_ll)
-  metadata['nodata'] = -9999.0
-  #Save the lat/lon metadata
-  grp = fp.createGroup('latlon_mapping')
-  grp.createDimension('nlon',metadata['nx'])
-  grp.createDimension('nlat',metadata['ny'])
-  hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
-  hmll.gt = metadata['gt']
-  hmll.projection = metadata['projection']
-  hmll.description = 'HSU mapping (regular lat/lon)'
-  hmll.nodata = metadata['nodata']
-  #Save the lat/lon mapping
-  hsu_map = np.copy(gdal_tools.read_raster(file_ll))
-  hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
-  hmll[:] = hsu_map
+ #Retrieve the lat/lon metadata
+ #metadata = gdal_tools.retrieve_metadata(file_ll)
+ #metadata['nodata'] = -9999.0
+ #Save the lat/lon metadata
+ #grp = fp.createGroup('latlon_mapping')
+ #grp.createDimension('nlon',metadata['nx'])
+ #grp.createDimension('nlat',metadata['ny'])
+ #hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
+ #hmll.gt = metadata['gt']
+ #hmll.projection = metadata['projection']
+ #hmll.description = 'HSU mapping (regular lat/lon)'
+ #hmll.nodata = metadata['nodata']
+ #Save the lat/lon mapping
+ #hsu_map = np.copy(gdal_tools.read_raster(file_ll))
+ #hsu_map[np.isnan(hsu_map) == 1] = metadata['nodata']
+ #hmll[:] = hsu_map
 
  #Write the flow matrix
  flow_matrix = output['flow_matrix']
@@ -391,12 +395,11 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
         'smw':{'data':covariates['WLTSMC'][mask == True],},
         'clay':{'data':covariates['clay'][mask_nc == True],},
         'sand':{'data':covariates['sand'][mask_nc == True],},
-        'nlcd':{'data':covariates['nlcd'][mask_nc ==True],},
+        'lc':{'data':covariates['lc'][mask_nc ==True],},
         'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         'ti':{'data':covariates['ti'][mask_nc == True],},
         'dem':{'data':covariates['dem'][mask == True],},
         'demns':{'data':covariates['dem'][mask == True],},
-        'strahler':{'data':covariates['strahler'][mask_nc == True],},
         'lats':{'data':covariates['lats'][mask_nc == True],},
         'lons':{'data':covariates['lons'][mask_nc == True],},
         }
@@ -414,7 +417,6 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
-  print var
   #if var in ['clay','ndvi','ti','lats','lons']:
   if hydrobloks_info['covariates'][var] == 'p':
    argsort = np.argsort(info[var]['data'])
@@ -640,10 +642,10 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Average Catchment Area
   OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
   #Channel?
-  OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
+  #OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
   #OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[95]#stats.mode(covariates['nlcd'][idx])[0][0]]
-  OUTPUT['hsu']['land_cover'][hsu] = stats.mode(covariates['nlcd'][idx])[0][0]
+  OUTPUT['hsu']['land_cover'][hsu] = stats.mode(covariates['lc'][idx])[0][0]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
   #Define the estimate for the model parameters
@@ -756,7 +758,8 @@ def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
   #fp.write('%d ' % (hsu+1))
   for var in soil_vars:
    #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
-   if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
+   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
+   if var in ['ASDASD']:
     donothing = 1
     # fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
    #elif var == 'DRYSMC':
@@ -776,9 +779,6 @@ def Create_and_Curate_Covariates(wbd):
 
  covariates = {}
  #Read in and curate all the covariates
- root = wbd['files']['MAXSMC'][0:-11]
- wbd['files']['sand'] = '%s/dssurgo/sandtotal_r.tif' % root
- wbd['files']['clay'] = '%s/dssurgo/claytotal_r.tif' % root
  for file in wbd['files']:
   covariates[file] = gdal_tools.read_raster(wbd['files'][file])
   if file == 'cslope':
@@ -786,16 +786,16 @@ def Create_and_Curate_Covariates(wbd):
    covariates[file][mask] = 0.000001
 
  #Map the NLCD to IGBP
- NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
- tmp = np.copy(covariates['nlcd'])
- for lc in np.unique(covariates['nlcd']):
-  if lc < 0:continue
-  tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
- covariates['nlcd'][:] = tmp[:]
+ #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
+ #tmp = np.copy(covariates['nlcd'])
+ #for lc in np.unique(covariates['nlcd']):
+ # if lc < 0:continue
+ # tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
+ #covariates['nlcd'][:] = tmp[:]
 
- #Curate the NDVI to match NLCD
- for lc in np.unique(covariates['nlcd']):
-  masklc = covariates['nlcd'] == lc
+ #Curate the NDVI to match land cover 
+ for lc in np.unique(covariates['lc']):
+  masklc = covariates['lc'] == lc
   covariates['ndvi'][masklc] = np.mean(covariates['ndvi'][masklc])
 
  #Create lat/lon grids
@@ -820,7 +820,7 @@ def Create_and_Curate_Covariates(wbd):
 
  #Define the mask
  mask = np.copy(covariates['mask'])
- mask[mask > 0] = 1
+ mask[mask >= 0] = 1
  mask[mask < 0] = 0
  mask = mask.astype(np.bool)
 
@@ -925,8 +925,6 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
  #Assign other variables
  mask = OUTPUT['mask']
 
- #Define the mapping directory
- mapping_dir = '%s/mapping' % workspace
  mapping_info = {}
  #Calculate the fine to coarse scale mapping
  for data_var in wbd['files_meteorology']:
@@ -936,8 +934,8 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   mapping_info[var] = {}
 
   #Read in the coarse and fine mapping
-  file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
-  file_fine = '%s/%s_fine.tif' % (mapping_dir,data_var)
+  file_coarse = '%s/%s_ea_coarse.tif' % (workspace,var)
+  file_fine = '%s/%s_ea_fine.tif' % (workspace,var)
   mask_coarse = gdal_tools.read_raster(file_coarse)
   mask_fine = gdal_tools.read_raster(file_fine)
   nlat = mask_coarse.shape[0]
@@ -987,7 +985,6 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrobloks_info):
 
  #Define the mapping directory
- mapping_dir = '%s/mapping' % workspace
  mapping_info = {}
  #Calculate the fine to coarse scale mapping
  for data_var in wbd['files_meteorology']:
@@ -997,8 +994,8 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   mapping_info[var] = {}
 
   #Read in the coarse and fine mapping
-  file_coarse = '%s/%s_coarse.tif' % (mapping_dir,data_var)
-  file_fine = '%s/%s_fine.tif' % (mapping_dir,data_var)
+  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,data_var)
+  file_fine = '%s/%s_ea_fine.tif' % (workspace,data_var)
   mask_coarse = gdal_tools.read_raster(file_coarse)
   mask_fine = gdal_tools.read_raster(file_fine)
   nlat = mask_coarse.shape[0]
@@ -1024,7 +1021,8 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
  #Iterate through variable creating forcing product per HSU
  idate = info['time_info']['startdate']
  fdate = info['time_info']['enddate']
- nt = 24*((fdate - idate).days+1)
+ dt = info['time_info']['dt']
+ nt = int(3600*24/dt)*((fdate - idate).days+1)
  #Create structured array
  meteorology = {}
  for data_var in wbd['files_meteorology']:
@@ -1051,11 +1049,9 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
    tmp = data[:,coords[0],coords[1]]
-   m1 = tmp < -999
-   m2 = tmp > -999
+   #m1 = tmp < -999
+   #m2 = tmp > -999
    tmp = pcts*tmp
-   #Combine stage iv and nldas here
-   if data_var not in ['apcpsfc',]:tmp[m1] = np.mean(tmp[m2])
    meteorology[data_var][:,hsu] = np.sum(tmp,axis=1)
    #print data_var,np.unique(meteorology[data_var][:,:])
 

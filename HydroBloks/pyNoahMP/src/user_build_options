@@ -25,7 +25,7 @@
 
  COMPILERF90	=	gfortran
  FREESOURCE	=	-ffree-form  -ffree-line-length-none -fno-range-check
- F90FLAGS	=       -g -fconvert=big-endian -O3 -fbounds-check -fpic -fimplicit-none -fbacktrace
+ F90FLAGS	=       -g -fconvert=big-endian -O3 -fbounds-check -fimplicit-none -fbacktrace -fPIC
  MODFLAG	=	-I
  LDFLAGS	=	
  CPP		=	cpp

@@ -450,23 +450,16 @@ def Update_Input(NOAH,TOPMODEL,date,info,i):
 
   #Update meteorology
   meteorology = info['input_fp'].groups['meteorology']
-  NOAH.lwdn[:] = meteorology.variables['dlwrf'][i,:] #W/m2
-  NOAH.swdn[:] = meteorology.variables['dswrf'][i,:] #W/m2
-  NOAH.psfc[:] = meteorology.variables['pres'][i,:] #Pa
-  NOAH.p_ml[:] = meteorology.variables['pres'][i,:] #Pa
+  NOAH.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
+  NOAH.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
+  NOAH.psfc[:] = meteorology.variables['psurf'][i,:] #Pa
+  NOAH.p_ml[:] = meteorology.variables['psurf'][i,:] #Pa
   NOAH.u_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
   NOAH.v_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
-  NOAH.t_ml[:] = 273.15+meteorology.variables['tair'][i,:] #K
-  estar = 611.0*np.exp(17.27*((NOAH.t_ml[:] - 273.15)/(NOAH.t_ml[:] - 36.0)))
-  e = meteorology.variables['rh'][i,:]*estar/100
-  q = 0.622*e/NOAH.psfc[:]
-  NOAH.q_ml[:] = q #Kg/Kg
-  NOAH.qsfc1d[:] = q #Kg/Kg
-  #NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s ONLY NLDAS
-  if np.mean(meteorology.variables['apcpsfc'][i,:]) >= 0.0:
-   NOAH.prcp[:] = meteorology.variables['apcpsfc'][i,:]/dt #mm/s
-  else:
-   NOAH.prcp[:] = meteorology.variables['prec'][i,:]/dt #mm/s
+  NOAH.t_ml[:] = meteorology.variables['tair'][i,:] #K
+  NOAH.q_ml[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
+  NOAH.qsfc1d[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
+  NOAH.prcp[:] = meteorology.variables['precip'][i,:] #mm/s
 
   return (NOAH,TOPMODEL)
 
