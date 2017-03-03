@@ -176,6 +176,9 @@ module model
  real,dimension(:),allocatable :: wltsmc0
  real,dimension(:),allocatable :: qtz0
 
+ ! Noemi
+ integer,dimension(:),allocatable :: root_depth
+
  !Multi layer
  real,dimension(:,:),allocatable :: stc ! snow/soil temperatures
  real,dimension(:,:),allocatable :: sh2o ! vol. soil liquid water (m3/m3)
@@ -330,6 +333,9 @@ contains
   if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
   if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
   if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
+
+  ! Noemi
+  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -627,6 +633,10 @@ contains
   allocate(wltsmc0(ncells))
   if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
   allocate(qtz0(ncells))
+  
+  ! Noemi
+  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
+  allocate(root_depth(ncells))
 
   !Multi layer
   if (allocated(stc) .eqv. .True.) deallocate(stc)
@@ -769,6 +779,9 @@ contains
   co2air = badval
   o2air = badval
 
+  !Noemi
+  root_depth = badval
+
   !Multi layer
   zsoil = badval
   sh2o = badval
@@ -831,7 +844,7 @@ contains
   !real :: ISNOW0   , SNDPTH0  , SWE0
   !real :: LON0,DZWT0
 
-  !real :: lat,yearlen,julian,cosz
+    !real :: lat,yearlen,julian,cosz
   !integer :: nsoil
   !if (itime .eq. 0) call OMP_SET_NUM_THREADS(ncores)
   call OMP_SET_NUM_THREADS(ncores)
@@ -875,7 +888,7 @@ contains
             GHB(i)     , IRG(i)     , IRC(i)     , IRB(i)     , TR(i)      , EVC(i)     , & ! OUT :
             CHLEAF(i)  , CHUC(i)    , CHV2(i)    , CHB2(i)    , FPICE(i), &
             SOILTYP(i), SLOPETYP(i),LON(i),NOWDATE,ITIME,SLDPTH(i,:),DZWT(i),ERRWAT(i),si0(i),si1(i), &
-            zwt0(i),minzwt(i)) ! OTHER
+            zwt0(i),minzwt(i),ROOT_DEPTH(i)) ! OTHER
   enddo
   !$OMP END DO
   !$OMP END PARALLEL
@@ -913,7 +926,7 @@ subroutine run_model_cell(&
             SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 	    GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
 	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE, &
-            SOILTYP, SLOPETYP,LON,NOWDATE,ITIME,SLDPTH,DZWT,ERRWAT,si0,si1,zwt0,minzwt) ! OTHER
+            SOILTYP, SLOPETYP,LON,NOWDATE,ITIME,SLDPTH,DZWT,ERRWAT,si0,si1,zwt0,minzwt,ROOT_DEPTH) ! OTHER
 
   USE module_sf_noahmplsm
   USE module_sf_noahmp_glacier
@@ -1083,7 +1096,7 @@ subroutine run_model_cell(&
     REAL, DIMENSION(1:NSOIL) :: SLDPTH
     REAL :: DZWT
     REAL :: ERRWAT
-
+    INTEGER :: NROOT2, ROOT_DEPTH
     !Calculate cosz
     !ostart = omp_get_wtime()
     CALL CALC_DECLIN (NOWDATE, LAT, LON, COSZ)
@@ -1092,9 +1105,13 @@ subroutine run_model_cell(&
 
     !Set parameters
     !ostart = omp_get_wtime()
-    CALL REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN)
+    CALL REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN, NROOT2)
     !oend = omp_get_wtime()
     !print*,'REDPRM',oend - ostart
+
+    ROOT_DEPTH = NROOT2
+    !write (*,*) 'NROOT2',NROOT2
+    !write (*,*) 'root_depth',ROOT_DEPTH
 
     if (itime .eq. 0) then 
       !Define the equilibrium soil water content
@@ -1116,6 +1133,7 @@ subroutine run_model_cell(&
     !Update the water table depth
     call UPDATEWTD  (NSOIL,SLDPTH,SMCEQ,SMCMAX,SMCWLT,-PSISAT,BEXP,I,J,DZWT,ZWT ,SMC, SMH2O ,SMCWTD,QSPRING,&
                      DT,DEEPRECH,DKSAT)
+    
     DEEPRECH = 0.0  
     !Calculate the soil moisture deficit
     zwt0 = zwt
@@ -1246,6 +1264,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
   integer :: nhru
   real,dimension(nhru) :: bb0,drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0
   real,dimension(nhru) :: satdw0,wltsmc0,qtz0
+  !real,dimension(nhru) :: nrotbl ! Noemi
   CHARACTER(LEN=*), INTENT(IN) :: MMINLU, MMINSL
   character(len=256) :: vegparm_file,soilparm_file,genparm_file
   integer :: LUMATCH, IINDEX, LC, NUM_SLOPE
@@ -1359,6 +1378,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
      ENDIF
   ENDIF
 
+  
   CALL wrf_dm_bcast_string  ( LUTYPE  , 4 )
   CALL wrf_dm_bcast_integer ( LUCATS  , 1 )
   CALL wrf_dm_bcast_integer ( IINDEX  , 1 )
@@ -1385,6 +1405,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
   CALL wrf_dm_bcast_integer ( BARE    , 1 )
   CALL wrf_dm_bcast_integer ( NATURAL , 1 )
 
+  
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
 !
@@ -1702,7 +1723,6 @@ SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ)
 !deep recharge variables
 ! -------------------------------------------------------------
 
-
   !Define depths
   ZSOIL(0) = 0.
   ZSOIL(1) = -DZS(1)
@@ -1738,13 +1758,16 @@ SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ)
   !print*,DEEPRECH
   !if (DEEPRECH .gt. 10.0)stop
   
+ 
   !Add deeprech to the dzwt 
   totwater = totwater + deeprech
   totwater0 = totwater
 
+ 
   QSPRING=0.
 
   SICE = SMC - SH2O
+  print*,'totwater before',totwater
 
 iwtd=1
 !if (totwater .ne. 0)print*,'part1',abs(sum(smc*zsoil(1:nsoil))),wtd,smcwtd*(zsoil(nsoil)-wtd)
@@ -1764,7 +1787,7 @@ IF(totwater.gt.0.)then
             iwtd=k
             kwtd=iwtd+1
 
-!max water that fits in the layer
+            !max water that fits in the layer
             maxwatup=dzs(kwtd)*(smcmax-smc(kwtd))
 
             if(totwater.le.maxwatup)then
@@ -2033,6 +2056,8 @@ ENDIF
          SH2O = SMC - SICE
          wb1 = sum(dzs*smc)+smcwtd*(max(-wtd - sum(dzs),0.0))+smcmax*(1000.0-max(-wtd,sum(dzs)))
          !print*,'final',1000*(wb1 - wb0 - totwater0 + qspring),1000*totwater0,1000*totwater,-wtd
+  
+ print*,'totwater after',totwater
 
 
 END SUBROUTINE UPDATEWTD

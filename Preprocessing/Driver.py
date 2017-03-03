@@ -2,6 +2,9 @@ import datetime
 import Preprocessing
 import sys
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
+
 #Read in the metadata file
 metadata_file = sys.argv[1]
 metadata = Preprocessing.Read_Metadata_File(metadata_file)

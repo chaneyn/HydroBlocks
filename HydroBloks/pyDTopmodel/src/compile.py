@@ -9,6 +9,11 @@ mkl_library = '/opt/intel/mkl/lib'
 #mkl_include = '/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/include'
 #mkl_library = '/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/lib/intel64'
 
+mkl_include = '/opt/intel/composer_xe_2015.2.164/mkl/include'
+mkl_library = '/opt/intel/composer_xe_2015.2.164/mkl/lib/intel64'
+
+
+
 #Compile the code to create the module
 cmd = 'gfortran -c dynamic_topmodel_tools.f90 -lgomp -liomp5 -lmkl_rt -lpthread -lm -w -O3 -funroll-loops -m64 -Wl,--no-as-needed -openmp -fopenmp -g -fbacktrace -fpic -o dynamic_topmodel_tools.o -I%s -L%s' % (mkl_include,mkl_library)
 os.system(cmd)

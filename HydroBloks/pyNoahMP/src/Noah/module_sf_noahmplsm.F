@@ -596,7 +596,7 @@ contains
   INTEGER                        , INTENT(IN)    :: IZ0TLND
   REAL                           , INTENT(IN)    :: QC     !cloud water mixing ratio
   REAL                           , INTENT(IN)    :: PBLH   !planetary boundary layer height
-  REAL                           , INTENT(INOUT)    :: QSFC   !mixing ratio at lowest model layer
+  REAL                           , INTENT(INOUT) :: QSFC   !mixing ratio at lowest model layer
   REAL                           , INTENT(IN)    :: PSFC   !pressure at lowest model layer
   REAL                           , INTENT(IN)    :: DZ8W   !thickness of lowest layer
   REAL                           , INTENT(IN)    :: DX
@@ -1217,7 +1217,7 @@ contains
           END_WB = END_WB + SMC(IZ) * DZSNSO(IZ) * 1000.
         END DO
         ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB)*DT
-        !print*,ERRWAT
+        !print*,'noah',ERRWAT
         !print*,RUNSRF*DT,RUNSUB*DT,ERRWAT
 
 #ifndef WRF_HYDRO
@@ -9104,7 +9104,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! ==================================================================================================
 ! ********************************* end of carbon subroutines *****************************
 ! ==================================================================================================
-  SUBROUTINE REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN)
+  SUBROUTINE REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN,NROOT2)
    
 !niu  use module_sf_noahlsm_param_init
 
@@ -9159,6 +9159,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! Layer parameters
     REAL,DIMENSION(NSOIL),INTENT(IN) :: ZSOIL
 
+   INTEGER, OPTIONAL, INTENT(OUT) :: NROOT2
 ! Locals
     REAL    :: REFDK
     REAL    :: REFKDT
@@ -9236,6 +9237,9 @@ END  SUBROUTINE SHALLOWWATERTABLE
     HS = HSTBL (VEGTYP)
     NROOT = NROTBL (VEGTYP)
 
+    NROOT2 = NROOT
+    !write (*,*) 'NROOT2',NROOT2    
+
     IF(VEGTYP==ISURBAN)THEN
        RSMIN=400.0
     ENDIF
@@ -9245,7 +9249,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 
     IF (NROOT .gt. NSOIL) THEN
        WRITE (*,*) 'Warning: too many root layers'
-       write (*,*) 'NROOT = ', nroot
+       write (*,*) 'NROOT = ', nroot, NROOT
        write (*,*) 'NSOIL = ', nsoil
        call wrf_error_fatal("STOP in Noah-MP")
     END IF

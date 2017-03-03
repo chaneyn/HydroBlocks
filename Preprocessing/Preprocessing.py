@@ -78,6 +78,11 @@ def Prepare_Model_Input_Data(hydrobloks_info):
   'demns':'%s/demns_ea.tif' % workspace,
   'sand':'%s/sand_ea.tif' % workspace,
   'clay':'%s/clay_ea.tif' % workspace,
+  'silt':'%s/silt_ea.tif' % workspace,
+  'om':'%s/om_ea.tif' % workspace,
+  'bare30':'%s/bare30_ea.tif' % workspace,
+  'water30':'%s/water30_ea.tif' % workspace,
+  'tree30':'%s/tree30_ea.tif' % workspace,
   }
  wbd['files_meteorology'] = {
   'lwdown':'%s/lwdown.nc' % workspace,
@@ -389,17 +394,23 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
  info_general = {'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
         'slope':{'data':covariates['cslope'][mask_nc == True],},
         'ksat':{'data':covariates['SATDK'][mask_nc == True],},
+        'fdir':{'data':covariates['fdir'][mask_nc == True],},
         'bc_b':{'data':covariates['BB'][mask_nc == True],},
         'bc_psisat':{'data':covariates['SATPSI'][mask_nc == True],},
         'sms':{'data':covariates['MAXSMC'][mask == True],},
         'smw':{'data':covariates['WLTSMC'][mask == True],},
         'clay':{'data':covariates['clay'][mask_nc == True],},
         'sand':{'data':covariates['sand'][mask_nc == True],},
+        'silt':{'data':covariates['silt'][mask_nc == True],},
+        'om':{'data':covariates['om'][mask_nc == True],},
         'lc':{'data':covariates['lc'][mask_nc ==True],},
         'ndvi':{'data':covariates['ndvi'][mask_nc ==True],},
         'ti':{'data':covariates['ti'][mask_nc == True],},
         'dem':{'data':covariates['dem'][mask == True],},
         'demns':{'data':covariates['dem'][mask == True],},
+        'bare30':{'data':covariates['bare30'][mask_nc == True],},
+        'water30':{'data':covariates['water30'][mask_nc == True],},
+        'tree30':{'data':covariates['tree30'][mask_nc == True],},
         'lats':{'data':covariates['lats'][mask_nc == True],},
         'lons':{'data':covariates['lons'][mask_nc == True],},
         }
@@ -417,8 +428,10 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
 
  #Scale all the variables (Calculate the percentiles
  for var in info:
+  #print var, info[var]['data'], np.nanmax(info[var]['data']), np.nanmin(info[var]['data']), np.nanmean(info[var]['data'])
   #if var in ['clay','ndvi','ti','lats','lons']:
   if hydrobloks_info['covariates'][var] == 'p':
+   #print hydrobloks_info['covariates'][var] 
    argsort = np.argsort(info[var]['data'])
    pcts = np.copy(info[var]['data'])
    pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
@@ -427,12 +440,19 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
     value = uniques[ival]
     count = counts[ival]
     if count <= 10:continue
-    pcts[info[var]['data'] == value] = np.mean(pcts[info[var]['data'] == value])
+    pcts[info[var]['data'] == value] = np.nanmean(pcts[info[var]['data'] == value])
    info[var]['data'][:] = pcts[:]
   else:
    tmp = info[var]['data']
-   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-   info[var]['data'] = tmp
+   utmp = np.unique(tmp)
+   utmp = utmp[utmp != -9999.0]
+   if len(utmp) > 1:
+    tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+    info[var]['data'] = tmp
+   else:
+    tmp[tmp != -9999.0] = 0.5
+    info[var]['data'] = tmp
+   #print var, info[var]['data'], np.nanmax(info[var]['data']), np.nanmin(info[var]['data']), np.nanmean(info[var]['data'])
   #argsort = np.argsort(info[var]['data'])
   #pcts = np.copy(info[var]['data'])
   #pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
@@ -440,8 +460,16 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
  if nclusters_c > 0:
   for var in info_channels:
    tmp = info_channels[var]['data']
-   tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-   info_channels[var]['data'] = tmp
+   utmp = np.unique(tmp)
+   utmp = utmp[utmp != -9999.0]
+   if len(utmp) > 1:
+    tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+    info_channels[var]['data'] = tmp
+   else:
+    tmp[tmp != -9999.0] = 0.5
+    info_channels[var]['data'] = tmp
+   #tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
+   #info_channels[var]['data'] = tmp
 
  import sklearn.cluster
  #Cluster the non channels regions
@@ -449,8 +477,15 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
  X = []
  for id in info:
   #Set all nans to the mean
+  
+  # Noemi addition
+  if np.isnan(np.nanmean(info[id]['data'])) == 1:
+    print "ERROR: all values for clustering are Nan, catch:",hydrobloks_info['icatch'],id, info[id]['data']
+    info[id]['data'][:] = 0.5
+
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
   X.append(info[id]['data'])
+  
 
  time0 = time.time()
  X = np.array(X).T
@@ -461,7 +496,9 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
  else:
   Xf = X
+
  #Initialize all points at the 0.5 point
+ if nclusters_nc > len(info[id]['data']): nclusters_nc=len(info[id]['data']) # Insert Noemi
  init = 0.5*np.ones((nclusters_nc,Xf.shape[1]))
  batch_size = 25*nclusters_nc
  init_size = 3*batch_size
@@ -487,6 +524,8 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
   X = []
   for id in info_channels:
    #Set all nans to the mean
+   if np.isnan(np.nanmean(info_channels[id]['data'])) == 1: 
+     print id, hydrobloks_info['icatch'], info_channels[id]['data']
    info_channels[id]['data'][np.isnan(info_channels[id]['data']) == 1] = np.nanmean(info_channels[id]['data'])
    X.append(info_channels[id]['data'])
 
@@ -629,18 +668,18 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
     OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
   #OUTPUT['hsu']['SATDW'][hsu] = 0.0
   #Average Slope
-  OUTPUT['hsu']['slope'][hsu] = np.mean(covariates['cslope'][idx])
+  OUTPUT['hsu']['slope'][hsu] = np.nanmean(covariates['cslope'][idx])
   #print 'mean',np.mean(np.sin(covariates['cslope'][idx]))
   #print 'arcsin mean',np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
   #OUTPUT['hsu']['slope'][hsu] = np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
   #print np.min(covariates['cslope'][idx]),np.mean(covariates['cslope'][idx]),np.max(covariates['cslope'][idx])
   #print OUTPUT['hsu']['slope'][hsu]
   #Topographic index
-  OUTPUT['hsu']['ti'][hsu] = np.mean(covariates['ti'][idx])
+  OUTPUT['hsu']['ti'][hsu] = np.nanmean(covariates['ti'][idx])
   #DEM
-  OUTPUT['hsu']['dem'][hsu] = np.mean(covariates['dem'][idx])
+  OUTPUT['hsu']['dem'][hsu] = np.nanmean(covariates['dem'][idx])
   #Average Catchment Area
-  OUTPUT['hsu']['carea'][hsu] = np.mean(covariates['carea'][idx])
+  OUTPUT['hsu']['carea'][hsu] = np.nanmean(covariates['carea'][idx])
   #Channel?
   #OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
@@ -789,14 +828,17 @@ def Create_and_Curate_Covariates(wbd):
  #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  #tmp = np.copy(covariates['nlcd'])
  #for lc in np.unique(covariates['nlcd']):
- # if lc < 0:continue
  # tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
  #covariates['nlcd'][:] = tmp[:]
 
+
+ #print covariates['ndvi'],covariates['lc']
  #Curate the NDVI to match land cover 
  for lc in np.unique(covariates['lc']):
   masklc = covariates['lc'] == lc
-  covariates['ndvi'][masklc] = np.mean(covariates['ndvi'][masklc])
+  covariates['ndvi'][masklc] = np.nanmean(covariates['ndvi'][masklc])
+ #print covariates['ndvi']
+
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
@@ -813,7 +855,7 @@ def Create_and_Curate_Covariates(wbd):
  lats, lons = np.meshgrid(lats, lons)
  covariates['lats'] = lats.T
  covariates['lons'] = lons.T
-
+ 
  #Add sti
  sti = covariates['ti'] - np.log(0.1*covariates['SATDK']) + np.log(np.mean(0.1*covariates['SATDK']))
  covariates['sti'] = sti
@@ -826,17 +868,20 @@ def Create_and_Curate_Covariates(wbd):
 
  #Set all nans to the mean
  for var in covariates:
-  mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0)
+  mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0) 
   mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
-  if var in ['fdir','nlcd']:
-   covariates[var][mask0] = stats.mode(covariates[var][mask1])[0][0]
+
+  if var in ['fdir','nlcd','TEXTURE_CLASS','lc']:
+   if len(covariates[var][mask1]) < 1: print "Full of Nan's Error: 1", var, covariates[var],  wbd['files'][var] # Noemi insert
+   covariates[var][mask0] = -9999.0 #stats.mode(covariates[var][mask1])[0][0]
   else:
-   covariates[var][mask0] = np.mean(covariates[var][mask1])
+   covariates[var][mask0] = -9999.0 #np.mean(covariates[var][mask1])
 
  #Set everything that is -9999 to the mean
  for var in covariates:
-  if var in ['fdir','nlcd','TEXTURE_CLASS']:
-   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]
+  if var in ['fdir','nlcd','TEXTURE_CLASS','lc']:  
+   if len(covariates[var][covariates[var] != -9999.0])  < 1: print "Full of Nan's Error: ", var, covariates[var],  wbd['files'][var] # Noemi insert
+   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]  
   else:
    covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
 
@@ -866,7 +911,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   hydrobloks_info['nclusters'] = nclusters
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nclusters)
 
- #Create the netcdf file
+  #Create the netcdf file
  file_netcdf = hydrobloks_info['input_file']
  hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
@@ -878,8 +923,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  nhsu = hydrobloks_info['nclusters']
  hydrobloks_info['input_fp'].createDimension('hsu',nhsu)
  hydrobloks_info['input_fp'].createDimension('time',ntime)
-
- #Create the groups (netcdf)
+ 
+  #Create the groups (netcdf)
  hydrobloks_info['input_fp'].createGroup('meteorology')
 
  #Prepare the flow matrix
@@ -1004,8 +1049,9 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   #Compute the mapping for each hsu
   for hsu in np.arange(hydrobloks_info['nclusters']):
    idx = OUTPUT['hsu_map'] == hsu
-   icells = np.unique(mask_fine[idx].astype(np.int))
-   counts = np.bincount(mask_fine[idx].astype(np.int))
+   #print "Catch:",hydrobloks_info['icatch'], "HRU: ", mask_fine[idx].astype(np.int)
+   icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
+   counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
    coords,pcts = [],[]
    for icell in icells:
     ilat = int(np.floor(icell/mask_coarse.shape[1]))
@@ -1044,6 +1090,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   fp.close()
   #Assing to hsus
   for hsu in mapping_info[var]:
+   #print data_var,data, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords'],
    pcts = mapping_info[var][hsu]['pcts']
    coords = mapping_info[var][hsu]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
