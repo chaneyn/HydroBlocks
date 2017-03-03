@@ -82,8 +82,6 @@ class HydroBloks:
   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
   self.errwat += np.sum(TOPMODEL.pct*tmp)
-  #print 'hb %e' % tmp
-  print self.errwat
   self.q = self.q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
   self.et = self.et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
   self.etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
@@ -299,37 +297,13 @@ def Initialize_DTopmodel(ncells,dt,info):
 
 def Update_Model(NOAH,TOPMODEL,ncores):
 
- ##  Noemi testing on Irrigation
- #delta_soil_moisture = np.copy(NOAH.smcref - NOAH.sh2o) # m3/m3
- # 
-
- #print NOAH.prcp
- #print NOAH.wa, NOAH.wt, NOAH.smcref, NOAH.smcwtd
- #print NOAH.si1, NOAH.si0, NOAH.si1-NOAH.si0, TOPMODEL.si
- #print NOAH.zwt, NOAH.zwt0, NOAH.zwt-NOAH.zwt0, NOAH.dzwt
- #print NOAH.sh2o
- #print " " 
- # Porosity = MAXSMC
-
- 
  #Set the partial pressure of CO2 and O2
  NOAH.co2air[:] = 355.E-6*NOAH.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
  NOAH.o2air[:] = 0.209*NOAH.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
- '''print "Before NOAH"
- rint NOAH.zwt
- print NOAH.dzwt
- print NOAH.si1'''
- wtd_tmp = np.copy(NOAH.zwt)
 
  #Update NOAH
  NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
  NOAH.run_model(ncores)
- #print "Update Noah",time.time() - t0
- ''' print "After NOAH"
- print NOAH.zwt
- print NOAH.dzwt
- print NOAH.si1'''
- #print NOAH.zwt-wtd_tmp
 
  #Calculate the updated soil moisture deficit
  si0 = np.copy(NOAH.si0)
@@ -337,22 +311,14 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Calculate the change in deficit
  TOPMODEL.si[:] = si1[:]
- #TOPMODEL.si[:] = NOAH.si1[:]
  TOPMODEL.dsi[:] = np.copy(si1 - si0)
- #TOPMODEL.dsi[:] = NOAH.si1[:] - NOAH.si0[:]
  TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
 
  #Add the surface runoff
  TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0# + NOAH.runsb[:]/1000.0
 
  #Update dynamic topmodel
- #print "Update TOPMODEL"
- t0 = time.time()
  TOPMODEL.update(ncores)
- #print"Update TOPMODEL",time.time() - t0
- #print "After TOPMODEL"
- #print NOAH.zwt
- #print NOAH.dzwt
 
  #Calculate the change in deficit
  TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
@@ -361,13 +327,6 @@ def Update_Model(NOAH,TOPMODEL,ncores):
 
  #Update the soil moisture values
  NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
- #NOAH.dzwt[:] = np.copy(dsi)#*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
- #NOAH.runsf[:] -= 1000.0*TOPMODEL.ex
- #print 1000.0*TOPMODEL.ex
- #TOPMODEL.ex[:] = 0.0
- #print "After Update"
- #print NOAH.zwt
-   #print NOAH.dzwt
 
  return (NOAH,TOPMODEL)
 
@@ -416,21 +375,6 @@ def Run_Model(info):
  #Initialize the coupler
  HB = HydroBloks(ncells)
 
- save_wtd=[]
- save_smc=[]
- save_sif=[]
- save_irrig=[]
- save_totsmc=[]
-
- save_P=[]
- save_ET=[]
- save_Rf=[]
- save_Irrig=[]
-
- save_si=[]
- save_wb=[]
- save_wb_err=[]
-
  #Run the model
  date = idate
  i = 0
@@ -449,96 +393,32 @@ def Run_Model(info):
   #Update input data
   Update_Input(NOAH,TOPMODEL,date,info,i)
 
-
-
   #Run sub-timesteps
   ntt = int(dt/dtt)
   NOAH.dt = dtt
   TOPMODEL.dt = dtt
 
-  sif = WU.Calculate_Field_Capacity_Deficit(NOAH.smcref,NOAH.smcwtd,NOAH.zwt,NOAH.sldpth,NOAH.sh2o,NOAH.nsoil)
-  irrig = 0.0 
-
-  well_depth = -2.0 # m
-  if sif > 0.0 and np.copy(NOAH.zwt)>well_depth:
-   irrig = sif
-   if irrig > np.copy(NOAH.zwt-(well_depth)): irrig = np.copy(NOAH.zwt-(well_depth))  
-   #NOAH.dzwt = np.copy(NOAH.dzwt-irrig)#NOAH.smcmax)
-   #NOAH.prcp = np.copy(NOAH.prcp+irrig*1000./dt)
-   #print "Irrigation"
-   print "precip", NOAH.prcp, "dzwt", NOAH.dzwt
-   pass
-
+  #Save the original precip
+  precip = np.copy(NOAH.prcp)
 
   for itt in xrange(ntt):
 
-   # print "lwdn", NOAH.lwdn[:]
-   # print "swdn", NOAH.swdn[:]
-   # print "psfc", NOAH.psfc[:]
-   # print "spfh", NOAH.qsfc1d[:]
-   # print "psurf", NOAH.p_ml[:] 
-   # print "wind", NOAH.u_ml[:] 
-   # print "tair", NOAH.t_ml[:]
-   # print "precip", NOAH.prcp[:] 
-
-
-
-   ##  Noemi testing on Irrigation
-   #delta_soil_moisture = np.copy(NOAH.smcref - NOAH.sh2o) # m3/m3
-   # 
-
-   save_wtd.append(NOAH.zwt[0])
-   save_smc.append(np.mean(np.copy(NOAH.smc[0][0:4+1])))
-   save_totsmc.append(np.nansum(np.copy(NOAH.smc[0][:])))
-   #save_P.append(np.copy(NOAH.prcp[0]))
-   save_ET.append(np.copy(NOAH.etran[0]+NOAH.esoil[0]+NOAH.ecan[0]))
-   save_Rf.append(np.copy(NOAH.runsf[0]+NOAH.runsb[0]))  
-
-   #NOAH.prcp[:] = np.zeros(len(NOAH.prcp))
-   """
+   NOAH.prcp[:] = precip[:] #THIS WAS MISSING
+   #Update irrigation
    sif = WU.Calculate_Field_Capacity_Deficit(NOAH.smcref,NOAH.smcwtd,NOAH.zwt,NOAH.sldpth,NOAH.sh2o,NOAH.nsoil)
-   irrig = 0.0 
-
+   irrig = 0.0   
    well_depth = -2.0 # m
-   if sif > 0.0 and np.copy(NOAH.zwt)>well_depth:
+   if sif > 0.0 and NOAH.zwt>well_depth:
     irrig = sif
-    if irrig > np.copy(NOAH.zwt-(well_depth)): irrig = np.copy(NOAH.zwt-(well_depth))  
-    NOAH.dzwt = np.copy(NOAH.dzwt-irrig)#NOAH.smcmax)
-    NOAH.prcp = np.copy(NOAH.prcp+irrig*1000./NOAH.dt)
-    #print "Irrigation"
-    print "precip", NOAH.prcp, "dzwt", NOAH.dzwt
-    pass
-   """
-   save_P.append(np.copy(NOAH.prcp[0]))
-   save_sif.append(sif*1000./NOAH.dt)
-   save_irrig.append(irrig*1000./NOAH.dt)
-   save_si.append(np.copy(NOAH.si1[0]))
-
-   '''print "precip", NOAH.prcp
-   #print NOAH.smcref, NOAH.smcmax
-   print "si-sat", NOAH.si1
-   print "sif-fc", sif
-   print "irrig ", irrig
-   print "wtd   ", NOAH.zwt
-   print "dzwt  ", NOAH.dzwt
-   print "soil m", NOAH.sh2o
-   print "sm sat", NOAH.smcmax
-   print "sm fc ", NOAH.smcref
-   print "sm wtd", NOAH.smcwtd
-   print "deeprech", NOAH.deeprech
-   #print "root_depth",NOAH.root_depth[:]'''
-
+    if irrig > np.abs(NOAH.zwt-well_depth): irrig = np.abs(NOAH.zwt-well_depth)
+    NOAH.dzwt[:] = NOAH.dzwt-irrig
+    NOAH.prcp[:] = NOAH.prcp+irrig*1000./NOAH.dt
 
    #Calculate initial NOAH water balance
    HB.Initialize_Water_Balance(NOAH,TOPMODEL)
 
    #Update model
    (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
-   #print NOAH.zwt
-   #print NOAH.dzwt
-   #print "root_depth",NOAH.root_depth, NOAH.fveg
-   print " "
-   print " " 
 
    #Calculate final water balance
    HB.Finalize_Water_Balance(NOAH,TOPMODEL)
@@ -546,10 +426,6 @@ def Run_Model(info):
    #Update the water balance error
    HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
  
-   save_wb.append(np.copy(HB.end_wb))
-   save_wb_err.append(np.copy(HB.errwat))
-   #Update output
-
   #Redefine other info
   NOAH.dt = dt
   TOPMODEL.dt = dt
@@ -559,7 +435,7 @@ def Run_Model(info):
   info['date'] = date
 
   #Update output
-  Update_Output(info,i,NOAH,TOPMODEL)
+  Update_Output(info,i,NOAH,TOPMODEL,HB)
 
   #Update time step
   date = date + dt_timedelta
@@ -571,18 +447,6 @@ def Run_Model(info):
  #Close the input and output files
  info['input_fp'].close()
  info['output_fp'].close()
-
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/wtd.npy',save_wtd)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/smc.npy',save_smc)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/sif.npy',save_sif)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/irrig.npy',save_irrig)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/totsmc.npy',save_totsmc)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/P.npy',save_P)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/ET.npy',save_ET)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/Rf.npy',save_Rf)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/si.npy',save_si)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/hb_wb.npy',save_wb)
- np.save('/tigress/nvrocha/software/play_hydroblocks/run_model/hb_err.npy',save_wb_err)
 
  return
 
@@ -638,6 +502,9 @@ def Create_Netcdf_File(info):
              #'swe':{'description':'Snow water equivalent','units':'mm'},
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
              'qout_surface':{'description':'Surface flux','units':'m2/s'},
+             'wtd':{'description':'WTD','units':'m'},
+             'errwat':{'description':'errwat','units':'mm'},
+             'totsmc':{'description':'totsmc','units':'??'},
              }
 
  #Create the dimensions
@@ -727,7 +594,7 @@ def Create_Netcdf_File(info):
 
  return
 
-def Update_Output(info,itime,NOAH,TOPMODEL):
+def Update_Output(info,itime,NOAH,TOPMODEL,HB):
 
  #Create the netcdf file
  if itime == 0: Create_Netcdf_File(info)
@@ -758,6 +625,11 @@ def Update_Output(info,itime,NOAH,TOPMODEL):
  grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
  grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
  grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
+
+ #New
+ grp.variables['wtd'][itime,:] = np.copy(NOAH.zwt)
+ grp.variables['errwat'][itime,:] = np.copy(HB.errwat)
+ grp.variables['totsmc'][itime,:] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
 
  #Update the variables (outlet)
  #grp = info['output_fp'].groups['outlet']

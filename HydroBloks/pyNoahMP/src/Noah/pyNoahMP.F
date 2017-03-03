@@ -1098,119 +1098,26 @@ subroutine run_model_cell(&
     REAL :: ERRWAT
     INTEGER :: NROOT2, ROOT_DEPTH
     !Calculate cosz
-    !ostart = omp_get_wtime()
     CALL CALC_DECLIN (NOWDATE, LAT, LON, COSZ)
-    !oend = omp_get_wtime()
-    !print*,'DECLIN',oend - ostart
 
     !Set parameters
-    !ostart = omp_get_wtime()
     CALL REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN, NROOT2)
-    !oend = omp_get_wtime()
-    !print*,'REDPRM',oend - ostart
 
     ROOT_DEPTH = NROOT2
-    !write (*,*) 'NROOT2',NROOT2
-    !write (*,*) 'root_depth',ROOT_DEPTH
 
     if (itime .eq. 0) then 
       !Define the equilibrium soil water content
       CALL EQSMOISTURE(NSOIL ,  ZSOIL , SMCMAX , SMCWLT ,DWSAT, DKSAT  ,BEXP  , SMCEQ)
-      !Make sure that below the water table the layers are saturated and initialize the deep soil moisture
-      !CALL INITIALIZE_GROUNDWATER(NSOIL,DT,ZSOIL,SLDPTH,ZWT,SMC,SMH2O,SMCEQ,SMCWTD,&
-      !     DEEPRECH,RECH,QSPRING,DZWT)
     end if
-
-    !Update water table depth
-    !print*,'BEFORE',ZWT,DZWT,QSPRING,DEEPRECH
-    
-    !DZWT = 0.0
-    !if (IOPT_RUN .eq. 5)then
-    !PROBLEM!
-    !Calculate the soil moisture deficit
-    !call Calculate_Deficit(si0,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
 
     !Update the water table depth
     call UPDATEWTD  (NSOIL,SLDPTH,SMCEQ,SMCMAX,SMCWLT,-PSISAT,BEXP,I,J,DZWT,ZWT ,SMC, SMH2O ,SMCWTD,QSPRING,&
                      DT,DEEPRECH,DKSAT)
-    
     DEEPRECH = 0.0  
+
     !Calculate the soil moisture deficit
     zwt0 = zwt
     call Calculate_Deficit(si0,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
-    !if (itime .eq. 9)return
-    !endif
-    !print*,'AFTER',ZWT,DZWT,QSPRING,DEEPRECH
-
-    !Run the model
-     !write(*,'("Before call to NOAHMP_SFLX")')
-     !write(*,'(10x, "ICE        = ",  I10   )') ICE
-     !write(*,'(10x, "IST        = ",  I10   )') IST
-     !write(*,'(10x, "VEGTYPE    = ",  I10   )') VEGTYP
-     !write(*,'(10x, "ISC        = ",  I10   )') ISC
-     !write(*,'(10x, "NSOIL      = ",  I10   )') NSOIL
-     !write(*,'(10x, "ZSOIL      = ", 7F20.10)') ZSOIL
-     !write(*,'(10x, "DT         = ",  F20.10)') DT
-     !write(*,'(10x, "Q2         = ",  F20.10)') Q_ML
-     !write(*,'(10x, "SFCTMP     = ",  F20.10)') T_ML
-     !write(*,'(10x, "UU         = ",  F20.10)') U_ML
-     !write(*,'(10x, "VV         = ",  F20.10)') V_ML
-     !write(*,'(10x, "SOLDN      = ",  F20.10)') SWDN
-     !write(*,'(10x, "LWDN       = ",  F20.10)') LWDN
-     !write(*,'(10x, "PRCP       = ",  F20.10)') PRCP
-     !write(*,'(10x, "ZLVL       = ",  F20.10)') Z_ML
-     !write(*,'(10x, "CO2AIR     = ",  F20.10)') CO2PP
-     !write(*,'(10x, "O2AIR      = ",  F20.10)') O2PP
-     !write(*,'(10x, "COSZ       = ",  F20.10)') COSZ
-     !write(*,'(10x, "TBOT       = ",  F20.10)') TBOT
-     !write(*,'(10x, "FOLN       = ",  F20.10)') FOLN
-     !write(*,'(10x, "SFCPRS     = ",  F20.10)') SFCPRS
-     !write(*,'(10x, "SHDFAC     = ",  F20.10)') FVEG
-     !write(*,'(10x, "LAT        = ",  F20.10)') LAT
-     !write(*,'(10x, "DZ8W       = ",  F20.10)') DZ8W1D
-     !write(*,'(10x, "EAH        = ",  F20.10)') EAH
-     !write(*,'(10x, "TAH        = ",  F20.10)') TAH
-     !write(*,'(10x, "FWET       = ",  F20.10)') FWET
-     !write(*,'(10x, "FICEOLD    = ", 7F20.10)') FICEOLD
-     !write(*,'(10x, "QSNOW      = ",  F20.10)') QSNOW
-     !write(*,'(10x, "SNEQVO     = ",  F20.10)') SNEQVO
-     !write(*,'(10x, "ISNOW      = ",  I10   )') ISNOW
-     !write(*,'(10x, "ZSNSO      = ", 7F20.10)') ZSNSO
-     !write(*,'(10x, "CANLIQ     = ",  F20.10)') CANLIQ
-     !write(*,'(10x, "CANICE     = ",  F20.10)') CANICE
-     !write(*,'(10x, "SNOWH      = ",  F20.10)') SNOWH
-     !write(*,'(10x, "SNEQV      = ",  F20.10)') SNEQV
-     !write(*,'(10x, "SNICE      = ", 7F20.10)') SNICE
-     !write(*,'(10x, "SNLIQ      = ", 7F20.10)') SNLIQ
-     !write(*,'(10x, "TV         = ",  F20.10)') TV
-     !write(*,'(10x, "TG         = ",  F20.10)') TG
-     !write(*,'(10x, "STC        = ", 7F20.10)') STC
-     !write(*,'(10x, "SH2O       = ", 7F20.10)') SMH2O
-     !write(*,'(10x, "SMC        = ", 7F20.10)') SMC
-     !write(*,'(10x, "ZWT        = ",  F20.10)') ZWT
-     !write(*,'(10x, "WA         = ",  F20.10)') WA
-     !write(*,'(10x, "WT         = ",  F20.10)') WT
-     !write(*,'(10x, "WSLAKE     = ",  F20.10)') WSLAKE
-     !write(*,'(10x, "LFMASS     = ",  F20.10)') LFMASS
-     !write(*,'(10x, "RTMASS     = ",  F20.10)') RTMASS
-     !write(*,'(10x, "STMASS     = ",  F20.10)') STMASS
-     !write(*,'(10x, "WOOD       = ",  F20.10)') WOOD
-     !write(*,'(10x, "STBLCP     = ",  F20.10)') STBLCP
-     !write(*,'(10x, "FASTCP     = ",  F20.10)') FASTCP
-     !write(*,'(10x, "PLAI        = ",  F20.10)') PLAI
-     !write(*,'(10x, "SAI        = ",  F20.10)') PSAI
-     !write(*,'(10x, "ALBOLD     = ",  F20.10)') ALBOLD
-     !write(*,'(10x, "CM         = ",  F20.10)') CM
-     !write(*,'(10x, "CH         = ",  F20.10)') CH
-     !write(*,'(10x, "DX         = ",  F20.10)') DX
-     !write(*,'(10x, "ISURBAN    = ",  I10   )') ISURBAN
-     !write(*,'(10x, "IZ0TLND    = ",  I10   )') IZ0TLND
-     !write(*,'(10x, "QC         = ",  F20.10)') QC
-     !write(*,'(10x, "PBLH       = ",  F20.10)') PBLH
-     !write(*,'(10x, "QSFC       = ",  F20.10)') QSFC1D
-     !write(*,'(10x, "PSFC       = ",  F20.10)') PSFC
-
-    !ostart = omp_get_wtime()
     CALL NOAHMP_SFLX (&
             I       , J       , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
             DT      , DX      , DZ8W1D  , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
@@ -1237,16 +1144,10 @@ subroutine run_model_cell(&
             BGAP    , WGAP    , CHV     , CHB     , EMISSI  ,           & ! OUT : 
             SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 	    GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
-	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE, ERRWAT,minzwt)
-
-    !oend = omp_get_wtime()
-    !print*,'FLX',oend - ostart
+	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE)
 
      !Add in QSPRING
-     !runsb = runsb + 1000*qspring/dt
      runsb = 1000*qspring/dt
-     !runsf = runsf + 1000*qspring/dt
-     !print*,runsb,qspring
 
     !Calculate the soil moisture deficit
     call Calculate_Deficit(si1,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
@@ -1755,8 +1656,6 @@ SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ)
    SMCWTD = MAX( MIN(SMCWTD,SMCMAX) , 1.E-4)
    !endif
   ENDIF
-  !print*,DEEPRECH
-  !if (DEEPRECH .gt. 10.0)stop
   
  
   !Add deeprech to the dzwt 
@@ -1767,7 +1666,6 @@ SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ)
   QSPRING=0.
 
   SICE = SMC - SH2O
-  print*,'totwater before',totwater
 
 iwtd=1
 !if (totwater .ne. 0)print*,'part1',abs(sum(smc*zsoil(1:nsoil))),wtd,smcwtd*(zsoil(nsoil)-wtd)
@@ -2057,93 +1955,7 @@ ENDIF
          wb1 = sum(dzs*smc)+smcwtd*(max(-wtd - sum(dzs),0.0))+smcmax*(1000.0-max(-wtd,sum(dzs)))
          !print*,'final',1000*(wb1 - wb0 - totwater0 + qspring),1000*totwater0,1000*totwater,-wtd
   
- print*,'totwater after',totwater
-
-
 END SUBROUTINE UPDATEWTD
-
-SUBROUTINE INITIALIZE_GROUNDWATER(NSOIL,DELTAT,ZSOIL,DZS,WTD,SMC,SH2O,SMCEQ,SMCWTD,&
-           DEEPRECH,RECH,QSPRING,DZWT)
-
-! ----------------------------------------------------------------------
-  IMPLICIT NONE
-! ----------------------------------------------------------------------
-
-    INTEGER, INTENT(IN)                              :: NSOIL
-    REAL,   INTENT(IN)                               :: DELTAT,DZWT
-    REAL,    INTENT(IN), DIMENSION(1:NSOIL)          :: ZSOIL,DZS
-    REAL, INTENT(INOUT) :: WTD
-    REAL,INTENT(INOUT),dimension(1:NSOIL) :: SMC,SH2O,SMCEQ
-    REAL,    INTENT(INOUT) :: SMCWTD,DEEPRECH,RECH,QSPRING
-    INTEGER  :: K,ITER
-    REAL :: BX,SMCMAX,PSISAT,SMCWLT,DWSAT,DKSAT
-    REAL :: FRLIQ,SMCEQDEEP
-    REAL :: AA,BBB,CC,DD,DX,FUNC,DFUNC,DDZ,EXPON,SMV,FLUX
-
-            !initialize equilibrium soil moisture for water table diagnostic
-            CALL EQSMOISTURE(NSOIL ,  ZSOIL , SMCMAX , SMCWLT ,DWSAT, DKSAT  ,BX  , & !in
-                                     SMCEQ                          )  !out
-
-            !make sure that below the water table the layers are saturated and initialize the deep soil moisture
-            IF(WTD < ZSOIL(NSOIL)-DZS(NSOIL)) THEN
-
-!initialize deep soil moisture so that the flux compensates qlat+qrf
-!use Newton-Raphson method to find soil moisture
-
-                         EXPON = 2. * BX + 3.
-                         DDZ = ZSOIL(NSOIL) - WTD
-                         CC = PSISAT/DDZ
-                         FLUX = (DZWT)/DELTAT
-
-                         SMV = 0.5 * SMCMAX
-
-                         DO ITER = 1, 100
-                           DD = (SMV+SMCMAX)/(2.*SMCMAX)
-                           AA = -DKSAT * DD  ** EXPON
-                           BBB = CC * ( (SMCMAX/SMV)**BX - 1. ) + 1.
-                           FUNC =  AA * BBB - FLUX
-                           DFUNC = -DKSAT * (EXPON/(2.*SMCMAX)) * DD ** (EXPON - 1.) * BBB &
-                                   + AA * CC * (-BX) * SMCMAX ** BX * SMV ** (-BX-1.)
-
-                           DX = FUNC/DFUNC
-                           SMV = SMV - DX
-                           IF ( ABS (DX) < 1.E-6)EXIT
-                         ENDDO
-
-                  SMCWTD = MAX(SMV,1.E-4)
-
-             ELSEIF(WTD < ZSOIL(NSOIL))THEN
-                  SMCEQDEEP = SMCMAX * ( PSISAT / ( PSISAT - DZS(NSOIL) ) ) ** (1./BX)
-                  SMCEQDEEP = MAX(SMCEQDEEP,1.E-4)
-                  SMCWTD = SMCMAX * ( WTD -  (ZSOIL(NSOIL)-DZS(NSOIL))) + &
-                                  SMCEQDEEP * (ZSOIL(NSOIL) - WTD)
-
-             ELSE !water table within the resolved layers
-                  SMCWTD = SMCMAX
-                  DO K=NSOIL,2,-1
-                     IF(WTD .GE. ZSOIL(K-1))THEN
-                          FRLIQ = SH2O(K) / SMC(K)
-                          SMC(K) = SMCMAX
-                          SH2O(K) = SMCMAX * FRLIQ
-                     ELSE
-                          IF(SMC(K).LT.SMCEQ(K))THEN
-                              WTD = ZSOIL(K)
-                          ELSE
-                              WTD = ( SMC(K)*DZS(K) - SMCEQ(K)*ZSOIL(K-1) + SMCMAX*ZSOIL(K) ) / &
-                                         (SMCMAX - SMCEQ(K))
-                          ENDIF
-                          EXIT
-                     ENDIF
-                  ENDDO
-             ENDIF
-
-!zero out some variables
-
-             DEEPRECH = 0.
-             RECH = 0.
-             QSPRING = 0.
-
-END SUBROUTINE INITIALIZE_GROUNDWATER
 
 subroutine Calculate_Deficit(si,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
 
