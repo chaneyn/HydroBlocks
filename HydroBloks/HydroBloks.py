@@ -54,6 +54,7 @@ class HydroBloks:
   self.prcp = 0.0
   self.q = 0.0
   self.errwat = 0.0#np.zeros(nhru,dtype=np.float32)
+  self.erreng = 0.0#np.zeros(nhru,dtype=np.float32)
   self.dzwt0 = np.zeros(nhru,dtype=np.float32)
   self.beg_wb = np.zeros(nhru,dtype=np.float32)
   self.end_wb = np.zeros(nhru,dtype=np.float32)
@@ -61,9 +62,8 @@ class HydroBloks:
   return
 
  def Initialize_Water_Balance(self,NOAH,TOPMODEL):
-
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100-np.abs(NOAH.zwt))))
-  smw = np.sum(1000*NOAH.sldpth*NOAH.smc)
+ 
+  smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
   self.beg_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)#TOPMODEL.si*1000)
   self.dzwt0 = np.copy(NOAH.dzwt)# - NOAH.deeprech)
 
@@ -71,8 +71,7 @@ class HydroBloks:
 
  def Finalize_Water_Balance(self,NOAH,TOPMODEL):
 
-  #smw = 1000.0*((NOAH.smcmax*np.abs(NOAH.zwt) - TOPMODEL.si) + (NOAH.smcmax*(100.0-np.abs(NOAH.zwt))))
-  smw = np.sum(1000*NOAH.sldpth*NOAH.smc)
+  smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1) 
   self.end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
   
   return
@@ -88,6 +87,13 @@ class HydroBloks:
   self.ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
   self.esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
   self.prcp = self.prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+
+  return
+
+ def Calculate_Energy_Balance_Error(self,NOAH,TOPMODEL,dt):
+ 
+  tmp = np.copy(NOAH.sav+NOAH.sag-NOAH.fira-NOAH.fsh-NOAH.fcev-NOAH.fgev-NOAH.fctr-NOAH.ssoil)
+  self.erreng += np.sum(TOPMODEL.pct*tmp)
 
   return
 
@@ -133,9 +139,11 @@ def Initialize_Model(ncells,dt,nsoil,info):
  # tmp.append(val)
  #tmp = np.array(tmp)
  
+ #nsoil = 7
  #z = np.linspace(0.0,2.0,nsoil+1)
  #tmp = z[1:] - z[0:-1]
- tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0])
+ tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0]) #Let's bring this out to the metadata
+ #tmp = 0.1*np.ones(nsoil)
  model.sldpth[:] = tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
@@ -309,31 +317,35 @@ def Update_Model(NOAH,TOPMODEL,HWU,ncores):
  NOAH.o2air[:] = 0.209*NOAH.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
  #Update NOAH
- NOAH.minzwt[:] = -100.0#-0.1*((TOPMODEL.dem - np.min(TOPMODEL.dem))+0.5)
  NOAH.run_model(ncores)
 
- #Calculate the updated soil moisture deficit
- si0 = np.copy(NOAH.si0)
- si1 = np.copy(NOAH.si1)
+ #Reinitialize dzwt
+ NOAH.dzwt[:] = 0.0
 
- #Calculate the change in deficit
- TOPMODEL.si[:] = si1[:]
- TOPMODEL.dsi[:] = np.copy(si1 - si0)
- TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
+ if TOPMODEL.subsurface_flow_flag == True:
 
- #Add the surface runoff
- TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0# + NOAH.runsb[:]/1000.0
+  #Calculate the updated soil moisture deficit
+  si0 = np.copy(NOAH.si0)
+  si1 = np.copy(NOAH.si1)
 
- #Update dynamic topmodel
- TOPMODEL.update(ncores)
+  #Calculate the change in deficit
+  TOPMODEL.si[:] = si1[:]
+  TOPMODEL.dsi[:] = np.copy(si1 - si0)
+  TOPMODEL.r[:] = -TOPMODEL.dsi[:]/TOPMODEL.dt
 
- #Calculate the change in deficit
- TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
- TOPMODEL.si[:] = TOPMODEL.si.astype(np.float32)
- dsi = np.copy(si1 - TOPMODEL.si)
+  #Add the surface runoff
+  TOPMODEL.qsurf[:] = NOAH.runsf[:]/1000.0
 
- #Update the soil moisture values
- NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
+  #Update dynamic topmodel
+  TOPMODEL.update(ncores)
+
+  #Calculate the change in deficit
+  TOPMODEL.sideep[:] = TOPMODEL.sideep.astype(np.float32)
+  TOPMODEL.si[:] = TOPMODEL.si.astype(np.float32)
+  dsi = np.copy(si1 - TOPMODEL.si)
+
+  #Update the soil moisture values
+  NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex-TOPMODEL.dt*TOPMODEL.r)
 
  return (NOAH,TOPMODEL,HWU)
 
@@ -398,7 +410,7 @@ def Run_Model(info):
 
   if (date.hour == 0) and (date.day == 1):
    testvar = 1
-   print date,time.time() - tic,'et:%f'%HB.et,'prcp:%f'%HB.prcp,'q:%f'%HB.q,'WB ERR:%f' % HB.errwat
+   print date,time.time() - tic,'et:%f'%HB.et,'prcp:%f'%HB.prcp,'q:%f'%HB.q,'WB ERR:%f' % HB.errwat,'ENG ERR:%f' % HB.erreng
  
   #Update input data
   Update_Input(NOAH,TOPMODEL,date,info,i)
@@ -415,7 +427,7 @@ def Run_Model(info):
   for itt in xrange(ntt):
 
    NOAH.prcp[:] = precip[:] #THIS WAS MISSING
-   
+
    #Calculate initial NOAH water balance
    HB.Initialize_Water_Balance(NOAH,TOPMODEL)
 
@@ -427,6 +439,9 @@ def Run_Model(info):
 
    #Update the water balance error
    HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
+
+   #Update the energy balance error
+   HB.Calculate_Energy_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
  
   #Redefine other info
   NOAH.dt = dt
@@ -473,7 +488,6 @@ def Update_Input(NOAH,TOPMODEL,date,info,i):
   NOAH.q_ml[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
   NOAH.qsfc1d[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
   NOAH.prcp[:] = meteorology.variables['precip'][i,:] #mm/s
-
 
   return (NOAH,TOPMODEL)
 

@@ -740,8 +740,8 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
            'summary':{'hru_org':outlet_hru_org_summary,'hru_dst':outlet_hru_dst_summary,'counts':counts}}
 
  #Update the input to create the sparse matrix
- hrus_dst = np.append(hrus_dst,outlet_hru_dst)
- hrus_org = np.append(hrus_org,outlet_hru_org)
+ #hrus_dst = np.append(hrus_dst,outlet_hru_dst)
+ #hrus_org = np.append(hrus_org,outlet_hru_org)
  #hrus_dst[hrus_dst == -1] = outlet_hru_org[0] #CAREFUL. Designed to push all the extra small outlets to the same exit
  hrus_dst[hrus_dst == -1] = hrus_org[hrus_dst == -1]
 
