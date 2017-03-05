@@ -8,7 +8,7 @@ sys.path.append('Model/pyNoahMP')
 sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 import pickle
-import irrigation_functions as WU
+
 
 def Finalize_Model(NOAH,TOPMODEL,info):
 
@@ -134,9 +134,8 @@ def Initialize_Model(ncells,dt,nsoil,info):
  #tmp = np.array(tmp)
  
  #z = np.linspace(0.0,2.0,nsoil+1)
- z = np.linspace(0.0,10.0,nsoil+1)  # Noemi
- tmp = z[1:] - z[0:-1]
- #tmp = 0.1*np.ones(nsoil)
+ #tmp = z[1:] - z[0:-1]
+ tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0])
  model.sldpth[:] = tmp
  model.zsoil[:] = -np.cumsum(model.sldpth[:],axis=1)
  model.zsnso[:] = 0.0
@@ -207,9 +206,6 @@ def Initialize_Model(ncells,dt,nsoil,info):
  model.satdw0[:] = info['input_fp'].groups['parameters'].variables['SATDW'][:]
  model.wltsmc0[:] = info['input_fp'].groups['parameters'].variables['WLTSMC'][:]
  model.qtz0[:] = info['input_fp'].groups['parameters'].variables['QTZ'][:]
-
- # Parameters needed for the Water Use - Add by Noemi Fev 2017
- model.root_depth[:] = 0.0
 
  #Set lat/lon (declination calculation)
  model.lat[:] = 0.0174532925*info['input_fp'].groups['metadata'].latitude
@@ -295,7 +291,18 @@ def Initialize_DTopmodel(ncells,dt,info):
  
  return model
 
-def Update_Model(NOAH,TOPMODEL,ncores):
+
+def Initialize_HWU(NOAH,ncells):
+ from Human_Water_Use import Human_Water_Use
+ model = Human_Water_Use(NOAH,ncells)
+ return model
+
+
+def Update_Model(NOAH,TOPMODEL,HWU,ncores):
+
+ #Abstract Water from Human Use 
+ if HWU.itime > 0: HWU.irrigation(NOAH)
+ HWU.itime = HWU.itime +1
 
  #Set the partial pressure of CO2 and O2
  NOAH.co2air[:] = 355.E-6*NOAH.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
@@ -328,7 +335,7 @@ def Update_Model(NOAH,TOPMODEL,ncores):
  #Update the soil moisture values
  NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex)#-TOPMODEL.dt*TOPMODEL.r)
 
- return (NOAH,TOPMODEL)
+ return (NOAH,TOPMODEL,HWU)
 
 def Run_Model(info):
 
@@ -375,6 +382,9 @@ def Run_Model(info):
  #Initialize the coupler
  HB = HydroBloks(ncells)
 
+ #Initialize human water use module
+ HWU = Initialize_HWU(NOAH,ncells) 
+
  #Run the model
  date = idate
  i = 0
@@ -400,25 +410,17 @@ def Run_Model(info):
 
   #Save the original precip
   precip = np.copy(NOAH.prcp)
+  
 
   for itt in xrange(ntt):
 
    NOAH.prcp[:] = precip[:] #THIS WAS MISSING
-   #Update irrigation
-   sif = WU.Calculate_Field_Capacity_Deficit(NOAH.smcref,NOAH.smcwtd,NOAH.zwt,NOAH.sldpth,NOAH.sh2o,NOAH.nsoil)
-   irrig = 0.0   
-   well_depth = -2.0 # m
-   if sif > 0.0 and NOAH.zwt>well_depth:
-    irrig = sif
-    if irrig > np.abs(NOAH.zwt-well_depth): irrig = np.abs(NOAH.zwt-well_depth)
-    NOAH.dzwt[:] = NOAH.dzwt-irrig
-    NOAH.prcp[:] = NOAH.prcp+irrig*1000./NOAH.dt
-
+   
    #Calculate initial NOAH water balance
    HB.Initialize_Water_Balance(NOAH,TOPMODEL)
 
    #Update model
-   (NOAH,TOPMODEL) = Update_Model(NOAH,TOPMODEL,ncores)
+   (NOAH,TOPMODEL,HWU) = Update_Model(NOAH,TOPMODEL,HWU,ncores)
 
    #Calculate final water balance
    HB.Finalize_Water_Balance(NOAH,TOPMODEL)

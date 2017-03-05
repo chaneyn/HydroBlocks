@@ -1096,14 +1096,14 @@ subroutine run_model_cell(&
     REAL, DIMENSION(1:NSOIL) :: SLDPTH
     REAL :: DZWT
     REAL :: ERRWAT
-    INTEGER :: NROOT2, ROOT_DEPTH
+    INTEGER :: ROOT_DEPTH
     !Calculate cosz
     CALL CALC_DECLIN (NOWDATE, LAT, LON, COSZ)
 
     !Set parameters
-    CALL REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN, NROOT2)
+    CALL REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN)
 
-    ROOT_DEPTH = NROOT2
+    ROOT_DEPTH = NROOT 
 
     if (itime .eq. 0) then 
       !Define the equilibrium soil water content

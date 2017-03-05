@@ -9065,7 +9065,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! ==================================================================================================
 ! ********************************* end of carbon subroutines *****************************
 ! ==================================================================================================
-  SUBROUTINE REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN,NROOT2)
+  SUBROUTINE REDPRM (VEGTYP,SOILTYP,SLOPETYP,ZSOIL,NSOIL,ISURBAN)
    
 !niu  use module_sf_noahlsm_param_init
 
@@ -9120,7 +9120,7 @@ END  SUBROUTINE SHALLOWWATERTABLE
 ! Layer parameters
     REAL,DIMENSION(NSOIL),INTENT(IN) :: ZSOIL
 
-   INTEGER, OPTIONAL, INTENT(OUT) :: NROOT2
+  
 ! Locals
     REAL    :: REFDK
     REAL    :: REFKDT
@@ -9196,10 +9196,8 @@ END  SUBROUTINE SHALLOWWATERTABLE
     RSMAX = RSMAX_DATA
     RSMIN = RSTBL (VEGTYP)
     HS = HSTBL (VEGTYP)
-    NROOT = NROTBL (VEGTYP)
+    NROOT = NROTBL (VEGTYP)   
 
-    NROOT2 = NROOT
-    !write (*,*) 'NROOT2',NROOT2    
 
     IF(VEGTYP==ISURBAN)THEN
        RSMIN=400.0
