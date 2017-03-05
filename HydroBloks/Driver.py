@@ -34,6 +34,7 @@ hydrobloks_info = {
         'workspace':metadata['workspace'],
 	'surface_flow_flag':metadata['surface_flow_flag'],
 	'subsurface_flow_flag':metadata['subsurface_flow_flag'],
+        'hwu_flag':metadata['hwu_flag'],
 	'dt':metadata['dt'],#seconds
 	'dtt':metadata['dtt'],#seconds
 	'dx':metadata['dx'],#meters

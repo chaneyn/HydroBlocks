@@ -76,7 +76,7 @@ class HydroBloks:
   
   return
 
- def Calculate_Water_Balance_Error(self,NOAH,TOPMODEL,dt):
+ def Calculate_Water_Balance_Error(self,NOAH,TOPMODEL,HWU,dt):
 
   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
@@ -300,17 +300,21 @@ def Initialize_DTopmodel(ncells,dt,info):
  return model
 
 
-def Initialize_HWU(NOAH,ncells):
+def Initialize_HWU(NOAH,ncells,info):
+
  from Human_Water_Use import Human_Water_Use
  model = Human_Water_Use(NOAH,ncells)
+ model.hwu_flag = info['hwu_flag']
+ model.irrig = np.zeros(ncells,dtype=np.float32)
+
  return model
 
-
-def Update_Model(NOAH,TOPMODEL,HWU,ncores):
+def Update_Model(NOAH,TOPMODEL,HWU,HB,ncores):
 
  #Abstract Water from Human Use 
- if HWU.itime > 0: HWU.irrigation(NOAH)
- HWU.itime = HWU.itime +1
+ if HWU.hwu_flag == True:
+  if HWU.itime > 0: HWU.irrigation(NOAH,HB)
+  HWU.itime = HWU.itime +1
 
  #Set the partial pressure of CO2 and O2
  NOAH.co2air[:] = 355.E-6*NOAH.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
@@ -347,7 +351,7 @@ def Update_Model(NOAH,TOPMODEL,HWU,ncores):
   #Update the soil moisture values
   NOAH.dzwt[:] = np.copy(dsi+TOPMODEL.dt*TOPMODEL.ex-TOPMODEL.dt*TOPMODEL.r)
 
- return (NOAH,TOPMODEL,HWU)
+ return (NOAH,TOPMODEL,HWU,HB)
 
 def Run_Model(info):
 
@@ -391,11 +395,12 @@ def Run_Model(info):
  print "Initializing TOPMODEL"
  TOPMODEL = Initialize_DTopmodel(ncells,dt,info) 
 
+ #Initialize human water use module
+ print "Initializing the water management module"
+ HWU = Initialize_HWU(NOAH,ncells,info) 
+
  #Initialize the coupler
  HB = HydroBloks(ncells)
-
- #Initialize human water use module
- HWU = Initialize_HWU(NOAH,ncells) 
 
  #Run the model
  date = idate
@@ -423,26 +428,26 @@ def Run_Model(info):
   #Save the original precip
   precip = np.copy(NOAH.prcp)
   
-
   for itt in xrange(ntt):
-
-   NOAH.prcp[:] = precip[:] #THIS WAS MISSING
 
    #Calculate initial NOAH water balance
    HB.Initialize_Water_Balance(NOAH,TOPMODEL)
 
    #Update model
-   (NOAH,TOPMODEL,HWU) = Update_Model(NOAH,TOPMODEL,HWU,ncores)
+   (NOAH,TOPMODEL,HWU,HB) = Update_Model(NOAH,TOPMODEL,HWU,HB,ncores)
+
+   #Return precip to original value
+   NOAH.prcp[:] = precip[:] 
 
    #Calculate final water balance
    HB.Finalize_Water_Balance(NOAH,TOPMODEL)
 
    #Update the water balance error
-   HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
+   HB.Calculate_Water_Balance_Error(NOAH,TOPMODEL,HWU,NOAH.dt)
 
    #Update the energy balance error
    HB.Calculate_Energy_Balance_Error(NOAH,TOPMODEL,NOAH.dt)
- 
+
   #Redefine other info
   NOAH.dt = dt
   TOPMODEL.dt = dt

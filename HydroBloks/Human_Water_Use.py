@@ -18,28 +18,29 @@ class Human_Water_Use:
   """
   
   irrig_demand = np.zeros(ncells,dtype=np.float64)
-  dsm = smcref - smc
+  dsm = smcref[:,np.newaxis] - smc
   dsm [dsm < 0] = 0.0
  
   irrig_demand = [ np.sum(dsm[i,:nroot_zone_depht[i]]*sldpth[i,:nroot_zone_depht[i]])  for i in range(ncells) ]
   return irrig_demand
 
 
- def irrigation(self,NOAH):
+ def irrigation(self,NOAH,HB):
    
    #Calculate irrigation demand
    self.irrig_demand[:] = self.Calculate_Irrigation_Deficit(NOAH.smcref,NOAH.sldpth,NOAH.sh2o,NOAH.root_depth,NOAH.ncells)
    self.irrig_supply[:] = 0.0
    
    # Calculate how much of the demand can actually be extracted
-   self.irrig_supply[ self.irrig_demand > 0.0 and NOAH.zwt > self.well_depth ] = self.irrig_demand
-   self.irrig_supply[ self.irrig_supply > np.abs(NOAH.zwt-self.well_depth) ] = np.abs(NOAH.zwt-self.well_depth)
+   m = (self.irrig_demand > 0.0) & (NOAH.zwt > self.well_depth)
+   self.irrig_supply[m] = self.irrig_demand[m]
+   m = self.irrig_supply > np.abs(NOAH.zwt-self.well_depth)
+   self.irrig_supply[m] = np.abs(NOAH.zwt-self.well_depth)[m]
 
    # Abstract water from the water table and add to precip
-   NOAH.dzwt[ self.irrig_supply > 0 ] = NOAH.dzwt -self.irrig_supply
-   NOAH.prcp[ self.irrig_supply > 0 ] = NOAH.prcp +self.irrig_supply*1000./NOAH.dt
+   m = self.irrig_supply > 0 
+   NOAH.dzwt[m] = (NOAH.dzwt-self.irrig_supply)[m]
+   NOAH.prcp[m] = (NOAH.prcp+self.irrig_supply*1000./NOAH.dt)[m]
 
-   #print 'demand',self.irrig_demand
-   #print 'supply',self.irrig_supply
    return
 
