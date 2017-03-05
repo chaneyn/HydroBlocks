@@ -1,22 +1,12 @@
 import numpy as np
 import os
 
-def calculate_root_zone_depth(root_depht,zsoil,ncells):
-  
-  ## Convert nroot layer > root depht > soil layer to root zone
-  noah_std_soil_profile = [0.1,0.3,0.6,1.0]  # soil depht profile in meters
-  total_soil_depht      = np.abs(zsoil)
-  total_root_depht      = [ np.sum(noah_std_soil_profile[:root_depht[i]]) for i in range(ncells) ]  # root depth in meters
-  nroot_zone_depht      = [ np.where(total_soil_depht<=total_root_depht[i])[0][-1]+2 for i in range(ncells) ] # Soil layer relative to the root zone
-  return nroot_zone_depht
-
-
 class Human_Water_Use:
 
  def __init__(self,NOAH,ncells):
   self.ncells = ncells
   self.itime = 0
-  self.well_depth = -2.0
+  self.well_depth = -3.0
   self.irrig_supply = np.zeros(ncells,dtype=np.float64)
   self.irrig_demand = np.zeros(ncells,dtype=np.float64)
   self.nroot_zone   = np.zeros(ncells)
@@ -36,13 +26,9 @@ class Human_Water_Use:
 
 
  def irrigation(self,NOAH):
-
-   if self.itime >= 1: 
-    self.nroot_zone = calculate_root_zone_depth(NOAH.root_depth,NOAH.zsoil,self.ncells)
-    
    
    #Calculate irrigation demand
-   self.irrig_demand[:] = self.Calculate_Irrigation_Deficit(NOAH.smcref,NOAH.sldpth,NOAH.sh2o,self.nroot_zone,NOAH.ncells)
+   self.irrig_demand[:] = self.Calculate_Irrigation_Deficit(NOAH.smcref,NOAH.sldpth,NOAH.sh2o,NOAH.root_depth,NOAH.ncells)
    self.irrig_supply[:] = 0.0
    
    # Calculate how much of the demand can actually be extracted
@@ -53,5 +39,7 @@ class Human_Water_Use:
    NOAH.dzwt[ self.irrig_supply > 0 ] = NOAH.dzwt -self.irrig_supply
    NOAH.prcp[ self.irrig_supply > 0 ] = NOAH.prcp +self.irrig_supply*1000./NOAH.dt
 
+   #print 'demand',self.irrig_demand
+   #print 'supply',self.irrig_supply
    return
 
