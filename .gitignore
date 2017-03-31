@@ -5,4 +5,5 @@
 *.o
 *.tar.gz
 *.f90
+*.dSYM
 Model/pyNoahMP/src/Noah/*.f90
