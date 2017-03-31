@@ -248,134 +248,6 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 
  return (cluster_ids,)
 
-def Compute_HRUs_Semidistributed_Basin(covariates,mask,nclusters,hydrobloks_info):
-
- time0 = time.time()
- dem = covariates['demns']
- res = hydrobloks_info['dx']
- basin_info = hydrobloks_info['basin_info']
- nbasins = basin_info['nbasins'] #characteristic hillslope
- ntiles = basin_info['nclusters']
- #Calculate mfd accumulation area
- mfd_area = terrain_tools.ttf.calculate_mfd_acc(dem,res,1)
- mfd_area[mask == 0] = 0.0
- #Calculate mfd topographic index
- mfd_ti = np.log(mfd_area/res/covariates['cslope'])
- #Calculate d8 accumulation area
- (area,fdir) = terrain_tools.ttf.calculate_d8_acc(dem,res)
- area[mask == 0] = 0.0
- #Define the channels
- channels = terrain_tools.ttf.calculate_channels(area,10**6,10**6,fdir)
- #Define the basins
- basins = terrain_tools.ttf.delineate_basins(channels,mask,fdir)
- #Calculate the basin properties
- lats = np.linspace(0,1,basins.shape[0])
- lons = np.linspace(0,1,basins.shape[1])
- (latitude,longitude) = np.meshgrid(lats,lons)
- bp = terrain_tools.calculate_basin_properties(basins,res,latitude.T,longitude.T,fdir)
- #Reduce the number of basins to the desired number
- basins = terrain_tools.reduce_basin_number(basins,bp,nbasins)
- #Define the depth to channel
- depth2channel = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,dem)
- #Compute the accumulated values
- (acc_ksat,fdir) = terrain_tools.ttf.calculate_d8_acc_alt(dem,res,covariates['SATDK'])
- (acc_slope,fdir) = terrain_tools.ttf.calculate_d8_acc_alt(dem,res,covariates['cslope'])
- #(acc_ndvi,fdir) = terrain_tools.ttf.calculate_d8_acc_alt(dem,res,covariates['ndvi'])
- #Determine how many neighboring cells converge to this one
- neighbor_count = terrain_tools.ttf.calculate_d8_acc_neighbors(dem,res,np.ones(dem.shape))
- neighbor_sti = terrain_tools.ttf.calculate_d8_acc_neighbors(dem,res,covariates['sti'])
- neighbor_sti[neighbor_count > 0] = neighbor_sti[neighbor_count > 0]/neighbor_count[neighbor_count > 0]
- covariates = {#'depth2channel':{'data':depth2channel},
-              #'clay':{'data':covariates['clay']},
-              #'sand':{'data':covariates['sand']},
-              #'ndvi':{'data':acc_ndvi/area},
-              'ndvi':{'data':covariates['ndvi']},
-              #'nlcd':{'data':covariates['nlcd']},
-	      'ksat_alt':{'data':np.log10(900*acc_ksat/area)},
-	      'ksat':{'data':np.log10(covariates['SATDK'])},
-	      #'slope':{'data':np.log10(covariates['cslope'])},
-	      #'slope_alt':{'data':900*acc_slope/area},
-              'neighbor_count':{'data':neighbor_count},
-              #'neighbor_sti':{'data':neighbor_sti},
-              #'refsmc':{'data':covariates['REFSMC']},
-	      #'slope':{'data':covariates['cslope']},
-	      #'smcmax':{'data':covariates['MAXSMC']},
-              #'d2c':{'data':depth2channel},
-              'acc':{'data':np.log10(area)},
-              #'sti':{'data':covariates['sti']},
-              'lats':{'data':covariates['lats']},
-              'lons':{'data':covariates['lons']},
-              }
- hrus = terrain_tools.create_tiles_kmeans(basins,covariates,ntiles)
- #hrus = terrain_tools.create_nd_histogram(basins,covariates)-1
- hrus = hrus.astype(np.float32) 
- hrus[hrus < 0] = -9999
- #hrus[channels > 0] = np.max(hrus) + 1
- #nhrus = int(np.max(hrus) + 1)
- nhrus = int(np.max(hrus) + 1)
- print '%d hrus' % (nhrus),time.time() - time0
-
- return (hrus,nhrus)
-
-def Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info):
-
- time0 = time.time()
- dem = covariates['demns']
- res = hydrobloks_info['dx']
- hillslope_info = hydrobloks_info['hillslope_info']
- nclusters = hillslope_info['nhillslopes'] #characteristic hillslope
- #Calculate mfd accumulation area
- mfd_area = terrain_tools.ttf.calculate_mfd_acc(dem,res,1)
- mfd_area[mask == 0] = 0.0
- #Calculate mfd topographic index
- mfd_ti = np.log(mfd_area/res/covariates['cslope'])
- #Calculate d8 accumulation area
- (area,fdir) = terrain_tools.ttf.calculate_d8_acc(dem,res)
- area[mask == 0] = 0.0
- #Define the channels
- channels = terrain_tools.ttf.calculate_channels(area,10**6,3*10**7,fdir)
- #Define the basins
- basins = terrain_tools.ttf.delineate_basins(channels,mask,fdir)
- #Define the depth to channel
- depth2channel = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,dem)
- #Define the hillslopes
- hillslopes = terrain_tools.ttf.calculate_hillslopesd8(channels,basins,fdir)
- #Calculate the hillslope properties
- latitude = covariates['lats'].T
- longitude = covariates['lons'].T
- hp = terrain_tools.calculate_hillslope_properties(hillslopes,dem,
-                       basins,res,latitude.T,longitude.T,depth2channel)
- #Cluster the hillslopes
- (hillslopes_clusters,nhillslopes) = terrain_tools.cluster_hillslopes(hp,hillslopes,nclusters)
- #Create the hrus
- '''covariates = {#'depth2channel':{'data':depth2channel,'nbins':nclusters_tiles},
-              #'clay':{'data':covariates['clay'],'nbins':hillslope_info['clay']},
-              'ndvi':{'data':covariates['ndvi'],'nbins':hillslope_info['ndvi']},
-              #'ti':{'data':mfd_ti,'nbins':hillslope_info['ti']},
-              'acc':{'data':area,'nbins':10},
-              #'depth2channel':{'data':depth2channel,'nbins':10
-              }'''
- covariates = {#'depth2channel':{'data':depth2channel},
-              #'clay':{'data':covariates['clay']},
-              #'sand':{'data':covariates['sand']},
-              #'ndvi':{'data':covariates['ndvi']},
-              #'ksat':{'data':np.log10(covariates['SATDK'])},
-              #'refsmc':{'data':covariates['REFSMC']},
-              #'slope':{'data':covariates['cslope']},
-              #'smcmax':{'data':covariates['MAXSMC']},
-              #'d2c':{'data':depth2channel},
-              #'acc':{'data':np.log10(area)},
-              'ti':{'data':mfd_ti},
-              }
- hrus = terrain_tools.create_tiles_kmeans(hillslopes_clusters,covariates,100)
- #hrus = terrain_tools.create_nd_histogram(hillslopes_clusters,covariates)-1
- hrus = hrus.astype(np.float32)
- hrus[channels > 0] = np.max(hrus) + 1
- nhrus = int(np.max(hrus) + 1)
- print '%d hrus' % (nhrus),time.time() - time0
-
- return (hrus,nhrus)
-
 def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info):
 
  #Define the number of requested hrus (channel and non-channel)
@@ -599,9 +471,6 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  for var in vars:
   OUTPUT['hsu'][var] = np.zeros(nclusters) 
 
- #Metadata
- #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
-
  #Calculate area per hsu
  OUTPUT['hsu']['area'][:] = metadata['resx']**2
  #Calculate area percentage per hsu
@@ -652,7 +521,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu'][var] = np.zeros(nclusters)
 
  #Metadata
- #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
  for hsu in np.arange(nclusters):
   #Set indices
   idx = np.where(cluster_ids == hsu)
@@ -663,17 +531,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Soil properties
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']:
    if var in ['SATDK','SATDW']:
-    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])
+    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
    else:
     OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
-  #OUTPUT['hsu']['SATDW'][hsu] = 0.0
   #Average Slope
   OUTPUT['hsu']['slope'][hsu] = np.nanmean(covariates['cslope'][idx])
-  #print 'mean',np.mean(np.sin(covariates['cslope'][idx]))
-  #print 'arcsin mean',np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
-  #OUTPUT['hsu']['slope'][hsu] = np.arcsin(np.mean(np.sin(covariates['cslope'][idx])))
-  #print np.min(covariates['cslope'][idx]),np.mean(covariates['cslope'][idx]),np.max(covariates['cslope'][idx])
-  #print OUTPUT['hsu']['slope'][hsu]
   #Topographic index
   OUTPUT['hsu']['ti'][hsu] = np.nanmean(covariates['ti'][idx])
   #DEM
@@ -683,7 +545,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   #Channel?
   #OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
   #Land cover type  
-  #OUTPUT['hsu']['land_cover'][hsu] = NLCD2NOAH[95]#stats.mode(covariates['nlcd'][idx])[0][0]]
   OUTPUT['hsu']['land_cover'][hsu] = stats.mode(covariates['lc'][idx])[0][0]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
@@ -709,12 +570,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
  cluster_ids_copy[mask2] = np.nan #new
  covariates['carea'][mask1] = -9999.0 #new
  covariates['carea'][mask2] = -9999.0 #new
- #plt.imshow(covariates['fdir'])
- #plt.imshow(cluster_ids_copy)
- #plt.show()
- #exit()
  max_nhru = np.sum(cluster_ids >= 0)
- #tp_matrix = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],nclusters,max_nhru)
  (hrus_dst,hrus_org,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8) = mt.preprocessor.calculate_connections_d8(cluster_ids_copy,covariates['fdir'],covariates['carea'],nclusters,max_nhru)
  #Only use the non -9999 values
  hrus_dst = hrus_dst[hrus_dst != -9999]-1
@@ -740,9 +596,6 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
            'summary':{'hru_org':outlet_hru_org_summary,'hru_dst':outlet_hru_dst_summary,'counts':counts}}
 
  #Update the input to create the sparse matrix
- #hrus_dst = np.append(hrus_dst,outlet_hru_dst)
- #hrus_org = np.append(hrus_org,outlet_hru_org)
- #hrus_dst[hrus_dst == -1] = outlet_hru_org[0] #CAREFUL. Designed to push all the extra small outlets to the same exit
  hrus_dst[hrus_dst == -1] = hrus_org[hrus_dst == -1]
 
  #Prepare the sparse matrix
@@ -758,62 +611,6 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
 
  return (flow_matrix.T,outlet)
 
-def Create_Soils_File(hydrobloks_info,OUTPUT,input_dir):
-
- #Read in table of NOAH soil parameter values
- dir = os.path.dirname(os.path.abspath(__file__))
- fp = open('%s/../HydroBloks/pyNoahMP/data/SOILPARM.TBL' % dir)
- iline = 0
- soils_data = {'MAXSMC':[],'DRYSMC':[],'REFSMC':[],'ID':[],'BB':[],'F11':[],'SATPSI':[],'SATDK':[]
-,'SATDW':[],'WLTSMC':[],'QTZ':[]}
- for line in fp:
-  if (iline > 2) & (iline < 15):
-   tmp = line.split(',')
-   soils_data['ID'].append(float(tmp[0]))
-   soils_data['BB'].append(float(tmp[1]))
-   soils_data['DRYSMC'].append(float(tmp[2]))
-   soils_data['F11'].append(float(tmp[3]))
-   soils_data['MAXSMC'].append(float(tmp[4]))
-   soils_data['REFSMC'].append(float(tmp[5]))
-   soils_data['SATPSI'].append(float(tmp[6]))
-   soils_data['SATDK'].append(float(tmp[7]))
-   soils_data['SATDW'].append(float(tmp[8]))
-   soils_data['WLTSMC'].append(float(tmp[9]))
-   soils_data['QTZ'].append(float(tmp[10]))
-  iline = iline + 1
- fp.close()
-
- #Soil properties
- soil_vars = ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ']
- nhsus = hydrobloks_info['nclusters']
- soilsdir = '%s/soils' % input_dir
- #os.system('mkdir -p %s' % soilsdir)
- #soils_lookup = hydrobloks_info['soil_file']
- #fp = open(soils_lookup,'w')
- #fp.write('Soil Parameters\n')
- #fp.write('CUST\n')
- #fp.write("%d,1   'BB      DRYSMC      F11     MAXSMC   REFSMC   SATPSI  SATDK       SATDW     WLTSMC  QTZ    '\n" % nhsus)
- for hsu in np.arange(nhsus):
-  #fp.write('%d ' % (hsu+1))
-  for var in soil_vars:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
-   #if var in ['DRYSMC','MAXSMC','REFSMC','WLTSMC','SATDK','SATPSI']:#,'BB','SATPSI']:
-   if var in ['ASDASD']:
-    donothing = 1
-    # fp.write(',%.10f ' % OUTPUT['hsu'][var][hsu])
-   #elif var == 'DRYSMC':
-   # OUTPUT['hsu'][var][hsu] = 0.0
-   #elif var == 'SATDW':
-   # OUTPUT['hsu'][var][hsu] = 0.0
-   else:
-    idx = soils_data['ID'].index(OUTPUT['hsu']['soil_texture_class'][hsu])
-    # fp.write(',%.10f ' % soils_data[var][idx])
-    OUTPUT['hsu'][var][hsu] = soils_data[var][idx]
-  #fp.write('\n')
- #fp.close()
-
- return #soils_lookup
-
 def Create_and_Curate_Covariates(wbd):
 
  covariates = {}
@@ -823,22 +620,6 @@ def Create_and_Curate_Covariates(wbd):
   if file == 'cslope':
    mask = covariates[file] == 0.0
    covariates[file][mask] = 0.000001
-
- #Map the NLCD to IGBP
- #NLCD2NOAH = {11:17,12:15,21:10,22:10,23:10,24:13,31:16,41:4,42:1,43:5,51:6,52:6,71:10,72:10,73:19,74:19,81:10,82:12,90:11,95:11}
- #tmp = np.copy(covariates['nlcd'])
- #for lc in np.unique(covariates['nlcd']):
- # tmp[covariates['nlcd'] == lc] = NLCD2NOAH[lc]
- #covariates['nlcd'][:] = tmp[:]
-
-
- #print covariates['ndvi'],covariates['lc']
- #Curate the NDVI to match land cover 
- for lc in np.unique(covariates['lc']):
-  masklc = covariates['lc'] == lc
-  covariates['ndvi'][masklc] = np.nanmean(covariates['ndvi'][masklc])
- #print covariates['ndvi']
-
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
@@ -901,11 +682,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  if hydrobloks_info['model_type'] == 'semi':
   if hydrobloks_info['clustering_type'] == 'kmeans':
    (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info)
-  elif hydrobloks_info['clustering_type'] == 'hillslope':
-   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Hillslope(covariates,mask,nclusters,hydrobloks_info)
-  elif hydrobloks_info['clustering_type'] == 'basin':
-   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Basin(covariates,mask,nclusters,hydrobloks_info)
-  hydrobloks_info['nclusters'] = nclusters
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)
   hydrobloks_info['nclusters'] = nclusters
@@ -938,12 +714,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix}
  OUTPUT['outlet'] = outlet
 
- #Determine outlet cell
- #covariates['carea'][mask == False] = np.nan
- #outlet_idx = np.where(covariates['carea'] == np.max(covariates['carea'][np.isnan(covariates['carea']) == 0]))
- #outlet_idx = [int(outlet_idx[0]),int(outlet_idx[1])]
- #OUTPUT['outlet'] = {'idx':outlet_idx,'hsu':cluster_ids[outlet_idx[0],outlet_idx[1]]}
-
  #Remember the map of hrus
  OUTPUT['hsu_map'] = cluster_ids
 
@@ -953,11 +723,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
  elif hydrobloks_info['model_type'] == 'full':
   OUTPUT = Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
-
- #Create the soil parameters file
- #print "Creating the soil file"
- Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
- #soils_lookup = Create_Soils_File(hydrobloks_info,OUTPUT,input_dir)
 
  #Add the new number of clusters
  OUTPUT['nclusters'] = nclusters
