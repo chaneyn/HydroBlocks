@@ -15,7 +15,6 @@ import time
 import glob
 from geospatialtools import gdal_tools
 from geospatialtools import terrain_tools
-import matplotlib.pyplot as plt
 
 def Prepare_Model_Input_Data(hydrobloks_info):
 
