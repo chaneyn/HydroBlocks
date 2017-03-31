@@ -358,7 +358,7 @@ def Run_Model(info):
  #data = pickle.load(open(info['input']))
  #Define the metadata
  dt = info['dt']
- dtt = info['dtt']
+ dtt = dt#info['dtt']
  nsoil = info['nsoil']
  ncores = info['ncores']
  idate = info['idate']

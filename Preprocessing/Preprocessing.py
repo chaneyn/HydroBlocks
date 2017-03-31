@@ -251,16 +251,10 @@ def Compute_HRUs_Fulldistributed(covariates,mask,nclusters):
 def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info):
 
  #Define the number of requested hrus (channel and non-channel)
- nclusters_c = hydrobloks_info['nclusters_c']
- nclusters_nc = hydrobloks_info['nclusters_nc']
+ nclusters = hydrobloks_info['nclusters']
  
  #Find the mask for and without channels
- minchannelarea = 3*10**4
- if nclusters_c > 0:
-  mask_c = (covariates['carea'] >= minchannelarea) & (mask == True)
-  mask_nc = (covariates['carea'] < minchannelarea) & (mask == True)
- else:
-  mask_nc = mask
+ mask_nc = mask
 
  #Define the covariates
  info_general = {'area':{'data':np.log(covariates['carea'][mask_nc == True]),},
@@ -292,12 +286,6 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
  for var in hydrobloks_info['covariates']:
   info[var] = info_general[var]
 
- if nclusters_c > 0:
-  info_channels = {}
-  #Subset the chosen ones for the channels
-  for var in hydrobloks_info['covariates']:
-   info_channels[var] = info_general[var]
-
  #Scale all the variables (Calculate the percentiles
  for var in info:
   #print var, info[var]['data'], np.nanmax(info[var]['data']), np.nanmin(info[var]['data']), np.nanmean(info[var]['data'])
@@ -324,24 +312,6 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
    else:
     tmp[tmp != -9999.0] = 0.5
     info[var]['data'] = tmp
-   #print var, info[var]['data'], np.nanmax(info[var]['data']), np.nanmin(info[var]['data']), np.nanmean(info[var]['data'])
-  #argsort = np.argsort(info[var]['data'])
-  #pcts = np.copy(info[var]['data'])
-  #pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
-  #info[var]['data'] = pcts
- if nclusters_c > 0:
-  for var in info_channels:
-   tmp = info_channels[var]['data']
-   utmp = np.unique(tmp)
-   utmp = utmp[utmp != -9999.0]
-   if len(utmp) > 1:
-    tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-    info_channels[var]['data'] = tmp
-   else:
-    tmp[tmp != -9999.0] = 0.5
-    info_channels[var]['data'] = tmp
-   #tmp = (tmp - np.nanmin(tmp))/(np.nanmax(tmp) - np.nanmin(tmp))
-   #info_channels[var]['data'] = tmp
 
  import sklearn.cluster
  #Cluster the non channels regions
@@ -370,11 +340,11 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
   Xf = X
 
  #Initialize all points at the 0.5 point
- if nclusters_nc > len(info[id]['data']): nclusters_nc=len(info[id]['data']) # Insert Noemi
- init = 0.5*np.ones((nclusters_nc,Xf.shape[1]))
- batch_size = 25*nclusters_nc
+ if nclusters > len(info[id]['data']): nclusters=len(info[id]['data']) # Insert Noemi
+ init = 0.5*np.ones((nclusters,Xf.shape[1]))
+ batch_size = 25*nclusters
  init_size = 3*batch_size
- clf = sklearn.cluster.MiniBatchKMeans(nclusters_nc,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
+ clf = sklearn.cluster.MiniBatchKMeans(nclusters,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
  clf.fit(Xf)#
  clf_output = clf.predict(X)
  #Reassign the ids
@@ -384,59 +354,10 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_inf
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
  cluster_ids[mask_nc == True] = clf_output
- nclusters_old = nclusters_nc
- nclusters_nc = np.unique(clf_output).size
+ nclusters_old = nclusters
+ nclusters = np.unique(clf_output).size
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
- print 'clustering (non-channels) %d->%d' % (nclusters_old,nclusters_nc),time.time() - time0
-
- if nclusters_c > 0:
-
-  #Cluster the channels
-  bins,data = [],[]
-  X = []
-  for id in info_channels:
-   #Set all nans to the mean
-   if np.isnan(np.nanmean(info_channels[id]['data'])) == 1: 
-     print id, hydrobloks_info['icatch'], info_channels[id]['data']
-   info_channels[id]['data'][np.isnan(info_channels[id]['data']) == 1] = np.nanmean(info_channels[id]['data'])
-   X.append(info_channels[id]['data'])
-
-  time0 = time.time()
-  X = np.array(X).T
-  #Subsample the array
-  np.random.seed(1)
-  minsamples = 10**5
-  if X.shape[0] > minsamples:
-   Xf = X[np.random.choice(np.arange(X.shape[0]),minsamples),:]
-  else:
-   Xf = X
-  #Initialize all points at the 0.5 point
-  init = 0.5*np.ones((nclusters_c,Xf.shape[1]))
-  batch_size = 25*nclusters_c
-  init_size = 3*batch_size
-  clf = sklearn.cluster.MiniBatchKMeans(nclusters_c,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
-  clf.fit(Xf)#
-  clf_output = clf.predict(X)
-  #Reassign the ids
-  clf_output_copy = np.copy(clf_output)
-  for cid in xrange(len(np.unique(clf_output))):
-   clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
-  #cluster_ids = np.empty(covariates['ti'].shape)
-  #cluster_ids[:] = -9999
-  cluster_ids[mask_c == True] = clf_output + np.nanmax(cluster_ids) + 1
-  nclusters_old = nclusters_c
-  nclusters_c = np.unique(clf_output).size
-  #Redefine the number of clusters (We are sampling regions that just don't have data...)
-  print 'clustering (channels) %d->%d' % (nclusters_old,nclusters_c),time.time() - time0
-  #Add in the channel clusters
-  #channels = np.unique(covariates['channels'][covariates['channels'] > 0])
-  #for channel in channels:
-  # cid = int(np.nanmax(cluster_ids) + 1)
-  # idx = np.where(covariates['channels'] == channel)
-  # cluster_ids[idx] = cid
-  # nclusters = nclusters + 1
- #Define the actual number of clusters
- nclusters = nclusters_nc + nclusters_c
+ print 'clustering %d->%d' % (nclusters_old,nclusters),time.time() - time0
 
  #Reorder according to areas
  areas = []
@@ -680,8 +601,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print "Computing the HRUs"
  if hydrobloks_info['model_type'] == 'semi':
-  if hydrobloks_info['clustering_type'] == 'kmeans':
-   (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info)
+  (cluster_ids,nclusters) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nclusters,hydrobloks_info)
  elif hydrobloks_info['model_type'] == 'full':
   nclusters = np.sum(mask == True)
   hydrobloks_info['nclusters'] = nclusters

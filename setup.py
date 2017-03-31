@@ -5,13 +5,13 @@ cwd = os.getcwd()
 os.chdir('Preprocessing/Tools')
 os.system('python compile.py')
 os.chdir(cwd)
-#HydroBloks:Dynamic TOPMODEL
+#HydroBlocks:Dynamic TOPMODEL
 cwd = os.getcwd()
-os.chdir('HydroBloks/pyDTopmodel/src')
+os.chdir('HydroBlocks/pyDTopmodel/src')
 os.system('python compile.py')
 os.chdir(cwd)
-#HydroBloks:Noah-MP
+#HydroBlocks:Noah-MP
 cwd = os.getcwd()
-os.chdir('HydroBloks/pyNoahMP')
+os.chdir('HydroBlocks/pyNoahMP')
 os.system('python make.py')
 os.chdir(cwd)

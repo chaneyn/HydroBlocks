@@ -33,15 +33,11 @@ hydrobloks_info = {
 	'subsurface_flow_flag':metadata['subsurface_flow_flag'],
         'hwu_flag':metadata['hwu_flag'],
 	'dt':metadata['dt'],#seconds
-	'dtt':metadata['dtt'],#seconds
 	'dx':metadata['dx'],#meters
 	'nsoil':metadata['nsoil'],
 	'ncores':metadata['parallel_ncores'],
 	'idate':idate,
 	'fdate':fdate,
-	'nclusters_nc':metadata['nhru_nc'],
-	'nclusters_c':metadata['nhru_c'],
-	'nclusters':metadata['nhru_nc'] + metadata['nhru_c'],
 	'model_type':metadata['model_type'],
         'create_mask_flag':metadata['create_mask_flag'],
         'mkl_flag':metadata['mkl_flag']
