@@ -23,6 +23,6 @@ To run the model on a test dataset, do the following:
 2. tar -xvzf HB_sample.tar.gz
 3. cd HB_sample
 4. python ../HydroBlocks/Preprocessing/Driver.py metadata.json
-5. python ../HydroBlocks/HydroBloks/Driver.py metadata.json
+5. python ../HydroBlocks/HydroBlocks/Driver.py metadata.json
 
 
