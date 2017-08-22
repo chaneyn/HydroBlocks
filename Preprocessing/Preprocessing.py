@@ -16,6 +16,16 @@ import glob
 from geospatialtools import gdal_tools
 from geospatialtools import terrain_tools
 
+def plot_data(data):
+
+ import matplotlib.pyplot as plt
+ data = np.ma.masked_array(data,data==-9999)
+ plt.imshow(data)
+ plt.colorbar()
+ plt.show()
+
+ return
+
 def Prepare_Model_Input_Data(hydrobloks_info):
 
  #Prepare the info dictionary
@@ -185,6 +195,46 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp.variables['data'][:] = flow_matrix.data
  grp.variables['indices'][:] = flow_matrix.indices
  grp.variables['indptr'][:] = flow_matrix.indptr
+
+ #Write the connection matrices
+ #length
+ lmatrix = output['cmatrix']['length']
+ nconnections = lmatrix.data.size
+ grp = fp.createGroup('lmatrix')
+ grp.createDimension('connections_columns',lmatrix.indices.size)
+ grp.createDimension('connections_rows',lmatrix.indptr.size)
+ grp.createVariable('data','f4',('connections_columns',))
+ grp.createVariable('indices','f4',('connections_columns',))
+ grp.createVariable('indptr','f4',('connections_rows',))
+ grp.variables['data'][:] = lmatrix.data
+ grp.variables['indices'][:] = lmatrix.indices
+ grp.variables['indptr'][:] = lmatrix.indptr
+
+ #width
+ wmatrix = output['cmatrix']['width']
+ nconnections = wmatrix.data.size
+ grp = fp.createGroup('wmatrix')
+ grp.createDimension('connections_columns',wmatrix.indices.size)
+ grp.createDimension('connections_rows',wmatrix.indptr.size)
+ grp.createVariable('data','f4',('connections_columns',))
+ grp.createVariable('indices','f4',('connections_columns',))
+ grp.createVariable('indptr','f4',('connections_rows',))
+ grp.variables['data'][:] = wmatrix.data
+ grp.variables['indices'][:] = wmatrix.indices
+ grp.variables['indptr'][:] = wmatrix.indptr
+
+ #ksat
+ kmatrix = output['cmatrix']['ksat']
+ nconnections = kmatrix.data.size
+ grp = fp.createGroup('kmatrix')
+ grp.createDimension('connections_columns',kmatrix.indices.size)
+ grp.createDimension('connections_rows',kmatrix.indptr.size)
+ grp.createVariable('data','f4',('connections_columns',))
+ grp.createVariable('indices','f4',('connections_columns',))
+ grp.createVariable('indptr','f4',('connections_rows',))
+ grp.variables['data'][:] = kmatrix.data
+ grp.variables['indices'][:] = kmatrix.indices
+ grp.variables['indptr'][:] = kmatrix.indptr
 
  #Write the outlet information
  outlet = output['outlet']
@@ -531,6 +581,61 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nclusters):
 
  return (flow_matrix.T,outlet)
 
+def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nclusters):
+
+ res = 30.0 #HACK
+ 
+ horg = []
+ hdst = []
+ #Count the connections
+ for i in xrange(cluster_ids.shape[0]):
+  for j in xrange(cluster_ids.shape[1]):
+   h1 = cluster_ids[i,j]
+   if h1 == -9999:continue
+   #up
+   if (i+1) < cluster_ids.shape[0]:
+    h2 = cluster_ids[i+1,j]
+    if h2 != -9999:
+     horg.append(h1)
+     hdst.append(h2)
+   #down
+   if (i-1) > 0:
+    h2 = cluster_ids[i-1,j]
+    if h2 != -9999:
+     horg.append(h1)
+     hdst.append(h2)
+   #left
+   if (j-1) > 0:
+    h2 = cluster_ids[i,j-1]
+    if h2 != -9999:
+     horg.append(h1)
+     hdst.append(cluster_ids[i,j-1])
+   #right
+   if (j+1) < cluster_ids.shape[1]:
+    h2 = cluster_ids[i,j+1]
+    if h2 != -9999:
+     horg.append(h1)
+     hdst.append(cluster_ids[i,j+1])
+ horg = np.array(horg)
+ hdst = np.array(hdst)
+
+ #Prepare the sparse matrix
+ cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),dtype=np.float32)
+ cmatrix = cmatrix.tocsr()
+
+ #Prepare length, width, and ksat matrices
+ lmatrix = cmatrix.copy()
+ lmatrix[lmatrix != 0] = res
+ wmatrix = cmatrix.copy()
+ wmatrix[:] = res*wmatrix[:]
+ kmatrix = cmatrix.copy()
+ kmatrix[kmatrix != 0] = 1.0 #cm/hr
+
+ #Prepare output dictionary
+ cdata = {'length':lmatrix.T,'width':wmatrix.T,'ksat':kmatrix.T}
+
+ return cdata
+
 def Create_and_Curate_Covariates(wbd):
 
  covariates = {}
@@ -622,15 +727,18 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nclusters,nco
   #Create the groups (netcdf)
  hydrobloks_info['input_fp'].createGroup('meteorology')
 
- #Prepare the flow matrix
+ #Prepare the flow matrix (dynamic topmodel)
  print "Calculating the flow matrix"
  (flow_matrix,outlet) = Calculate_Flow_Matrix(covariates,cluster_ids,nclusters)
+
+ #Prepare the hru connections matrix (darcy clusters)
+ cmatrix = Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nclusters)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
 
  #Make the output dictionary for the basin
- OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix}
+ OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix,'cmatrix':cmatrix}
  OUTPUT['outlet'] = outlet
 
  #Remember the map of hrus
