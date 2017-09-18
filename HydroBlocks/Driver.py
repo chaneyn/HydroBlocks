@@ -1,5 +1,5 @@
 import datetime
-import HydroBlocks as HB
+import HydroBlocks# as HB
 import sys
 
 def Read_Metadata_File(file):
@@ -23,7 +23,7 @@ fdate = datetime.datetime(metadata['enddate']['year'],
 			   metadata['enddate']['day'],23)
 
 #Define the info
-hydrobloks_info = {
+info = {
         'icatch':metadata['catchment_id'],
 	'input_file':metadata['input_file'],
 	'output_file':metadata['output_file'],
@@ -43,5 +43,11 @@ hydrobloks_info = {
         'mkl_flag':metadata['mkl_flag']
 	}
 
+#Initialize
+HB = HydroBlocks.initialize(info)
+
 #Run the model
-HB.Run_Model(hydrobloks_info)
+HB.run(info)
+ 
+#Finalize
+HB.finalize()
