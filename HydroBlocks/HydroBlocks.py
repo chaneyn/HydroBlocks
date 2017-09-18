@@ -26,9 +26,9 @@ class HydroBlocks:
   print "Initializing Noah-MP"
   self.initialize_noahmp()
 
-  #Initialize Dynamic TOPMODEL
-  print "Initializing Dynamic TOPMODEL"
-  self.initialize_dtopmodel()
+  #Initialize subsurface module
+  print "Initializing subsurface module"
+  self.initialize_subsurface()
 
   #Initialize human water use module
   print "Initializing Human Water Management"
@@ -68,9 +68,12 @@ class HydroBlocks:
   self.output_fp = nc.Dataset(info['output_file'],'w',format='NETCDF4')
   self.nhru = len(self.input_fp.dimensions['hsu'])
   self.surface_flow_flag = info['surface_flow_flag']
-  self.subsurface_flow_flag = info['subsurface_flow_flag']
+  self.subsurface_module = info['subsurface_module']
+  #self.subsurface_flow_flag = info['subsurface_flow_flag']
   self.hwu_flag = info['hwu_flag']
   self.create_mask_flag = info['create_mask_flag']
+  self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
+  self.pct = self.pct/np.sum(self.pct)
 
   return
 
@@ -209,6 +212,12 @@ class HydroBlocks:
 
   return
 
+ def initialize_subsurface(self,):
+
+  if self.subsurface_module == 'dtopmodel':self.initialize_dtopmodel()
+
+  return
+
  def initialize_dtopmodel(self,):
 
   from pyDTopmodel import dynamic_topmodel as dtopmodel
@@ -221,7 +230,7 @@ class HydroBlocks:
 
   #Set flags
   self.dtopmodel.surface_flow_flag = self.surface_flow_flag
-  self.dtopmodel.subsurface_flow_flag = self.subsurface_flow_flag
+  #self.dtopmodel.subsurface_flow_flag = self.subsurface_flow_flag
 
   #Set self.dtopmodel parameters
   self.dtopmodel.dt = self.dt #seconds
@@ -286,7 +295,6 @@ class HydroBlocks:
   i = 0
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
-  self.dtopmodel.ex[:] = 0.0
   while date <= self.fdate:
 
    #Memorize time stamp
@@ -337,7 +345,7 @@ class HydroBlocks:
 
   self.noahmp.itime = i
   dt = self.dt
-  self.dtopmodel.itime = i
+  if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = i
   self.noahmp.nowdate[:] = date.strftime('%Y-%m-%d_%H:%M:%S')
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
@@ -371,14 +379,20 @@ class HydroBlocks:
   #Update NOAH
   self.noahmp.run_model(self.ncores)
 
-  #Reinitialize dzwt
+  #Update subsurface
+  self.update_subsurface()
+
+  return
+
+ def update_subsurface(self,):
+
   self.noahmp.dzwt[:] = 0.0
 
-  if self.subsurface_flow_flag == True:
+  if self.subsurface_module == 'dtopmodel':
 
    #Calculate the updated soil moisture deficit
-   si0 = np.copy(NOAH.si0)
-   si1 = np.copy(NOAH.si1)
+   si0 = np.copy(self.noahmp.si0)
+   si1 = np.copy(self.noahmp.si1)
 
    #Calculate the change in deficit
    self.dtopmodel.si[:] = si1[:]
@@ -413,41 +427,38 @@ class HydroBlocks:
 
   NOAH = self.noahmp
   smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1) 
-  self.end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)# + TOPMODEL.si*1000)
+  self.end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)
   
   return
 
  def calculate_water_balance_error(self,):
 
   NOAH = self.noahmp
-  TOPMODEL = self.dtopmodel
   HWU = self.hwu
   dt = self.dt
   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
-  self.errwat += np.sum(TOPMODEL.pct*tmp)
-  self.q = self.q + dt*np.sum(TOPMODEL.pct*NOAH.runsb) + dt*np.sum(TOPMODEL.pct*NOAH.runsf)
-  self.et = self.et + dt*np.sum(TOPMODEL.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
-  self.etran += dt*np.sum(TOPMODEL.pct*NOAH.etran)
-  self.ecan += dt*np.sum(TOPMODEL.pct*NOAH.ecan)
-  self.esoil += dt*np.sum(TOPMODEL.pct*NOAH.esoil)
-  self.prcp = self.prcp + dt*np.sum(TOPMODEL.pct*NOAH.prcp)
+  self.errwat += np.sum(self.pct*tmp)
+  self.q = self.q + dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
+  self.et = self.et + dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
+  self.etran += dt*np.sum(self.pct*NOAH.etran)
+  self.ecan += dt*np.sum(self.pct*NOAH.ecan)
+  self.esoil += dt*np.sum(self.pct*NOAH.esoil)
+  self.prcp = self.prcp + dt*np.sum(self.pct*NOAH.prcp)
 
   return
 
  def calculate_energy_balance_error(self,):
 
   NOAH = self.noahmp
-  TOPMODEL = self.dtopmodel
   tmp = np.copy(NOAH.sav+NOAH.sag-NOAH.fira-NOAH.fsh-NOAH.fcev-NOAH.fgev-NOAH.fctr-NOAH.ssoil)
-  self.erreng += np.sum(TOPMODEL.pct*tmp)
+  self.erreng += np.sum(self.pct*tmp)
 
   return
 
  def update_output(self,date,itime):
 
   NOAH = self.noahmp
-  TOPMODEL = self.dtopmodel
   HWU = self.hwu
   HB = self
 
@@ -475,10 +486,12 @@ class HydroBlocks:
   grp.variables['prcp'][itime,:] = NOAH.dt*np.copy(NOAH.prcp) #mm
  
   #TOPMODEL
-  grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
-  grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
-  grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
-  grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
+  if self.subsurface_module == 'dtopmodel':
+   TOPMODEL = self.dtopmodel
+   grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
+   grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
+   grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
+   grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
 
   #New
   grp.variables['wtd'][itime,:] = np.copy(NOAH.zwt)
@@ -578,15 +591,14 @@ class HydroBlocks:
 
  def finalize(self,):
 
-  #Deallocate the NOAH memory
+  #Close the LSM
   self.noahmp.finalize()
-
-  #Close the TOPMODEL solver
-  if self.mkl_flag: self.dtopmodel.dtt.finalize()
-
-  #Delete the objects
   del self.noahmp
-  del self.dtopmodel
+
+  #Close the subsurface module
+  if self.subsurface_module == 'dtopmodel':
+   if self.mkl_flag: self.dtopmodel.dtt.finalize()
+   del self.dtopmodel
 
   #Close the files
   self.input_fp.close()

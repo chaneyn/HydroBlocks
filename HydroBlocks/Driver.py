@@ -30,7 +30,7 @@ info = {
         #'soil_file':metadata['soil_file'],
         'workspace':metadata['workspace'],
 	'surface_flow_flag':metadata['surface_flow_flag'],
-	'subsurface_flow_flag':metadata['subsurface_flow_flag'],
+	'subsurface_module':metadata['subsurface_module'],
         'hwu_flag':metadata['hwu_flag'],
 	'dt':metadata['dt'],#seconds
 	'dx':metadata['dx'],#meters
