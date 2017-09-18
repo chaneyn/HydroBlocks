@@ -384,7 +384,7 @@ def Run_Model(info):
  info['mkl_flag'] = mkl_flag
  #info['SOILPARM'] = soil_file
  
- #Set the number of cells (hsus)
+ #Set the number of cells (hrus)
  ncells = len(info['input_fp'].dimensions['hsu'])
 
  #Initialize the model
@@ -453,7 +453,7 @@ def Run_Model(info):
   TOPMODEL.dt = dt
 
   #Update time and date
-  info['time'] = time.time() - time0#seconds
+  #info['time'] = time.time() - time0#seconds
   info['date'] = date
 
   #Update output
@@ -531,34 +531,19 @@ def Create_Netcdf_File(info):
  #Create the dimensions
  print 'Creating the dimensions'
  ntime = len(fp_in.dimensions['time'])
- nhsu = len(fp_in.dimensions['hsu'])
+ nhru = len(fp_in.dimensions['hsu'])
  #nsoil = 4
- fp_out.createDimension('hsu',nhsu)
+ fp_out.createDimension('hru',nhru)
  fp_out.createDimension('time',ntime)
  #fp_out.createDimension('soil',nsoil)
 
  #Create the output
- print 'Creating the catchment group'
- grp = fp_out.createGroup('catchment')
+ print 'Creating the macroscale group'
+ grp = fp_out.createGroup('macroscale')
  for var in metadata:
-  ncvar = grp.createVariable(var,'f4',('time','hsu',))
+  ncvar = grp.createVariable(var,'f4',('time','hru',))
   ncvar.description = metadata[var]['description']
   ncvar.units = metadata[var]['units']
-
- #Create the outlet group 
- #print 'Creating the outlet group'
- #grp = fp_out.createGroup('outlet')
- #grp.createDimension('hru_outlet',len(fp_in.groups['outlet'].groups['summary'].dimensions['hru']))
- #grp.createVariable('hru_org','i4',('hru_outlet',))
- #grp.createVariable('hru_dst','i4',('hru_outlet',))
- #grp.createVariable('counts','i4',('hru_outlet',))
- #grp.createVariable('area_outlet','i4',('hru_outlet',))
- #for var in ['qin_subsurface_outlet','qin_surface_outlet']:
- # ncvar = grp.createVariable(var,'f4',('time','hru_outlet',))
- #dx = info['dx']
- #grp.variables['area_outlet'][:] = dx**2*info['input_fp'].groups['outlet'].groups['summary'].variables['counts'][:]
- #grp.variables['hru_org'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_org'][:]
- #grp.variables['hru_dst'][:] = info['input_fp'].groups['outlet'].groups['summary'].variables['hru_dst'][:]
 
  #Create the metadata
  print 'Creating the metadata group'
@@ -568,37 +553,24 @@ def Create_Netcdf_File(info):
  dates = grp.createVariable('date','f8',('time',))
  dates.units = 'hours since 1900-01-01'
  dates.calendar = 'standard'
- #dates
- '''times = grp.createVariable('dates','f8',('time',))
- dates = []
- for date in output['misc']['dates']:
-  #if date.hour == 0:dates.append(date)
-  dates.append(date)
- times.units = 'days since 1900-01-01'
- times.calendar = 'standard'
- times[:] = nc.date2num(np.array(dates),units=times.units,calendar=times.calendar)'''
- #HSU percentage coverage
+
+ #HRU percentage coverage
  print 'Setting the HRU percentage coverage'
- pcts = grp.createVariable('pct','f4',('hsu',))
+ pcts = grp.createVariable('pct','f4',('hru',))
  pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
- pcts.description = 'hsu percentage coverage'
+ pcts.description = 'hru percentage coverage'
  pcts.units = '%'
- '''#HSU Spatial resolution
- print 'Setting the spatial resolution'
- dx = grp.createVariable('dx','f4',('hsu',))
- dx[:] = np.array(output['misc']['dx'])
- dx.units = 'meters'''
- #HSU area
+ #HRU area
  print 'Setting the HRU areal coverage'
- area = grp.createVariable('area','f4',('hsu',))
+ area = grp.createVariable('area','f4',('hru',))
  area[:] = fp_in.groups['parameters'].variables['area'][:]
  area.units = 'meters squared'
  print 'Defining the HRU ids'
- hsu = grp.createVariable('hsu','i4',('hsu',))
- hsus =[]
- for value in xrange(nhsu):hsus.append(value)
- hsu[:] = np.array(hsus)
- hsu.description = 'hsu ids'
+ hru = grp.createVariable('hru','i4',('hru',))
+ hrus =[]
+ for value in xrange(nhru):hrus.append(value)
+ hru[:] = np.array(hrus)
+ hru.description = 'hru ids'
 
  #Create the mapping
  if info['create_mask_flag'] == True:
@@ -622,12 +594,12 @@ def Update_Output(info,itime,NOAH,TOPMODEL,HB):
 
  #General info
  grp = info['output_fp'].groups['metadata']
- grp.variables['time'][itime] = info['time'] #Seconds
+ #grp.variables['time'][itime] = info['time'] #Seconds
  dates = grp.variables['date']
  dates[itime] = nc.date2num(info['date'],units=dates.units,calendar=dates.calendar)
 
- #Update the variables (catchment)
- grp = info['output_fp'].groups['catchment']
+ #Update the variables (macroscale)
+ grp = info['output_fp'].groups['macroscale']
 
  #NoahMP
  cs = np.cumsum(NOAH.sldpth[0,:])
