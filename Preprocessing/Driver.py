@@ -25,7 +25,8 @@ hydrobloks_info = {
 	'output_file':metadata['output_file'],
         'workspace':metadata['workspace'],
 	'surface_flow_flag':metadata['surface_flow_flag'],
-	'subsurface_flow_flag':metadata['subsurface_flow_flag'],
+	#'subsurface_flow_flag':metadata['subsurface_flow_flag'],
+        'subsurface_module':metadata['subsurface_module'],
 	'dt':metadata['dt'],#seconds
 	'dx':metadata['dx'],#meters
 	'nsoil':metadata['nsoil'],

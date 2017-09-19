@@ -932,7 +932,7 @@ contains
                  SNEQV  ,WA     ,SMC    ,DZSNSO ,PRCP   ,ECAN   , & !in
                  ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , & !in
                  NSNOW  ,IST    ,ERRWAT ,ILOC   , JLOC  ,FVEG   , &
-                 SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT  )   !in ( Except ERRWAT, which is out )
+                 SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT, HDIV  )   !in ( Except ERRWAT, which is out )
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
@@ -1117,7 +1117,7 @@ contains
                     SNEQV  ,WA     ,SMC    ,DZSNSO ,PRCP   ,ECAN   , &
                     ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , &
                     NSNOW  ,IST    ,ERRWAT, ILOC   ,JLOC   ,FVEG   , &
-                    SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT)
+                    SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,HDIV)
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1158,6 +1158,7 @@ contains
   REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN) :: DZSNSO !snow/soil layer thickness [m]
   REAL                           , INTENT(IN) :: WA     !water storage in aquifer [mm]
   REAL                           , INTENT(IN) :: DT     !time step [sec]
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: HDIV
   REAL                           , INTENT(IN) :: BEG_WB !water storage at begin of a timesetp [mm]
   REAL                           , INTENT(OUT) :: ERRWAT !error in water balance [mm/timestep]
 
@@ -1210,8 +1211,7 @@ contains
         DO IZ = 1,NSOIL
           END_WB = END_WB + SMC(IZ) * DZSNSO(IZ) * 1000.
         END DO
-        print*,END_WB,BEG_WB,PRCP,ECAN,ETRAN,EDIR,RUNSRF,RUNSUB,DT
-        ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB)*DT
+        ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB-sum(HDIV))*DT
 
 #ifndef WRF_HYDRO
         IF(ABS(ERRWAT) > 0.1) THEN
@@ -8041,7 +8041,7 @@ contains
           DDZ(K)   = 2.0 / TEMP1
           DSMDZ(K) = 2.0 * (SMX(K) - SMX(K+1)) / TEMP1
           !WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA
-          WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA + HDIV(K)
+          WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA + HDIV(K)/1000.
        ELSE IF (K < NSOIL) THEN
           DENOM(k) = (ZSOIL(K-1) - ZSOIL(K))
           TEMP1    = (ZSOIL(K-1) - ZSOIL(K+1))
@@ -8049,7 +8049,7 @@ contains
           DSMDZ(K) = 2.0 * (SMX(K) - SMX(K+1)) / TEMP1
           WFLUX(K) = WDF(K  ) * DSMDZ(K  ) + WCND(K  )         &
                    !- WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K)
-                   - WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K) + HDIV(K)
+                   - WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K) + HDIV(K)/1000.
        ELSE
           DENOM(K) = (ZSOIL(K-1) - ZSOIL(K))
           IF(OPT_RUN == 1 .or. OPT_RUN == 2) THEN
@@ -8073,7 +8073,7 @@ contains
              QDRAIN   = WDF(K  ) * DSMDZ(K  ) + WCND(K  )
           END IF   
           !WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN
-          WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN + HDIV(K)
+          WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN + HDIV(K)/1000.0
        END IF
     END DO
 

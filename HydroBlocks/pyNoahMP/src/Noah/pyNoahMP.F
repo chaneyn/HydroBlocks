@@ -1156,7 +1156,7 @@ subroutine run_model_cell(&
 	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE)
 
      !Add in QSPRING
-     runsb = 1000*qspring/dt
+     runsb = runsb+1000*qspring/dt! (Dynamic TOPMODEL ONLY)
 
     !Calculate the soil moisture deficit
     call Calculate_Deficit(si1,smcmax,smcwtd,zwt,sldpth,smc,nsoil)

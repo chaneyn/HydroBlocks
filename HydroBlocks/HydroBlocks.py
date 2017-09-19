@@ -386,11 +386,11 @@ class HydroBlocks:
   self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
   self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
-  #Update NOAH
-  self.noahmp.run_model(self.ncores)
-
   #Update subsurface
   self.update_subsurface()
+
+  #Update NOAH
+  self.noahmp.run_model(self.ncores)
 
   return
 
@@ -435,7 +435,8 @@ class HydroBlocks:
    #Update smc
    #self.noahmp.smc[:] = self.noahmp.smc[:] - 0.001
    #print self.noahmp.smc[:,0]
-   print "here"
+   #print "here"
+   self.noahmp.hdiv[:] = 0.0#0.0001#-np.random.rand() # mm/s
 
   return
 
@@ -460,8 +461,15 @@ class HydroBlocks:
   NOAH = self.noahmp
   HWU = self.hwu
   dt = self.dt
-  tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
-        NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
+  if self.subsurface_module == 'dtopmodel':
+   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
+         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
+  elif self.subsurface_module == 'richards':
+   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
+         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb-np.sum(NOAH.hdiv,axis=1)))
+  else:
+   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
+         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb))
   self.errwat += np.sum(self.pct*tmp)
   self.q = self.q + dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
   self.et = self.et + dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
