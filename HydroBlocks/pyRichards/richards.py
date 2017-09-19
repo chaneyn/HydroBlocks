@@ -1,0 +1,73 @@
+import numpy as np
+
+class richards:
+
+ def __init__(self,nhru,nsoil):
+
+  #self.fm = np.array([[0,1,0],[1,0,1],[0,1,0]])
+  self.fm = np.array([[0.9,0.1,0.0],[0.1,0.8,0.1],[0,0.1,0.9]])
+  #0,1,0 0,1,0
+  #0,0,1 1,0,1
+  #0,0,0 0,1,0
+  self.theta = np.zeros((nhru,nsoil))
+  self.thetar = np.zeros(nhru)
+  self.thetas = np.zeros(nhru)
+  self.b = np.zeros(nhru)
+  self.satpsi = np.zeros(nhru)
+  self.ksat = np.zeros(nhru)
+  self.dem = np.zeros(nhru)
+  self.dz = np.zeros((nhru,nsoil))
+  self.hdiv = np.zeros((nhru,nsoil))
+
+  return
+
+ def calculate_soil_moisture_potential(self,il):
+  
+  theta = self.theta[:,il]
+  thetar = self.thetar
+  thetas = self.thetas
+  b = self.b
+  satpsi = self.satpsi #meters
+  psi = 1000.0*np.ones(theta.shape) #limit
+  m = theta > thetar
+  psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
+
+  return psi
+
+ def calculate_hydraulic_conductivity(self,psi):
+  
+  Ksat_x = 10.0*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
+  K_x = Ksat_x*(psi/self.satpsi)**(-2-3/self.b)
+
+  return K_x
+
+ def calculate_hydraulic_head(self,psi):
+  
+  h = self.dem - psi
+
+  return h
+
+ def update(self,):
+
+  #Iterate per layer
+  for il in xrange(self.theta.shape[1]):
+   #Calculate soil moisture potential
+   psi = self.calculate_soil_moisture_potential(il)
+   #Calculate hydraulic conductivity
+   K_x = self.calculate_hydraulic_conductivity(psi)
+   #Calculate hydraulic head
+   h = self.calculate_hydraulic_head(psi)
+   #Calculate the divergence
+   dh = h[:,np.newaxis] - h[np.newaxis,:]
+   dx = 30 #meters
+   w = 30*self.fm
+   A = 900
+   dz = self.dz[:,il] #meters
+   #q = K*dh/dx = Khat*dh/dx*w*dz/A2
+   Khat = (K_x[:,np.newaxis] + K_x[np.newaxis,:])/2
+   #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
+   q = Khat*dh/dx*w*dz/A #m/s
+   self.hdiv[:,il] = 1000*np.sum(q,axis=1) #mm/s
+
+  return
+

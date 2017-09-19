@@ -224,7 +224,10 @@ class HydroBlocks:
   from pyRichards import richards
   
   #Initialize richards
-  self.richards = richards.richards(self.nhru)
+  self.richards = richards.richards(self.nhru,self.nsoil)
+
+  #Set other parameters
+  self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
 
   return
 
@@ -425,18 +428,49 @@ class HydroBlocks:
 
   elif self.subsurface_module == 'richards':
 
-   #Steps
-   #1.Initialize (start with dummy connections)
-   #2.Push water between clusters
-   #3.Calculate the change in dzwt (change in head)
-   #self.noahmp.dzwt[:] = -10**-3
-   #self.richards.smc[:] = self.noahmp.smc[:]
-   #Calculate divergence
-   #Update smc
-   #self.noahmp.smc[:] = self.noahmp.smc[:] - 0.001
-   #print self.noahmp.smc[:,0]
-   #print "here"
-   self.noahmp.hdiv[:] = 0.0#0.0001#-np.random.rand() # mm/s
+   #Assign noahmp variables to subsurface module
+   self.richards.theta[:] = self.noahmp.smc[:]
+   self.richards.thetar[:] = self.noahmp.drysmc0[:]
+   self.richards.thetas[:] = self.noahmp.maxsmc0[:]
+   self.richards.b[:] = self.noahmp.bb0[:]
+   self.richards.satpsi[:] = self.noahmp.satpsi0[:]
+   self.richards.ksat[:] = self.noahmp.satdk0[:]
+   self.richards.dz[:] = self.noahmp.sldpth[:]
+
+   #Update subsurface module
+   self.richards.update()
+
+   #Assign subsurface module variables to noahmp
+   self.noahmp.hdiv[:] = self.richards.hdiv[:]
+   
+   #Iterate per layer
+   '''for il in xrange(self.noahmp.smc.shape[1]):
+    #Calculate soil moisture potential for each hru for the given layer
+    theta = self.noahmp.smc[:,il]
+    thetar = self.noahmp.drysmc0
+    thetas = self.noahmp.maxsmc0
+    b = self.noahmp.bb0
+    satpsi = self.noahmp.satpsi0 #meters?
+    psi = 1000.0*np.ones(theta.shape) #limit
+    m = theta > thetar
+    psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
+    #Calculate hydraulic conductivity
+    Ksat_x = 10.0*self.noahmp.satdk0[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
+    K_x = Ksat_x*(psi/satpsi)**(-2-3/b)
+    Khat = (K_x[:,np.newaxis] + K_x[np.newaxis,:])/2
+    #Calculate hydraulic head
+    #z = np.array([2.0,1.0,0.0])
+    #z = np.array([0,0,0])
+    z = self.richards.dem[:]
+    dh = (z[:,np.newaxis] - z[np.newaxis,:]) - (psi[:,np.newaxis] - psi[np.newaxis,:])
+    dx = 30 #meters
+    w = 30*self.richards.fm
+    A = 900
+    dz = self.noahmp.sldpth[:,il] #meters
+    #q = K*dh/dx = Khat*dh/dx*w*dz/A2
+    #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
+    q = Khat*dh/dx*w*dz/A #m/s
+    self.noahmp.hdiv[:,il] = 1000*np.sum(q,axis=1) #mm/s'''
 
   return
 
