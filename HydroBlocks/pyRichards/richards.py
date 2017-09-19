@@ -5,7 +5,7 @@ class richards:
  def __init__(self,nhru,nsoil):
 
   #self.fm = np.array([[0,1,0],[1,0,1],[0,1,0]])
-  self.fm = np.array([[0.9,0.1,0.0],[0.1,0.8,0.1],[0,0.1,0.9]])
+  #self.fm = np.array([[0.9,0.1,0.0],[0.1,0.8,0.1],[0,0.1,0.9]])
   #0,1,0 0,1,0
   #0,0,1 1,0,1
   #0,0,0 0,1,0
@@ -16,8 +16,13 @@ class richards:
   self.satpsi = np.zeros(nhru)
   self.ksat = np.zeros(nhru)
   self.dem = np.zeros(nhru)
+  #self.hand = np.zeros(nhru)
+  self.area = np.zeros(nhru)
   self.dz = np.zeros((nhru,nsoil))
   self.hdiv = np.zeros((nhru,nsoil))
+
+  #Initialize the width array
+  self.width = []
 
   return
 
@@ -60,14 +65,15 @@ class richards:
    #Calculate the divergence
    dh = h[:,np.newaxis] - h[np.newaxis,:]
    dx = 30 #meters
-   w = 30*self.fm
-   A = 900
+   #w = self.area*self.fm/dx
+   w = np.array(self.width.todense())
+   area = self.area
    dz = self.dz[:,il] #meters
-   #q = K*dh/dx = Khat*dh/dx*w*dz/A2
-   Khat = (K_x[:,np.newaxis] + K_x[np.newaxis,:])/2
+   Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
+   Khat[np.isnan(Khat)] = 0.0
    #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
-   q = Khat*dh/dx*w*dz/A #m/s
-   self.hdiv[:,il] = 1000*np.sum(q,axis=1) #mm/s
+   q = -Khat*dh/dx*w*dz/area #m/s
+   self.hdiv[:,il] = 1000*np.sum(q,axis=0) #mm/s
 
   return
 

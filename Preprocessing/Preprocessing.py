@@ -15,6 +15,7 @@ import time
 import glob
 from geospatialtools import gdal_tools
 from geospatialtools import terrain_tools
+import matplotlib.pyplot as plt
 
 def plot_data(data):
 
@@ -197,19 +198,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp.variables['indptr'][:] = flow_matrix.indptr
 
  #Write the connection matrices
- #length
- lmatrix = output['cmatrix']['length']
- nconnections = lmatrix.data.size
- grp = fp.createGroup('lmatrix')
- grp.createDimension('connections_columns',lmatrix.indices.size)
- grp.createDimension('connections_rows',lmatrix.indptr.size)
- grp.createVariable('data','f4',('connections_columns',))
- grp.createVariable('indices','f4',('connections_columns',))
- grp.createVariable('indptr','f4',('connections_rows',))
- grp.variables['data'][:] = lmatrix.data
- grp.variables['indices'][:] = lmatrix.indices
- grp.variables['indptr'][:] = lmatrix.indptr
-
  #width
  wmatrix = output['cmatrix']['width']
  nconnections = wmatrix.data.size
@@ -222,19 +210,6 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  grp.variables['data'][:] = wmatrix.data
  grp.variables['indices'][:] = wmatrix.indices
  grp.variables['indptr'][:] = wmatrix.indptr
-
- #ksat
- kmatrix = output['cmatrix']['ksat']
- nconnections = kmatrix.data.size
- grp = fp.createGroup('kmatrix')
- grp.createDimension('connections_columns',kmatrix.indices.size)
- grp.createDimension('connections_rows',kmatrix.indptr.size)
- grp.createVariable('data','f4',('connections_columns',))
- grp.createVariable('indices','f4',('connections_columns',))
- grp.createVariable('indptr','f4',('connections_rows',))
- grp.variables['data'][:] = kmatrix.data
- grp.variables['indices'][:] = kmatrix.indices
- grp.variables['indptr'][:] = kmatrix.indptr
 
  #Write the outlet information
  outlet = output['outlet']
@@ -624,15 +599,11 @@ def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nclusters):
  cmatrix = cmatrix.tocsr()
 
  #Prepare length, width, and ksat matrices
- lmatrix = cmatrix.copy()
- lmatrix[lmatrix != 0] = res
  wmatrix = cmatrix.copy()
  wmatrix[:] = res*wmatrix[:]
- kmatrix = cmatrix.copy()
- kmatrix[kmatrix != 0] = 1.0 #cm/hr
 
  #Prepare output dictionary
- cdata = {'length':lmatrix.T,'width':wmatrix.T,'ksat':kmatrix.T}
+ cdata = {'width':wmatrix.T,}
 
  return cdata
 

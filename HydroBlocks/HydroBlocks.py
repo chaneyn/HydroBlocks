@@ -228,6 +228,12 @@ class HydroBlocks:
 
   #Set other parameters
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
+  self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
+  self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
+                                  self.input_fp.groups['wmatrix'].variables['indices'][:],
+                                  self.input_fp.groups['wmatrix'].variables['indptr'][:]),
+                                  dtype=np.float64)[0:self.nhru,0:self.nhru]
 
   return
 
