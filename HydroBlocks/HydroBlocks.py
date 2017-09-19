@@ -215,6 +215,16 @@ class HydroBlocks:
  def initialize_subsurface(self,):
 
   if self.subsurface_module == 'dtopmodel':self.initialize_dtopmodel()
+  elif self.subsurface_module == 'richards':self.initialize_richards()
+
+  return
+
+ def initialize_richards(self,):
+   
+  from pyRichards import richards
+  
+  #Initialize richards
+  self.richards = richards.richards(self.nhru)
 
   return
 
@@ -238,11 +248,11 @@ class HydroBlocks:
   self.dtopmodel.dx[:] = self.dx #meters
   self.dtopmodel.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
   self.dtopmodel.sdmax[:] = self.input_fp.groups['parameters'].variables['sdmax'][:]
-  dem = []
   #Set cluster information
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-  self.dtopmodel.T0[:] = self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
+  af = 10.0 #anisotropy factor
+  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
   self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
   self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
@@ -412,6 +422,20 @@ class HydroBlocks:
 
    #Update the soil moisture values
    self.noahmp.dzwt[:] = dsi+self.dtopmodel.dt*self.dtopmodel.ex-self.dtopmodel.dt*self.dtopmodel.r
+
+  elif self.subsurface_module == 'richards':
+
+   #Steps
+   #1.Initialize (start with dummy connections)
+   #2.Push water between clusters
+   #3.Calculate the change in dzwt (change in head)
+   #self.noahmp.dzwt[:] = -10**-3
+   #self.richards.smc[:] = self.noahmp.smc[:]
+   #Calculate divergence
+   #Update smc
+   #self.noahmp.smc[:] = self.noahmp.smc[:] - 0.001
+   #print self.noahmp.smc[:,0]
+   print "here"
 
   return
 

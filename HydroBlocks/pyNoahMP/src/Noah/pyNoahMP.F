@@ -190,6 +190,7 @@ module model
  real,dimension(:,:),allocatable :: ficeold ! snow layer ice fraction 
  real,dimension(:,:),allocatable :: zsoil ! depth to soil interfaces
  real,dimension(:,:),allocatable :: sldpth ! soil layer thickness
+ real,dimension(:,:),allocatable :: hdiv ! horizontal divergence (mm/s) [+]
 
 contains
 
@@ -348,6 +349,7 @@ contains
   if (allocated(snliq) .eqv. .True.) deallocate(snliq) ! snow layer liquid water (mm)
   if (allocated(ficeold) .eqv. .True.) deallocate(ficeold) ! snow layer ice fraction 
   if (allocated(sldpth) .eqv. .True.) deallocate(sldpth) !soil layer thickness
+  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv) !
 
  end subroutine finalize
 
@@ -659,6 +661,8 @@ contains
   allocate(ficeold(ncells,-nsnow+1:0)) ! snow layer ice fraction 
   if (allocated(sldpth) .eqv. .True.) deallocate(sldpth)
   allocate(sldpth(ncells,nsoil)) !soil layer thickness
+  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv)
+  allocate(hdiv(ncells,nsoil)) !horizontal divergence
   
   !Set initial values
   
@@ -791,6 +795,7 @@ contains
   snice = badval
   snliq = badval
   ficeold = badval
+  hdiv = badval
 
  end subroutine
 
@@ -869,6 +874,7 @@ contains
             T_ML(i)    , P_ML(i)    , PSFC(i)    , U_ML(i)    , V_ML(i)    , Q_ML(i)    , & ! IN : Forcing
             SWDN(i)    , LWDN(i)    , PRCP(i)    , TBOT(i)    , CO2PP(i)   , & ! IN : Forcing
             O2PP(i)    , FOLN(i)    , FICEOLD(i,:) , Z_ML(i)    ,           & ! IN : Forcing
+            HDIV(i,:), & ! IN :
             ALBOLD(i)  , SNEQVO(i)  ,                                         & ! IN/OUT : 
             STC(i,:)     , SH2O(i,:)   , SMC(i,:)     , TAH(i)     , EAH(i)     , FWET(i)    , & ! IN/OUT : 
             CANLIQ(i)  , CANICE(i)  , TV(i)      , TG(i)      , QSFC1D(i)  , QSNOW(i)   , & ! IN/OUT : 
@@ -908,6 +914,7 @@ subroutine run_model_cell(&
             T_ML    , P_ML    , PSFC    , U_ML    , V_ML    , Q_ML    , & ! IN : Forcing
             SWDN    , LWDN    , PRCP    , TBOT    , CO2PP   , & ! IN : Forcing
             O2PP    , FOLN    , FICEOLD , Z_ML    ,           & ! IN : Forcing
+            HDIV    , & ! IN : Horizontal
             ALBOLD  , SNEQVO  ,                                         & ! IN/OUT : 
             STC     , SMH2O   , SMC     , TAH     , EAH     , FWET    , & ! IN/OUT : 
             CANLIQ  , CANICE  , TV      , TG      , QSFC1D  , QSNOW   , & ! IN/OUT : 
@@ -965,6 +972,7 @@ subroutine run_model_cell(&
     REAL                                :: SSOIL        ! soil heat heat (w/m2) 
     REAL                                :: SALB         ! surface albedo (-)
     REAL                                :: FSNO         ! snow cover fraction (-)
+    REAL,   DIMENSION( 1:NSOIL)         :: HDIV         ! 
     REAL,   DIMENSION( 1:NSOIL)         :: SMCEQ        ! eq vol. soil moisture (m3/m3)
     REAL,   DIMENSION( 1:NSOIL)         :: SMC          ! vol. soil moisture (m3/m3)
     REAL,   DIMENSION( 1:NSOIL)         :: SMH2O        ! vol. soil liquid water (m3/m3)
@@ -1127,6 +1135,7 @@ subroutine run_model_cell(&
             T_ML    , P_ML    , PSFC    , U_ML    , V_ML    , Q_ML    , & ! IN : Forcing
             QC      , SWDN    , LWDN    , PRCP    , TBOT    , CO2PP   , & ! IN : Forcing
             O2PP    , FOLN    , FICEOLD , PBLH    , Z_ML    ,           & ! IN : Forcing
+            HDIV, & ! IN : Horizontal
             ALBOLD  , SNEQVO  ,                                         & ! IN/OUT : 
             STC     , SMH2O   , SMC     , TAH     , EAH     , FWET    , & ! IN/OUT : 
             CANLIQ  , CANICE  , TV      , TG      , QSFC1D  , QSNOW   , & ! IN/OUT : 
