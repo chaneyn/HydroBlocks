@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import netCDF4 as nc
+import h5py
 import datetime
 import time
 import sys
@@ -34,6 +35,9 @@ class HydroBlocks:
   print "Initializing Human Water Management"
   self.initialize_hwu()
 
+  #Restart from initial conditions?
+  self.restart()
+
   #Other metrics
   self.dE = 0.0
   self.r = 0.0
@@ -49,6 +53,58 @@ class HydroBlocks:
   self.dzwt0 = np.zeros(self.nhru,dtype=np.float32)
   self.beg_wb = np.zeros(self.nhru,dtype=np.float32)
   self.end_wb = np.zeros(self.nhru,dtype=np.float32)
+
+  return
+  
+ def restart(self,):
+
+  if (os.path.exists(self.metadata['restart']['input']) == False 
+      or self.metadata['restart']['flag'] == False):
+    print "Cold startup"
+    return
+
+  #Read in the restart information
+  fp = h5py.File(self.metadata['restart']['input'],'r')
+  self.noahmp.smceq[:] = fp['smceq'][:]
+  self.noahmp.albold[:] = fp['albold'][:]
+  self.noahmp.sneqvo[:] = fp['sneqvo'][:]
+  self.noahmp.stc[:] = fp['stc'][:]
+  self.noahmp.sh2o[:] = fp['sh2o'][:]
+  self.noahmp.smc[:] = fp['smc'][:]
+  self.noahmp.tah[:] = fp['tah'][:]
+  self.noahmp.eah[:] = fp['eah'][:]
+  self.noahmp.fwet[:] = fp['fwet'][:]
+  self.noahmp.canliq[:] = fp['canliq'][:]
+  self.noahmp.canice[:] = fp['canice'][:]
+  self.noahmp.tv[:] = fp['tv'][:]
+  self.noahmp.tg[:] = fp['tg'][:]
+  self.noahmp.qsfc1d[:] = fp['qsfc1d'][:]
+  self.noahmp.qsnow[:] = fp['qsnow'][:]
+  self.noahmp.isnow[:] = fp['isnow'][:]
+  self.noahmp.zsnso[:] = fp['zsnso'][:]
+  self.noahmp.sndpth[:] = fp['sndpth'][:]
+  self.noahmp.swe[:] = fp['swe'][:]
+  self.noahmp.snice[:] = fp['snice'][:]
+  self.noahmp.snliq[:] = fp['snliq'][:]
+  self.noahmp.zwt[:] = fp['zwt'][:]
+  self.noahmp.wa[:] = fp['wa'][:]
+  self.noahmp.wt[:] = fp['wt'][:]
+  self.noahmp.wslake[:] = fp['wslake'][:]
+  self.noahmp.lfmass[:] = fp['lfmass'][:]
+  self.noahmp.rtmass[:] = fp['rtmass'][:]
+  self.noahmp.stmass[:] = fp['stmass'][:]
+  self.noahmp.wood[:] = fp['wood'][:]
+  self.noahmp.stblcp[:] = fp['stblcp'][:]
+  self.noahmp.fastcp[:] = fp['fastcp'][:]
+  self.noahmp.plai[:] = fp['plai'][:]
+  self.noahmp.psai[:] = fp['psai'][:]
+  self.noahmp.cm[:] = fp['cm'][:]
+  self.noahmp.ch[:] = fp['ch'][:]
+  self.noahmp.tauss[:] = fp['tauss'][:]
+  self.noahmp.smcwtd[:] = fp['smcwtd'][:]
+  self.noahmp.deeprech[:] = fp['deeprech'][:]
+  self.noahmp.rech[:] = fp['rech'][:]
+  fp.close()
 
   return
  
@@ -74,6 +130,7 @@ class HydroBlocks:
   self.create_mask_flag = info['create_mask_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
+  self.metadata = info
 
   return
 
@@ -362,6 +419,8 @@ class HydroBlocks:
 
  def update_input(self,date,i):
 
+  i = i + 2928
+  print i
   self.noahmp.itime = i
   dt = self.dt
   if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = i
@@ -449,35 +508,6 @@ class HydroBlocks:
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
    
-   #Iterate per layer
-   '''for il in xrange(self.noahmp.smc.shape[1]):
-    #Calculate soil moisture potential for each hru for the given layer
-    theta = self.noahmp.smc[:,il]
-    thetar = self.noahmp.drysmc0
-    thetas = self.noahmp.maxsmc0
-    b = self.noahmp.bb0
-    satpsi = self.noahmp.satpsi0 #meters?
-    psi = 1000.0*np.ones(theta.shape) #limit
-    m = theta > thetar
-    psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
-    #Calculate hydraulic conductivity
-    Ksat_x = 10.0*self.noahmp.satdk0[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
-    K_x = Ksat_x*(psi/satpsi)**(-2-3/b)
-    Khat = (K_x[:,np.newaxis] + K_x[np.newaxis,:])/2
-    #Calculate hydraulic head
-    #z = np.array([2.0,1.0,0.0])
-    #z = np.array([0,0,0])
-    z = self.richards.dem[:]
-    dh = (z[:,np.newaxis] - z[np.newaxis,:]) - (psi[:,np.newaxis] - psi[np.newaxis,:])
-    dx = 30 #meters
-    w = 30*self.richards.fm
-    A = 900
-    dz = self.noahmp.sldpth[:,il] #meters
-    #q = K*dh/dx = Khat*dh/dx*w*dz/A2
-    #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
-    q = Khat*dh/dx*w*dz/A #m/s
-    self.noahmp.hdiv[:,il] = 1000*np.sum(q,axis=1) #mm/s'''
-
   return
 
  def initialize_water_balance(self,):
@@ -663,6 +693,49 @@ class HydroBlocks:
 
  def finalize(self,):
 
+  #Save the restart file
+  fp = h5py.File(self.metadata['restart']['output'],'w')
+  fp['smceq'] = self.noahmp.smceq[:]
+  fp['albold'] = self.noahmp.albold[:]
+  fp['sneqvo'] = self.noahmp.sneqvo[:]
+  fp['stc'] = self.noahmp.stc[:]
+  fp['sh2o'] = self.noahmp.sh2o[:]
+  fp['smc'] = self.noahmp.smc[:]
+  fp['tah'] = self.noahmp.tah[:]
+  fp['eah'] = self.noahmp.eah[:]
+  fp['fwet'] = self.noahmp.fwet[:]
+  fp['canliq'] = self.noahmp.canliq[:]
+  fp['canice'] = self.noahmp.canice[:]
+  fp['tv'] = self.noahmp.tv[:]
+  fp['tg'] = self.noahmp.tg[:]
+  fp['qsfc1d'] = self.noahmp.qsfc1d[:]
+  fp['qsnow'] = self.noahmp.qsnow[:]
+  fp['isnow'] = self.noahmp.isnow[:]
+  fp['zsnso'] = self.noahmp.zsnso[:]
+  fp['sndpth'] = self.noahmp.sndpth[:]
+  fp['swe'] = self.noahmp.swe[:]
+  fp['snice'] = self.noahmp.snice[:]
+  fp['snliq'] = self.noahmp.snliq[:]
+  fp['zwt'] = self.noahmp.zwt[:]
+  fp['wa'] = self.noahmp.wa[:]
+  fp['wt'] = self.noahmp.wt[:]
+  fp['wslake'] = self.noahmp.wslake[:]
+  fp['lfmass'] = self.noahmp.lfmass[:]
+  fp['rtmass'] = self.noahmp.rtmass[:]
+  fp['stmass'] = self.noahmp.stmass[:]
+  fp['wood'] = self.noahmp.wood[:]
+  fp['stblcp'] = self.noahmp.stblcp[:]
+  fp['fastcp'] = self.noahmp.fastcp[:]
+  fp['plai'] = self.noahmp.plai[:]
+  fp['psai'] = self.noahmp.psai[:]
+  fp['cm'] = self.noahmp.cm[:]
+  fp['ch'] = self.noahmp.ch[:]
+  fp['tauss'] = self.noahmp.tauss[:]
+  fp['smcwtd'] = self.noahmp.smcwtd[:]
+  fp['deeprech'] = self.noahmp.deeprech[:]
+  fp['rech'] = self.noahmp.rech[:]
+  fp.close()
+   
   #Close the LSM
   self.noahmp.finalize()
   del self.noahmp

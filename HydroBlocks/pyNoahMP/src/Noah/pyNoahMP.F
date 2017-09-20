@@ -823,45 +823,9 @@ contains
   implicit none
   integer :: i,ncores,omp_get_thread_num
   real*8 :: ostart,oend,ostart1,oend1,omp_get_wtime,tmp
-  !real :: stc0(-nsnow+1:nsoil),sh2o0(1:nsoil),smc0(1:nsoil),sldpth0(1:nsoil),zsoil0(1:nsoil)
-  !real :: ficeold0(-nsnow+1:0),zsnso0(-nsnow+1:nsoil),snice0(-nsnow+1:0),snliq0(-nsnow+1:0),smceq0(1:nsoil)
-  !real :: fveg0,fvgmax0,t_ml0,p_ml0,psfc0,u_ml0,v_ml0
-  !real :: q_ml0,swdn0,lwdn0,prcp0,tbot0,co2pp0
-  !real :: ZWT0     , WA0      , WT0      , WSLAKE0  , LFMASS0  , RTMASS0
-  !real :: STMASS0  , WOOD0    , STBLCP0  , FASTCP0  , PLAI0    , PSAI0
-  !real :: CM0      , CH0      , TAUSS0               
-  !real :: SMCWTD0  ,DEEPRECH0 , RECH0                               
-  !real :: FSA0     , FSR0     , FIRA0    , FSH0     , SSOIL0   , FCEV0  
-  !real :: FGEV0    , FCTR0    , ECAN0    , ETRAN0   , ESOIL0   , TRAD0  
-  !real :: TGB0     , TGV0     , T2MV0    , T2MB0    , Q2MV0    , Q2MB0 
-  !real :: RUNSF0   , RUNSB0   , APAR0    , PSN0    , SAV0     , SAG0   
-  !real :: FSNO0    , NEE0     , GPP0     , NPP0     , FVEGMP0  , SALB0  
-  !real :: QSNBOT0  , PONDING0 , PONDING10, PONDING20, RSSUN0   , RSSHA0  
-  !real :: BGAP0    , WGAP0    , CHV0     , CHB0     , EMISSI0 
-  !real :: SHG0     , SHC0     , SHB0     , EVG0     , EVB0     , GHV0  
-  !real :: GHB0     , IRG0     , IRC0     , IRB0     , TR0      , EVC0    
-  !real :: CHLEAF0  , CHUC0    , CHV20    , CHB20    , FPICE0
-  !real :: LAT0     , COSZ0
-  !integer :: VEGTYP0  , ISURBAN0 , ICE0 , IST0, ISC0, SOILTYP0, SLOPETYP0
-  !real :: O2PP0    , FOLN0    , Z_ML0, ALBOLD0  , SNEQVO0
-  !real :: TAH0     , EAH0     , FWET0
-  !real :: CANLIQ0  , CANICE0  , TV0      , TG0      , QSFC1D0  , QSNOW0 
-  !real :: ISNOW0   , SNDPTH0  , SWE0
-  !real :: LON0,DZWT0
-
-    !real :: lat,yearlen,julian,cosz
-  !integer :: nsoil
-  !if (itime .eq. 0) call OMP_SET_NUM_THREADS(ncores)
   call OMP_SET_NUM_THREADS(ncores)
-  !ostart = omp_get_wtime()
   !$OMP PARALLEL
   !$OMP DO
-  !!$OMP DO PRIVATE(BEXP,SMCDRY,F1,SMCMAX,SMCREF,PSISAT,DKSAT,&
-  !!$OMP DWSAT,SMCWLT,QUARTZ,SLOPE,CSOIL,ZBOT,CZIL,KDT,FRZX,NROOT,RGL,RSMIN,HS,&
-  !!$OMP RSMAX,TOPT)
-  !!$OMP ISWATER,ISBARREN,ISSNOW,EBLFOREST,CH2OP,DLEAF,Z0MVT,HVT,HVB,DEN,RC,SAIM,LAIM,SLA,DILEFC,DILEFW,FRAGR,LTOVRC,C3PSN,&
-  !!$OMP KC25,AKC,KO25,AKO,VCMX25,AVCMX,BP,MP,QE25,AQE,RMF25,RMS25,RMR25,ARM,FOLNMX,TMIN,XL,RHOL,RHOS,TAUL,TAUS,RMP,CWPVT,WRRAT,&
-  !!$OMP WDPPOL,TDLEF,IK,IM,TMP10,TMP11,TMP12,TMP13,TMP14,TMP15,TMP16,slarea,eps)
 
   do i = 1,ncells
 
@@ -898,8 +862,6 @@ contains
   enddo
   !$OMP END DO
   !$OMP END PARALLEL
-  !oend = omp_get_wtime()
-  !print*,'Run all hsus',oend - ostart,ncores
 
  end subroutine
 
@@ -965,6 +927,7 @@ subroutine run_model_cell(&
     REAL                                :: P_ML         ! pressure, valid at interface [Pa]
     REAL                                :: PSFC         ! surface pressure [Pa]
     REAL                                :: PRCP         ! precipitation entering land model [mm]
+    REAL,   DIMENSION( 1:NSOIL)         :: HDIV         ! 
 
 ! INOUT (with generic LSM equivalent)
 
@@ -972,7 +935,6 @@ subroutine run_model_cell(&
     REAL                                :: SSOIL        ! soil heat heat (w/m2) 
     REAL                                :: SALB         ! surface albedo (-)
     REAL                                :: FSNO         ! snow cover fraction (-)
-    REAL,   DIMENSION( 1:NSOIL)         :: HDIV         ! 
     REAL,   DIMENSION( 1:NSOIL)         :: SMCEQ        ! eq vol. soil moisture (m3/m3)
     REAL,   DIMENSION( 1:NSOIL)         :: SMC          ! vol. soil moisture (m3/m3)
     REAL,   DIMENSION( 1:NSOIL)         :: SMH2O        ! vol. soil liquid water (m3/m3)
@@ -1319,50 +1281,6 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
 !
-!  IF ( wrf_dm_on_monitor() ) THEN
-!     OPEN(19, FILE=SOILPARM_FILE,FORM='FORMATTED',STATUS='OLD',IOSTAT=ierr)
-!     IF(ierr .NE. OPEN_OK ) THEN
-!        WRITE(message,FMT='(A)') &
-!             'module_sf_noahlsm.F: soil_veg_gen_parm: failure opening SOILPARM.TBL'
-!        CALL wrf_error_fatal ( message )
-!     END IF
-
-!     WRITE(mess,*) 'INPUT SOIL TEXTURE CLASSIFICAION = ', TRIM ( MMINSL )
-     !CALL wrf_message( mess )
-
-!     LUMATCH=0
-
-!     READ (19,*)
-!     READ (19,2000,END=2003)SLTYPE
-!2000 FORMAT (A4)
-!     READ (19,*)SLCATS,IINDEX
-!     IF(SLTYPE.EQ.MMINSL)THEN
-!        WRITE( mess , * ) 'SOIL TEXTURE CLASSIFICATION = ', TRIM ( SLTYPE ) , ' FOUND', &
-!             SLCATS,' CATEGORIES'
-!        !CALL wrf_message ( mess )
-!        LUMATCH=1
-!     ENDIF
-! prevent possible array overwrite, Bill Bovermann, IBM, May 6, 2008
-!     print*,size(bb),slcats
-!     IF ( SIZE(BB    ) < SLCATS .OR. &
-!          SIZE(DRYSMC) < SLCATS .OR. &
-!          SIZE(F11   ) < SLCATS .OR. &
-!          SIZE(MAXSMC) < SLCATS .OR. &
-!          SIZE(REFSMC) < SLCATS .OR. &
-!          SIZE(SATPSI) < SLCATS .OR. &
-!          SIZE(SATDK ) < SLCATS .OR. &
-!          SIZE(SATDW ) < SLCATS .OR. &
-!          SIZE(WLTSMC) < SLCATS .OR. &
-!          SIZE(QTZ   ) < SLCATS  ) THEN
-!        CALL wrf_error_fatal('Table sizes too small for value of SLCATS in module_sf_noahdrv.F')
-!     ENDIF
-!     IF(SLTYPE.EQ.MMINSL)THEN
-!        DO LC=1,SLCATS
-!           READ (19,*) IINDEX,BB(LC),DRYSMC(LC),F11(LC),MAXSMC(LC),&
-!                REFSMC(LC),SATPSI(LC),SATDK(LC), SATDW(LC),   &
-!                WLTSMC(LC), QTZ(LC)
-!        ENDDO
-!     ENDIF
      print*,'NoahMP: Defining the soil properties'
      slcats = nhru
      bb(1:nhru) = bb0(1:nhru)
@@ -1375,11 +1293,6 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
      satdw(1:nhru) = satdw0(1:nhru)
      wltsmc(1:nhru) = wltsmc0(1:nhru)
      qtz(1:nhru) = qtz0(1:nhru)
-
-!2003 CONTINUE
-
-!     CLOSE (19)
-!  ENDIF
 
   CALL wrf_dm_bcast_integer ( LUMATCH , 1 )
   CALL wrf_dm_bcast_string  ( SLTYPE  , 4 )
