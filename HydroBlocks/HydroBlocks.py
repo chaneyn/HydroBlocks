@@ -116,7 +116,7 @@ class HydroBlocks:
   #self.dx = info['dx']
   self.dt = info['dt']
   self.dtt = self.dt#info['dtt']
-  self.nsoil = info['nsoil']
+  self.nsoil = len(info['dz'])#['nsoil']
   self.ncores = info['ncores']
   self.idate = info['idate']
   self.fdate = info['fdate']
@@ -185,8 +185,8 @@ class HydroBlocks:
   #Set info
   self.noahmp.iz0tlnd = 0
   self.noahmp.z_ml[:] = 10.0#2.0 -- Noemi
-  tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0]) #Let's bring this out to the metadata
-  self.noahmp.sldpth[:] = tmp
+  #tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0]) #Let's bring this out to the metadata
+  self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
   self.noahmp.zsoil[:] = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
   self.noahmp.zsnso[:,3::] = self.noahmp.zsoil[:]
@@ -593,18 +593,17 @@ class HydroBlocks:
 
   tmp = {}
   #NoahMP
-  cs = np.cumsum(NOAH.sldpth[0,:])
-  mask = cs <= 0.1
-  pct = NOAH.sldpth[0,mask]/np.sum(NOAH.sldpth[0,mask])
-  tmp['smc1'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
+  tmp['smc'] = np.copy(NOAH.smc) #m3/m3
   tmp['g'] = np.copy(NOAH.ssoil) #W/m2
   tmp['sh'] = np.copy(NOAH.fsh) #W/m2
   tmp['lh'] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
   tmp['qbase'] = NOAH.dt*np.copy(NOAH.runsb) #mm
   tmp['qsurface'] = NOAH.dt*np.copy(NOAH.runsf) #mm
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
+  tmp['wtd'] = np.copy(NOAH.zwt)
+  tmp['totsmc'] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
  
-  #TOPMODEL
+  #Dynamic TOPMODEL
   if self.subsurface_module == 'dtopmodel':
    TOPMODEL = self.dtopmodel
    tmp['swd'] = np.copy(10**3*TOPMODEL.si) #mm
@@ -612,14 +611,12 @@ class HydroBlocks:
    tmp['qout_surface'] = np.copy(TOPMODEL.qout_surface) #m2/s
    tmp['sstorage'] = np.copy(TOPMODEL.storage_surface)
 
-  #New
-  tmp['wtd'] = np.copy(NOAH.zwt)
+  #General
   tmp['errwat'] = np.copy(HB.errwat)
-  tmp['totsmc'] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
 
   #Output the variables
   for var in self.metadata['output']['vars']:
-   grp.variables[var][itime,:] = tmp[var]
+   grp.variables[var][itime,:] = tmp[var][:]
 
   return
 
@@ -636,28 +633,25 @@ class HydroBlocks:
 
   #Define the metadata
   metadata = {
-             'g':{'description':'Ground heat flux','units':'W/m2'},
-             'sh':{'description':'Sensible heat flux','units':'W/m2'},
-             'lh':{'description':'Latent heat flux','units':'W/m2'},
+             'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',)},
+             'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',)},
+             'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',)},
              #'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
              #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
              #'et':{'description':'Evapotranspiration','units':'mm/s'},
-             'qbase':{'description':'Excess runoff','units':'mm/s'},
-             'qsurface':{'description':'Surface runoff','units':'mm/s'},
-             'prcp':{'description':'Precipitation','units':'mm/s'},
-             'smc1':{'description':'Soil water content','units':'m3/m3'},
-             #'smc2':{'description':'Soil water content','units':'m3/m3'},
-             #'smc3':{'description':'Soil water content','units':'m3/m3'},
-             #'smc4':{'description':'Soil water content','units':'m3/m3'},
-             'swd':{'description':'Soil water deficit','units':'mm'},
-             'sstorage':{'description':'Surface storage','units':'mm'},
+             'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',)},
+             'qsurface':{'description':'Surface runoff','units':'mm/s','dims':('time','hru',)},
+             'prcp':{'description':'Precipitation','units':'mm/s','dims':('time','hru',)},
+             'smc':{'description':'Soil water content','units':'m3/m3','dims':('time','hru','soil')},
+             'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',)},
+             'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',)},
              #'sndpth':{'description':'Snow depth','units':'mm'},
              #'swe':{'description':'Snow water equivalent','units':'mm'},
-             'qout_subsurface':{'description':'Subsurface flux','units':'m2/s'},
-             'qout_surface':{'description':'Surface flux','units':'m2/s'},
-             'wtd':{'description':'WTD','units':'m'},
-             'errwat':{'description':'errwat','units':'mm'},
-             'totsmc':{'description':'totsmc','units':'??'},
+             'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',)},
+             'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',)},
+             'wtd':{'description':'WTD','units':'m','dims':('time','hru',)},
+             'errwat':{'description':'errwat','units':'mm','dims':('time','hru',)},
+             'totsmc':{'description':'totsmc','units':'mm','dims':('time','hru',)},
              }
 
   #Create the dimensions
@@ -667,12 +661,13 @@ class HydroBlocks:
   nhru = len(fp_in.dimensions['hsu'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
+  fp_out.createDimension('soil',self.nsoil)
 
   #Create the output
   print 'Creating the data group'
   grp = fp_out.createGroup('data')
   for var in self.metadata['output']['vars']:
-   ncvar = grp.createVariable(var,'f4',('time','hru',))
+   ncvar = grp.createVariable(var,'f4',metadata[var]['dims'])
    ncvar.description = metadata[var]['description']
    ncvar.units = metadata[var]['units']
 
