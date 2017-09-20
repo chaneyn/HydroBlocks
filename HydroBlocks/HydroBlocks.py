@@ -59,7 +59,7 @@ class HydroBlocks:
   
  def restart(self,):
 
-  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d_%H:%M'))
+  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d'))
   if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
     print "Cold startup"
