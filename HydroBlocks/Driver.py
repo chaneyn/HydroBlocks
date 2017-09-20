@@ -38,19 +38,3 @@ while sidate < fdate:
  HB.finalize()
  #Update initial time step
  sidate = sfdate
-exit()
-'''info['idate'] = datetime.datetime(metadata['startdate']['year'],
-                           metadata['startdate']['month'],
-                           metadata['startdate']['day'],0)
-info['fdate'] = datetime.datetime(metadata['enddate']['year'],
-                           metadata['enddate']['month'],
-                           metadata['enddate']['day'],0) + datetime.timedelta(days=1)'''
-
-#Initialize
-HB = HydroBlocks.initialize(info)
-
-#Run the model
-HB.run(info)
-
-#Finalize
-HB.finalize()
