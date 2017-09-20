@@ -331,7 +331,8 @@ class HydroBlocks:
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
   af = 10.0 #anisotropy factor
-  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
+  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
+  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
   self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
   self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
