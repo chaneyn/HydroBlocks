@@ -124,11 +124,12 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  lon = (wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2 
  if lon < 0:lon += 360
  grp.longitude = lon
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
+ grp.dx = metadata['resx']
  #grp.longitude = (360.0+(wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2)
 
  #Write the HRU mapping
  #CONUS conus_albers metadata
- metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
  metadata['nodata'] = -9999.0
  #Save the conus_albers metadata
  grp = fp.createGroup('conus_albers_mapping')
@@ -556,9 +557,10 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nhru):
 
  return (flow_matrix.T,outlet)
 
-def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru):
+def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,dx):
 
- res = 30.0 #HACK
+ #Define spatial resolution
+ res = dx
  
  horg = []
  hdst = []
@@ -686,6 +688,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  file_netcdf = hydrobloks_info['input_file']
  hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
+ #Retrieve some metadata
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
+ resx = metadata['resx']
+
  #Create the dimensions (netcdf)
  idate = hydrobloks_info['idate']
  fdate = hydrobloks_info['fdate']
@@ -703,7 +709,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  (flow_matrix,outlet) = Calculate_Flow_Matrix(covariates,cluster_ids,nhru)
 
  #Prepare the hru connections matrix (darcy clusters)
- cmatrix = Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru)
+ cmatrix = Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,resx)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])

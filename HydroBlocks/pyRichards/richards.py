@@ -4,11 +4,6 @@ class richards:
 
  def __init__(self,nhru,nsoil):
 
-  #self.fm = np.array([[0,1,0],[1,0,1],[0,1,0]])
-  #self.fm = np.array([[0.9,0.1,0.0],[0.1,0.8,0.1],[0,0.1,0.9]])
-  #0,1,0 0,1,0
-  #0,0,1 1,0,1
-  #0,0,0 0,1,0
   self.theta = np.zeros((nhru,nsoil))
   self.thetar = np.zeros(nhru)
   self.thetas = np.zeros(nhru)
@@ -54,6 +49,9 @@ class richards:
 
  def update(self,):
 
+  #Note:This needs to be updated for a sparse matrix configuration
+  #Note:The current setup will be very slow with dense matrices above nhru ~ 100
+
   #Iterate per layer
   for il in xrange(self.theta.shape[1]):
    #Calculate soil moisture potential
@@ -64,8 +62,7 @@ class richards:
    h = self.calculate_hydraulic_head(psi)
    #Calculate the divergence
    dh = h[:,np.newaxis] - h[np.newaxis,:]
-   dx = 30 #meters
-   #w = self.area*self.fm/dx
+   dx = self.dx #meters (distance between two adjacent grid cells)
    w = np.array(self.width.todense())
    area = self.area
    dz = self.dz[:,il] #meters

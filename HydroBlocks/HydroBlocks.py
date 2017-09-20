@@ -5,8 +5,8 @@ import h5py
 import datetime
 import time
 import sys
-sys.path.append('Model/pyNoahMP')
-sys.path.append('Model/pyDTopmodel')
+#sys.path.append('Model/pyNoahMP')
+#sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 import pickle
 
@@ -113,7 +113,7 @@ class HydroBlocks:
  def general_information(self,info):
 
   #Define the metadata
-  self.dx = info['dx']
+  #self.dx = info['dx']
   self.dt = info['dt']
   self.dtt = self.dt#info['dtt']
   self.nsoil = info['nsoil']
@@ -124,6 +124,7 @@ class HydroBlocks:
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
   #self.output_fp = nc.Dataset(info['output_file'],'w',format='NETCDF4')
+  self.dx = self.input_fp.groups['metadata'].dx
   self.nhru = len(self.input_fp.dimensions['hsu'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
@@ -294,6 +295,7 @@ class HydroBlocks:
   self.richards = richards.richards(self.nhru,self.nsoil)
 
   #Set other parameters
+  self.richards.dx = self.dx
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
@@ -627,7 +629,7 @@ class HydroBlocks:
   os.system('mkdir -p %s' % self.metadata['output']['dir'])
 
   #Extract the pointers to both input and output files
-  ofile = '%s/%s.nc' % (self.metadata['output']['dir'],self.fdate.strftime('%Y-%m-%d_%H:%M'))
+  ofile = '%s/%s.nc' % (self.metadata['output']['dir'],self.idate.strftime('%Y-%m-%d'))
   self.output_fp = nc.Dataset(ofile,'w',format='NETCDF4')
   fp_out = self.output_fp
   fp_in = self.input_fp
@@ -660,7 +662,8 @@ class HydroBlocks:
 
   #Create the dimensions
   print 'Creating the dimensions'
-  ntime = len(fp_in.dimensions['time'])
+  #ntime = len(fp_in.dimensions['time'])
+  ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
   nhru = len(fp_in.dimensions['hsu'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
@@ -709,7 +712,7 @@ class HydroBlocks:
   os.system('mkdir -p %s' % self.metadata['restart']['dir'])
 
   #Save the restart file
-  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.fdate.strftime('%Y-%m-%d_%H:%M'))
+  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.fdate.strftime('%Y-%m-%d'))
   fp = h5py.File(file_restart,'w')
   fp['smceq'] = self.noahmp.smceq[:]
   fp['albold'] = self.noahmp.albold[:]
