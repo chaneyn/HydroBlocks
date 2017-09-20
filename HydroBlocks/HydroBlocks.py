@@ -35,9 +35,6 @@ class HydroBlocks:
   print "Initializing Human Water Management"
   self.initialize_hwu()
 
-  #Restart from initial conditions?
-  self.restart()
-
   #Other metrics
   self.dE = 0.0
   self.r = 0.0
@@ -53,18 +50,23 @@ class HydroBlocks:
   self.dzwt0 = np.zeros(self.nhru,dtype=np.float32)
   self.beg_wb = np.zeros(self.nhru,dtype=np.float32)
   self.end_wb = np.zeros(self.nhru,dtype=np.float32)
+  self.itime = 0
+
+  #Restart from initial conditions?
+  self.restart()
 
   return
   
  def restart(self,):
 
-  if (os.path.exists(self.metadata['restart']['input']) == False 
+  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d_%H:%M'))
+  if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
     print "Cold startup"
     return
 
   #Read in the restart information
-  fp = h5py.File(self.metadata['restart']['input'],'r')
+  fp = h5py.File(file_restart,'r')
   self.noahmp.smceq[:] = fp['smceq'][:]
   self.noahmp.albold[:] = fp['albold'][:]
   self.noahmp.sneqvo[:] = fp['sneqvo'][:]
@@ -121,16 +123,24 @@ class HydroBlocks:
   self.mkl_flag = info['mkl_flag']
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
-  self.output_fp = nc.Dataset(info['output_file'],'w',format='NETCDF4')
+  #self.output_fp = nc.Dataset(info['output_file'],'w',format='NETCDF4')
   self.nhru = len(self.input_fp.dimensions['hsu'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
   #self.subsurface_flow_flag = info['subsurface_flow_flag']
   self.hwu_flag = info['hwu_flag']
-  self.create_mask_flag = info['create_mask_flag']
+  #self.create_mask_flag = info['create_mask_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
+
+  #Create a list of all the dates
+  dates = []
+  date = self.idate
+  while date < self.fdate:
+   dates.append(date)
+   date = date + self.dt_timedelta
+  self.dates = np.array(dates)
 
   return
 
@@ -363,25 +373,17 @@ class HydroBlocks:
 
  def run(self,info):
 
-  info['input_fp'] = self.input_fp
-  info['output_fp'] = self.output_fp
+  #info['input_fp'] = self.input_fp
+  #info['output_fp'] = self.output_fp
 
   #Run the model
   date = self.idate
-  i = 0
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
-  while date <= self.fdate:
+  while date < self.fdate:
 
-   #Memorize time stamp
-   time0 = time.time()
-
-   if (date.hour == 0) and (date.day == 1):
-    testvar = 1
-    print date,time.time() - tic,'et:%f'%self.et,'prcp:%f'%self.prcp,'q:%f'%self.q,'WB ERR:%f' % self.errwat,'ENG ERR:%f' % self.erreng
- 
    #Update input data
-   self.update_input(date,i)#self.noahmp,self.dtopmodel,date,info,i)
+   self.update_input(date)
 
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
@@ -409,27 +411,38 @@ class HydroBlocks:
    info['date'] = date
 
    #Update output
-   self.update_output(date,i)
+   self.update_output(date)
 
    #Update time step
    date = date + self.dt_timedelta
-   i = i + 1
+   self.itime = self.itime + 1
+
+   #Output some statistics
+   if (date.hour == 0) and (date.day == 1):
+    print date,time.time() - tic,'et:%f'%self.et,'prcp:%f'%self.prcp,'q:%f'%self.q,'WB ERR:%f' % self.errwat,'ENG ERR:%f' % self.erreng
 
   return
 
- def update_input(self,date,i):
+ def update_input(self,date):
 
-  i = i + 2928
-  print i
-  self.noahmp.itime = i
+  self.noahmp.itime = self.itime
   dt = self.dt
-  if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = i
+  if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = self.itime
   self.noahmp.nowdate[:] = date.strftime('%Y-%m-%d_%H:%M:%S')
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
   #Update meteorology
   meteorology = self.input_fp.groups['meteorology']
+  if date == self.idate:
+   #determine the first time step for the meteorology
+   var = meteorology.variables['time']
+   ndates = var[:]
+   #convert current date to num
+   ndate = nc.date2num(date,units=var.units,calendar=var.calendar)
+   #identify the position
+   self.minitial_itime = np.where(ndates == ndate)[0][0]
+  i = self.itime + self.minitial_itime
   self.noahmp.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
   self.noahmp.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
   self.noahmp.psfc[:] = meteorology.variables['psurf'][i,:] #Pa
@@ -558,53 +571,64 @@ class HydroBlocks:
 
   return
 
- def update_output(self,date,itime):
+ def update_output(self,date):
 
   NOAH = self.noahmp
   HWU = self.hwu
   HB = self
+  itime = self.itime
 
   #Create the netcdf file
-  if itime == 0: self.create_netcdf_file()
+  if date == self.idate: self.create_netcdf_file()
 
   #General info
   grp = self.output_fp.groups['metadata']
   dates = grp.variables['date']
   dates[itime] = nc.date2num(date,units=dates.units,calendar=dates.calendar)
 
-  #Update the variables (macroscale)
-  grp = self.output_fp.groups['macroscale']
+  #Update the variables
+  grp = self.output_fp.groups['data']
 
+  tmp = {}
   #NoahMP
   cs = np.cumsum(NOAH.sldpth[0,:])
   mask = cs <= 0.1
   pct = NOAH.sldpth[0,mask]/np.sum(NOAH.sldpth[0,mask])
-  grp.variables['smc1'][itime,:] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
-  grp.variables['g'][itime,:] = np.copy(NOAH.ssoil) #W/m2
-  grp.variables['sh'][itime,:] = np.copy(NOAH.fsh) #W/m2
-  grp.variables['lh'][itime,:] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
-  grp.variables['qbase'][itime,:] = NOAH.dt*np.copy(NOAH.runsb) #mm
-  grp.variables['qsurface'][itime,:] = NOAH.dt*np.copy(NOAH.runsf) #mm
-  grp.variables['prcp'][itime,:] = NOAH.dt*np.copy(NOAH.prcp) #mm
+  tmp['smc1'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
+  tmp['g'] = np.copy(NOAH.ssoil) #W/m2
+  tmp['sh'] = np.copy(NOAH.fsh) #W/m2
+  tmp['lh'] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
+  tmp['qbase'] = NOAH.dt*np.copy(NOAH.runsb) #mm
+  tmp['qsurface'] = NOAH.dt*np.copy(NOAH.runsf) #mm
+  tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
  
   #TOPMODEL
   if self.subsurface_module == 'dtopmodel':
    TOPMODEL = self.dtopmodel
-   grp.variables['swd'][itime,:] = np.copy(10**3*TOPMODEL.si) #mm
-   grp.variables['qout_subsurface'][itime,:] = np.copy(TOPMODEL.qout) #m2/s
-   grp.variables['qout_surface'][itime,:] = np.copy(TOPMODEL.qout_surface) #m2/s
-   grp.variables['sstorage'][itime,:] = np.copy(TOPMODEL.storage_surface)
+   tmp['swd'] = np.copy(10**3*TOPMODEL.si) #mm
+   tmp['qout_subsurface'] = np.copy(TOPMODEL.qout) #m2/s
+   tmp['qout_surface'] = np.copy(TOPMODEL.qout_surface) #m2/s
+   tmp['sstorage'] = np.copy(TOPMODEL.storage_surface)
 
   #New
-  grp.variables['wtd'][itime,:] = np.copy(NOAH.zwt)
-  grp.variables['errwat'][itime,:] = np.copy(HB.errwat)
-  grp.variables['totsmc'][itime,:] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
+  tmp['wtd'] = np.copy(NOAH.zwt)
+  tmp['errwat'] = np.copy(HB.errwat)
+  tmp['totsmc'] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
+
+  #Output the variables
+  for var in self.metadata['output']['vars']:
+   grp.variables[var][itime,:] = tmp[var]
 
   return
 
  def create_netcdf_file(self,):
 
+  #Create the output directory if necessary
+  os.system('mkdir -p %s' % self.metadata['output']['dir'])
+
   #Extract the pointers to both input and output files
+  ofile = '%s/%s.nc' % (self.metadata['output']['dir'],self.fdate.strftime('%Y-%m-%d_%H:%M'))
+  self.output_fp = nc.Dataset(ofile,'w',format='NETCDF4')
   fp_out = self.output_fp
   fp_in = self.input_fp
 
@@ -642,9 +666,9 @@ class HydroBlocks:
   fp_out.createDimension('time',ntime)
 
   #Create the output
-  print 'Creating the macroscale group'
-  grp = fp_out.createGroup('macroscale')
-  for var in metadata:
+  print 'Creating the data group'
+  grp = fp_out.createGroup('data')
+  for var in self.metadata['output']['vars']:
    ncvar = grp.createVariable(var,'f4',('time','hru',))
    ncvar.description = metadata[var]['description']
    ncvar.units = metadata[var]['units']
@@ -664,6 +688,7 @@ class HydroBlocks:
   pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
   pcts.description = 'hru percentage coverage'
   pcts.units = '%'
+
   #HRU area
   print 'Setting the HRU areal coverage'
   area = grp.createVariable('area','f4',('hru',))
@@ -676,25 +701,16 @@ class HydroBlocks:
   hru[:] = np.array(hrus)
   hru.description = 'hru ids'
 
-  #Create the mapping
-  if self.create_mask_flag == True:
-   grp = fp_out.createGroup('latlon_mapping')
-   grp.createDimension('nlon',len(fp_in.groups['latlon_mapping'].dimensions['nlon']))
-   grp.createDimension('nlat',len(fp_in.groups['latlon_mapping'].dimensions['nlat']))
-   hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
-   hmll.gt = fp_in.groups['latlon_mapping'].variables['hmll'].gt
-   hmll.projection = fp_in.groups['latlon_mapping'].variables['hmll'].projection
-   hmll.description = 'HSU mapping (regular lat/lon)'
-   hmll.nodata = fp_in.groups['latlon_mapping'].variables['hmll'].nodata
-   #Save the lat/lon mapping
-   hmll[:] = fp_in.groups['latlon_mapping'].variables['hmll'][:]
-
   return
 
  def finalize(self,):
 
+  #Create the restart directory if necessary
+  os.system('mkdir -p %s' % self.metadata['restart']['dir'])
+
   #Save the restart file
-  fp = h5py.File(self.metadata['restart']['output'],'w')
+  file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.fdate.strftime('%Y-%m-%d_%H:%M'))
+  fp = h5py.File(file_restart,'w')
   fp['smceq'] = self.noahmp.smceq[:]
   fp['albold'] = self.noahmp.albold[:]
   fp['sneqvo'] = self.noahmp.sneqvo[:]

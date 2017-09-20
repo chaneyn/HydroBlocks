@@ -1189,11 +1189,11 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
         READ (19,*)LUCATS,IINDEX
 
         IF(LUTYPE.EQ.MMINLU)THEN
-           WRITE( mess , * ) 'LANDUSE TYPE = ' // TRIM ( LUTYPE ) // ' FOUND', LUCATS,' CATEGORIES'
-           CALL wrf_message( mess )
+           !WRITE( mess , * ) 'LANDUSE TYPE = ' // TRIM ( LUTYPE ) // ' FOUND', LUCATS,' CATEGORIES'
+           !CALL wrf_message( mess )
            LUMATCH=1
         ELSE
-           call wrf_message ( "Skipping over LUTYPE = " // TRIM ( LUTYPE ) )
+           !call wrf_message ( "Skipping over LUTYPE = " // TRIM ( LUTYPE ) )
            DO LC = 1, LUCATS+12
               read(19,*)
            ENDDO
@@ -1281,7 +1281,7 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
 !
-     print*,'NoahMP: Defining the soil properties'
+     !print*,'NoahMP: Defining the soil properties'
      slcats = nhru
      bb(1:nhru) = bb0(1:nhru)
      drysmc(1:nhru) = drysmc0(1:nhru)

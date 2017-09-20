@@ -1,4 +1,5 @@
 import datetime
+from dateutil.relativedelta import relativedelta
 import HydroBlocks# as HB
 import sys
 import cPickle as pickle
@@ -6,7 +7,7 @@ import cPickle as pickle
 def Read_Metadata_File(file):
 
  import json
- metadata = json.load(open(file))
+ metadata = json.load(open(file))['HydroBlocks']
 
  return metadata
 
@@ -14,12 +15,36 @@ def Read_Metadata_File(file):
 metadata_file = sys.argv[1]
 metadata = Read_Metadata_File(metadata_file)
 info = metadata
-info['idate'] = datetime.datetime(metadata['startdate']['year'],
+
+#Define idate and fdate
+idate = datetime.datetime(metadata['startdate']['year'],metadata['startdate']['month'],metadata['startdate']['day'],0)
+fdate = datetime.datetime(metadata['enddate']['year'],metadata['enddate']['month'],metadata['enddate']['day'],0) + datetime.timedelta(days=1)
+
+#Run the segments for the model
+sidate = idate
+sfdate = idate
+while sidate < fdate:
+ sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
+ if sfdate > fdate:sfdate = fdate
+ #Set the parameters
+ info['idate'] = sidate
+ info['fdate'] = sfdate
+ #Run the model
+ #Initialize
+ HB = HydroBlocks.initialize(info)
+ #Run the model
+ HB.run(info)
+ #Finalize
+ HB.finalize()
+ #Update initial time step
+ sidate = sfdate
+exit()
+'''info['idate'] = datetime.datetime(metadata['startdate']['year'],
                            metadata['startdate']['month'],
                            metadata['startdate']['day'],0)
 info['fdate'] = datetime.datetime(metadata['enddate']['year'],
                            metadata['enddate']['month'],
-                           metadata['enddate']['day'],23)
+                           metadata['enddate']['day'],0) + datetime.timedelta(days=1)'''
 
 #Initialize
 HB = HydroBlocks.initialize(info)
