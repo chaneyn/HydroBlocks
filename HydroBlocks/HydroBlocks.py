@@ -324,8 +324,9 @@ class HydroBlocks:
   self.dtopmodel.dt = self.dt #seconds
   self.dtopmodel.area[:] = 0.0 #meters^2
   self.dtopmodel.dx[:] = self.dx #meters
-  self.dtopmodel.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
-  self.dtopmodel.sdmax[:] = self.input_fp.groups['parameters'].variables['sdmax'][:]
+  #print self.input_fp.groups['parameters'].variables['m'][:]
+  self.dtopmodel.m[:] = 1.0#self.input_fp.groups['parameters'].variables['m'][:]
+  self.dtopmodel.sdmax[:] = 100.0#self.input_fp.groups['parameters'].variables['sdmax'][:]
   #Set cluster information
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
@@ -499,12 +500,26 @@ class HydroBlocks:
    self.dtopmodel.update(self.ncores)
 
    #Calculate the change in deficit
-   self.dtopmodel.sideep[:] = self.dtopmodel.sideep.astype(np.float32)
-   self.dtopmodel.si[:] = self.dtopmodel.si.astype(np.float32)
-   dsi = np.copy(si1 - self.dtopmodel.si)
+   #self.dtopmodel.sideep[:] = self.dtopmodel.sideep.astype(np.float32)
+   #self.dtopmodel.si[:] = self.dtopmodel.si.astype(np.float32)
+   #dsi = np.copy(si1 - self.dtopmodel.si)
 
    #Update the soil moisture values
-   self.noahmp.dzwt[:] = dsi+self.dtopmodel.dt*self.dtopmodel.ex-self.dtopmodel.dt*self.dtopmodel.r
+   #print self.dtopmodel.dt*self.dtopmodel.r
+   #self.noahmp.dzwt[:] = dsi+self.dtopmodel.dt*self.dtopmodel.ex-self.dtopmodel.dt*self.dtopmodel.r
+   #self.noahmp.dzwt[:] = 0
+   self.noahmp.hdiv[:] = 0
+   ls = []
+   for ihru in xrange(self.nhru):
+    cs = np.cumsum(self.noahmp.sldpth[ihru,:])
+    m = cs>np.abs(self.noahmp.zwt[ihru])
+    if np.sum(m) > 0:
+     idx = np.where(m)[0][0]
+     #weight the extraction
+     fs = self.noahmp.sldpth[ihru,idx:]/np.sum(self.noahmp.sldpth[ihru,idx:])
+     self.noahmp.hdiv[ihru,idx:] = 1000*fs*(self.dtopmodel.qout[ihru]-self.dtopmodel.qin[ihru])
+    else:
+     self.noahmp.hdiv[ihru,:] = 0.0
 
   elif self.subsurface_module == 'richards':
 
@@ -547,8 +562,10 @@ class HydroBlocks:
   HWU = self.hwu
   dt = self.dt
   if self.subsurface_module == 'dtopmodel':
+   #tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
+   #      NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
-         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
+         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb-np.sum(NOAH.hdiv,axis=1)))
   elif self.subsurface_module == 'richards':
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb-np.sum(NOAH.hdiv,axis=1)))
