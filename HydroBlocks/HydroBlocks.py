@@ -5,8 +5,6 @@ import h5py
 import datetime
 import time
 import sys
-#sys.path.append('Model/pyNoahMP')
-#sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 import pickle
 
@@ -113,7 +111,6 @@ class HydroBlocks:
  def general_information(self,info):
 
   #Define the metadata
-  #self.dx = info['dx']
   self.dt = info['dt']
   self.dtt = self.dt#info['dtt']
   self.nsoil = len(info['dz'])#['nsoil']
@@ -123,14 +120,11 @@ class HydroBlocks:
   self.mkl_flag = info['mkl_flag']
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
-  #self.output_fp = nc.Dataset(info['output_file'],'w',format='NETCDF4')
   self.dx = self.input_fp.groups['metadata'].dx
   self.nhru = len(self.input_fp.dimensions['hsu'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
-  #self.subsurface_flow_flag = info['subsurface_flow_flag']
   self.hwu_flag = info['hwu_flag']
-  #self.create_mask_flag = info['create_mask_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
@@ -377,9 +371,6 @@ class HydroBlocks:
 
  def run(self,info):
 
-  #info['input_fp'] = self.input_fp
-  #info['output_fp'] = self.output_fp
-
   #Run the model
   date = self.idate
   tic = time.time()
@@ -458,6 +449,10 @@ class HydroBlocks:
   self.noahmp.qsfc1d[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
   self.noahmp.prcp[:] = meteorology.variables['precip'][i,:] #mm/s
 
+  #Set the partial pressure of CO2 and O2
+  self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
+  self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
+
   return
 
  def update(self,):
@@ -466,10 +461,6 @@ class HydroBlocks:
   if self.hwu.hwu_flag == True:
    if self.hwu.itime > 0: self.hwu.irrigation(self.noahmp,self)
    self.hwu.itime = self.hwu.itime +1
-
-  #Set the partial pressure of CO2 and O2
-  self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
-  self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
   #Update subsurface
   self.update_subsurface()
