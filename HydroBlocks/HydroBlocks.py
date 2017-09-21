@@ -290,6 +290,7 @@ class HydroBlocks:
 
   #Set other parameters
   self.richards.dx = self.dx
+  self.richards.nhru = self.nhru
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
@@ -297,6 +298,8 @@ class HydroBlocks:
                                   self.input_fp.groups['wmatrix'].variables['indices'][:],
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
                                   dtype=np.float64)[0:self.nhru,0:self.nhru]
+  self.richards.I = self.richards.width.copy()
+  self.richards.I[self.richards.I != 0] = 1
 
   return
 
@@ -610,7 +613,8 @@ class HydroBlocks:
   tmp['qsurface'] = NOAH.dt*np.copy(NOAH.runsf) #mm
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
   tmp['wtd'] = np.copy(NOAH.zwt)
-  tmp['totsmc'] = smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
+  tmp['totsmc'] = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
+  tmp['hdiv'] = np.copy(NOAH.hdiv)
  
   #Dynamic TOPMODEL
   if self.subsurface_module == 'dtopmodel':
@@ -661,6 +665,7 @@ class HydroBlocks:
              'wtd':{'description':'WTD','units':'m','dims':('time','hru',)},
              'errwat':{'description':'errwat','units':'mm','dims':('time','hru',)},
              'totsmc':{'description':'totsmc','units':'mm','dims':('time','hru',)},
+             'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil')},
              }
 
   #Create the dimensions
