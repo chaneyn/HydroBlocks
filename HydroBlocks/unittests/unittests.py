@@ -59,6 +59,7 @@ class Richards(unittest.TestCase):
    nsoil = 1
    model = richards.richards(nhru,nsoil)
    #define parameters
+   model.nhru = nhru
    model.theta[:] = np.random.uniform(low=0.1,high=0.5,size=(nhru,nsoil))
    model.thetar[:] = 0.1
    model.thetas[:] = 0.5

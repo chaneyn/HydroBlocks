@@ -60,10 +60,10 @@ class richards:
   dh = h[:,np.newaxis] - h[np.newaxis,:]
   dx = self.dx #meters (distance between two adjacent grid cells)
   w = np.array(self.width.todense())
-  area = self.area
+  area = self.area 
   #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
   Khat = (2*K_x[:,np.newaxis]*K_x[np.newaxis,:])/(K_x[:,np.newaxis] + K_x[np.newaxis,:])
-  #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
+  #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
   return -1000.0*Khat*dh/dx*w*dz/area #mm/s
 
  def calculate_divergence_sparse(self,h,K_x,dz):
@@ -99,6 +99,7 @@ class richards:
    if type == 'dense':
     q = self.calculate_divergence_dense(h,K_x,self.dz[:,il])
     self.hdiv[:,il] = np.sum(q,axis=0) #mm/s
+    #print self.hdiv[:,il]
    elif type == 'sparse':
     q = self.calculate_divergence_sparse(h,K_x,self.dz[:,il])
     self.hdiv[:,il] = q.sum(axis=0) #mm/s

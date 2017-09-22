@@ -335,7 +335,7 @@ class HydroBlocks:
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
   self.dtopmodel.channel[:] = self.input_fp.groups['parameters'].variables['channel'][:]
   self.dtopmodel.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:] 
-  self.dtopmodel.mannings[:] = self.input_fp.groups['parameters'].variables['mannings'][:]
+  #self.dtopmodel.mannings[:] = self.input_fp.groups['parameters'].variables['mannings'][:]
   #Set outlet information
   self.dtopmodel.area_outlet[:] = self.dx**2*self.input_fp.groups['outlet'].groups['summary'].variables['counts'][:]
   self.dtopmodel.pct = self.dtopmodel.pct/np.sum(self.dtopmodel.pct)
