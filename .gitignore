@@ -5,5 +5,5 @@
 *.o
 *.tar.gz
 *.dSYM
-Model/pyNoahMP/src/Noah/*.f90
-pyNoahMP/src/Noah/*.f90
+HydroBlocks/pyNoahMP/src/Noah/*.f90
+HydroBlocks/pyNoahMP/src/Utility_routines/*.f90
