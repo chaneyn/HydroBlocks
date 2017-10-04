@@ -57,6 +57,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  icatch = hydrobloks_info['icatch']
 
  #Get metadata
+ print '%s/mask_latlon.tif' % workspace
  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
  
  #Prepare the input file
@@ -490,7 +491,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['carea'][hsu] = np.nanmean(covariates['carea'][idx])
   #Channel?
   #OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
-  #Land cover type  
+  #Land cover type 
   OUTPUT['hsu']['land_cover'][hsu] = stats.mode(covariates['lc'][idx])[0][0]
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
@@ -681,10 +682,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
   (cluster_ids,nhru) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info)
  elif hydrobloks_info['model_type'] == 'full':
   nhru = np.sum(mask == True)
-  hydrobloks_info['nhru'] = nhru
   (cluster_ids,) = Compute_HRUs_Fulldistributed(covariates,mask,nhru)
-
-  #Create the netcdf file
+ hydrobloks_info['nhru'] = nhru
+  
+ #Create the netcdf file
  file_netcdf = hydrobloks_info['input_file']
  hydrobloks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
