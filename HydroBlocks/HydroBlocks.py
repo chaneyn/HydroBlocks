@@ -291,7 +291,9 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
+  self.richards.m[:] = 1.0
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
   self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
@@ -327,9 +329,9 @@ class HydroBlocks:
   #Set cluster information
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-  af = 10.0 #anisotropy factor
-  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
-  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
+  af = 1.0 #anisotropy factor
+  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
+  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
   self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
   self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
