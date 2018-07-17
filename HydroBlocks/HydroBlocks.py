@@ -5,9 +5,6 @@ import h5py
 import datetime
 import time
 import sys
-#sys.path.append('Model/pyHWU')
-#sys.path.append('Model/pyNoahMP')
-#sys.path.append('Model/pyDTopmodel')
 import scipy.sparse as sparse
 import pickle
 
@@ -164,18 +161,18 @@ class HydroBlocks:
   self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
   self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
   #Define the options
-  self.noahmp.idveg = 1#3 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
-  self.noahmp.iopt_run = 5#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 1#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
-  self.noahmp.iopt_frz = 1#1 # supercooled liquid water (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_inf = 2#2 # frozen soil permeability (1-> NY06; 2->Koren99) # inf=1 led to num. instability
-  self.noahmp.iopt_rad = 1#2 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
-  self.noahmp.iopt_alb = 1# snow surface albedo (1->BATS; 2->CLASS)
-  self.noahmp.iopt_snf = 3# rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
-  self.noahmp.iopt_stc = 1#1 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
+  self.noahmp.iopt_run = 5#5#2#5##2#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_sfc = 2#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_frz = 2#1 # supercooled liquid water (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_inf = 2#1#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_rad = 2 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_alb = 1 # snow surface albedo (1->BATS; 2->CLASS)
+  self.noahmp.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+  self.noahmp.iopt_tbot = 1#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_stc = 1#1#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
 
   #Allocate memory
   self.noahmp.initialize_general()
@@ -378,15 +375,6 @@ class HydroBlocks:
   self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
 
   if self.hwu.hwu_flag == True:
-   # Calc topographic index
-   #self.hwu.beta = self.input_fp.groups['parameters'].variables['slope'][:] #Noemi
-   #m = self.input_fp.groups['parameters'].variables['m'][:] #Noemi
-   #pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
-   #af = 10.0 #anisotropy factor
-   #T0 = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*m
-   #self.hwu.sti = self.input_fp.groups['parameters'].variables['ti'][:] #Noemi
-   #self.hwu.sti = self.hwu.sti -(np.log(T0)-np.sum(pct*np.log(T0)))
-   #self.hwu.dem = self.input_fp.groups['parameters'].variables['dem'][:]
    self.hwu.initialize_allocation(self,)
 
   return
@@ -805,21 +793,6 @@ class HydroBlocks:
   for value in xrange(nhru):hrus.append(value)
   hru[:] = np.array(hrus)
   hru.description = 'hru ids'
-
-  '''
-  #Create the mapping
-  if self.create_mask_flag == True:
-   grp = fp_out.createGroup('latlon_mapping')
-   grp.createDimension('nlon',len(fp_in.groups['conus_albers_mapping'].dimensions['nx']))
-   grp.createDimension('nlat',len(fp_in.groups['conus_albers_mapping'].dimensions['ny']))
-   hmll = grp.createVariable('hmll','f4',('nlat','nlon'))
-   hmll.gt = fp_in.groups['conus_albers_mapping'].variables['hmca'].gt
-   hmll.projection = fp_in.groups['conus_albers_mapping'].variables['hmca'].projection
-   hmll.description = 'HSU mapping (regular lat/lon)'
-   hmll.nodata = fp_in.groups['conus_albers_mapping'].variables['hmca'].nodata
-   #Save the lat/lon mapping
-   hmll[:] = fp_in.groups['conus_albers_mapping'].variables['hmca'][:]
-  '''
 
   return
 

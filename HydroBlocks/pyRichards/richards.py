@@ -47,7 +47,6 @@ class richards:
  def calculate_hydraulic_conductivity(self,psi,il):
  
   af = 1.0 #safe
-  
   #sdz = np.cumsum(self.dz,axis=1)-self.dz/2.
   #df = np.exp(-self.m[:,np.newaxis]/sdz)[:,il]
   #Ksat_x = af*df*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -57,11 +56,9 @@ class richards:
   return K_x
 
  def calculate_transmissivity(self,psi,ztop,zbot):
-
   
   #af = 1.0  #safe
-  af = 2.0 
-  
+  af = 2.0
   m = np.copy(self.m)
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
   K_x = Ksat_x*(psi/self.satpsi)**(-2-3./self.b)

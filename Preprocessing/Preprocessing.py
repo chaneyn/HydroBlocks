@@ -390,7 +390,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
     tmp[tmp != -9999.0] = 0.5
     info[var]['data'] = tmp
 
- 
+
 
  import sklearn.cluster
  #Cluster the non channels regions
@@ -406,7 +406,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
 
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
   X.append(info[id]['data'])
-  
+
 
  time0 = time.time()
  X = np.array(X).T
@@ -428,7 +428,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
  clf = sklearn.cluster.MiniBatchKMeans(nhru,random_state=1,init=init,batch_size=batch_size,init_size=init_size)
  clf.fit(Xf)#
  clf_output = clf.predict(X)
- 
+
  #Reassign the ids
  clf_output_copy = np.copy(clf_output)
  for cid in xrange(len(np.unique(clf_output))):
@@ -437,8 +437,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
  cluster_ids[:] = -9999
  cluster_ids[mask_nc == True] = clf_output
  nhru_old = nhru
- #nhru = np.unique(clf_output).size
- nhru = np.unique(cluster_ids).size-1 #Noemi
+ nhru = np.unique(cluster_ids).size-1
 
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
  print 'clustering %d->%d' % (nhru_old,nhru),time.time() - time0
@@ -504,7 +503,7 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  #Soil texture class
  OUTPUT['hsu']['soil_texture_class'][:] = covariates['TEXTURE_CLASS'][mask]
  #Define the estimate for the model parameters
- OUTPUT['hsu']['m'][:] = covariates['dbedrock'][mask]#0.1 #Form of the exponential decline in conductivity (0.01-1.0)
+ OUTPUT['hsu']['m'][:] = covariates['dbedrock'][mask] #Form of the exponential decline in conductivity (0.01-1.0)
  OUTPUT['hsu']['pksat'][:] = 1.0 #saturated hydraulic conductivity scalar multiplier (0.1-1.0)
  OUTPUT['hsu']['psoil'][:] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
  OUTPUT['hsu']['sdmax'][:] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
@@ -514,7 +513,7 @@ def Assign_Parameters_Fulldistributed(covariates,metadata,hydrobloks_info,OUTPUT
  return OUTPUT
 
 def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask):
- 
+
  nhru = hydrobloks_info['nhru']
  #Initialize the arrays
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
@@ -531,7 +530,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  for var in vars:
    OUTPUT['hsu'][var] = np.zeros(nhru)
 
- 
+
  #Metadata
  for hsu in np.arange(nhru):
   #Set indices

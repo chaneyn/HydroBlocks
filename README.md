@@ -1,7 +1,7 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python 2.7 libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
+HydroBlocks is based on Python 2.7 and relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
 
 
 1. conda install gdal

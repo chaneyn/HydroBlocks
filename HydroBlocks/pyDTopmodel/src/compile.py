@@ -35,7 +35,6 @@ os.system(cmd)
 #Move to the previous directory
 os.system('mv dynamic_topmodel_tools.so ../.')
 
-
 #Remove the temporary file
 os.system('rm -f tmp.f90')
 os.system('rm -f *.mod')
