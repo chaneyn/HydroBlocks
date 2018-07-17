@@ -96,10 +96,10 @@ class Dynamic_Topmodel:
   isw = np.float64(0.5) #implicit scheme weight
   
   #Update the subsurface runoff
-  if self.subsurface_flow_flag == True:self.update_subsurface(ncores,maxntt,isw)
+  if self.subsurface_flow_flag == True: self.update_subsurface(ncores,maxntt,isw)
 
   #Update the surface runoff
-  if self.surface_flow_flag == True:self.update_surface(ncores,maxntt,isw)
+  if self.surface_flow_flag == True: self.update_surface(ncores,maxntt,isw)
 
   #Check catchment water balance
   #self.check_water_balance()
@@ -174,7 +174,7 @@ class Dynamic_Topmodel:
              self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,
              self.flow_matrix,
-             self.qin_outlet_surface,self.area_outlet,ncores,maxntt)
+             self.qin_outlet_surface,self.area_outlet,ncores,maxntt,isw)
   else:self.dtt.update(self.recharge_surface,self.storage_surface,self.qout_surface,self.qin_surface,
              self.recharge1_surface,self.storage1_surface,self.qout1_surface,self.qin1_surface,
              self.area,self.dx,self.dt,self.celerity_surface,self.celerity1_surface,

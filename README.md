@@ -1,19 +1,21 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
+HydroBlocks is based on Python 2.7 and relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
+
 
 1. conda install gdal
 2. conda install scikit-learn
 3. conda install netCDF4
-4. git clone https://github.com/chaneyn/HydroBlocks.git
-5. cd HydroBlocks
-6. python setup.py
-7. cd ..
-8. git clone https://github.com/chaneyn/geospatialtools.git
-9. cd geospatialtools
-10. python setup.py install
-11. cd ..
+4. conda install matplotlib
+5. git clone https://github.com/chaneyn/HydroBlocks.git
+6. cd HydroBlocks
+7. python setup.py
+8. cd ..
+9. git clone https://github.com/chaneyn/geospatialtools.git
+10. cd geospatialtools
+11. python setup.py install
+12. cd ..
 
 Note: If you have the intel mkl library on your machine, we recommend that you set the mkl_flag variable in setup.py to True.
 

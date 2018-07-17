@@ -31,7 +31,7 @@ class HydroBlocks:
 
   #Initialize human water use module
   print "Initializing Human Water Management"
-  self.initialize_hwu()
+  self.initialize_hwu(info)
 
   #Other metrics
   self.dE = 0.0
@@ -124,10 +124,11 @@ class HydroBlocks:
   self.nhru = len(self.input_fp.dimensions['hsu'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
-  self.hwu_flag = info['hwu_flag']
+  self.hwu_flag = info['water_management']['hwu_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
+  self.m =  self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
 
   #Create a list of all the dates
   dates = []
@@ -178,13 +179,12 @@ class HydroBlocks:
 
   #Set info
   self.noahmp.iz0tlnd = 0
-  self.noahmp.z_ml[:] = 10.0#2.0 -- Noemi
-  #tmp = np.array([0.1,0.3,0.6,1.0,2.0,2.0,2.0,2.0]) #Let's bring this out to the metadata
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
+  self.noahmp.z_ml[:] = np.sum(self.noahmp.sldpth) 
   self.noahmp.zsoil[:] = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
   self.noahmp.zsnso[:,3::] = self.noahmp.zsoil[:]
-
+  
   #Set all to land (can include lake in the future...)
   self.noahmp.ist[:] = 1
   #Set soil color
@@ -231,11 +231,13 @@ class HydroBlocks:
   #Define the data
   self.noahmp.vegtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
   self.noahmp.soiltyp[:] = np.arange(1,self.noahmp.ncells+1)
+  self.noahmp.clay_pct  = self.input_fp.groups['parameters'].variables['clay'][:] # Noemi
   self.noahmp.smcmax[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
   self.noahmp.smcref[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
   self.noahmp.smcdry[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
   for ilayer in xrange(self.noahmp.sh2o.shape[1]):
    self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
+   #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
   self.noahmp.smc[:] = self.noahmp.sh2o[:]
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
@@ -291,7 +293,9 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
+  self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:] #Noemi
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
   self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
@@ -300,7 +304,7 @@ class HydroBlocks:
                                   dtype=np.float64)[0:self.nhru,0:self.nhru]
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
-
+  
   return
 
  def initialize_dtopmodel(self,):
@@ -322,20 +326,21 @@ class HydroBlocks:
   self.dtopmodel.area[:] = 0.0 #meters^2
   self.dtopmodel.dx[:] = self.dx #meters
   #print self.input_fp.groups['parameters'].variables['m'][:]
-  self.dtopmodel.m[:] = 1.0#self.input_fp.groups['parameters'].variables['m'][:]
-  self.dtopmodel.sdmax[:] = 100.0#self.input_fp.groups['parameters'].variables['sdmax'][:]
+  self.dtopmodel.m[:] = self.input_fp.groups['parameters'].variables['m'][:] #Noemi
+  #self.dtopmodel.sdmax[:] = 100.0#self.input_fp.groups['parameters'].variables['sdmax'][:]
+  self.dtopmodel.sdmax[:] = self.input_fp.groups['parameters'].variables['sdmax'][:] #Noemi
   #Set cluster information
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-  af = 10.0 #anisotropy factor
-  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
-  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
+  af = 1.0 #anisotropy factor
+  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m #Noemi 
+  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
   self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
   self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
   self.dtopmodel.channel[:] = self.input_fp.groups['parameters'].variables['channel'][:]
   self.dtopmodel.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:] 
-  #self.dtopmodel.mannings[:] = self.input_fp.groups['parameters'].variables['mannings'][:]
+  self.dtopmodel.mannings[:] = self.input_fp.groups['parameters'].variables['mannings'][:]
   #Set outlet information
   self.dtopmodel.area_outlet[:] = self.dx**2*self.input_fp.groups['outlet'].groups['summary'].variables['counts'][:]
   self.dtopmodel.pct = self.dtopmodel.pct/np.sum(self.dtopmodel.pct)
@@ -356,19 +361,21 @@ class HydroBlocks:
   self.dtopmodel.flow_matrix_T.setdiag(self.dtopmodel.flow_matrix_T.diagonal()) #Ensure the zeros are not sparse  (for kinematic wave solution).
 
   #Initialize the solver
-  if self.mkl_flag:self.dtopmodel.dtt.initialize(self.dtopmodel.flow_matrix_T.indices,self.dtopmodel.flow_matrix_T.indptr)
+  if self.mkl_flag: self.dtopmodel.dtt.initialize(self.dtopmodel.flow_matrix_T.indices,self.dtopmodel.flow_matrix_T.indptr)
 
   #Initialize the soil moisture deficit values
   self.dtopmodel.si[:] = 0.0
  
   return
 
- def initialize_hwu(self,):
+ def initialize_hwu(self,info):
 
   from Human_Water_Use import Human_Water_Use as hwu
-  self.hwu = hwu(self.noahmp,self.nhru)
-  self.hwu.hwu_flag = self.hwu_flag
-  self.hwu.irrig = np.zeros(self.nhru,dtype=np.float32)
+  self.hwu = hwu(self,info)
+  self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
+
+  if self.hwu.hwu_flag == True:
+   self.hwu.initialize_allocation(self,)
 
   return
 
@@ -378,20 +385,22 @@ class HydroBlocks:
   date = self.idate
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
-  while date < self.fdate:
+
+  if self.subsurface_module == 'dtopmodel': self.dtopmodel.ex[:] = 0.0
+  while date <= self.fdate:
 
    #Update input data
    self.update_input(date)
 
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
- 
+
    #Calculate initial NOAH water balance
    self.initialize_water_balance()
 
    #Update model
-   self.update()
-
+   self.update(date)
+   
    #Return precip to original value
    self.noahmp.prcp[:] = precip[:] 
 
@@ -456,20 +465,41 @@ class HydroBlocks:
   self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
   self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
+  # Update water demands
+  if self.hwu.hwu_flag == True:
+   if (date.hour*3600)%self.hwu.dta == 0:
+    water_use = self.input_fp.groups['water_use']
+    if self.hwu.hwu_indust_flag == True:
+     self.hwu.demand_indust[:]  = water_use.variables['industrial'][i,:] #m/s
+     self.hwu.deficit_indust[:] = np.copy(self.hwu.demand_indust[:])
+    if self.hwu.hwu_domest_flag == True:
+     self.hwu.demand_domest[:]  = water_use.variables['domestic'][i,:] #m/s
+     self.hwu.deficit_domest[:] = np.copy(self.hwu.demand_domest[:])
+    if self.hwu.hwu_lstock_flag == True:
+     self.hwu.demand_lstock[:]  = water_use.variables['livestock'][i,:] #m/s
+     self.hwu.deficit_lstock[:] = np.copy(self.hwu.demand_lstock[:])
+
+
   return
 
- def update(self,):
+ def update(self,date):
 
-  #Abstract Water from Human Use 
-  if self.hwu.hwu_flag == True:
-   if self.hwu.itime > 0: self.hwu.irrigation(self.noahmp,self)
-   self.hwu.itime = self.hwu.itime +1
-
-  #Update subsurface
+  # Apply irrigation
+  self.hwu.Human_Water_Irrigation(self,date)
+  
+  # Update subsurface
   self.update_subsurface()
 
-  #Update NOAH
+  # Update NOAH
   self.noahmp.run_model(self.ncores)
+
+  # Calculate water demands and supplies, and allocate volumes
+  self.hwu.Calc_Human_Water_Demand_Supply(self,date)
+
+  # Abstract Surface Water and Groundwater
+  self.hwu.Water_Supply_Abstraction(self,date)
+
+
 
   return
 
@@ -599,7 +629,7 @@ class HydroBlocks:
   grp = self.output_fp.groups['metadata']
   dates = grp.variables['date']
   dates[itime] = nc.date2num(date,units=dates.units,calendar=dates.calendar)
-
+  
   #Update the variables
   grp = self.output_fp.groups['data']
 
@@ -611,10 +641,26 @@ class HydroBlocks:
   tmp['lh'] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
   tmp['qbase'] = NOAH.dt*np.copy(NOAH.runsb) #mm
   tmp['qsurface'] = NOAH.dt*np.copy(NOAH.runsf) #mm
+  tmp['runoff'] = NOAH.dt*(np.copy(NOAH.runsf)+np.copy(NOAH.runsb)) #mm 
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
-  tmp['wtd'] = np.copy(NOAH.zwt)
-  tmp['totsmc'] = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1)
+  tmp['trad'] = np.copy(NOAH.trad) #K
+  tmp['stc'] = np.copy(NOAH.stc[:,3]) #K
+  tmp['salb'] = np.copy(NOAH.salb) 
+  tmp['wtd'] = np.copy(NOAH.zwt) #m
+  #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
+
+  # root zone
+  cs = np.cumsum(NOAH.sldpth[0,:])
+  mask = cs <= 0.5
+  pct = NOAH.sldpth[0,mask]/np.sum(NOAH.sldpth[0,mask])
+  tmp['smc_root'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
+  # top soil layer
+  tmp['smc1'] = np.copy(NOAH.smc[:,0])
+  # total soil moisture / soil water storage -- only until depth to bedrock
+  dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
+  tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
+  
  
   #Dynamic TOPMODEL
   if self.subsurface_module == 'dtopmodel':
@@ -627,9 +673,27 @@ class HydroBlocks:
   #General
   tmp['errwat'] = np.copy(HB.errwat)
 
+  # Water Management
+  if self.hwu.hwu_agric_flag == True:
+   tmp['demand_agric'] = np.copy(HWU.demand_agric)*NOAH.dt       #m
+   tmp['deficit_agric'] = np.copy(HWU.deficit_agric)*NOAH.dt     #m
+   tmp['irrig_agric'] = np.copy(HWU.irrigation)*(NOAH.dt/1000.0)   #m
+
+  if self.hwu.hwu_flag == True:
+   if self.hwu.hwu_indust_flag == True:
+     tmp['demand_indust'] = np.copy(HWU.demand_indust)*NOAH.dt #m
+     tmp['deficit_indust'] = np.copy(HWU.deficit_indust)*NOAH.dt #m
+   if self.hwu.hwu_domest_flag == True:
+     tmp['demand_domest'] = np.copy(HWU.demand_domest)*NOAH.dt #m
+     tmp['deficit_domest'] = np.copy(HWU.deficit_domest)*NOAH.dt #m
+   if self.hwu.hwu_lstock_flag == True:
+     tmp['demand_lstock'] = np.copy(HWU.demand_lstock)*NOAH.dt #m
+     tmp['deficit_lstock'] = np.copy(HWU.deficit_lstock)*NOAH.dt #m
+
   #Output the variables
   for var in self.metadata['output']['vars']:
    grp.variables[var][itime,:] = tmp[var][:]
+
 
   return
 
@@ -646,32 +710,49 @@ class HydroBlocks:
 
   #Define the metadata
   metadata = {
-             'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',)},
-             'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',)},
-             'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',)},
-             #'lwnet':{'description':'Net longwave radiation','units':'W/m2'},
-             #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2'},
-             #'et':{'description':'Evapotranspiration','units':'mm/s'},
-             'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',)},
-             'qsurface':{'description':'Surface runoff','units':'mm/s','dims':('time','hru',)},
-             'prcp':{'description':'Precipitation','units':'mm/s','dims':('time','hru',)},
-             'smc':{'description':'Soil water content','units':'m3/m3','dims':('time','hru','soil')},
-             'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',)},
-             'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',)},
-             #'sndpth':{'description':'Snow depth','units':'mm'},
-             #'swe':{'description':'Snow water equivalent','units':'mm'},
-             'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',)},
-             'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',)},
-             'wtd':{'description':'WTD','units':'m','dims':('time','hru',)},
-             'errwat':{'description':'errwat','units':'mm','dims':('time','hru',)},
-             'totsmc':{'description':'totsmc','units':'mm','dims':('time','hru',)},
-             'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil')},
+             'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             #'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'trad':{'description':'Land surface skin temperature','units':'K','dims':('time','hru',),'precision':2},
+             'stc':{'description': 'Snow soil temperature','units':'K','dims':('time','hru',),'precision':2},
+             'salb':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
+
+             'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',),'precision':4},
+             'qsurface':{'description':'Surface runoff','units':'mm/s','dims':('time','hru',),'precision':4},
+             'runoff':{'description':'Total runoff','units':'mm/s','dims':('time','hru',),'precision':4},
+             'prcp':{'description':'Precipitation','units':'mm/s','dims':('time','hru',),'precision':4},
+             'smc':{'description':'Soil water content','units':'m3/m3','dims':('time','hru','soil'),'precision':3},
+             'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',),'precision':4},
+             'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',),'precision':4},
+             #'sndpth':{'description':'Snow depth','units':'mm','dims':('time','hru',)},
+             #'swe':{'description':'Snow water equivalent','units':'mm','dims':('time','hru',)},
+
+             'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',),'precision':4},
+             'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',),'precision':4},
+             'wtd':{'description':'WTD','units':'m','dims':('time','hru',),'precision':2},
+             'errwat':{'description':'errwat','units':'mm','dims':('time','hru',),'precision':4},
+             'totsmc':{'description':'totsmc','units':'m3/m3','dims':('time','hru',),'precision':2},
+             'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':4},
+
+             'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
+             'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
+             'demand_agric':{'description':'Irrigation demand','units':'m','dims':('time','hru',),'precision':4},
+             'deficit_agric':{'description':'Irrigation deficit','units':'m','dims':('time','hru',),'precision':4},
+             'demand_indust':{'description':'Industrial demand','units':'m','dims':('time','hru',)},'precision':4,
+             'deficit_indust':{'description':'Industrial deficit','units':'m','dims':('time','hru',),'precision':4},
+             'demand_domest':{'description':'Domestic demand','units':'m','dims':('time','hru',),'precision':4},
+             'deficit_domest':{'description':'Domestic deficit','units':'m','dims':('time','hru',),'precision':4},
+             'demand_lstock':{'description':'Livestock demand','units':'m','dims':('time','hru',),'precision':4},
+             'deficit_lstock':{'description':'Livestock deficit','units':'m','dims':('time','hru',),'precision':4},
+             'irrig_agric':{'description':'Irrigated volume','units':'m','dims':('time','hru',),'precision':4},
              }
 
   #Create the dimensions
   print 'Creating the dimensions'
   #ntime = len(fp_in.dimensions['time'])
-  ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
+  ntime = 24*3600*((self.fdate - self.idate).days+1)/self.dt
   nhru = len(fp_in.dimensions['hsu'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
@@ -681,7 +762,7 @@ class HydroBlocks:
   print 'Creating the data group'
   grp = fp_out.createGroup('data')
   for var in self.metadata['output']['vars']:
-   ncvar = grp.createVariable(var,'f4',metadata[var]['dims'])
+   ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
    ncvar.description = metadata[var]['description']
    ncvar.units = metadata[var]['units']
 

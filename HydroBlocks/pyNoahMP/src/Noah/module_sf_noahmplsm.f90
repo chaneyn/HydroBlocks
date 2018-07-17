@@ -1,3 +1,36 @@
+/* Copyright (C) 1991-2012 Free Software Foundation, Inc.
+   This file is part of the GNU C Library.
+
+   The GNU C Library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   The GNU C Library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
+
+
+/* This header is separate from features.h so that the compiler can
+   include it implicitly at the start of every compilation.  It must
+   not itself include <features.h> or any other header that includes
+   <features.h> because the implicit include comes before any feature
+   test macros that may be defined in a source file before it first
+   explicitly includes a system header.  GCC knows the name of this
+   header in order to preinclude it.  */
+
+/* We do support the IEC 559 math functionality, real and complex.  */
+
+/* wchar_t uses ISO/IEC 10646 (2nd ed., published 2011-03-15) /
+   Unicode 6.0.  */
+
+/* We do not support C11 <threads.h>.  */
+
 module noahmp_globals
 
   ! Removed dependencies on module_sf_noahlsm
@@ -549,9 +582,6 @@ contains
 		   SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 		   GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
                    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE               &
-#ifdef WRF_HYDRO
-                   ,SFCHEADRT                                                  & ! IN/OUT :
-#endif
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -605,9 +635,6 @@ contains
   REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV
 !jref:end
 
-#ifdef WRF_HYDRO
-  REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
 
 ! input/output : need arbitary intial values
   REAL                           , INTENT(INOUT) :: QSNOW  !snowfall [mm/s]
@@ -906,9 +933,6 @@ contains
                  CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                  QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                  ISURBAN,QSNBOT,FPICE                             &
-#ifdef WRF_HYDRO
-                        ,sfcheadrt                     &
-#endif
                  )  !out
 
 !     write(*,'(a20,10F15.5)') 'SFLX:RUNOFF=',RUNSRF*DT,RUNSUB*DT,EDIR*DT
@@ -1213,7 +1237,6 @@ contains
         END DO
         ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB-sum(HDIV))*DT
 
-#ifndef WRF_HYDRO
         !IF(ABS(ERRWAT) > 0.1) THEN 
         IF(ABS(ERRWAT) > 20.0) THEN
            if (ERRWAT > 0) then
@@ -1231,7 +1254,6 @@ contains
            call wrf_message(trim(message))
            call wrf_error_fatal("Water budget problem in NOAHMP LSM")
         END IF
-#endif
    ELSE                 !KWM
       ERRWAT = 0.0      !KWM
    ENDIF
@@ -6263,9 +6285,6 @@ contains
                     CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                     QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                     ISURBAN,QSNBOT,FPICE                             &
-#ifdef WRF_HYDRO
-                        ,sfcheadrt                     &
-#endif
                     )  !out
 ! ----------------------------------------------------------------------  
 ! Code history:
@@ -6364,9 +6383,6 @@ contains
 
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
-#ifdef WRF_HYDRO
-  REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
 
 ! ----------------------------------------------------------------------
 ! initialize
@@ -6435,9 +6451,6 @@ contains
        ETRANI(IZ) = ETRAN * BTRANI(IZ) * 0.001
     ENDDO
 
-#ifdef WRF_HYDRO
-       QINSUR = QINSUR+sfcheadrt/DT*0.001  !sfcheadrt units (m)
-#endif
 
 ! lake/soil water balances
 
