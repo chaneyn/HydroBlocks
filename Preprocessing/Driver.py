@@ -12,6 +12,7 @@ def Read_Metadata_File(file):
 
  return metadata
 
+
 #Read in the metadata file
 metadata_file = sys.argv[1]
 metadata = Read_Metadata_File(metadata_file)
@@ -23,5 +24,7 @@ info['fdate'] = datetime.datetime(metadata['enddate']['year'],
                            metadata['enddate']['month'],
                            metadata['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=info['dt'])
 
+
 #Cluster the data
 Preprocessing.Prepare_Model_Input_Data(info)
+

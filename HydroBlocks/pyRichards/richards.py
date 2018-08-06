@@ -44,24 +44,30 @@ class richards:
 
   return psi
 
- def calculate_hydraulic_conductivity(self,psi):
-  
-  Ksat_x = 10.0*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
+ def calculate_hydraulic_conductivity(self,psi,il):
+ 
+  af = 1.0 #safe
+  #sdz = np.cumsum(self.dz,axis=1)-self.dz/2.
+  #df = np.exp(-self.m[:,np.newaxis]/sdz)[:,il]
+  #Ksat_x = af*df*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
+  Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
   K_x = Ksat_x*(psi/self.satpsi)**(-2-3/self.b)
 
   return K_x
 
  def calculate_transmissivity(self,psi,ztop,zbot):
-
-  af = 10.0
+  
+  #af = 1.0  #safe
+  af = 2.0
+  m = np.copy(self.m)
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
-  K_x = Ksat_x*(psi/self.satpsi)**(-2-3/self.b)
+  K_x = Ksat_x*(psi/self.satpsi)**(-2-3./self.b)
   #Calculate transmissivity at top layer (exponential decay)
-  Ttop = self.m*K_x*np.exp(-ztop/self.m)
+  Ttop = m*K_x*np.exp(-ztop/m)
   #Calculate transmissivity at bottom of layer (exponential decay)
-  Tbot = self.m*K_x*np.exp(-zbot/self.m)
+  Tbot = m*K_x*np.exp(-zbot/m)
   T = Ttop - Tbot
-
+    
   return T
 
  def calculate_hydraulic_head(self,psi):

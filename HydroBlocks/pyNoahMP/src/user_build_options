@@ -23,15 +23,15 @@
 #  Options for Linux with gfortran
 #
 
- COMPILERF90	=	gfortran
- FREESOURCE	=	-ffree-form  -ffree-line-length-none -fno-range-check
- F90FLAGS	=       -g -fconvert=big-endian -O3 -fbounds-check -fimplicit-none -fbacktrace -fPIC
+ COMPILERF90 =	gfortran -L/usr/lib64 -L/lib64
+ FREESOURCE	=	-ffree-form  -ffree-line-length-none -fno-range-check -cpp -L/usr/lib64 -L/lib64
+ F90FLAGS	=   -g -fconvert=big-endian -O3 -fbounds-check -fimplicit-none -fbacktrace -fPIC 
  MODFLAG	=	-I
- LDFLAGS	=	
- CPP		=	cpp
- CPPFLAGS	=	-C -P -traditional # -D_HRLDAS_URBAN_
- LIBS		=	-fopenmp
- LIBJASPER     =       -ljpeg -L/usr/lib -ljasper
+ LDFLAGS	=	-L/usr/lib64 -L/lib64
+ CPP		=	cpp -L/usr/lib64 -L/lib64
+ CPPFLAGS	=	-C -P -traditional  # -D_HRLDAS_URBAN_
+ LIBS		=	-fopenmp -L/usr/lib64 -L/lib64 
+ LIBJASPER     =       -ljpeg -L/usr/lib -ljasper 
  INCJASPER     =       -I/usr/include
  LIBJASPER     =       -ljpeg -L/scholar/kmanning/jasper/lib -ljasper
  INCJASPER     =       -I/scholar/kmanning/jasper/include
@@ -41,7 +41,7 @@
  BZIP2_LIB	=       -lbz2
  BZIP2_INCLUDE	=       -I/usr/include
  RM		= 	rm -f
- CC		=	cc
+ CC		=	cc 
 #
 #
 #  Options for Linux with pgf90

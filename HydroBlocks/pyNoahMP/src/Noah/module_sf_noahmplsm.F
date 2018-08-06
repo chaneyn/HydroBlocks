@@ -1214,7 +1214,8 @@ contains
         ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB-sum(HDIV))*DT
 
 #ifndef WRF_HYDRO
-        IF(ABS(ERRWAT) > 0.1) THEN
+        !IF(ABS(ERRWAT) > 0.1) THEN 
+        IF(ABS(ERRWAT) > 20.0) THEN
            if (ERRWAT > 0) then
               call wrf_message ('The model is gaining water (ERRWAT is positive)')
            else
