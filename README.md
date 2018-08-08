@@ -1,7 +1,7 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) to install all the packages. Here are the steps to install the model.
+HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) and the intel repository (e.g., conda -c intel numpy) to install all the packages. Here are the steps to install the model.
 
 1. conda install gdal
 2. conda install scikit-learn

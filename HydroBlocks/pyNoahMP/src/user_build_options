@@ -29,7 +29,7 @@
  MODFLAG	=	-I
  LDFLAGS	=	
  CPP		=	cpp
- CPPFLAGS	=	-C -P -traditional # -D_HRLDAS_URBAN_
+ CPPFLAGS	=	-P -traditional # -D_HRLDAS_URBAN_
  LIBS		=	-fopenmp
  LIBJASPER     =       -ljpeg -L/usr/lib -ljasper
  INCJASPER     =       -I/usr/include
