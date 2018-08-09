@@ -2,7 +2,8 @@ import warnings
 warnings.filterwarnings('ignore')
 import sys
 sys.path.append('Tools')
-import cPickle as pickle
+#import cPickle as pickle
+import pickle
 import datetime
 #import gdal_tools
 import numpy as np
@@ -15,9 +16,8 @@ import time
 import glob
 from geospatialtools import gdal_tools
 from geospatialtools import terrain_tools
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 #import random
-#from skimage.segmentation import find_boundaries, clear_border
 import gc
 
 dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,7 +65,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  icatch = hydrobloks_info['icatch']
 
  #Get metadata
- print '%s/mask_latlon.tif' % workspace
+ print('%s/mask_latlon.tif' % workspace)
  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
  
  #Prepare the input file
@@ -134,14 +134,14 @@ def Prepare_Model_Input_Data(hydrobloks_info):
  output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydrobloks_info)
 
  #Extract the meteorological forcing
- print "Preparing the meteorology"
+ print("Preparing the meteorology")
  if hydrobloks_info['model_type'] == 'semi':
   Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydrobloks_info)
  elif hydrobloks_info['model_type'] == 'full':
   Prepare_Meteorology_Fulldistributed(workspace,wbd,output,input_dir,info,hydrobloks_info)
 
  #Extract the water use demands
- print "Preparing the water use"
+ print("Preparing the water use")
  if hydrobloks_info['model_type'] == 'semi':
   if hydrobloks_info['water_management']['hwu_flag'] == True:
    Prepare_Water_Use_Semidistributed(workspace,wbd,output,input_dir,info,hydrobloks_info) 
@@ -373,7 +373,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
    pcts = np.copy(info[var]['data'])
    pcts[argsort] = np.linspace(0,1,len(info[var]['data']))
    uniques,counts = np.unique(info[var]['data'],return_counts=True)
-   for ival in xrange(uniques.size):
+   for ival in range(uniques.size):
     value = uniques[ival]
     count = counts[ival]
     if count <= 10:continue
@@ -401,7 +401,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
   
   # Noemi addition
   if np.isnan(np.nanmean(info[id]['data'])) == 1:
-    print "ERROR: all values for clustering are Nan, catch:",hydrobloks_info['icatch'],id, info[id]['data']
+    print("ERROR: all values for clustering are Nan, catch:",hydrobloks_info['icatch'],id, info[id]['data'])
     info[id]['data'][:] = 0.5
 
   info[id]['data'][np.isnan(info[id]['data']) == 1] = np.nanmean(info[id]['data'])
@@ -431,7 +431,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
 
  #Reassign the ids
  clf_output_copy = np.copy(clf_output)
- for cid in xrange(len(np.unique(clf_output))):
+ for cid in range(len(np.unique(clf_output))):
   clf_output[clf_output_copy == np.unique(clf_output)[cid]] = cid
  cluster_ids = np.empty(covariates['ti'].shape)
  cluster_ids[:] = -9999
@@ -440,22 +440,22 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd
  nhru = np.unique(cluster_ids).size-1
 
  #Redefine the number of clusters (We are sampling regions that just don't have data...)
- print 'clustering %d->%d' % (nhru_old,nhru),time.time() - time0
+ print('clustering %d->%d' % (nhru_old,nhru),time.time() - time0)
 
  #Reorder according to areas
  areas = []
- for cid in xrange(nhru):
+ for cid in range(nhru):
   msk = cluster_ids == cid
   #areas.append(np.nanmean(covariates['carea'][msk]))
   areas.append(np.nanmax(covariates['carea'][msk]))
  argsort = np.argsort(np.array(areas))
  cluster_ids_new = np.copy(cluster_ids)
- for cid in xrange(nhru):
+ for cid in range(nhru):
   msk = cluster_ids == argsort[cid]
   cluster_ids_new[msk] = cid
  cluster_ids = np.copy(cluster_ids_new)
  areas = []
- for cid in xrange(nhru):
+ for cid in range(nhru):
   msk = cluster_ids == cid
   areas.append(np.nanmean(covariates['carea'][msk]))
 
@@ -658,7 +658,7 @@ def Calculate_Flow_Matrix(covariates,cluster_ids,nhru):
  fm_sum = flow_matrix.sum(axis=1)
  fm_data = flow_matrix.data
  fm_indptr = flow_matrix.indptr
- for row in xrange(fm_sum.size):
+ for row in range(fm_sum.size):
   fm_data[fm_indptr[row]:fm_indptr[row+1]] = fm_data[fm_indptr[row]:fm_indptr[row+1]]/fm_sum[row]
  flow_matrix.data = fm_data
 
@@ -672,8 +672,8 @@ def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,dx):
  horg = []
  hdst = []
  #Count the connections
- for i in xrange(cluster_ids.shape[0]):
-  for j in xrange(cluster_ids.shape[1]):
+ for i in range(cluster_ids.shape[0]):
+  for j in range(cluster_ids.shape[1]):
    h1 = cluster_ids[i,j]
    if h1 == -9999:continue
    #up
@@ -742,9 +742,9 @@ def Create_and_Curate_Covariates(wbd,hydrobloks_info):
 
  #Constrain the lat/lon grid by the effective resolution (4km...)
  nres = int(np.floor(90.0/30.0))
- for ilat in xrange(0,lats.size,nres):
+ for ilat in range(0,lats.size,nres):
   lats[ilat:ilat+nres] = np.mean(lats[ilat:ilat+nres])
- for ilon in xrange(0,lons.size,nres):
+ for ilon in range(0,lons.size,nres):
   lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])
  
  #Need to fix so that it doesn't suck up all the clustering:
@@ -775,12 +775,12 @@ def Create_and_Curate_Covariates(wbd,hydrobloks_info):
  #Set everything that is -9999 to the mean
  for var in covariates:
   if len(covariates[var][covariates[var] != -9999.0]) < 1: 
-   print "Error: Covariate %s is full of Nan's" % (var), covariates[var], wbd['files'][var] # Noemi insert
+   print("Error: Covariate %s is full of Nan's" % (var), covariates[var], wbd['files'][var]) # Noemi insert
    if var == 'lc':
     covariates[var][mask == 1] = 17  # Water
    else:
     covariates[var][mask == 1] = 0.5
-    print "Error: Covariate was set to 0.5"
+    print("Error: Covariate was set to 0.5")
   if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30']: 
    covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]  
   else:
@@ -794,11 +794,11 @@ def Create_and_Curate_Covariates(wbd,hydrobloks_info):
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydrobloks_info):
  
- print "Creating and curating the covariates"
+ print("Creating and curating the covariates")
  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydrobloks_info)
 
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
- print "Computing the HRUs"
+ print("Computing the HRUs")
  if hydrobloks_info['model_type'] == 'semi':
   (cluster_ids,nhru) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydrobloks_info,wbd)
  elif hydrobloks_info['model_type'] == 'full':
@@ -828,7 +828,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  hydrobloks_info['input_fp'].createGroup('water_use')
 
  #Prepare the flow matrix (dynamic topmodel)
- print "Calculating the flow matrix"
+ print("Calculating the flow matrix")
  (flow_matrix,outlet) = Calculate_Flow_Matrix(covariates,cluster_ids,nhru)
 
  #Prepare the hru connections matrix (darcy clusters)
@@ -845,7 +845,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  OUTPUT['hsu_map'] = cluster_ids
 
  #Assign the model parameters
- print "Assigning the model parameters"
+ print("Assigning the model parameters")
  if hydrobloks_info['model_type'] == 'semi':
   OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT,cluster_ids,mask)
  elif hydrobloks_info['model_type'] == 'full':
@@ -878,7 +878,7 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   nlat = mask_coarse.shape[0]
   nlon = mask_coarse.shape[1]
 
-  print data_var,"Creating the i and j mapping"
+  print(data_var,"Creating the i and j mapping")
   #Create maps of i and j for mapping
   coords = {'i':np.zeros(mask_fine.shape,dtype=np.int),
             'j':np.zeros(mask_fine.shape,dtype=np.int)}
@@ -891,7 +891,7 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   coords['i'] = coords['i'][mask]
   coords['j'] = coords['j'][mask]
 
-  print data_var,"Extracting all the data"
+  print(data_var,"Extracting all the data")
   #Extract all of the data for that variable
   idate = info['time_info']['startdate']
   fdate = info['time_info']['enddate']
@@ -906,7 +906,7 @@ def Prepare_Meteorology_Fulldistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   data = np.ma.getdata(fp.variables[var][mask_dates])
   fp.close()
 
-  print data_var,"Assigning the data"
+  print(data_var,"Assigning the data")
   #Create the variable
   grp = hydrobloks_info['input_fp'].groups['meteorology']
   grp.createVariable(var,'f4',('time','hsu'))

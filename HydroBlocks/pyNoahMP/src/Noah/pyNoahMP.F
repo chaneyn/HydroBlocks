@@ -19,7 +19,9 @@ module model
  integer :: yearlen
  logical :: iz0tlnd
  integer :: itime
- character(len=256) :: llanduse,lsoil
+ character(len=256) :: llanduse
+ character(len=256) :: lsoil
+ !character(:), allocatable :: llanduse,lsoil
  character(len=256) :: vegparm_file,soilparm_file,genparm_file,mptable_file
  character(len=19) :: nowdate
 

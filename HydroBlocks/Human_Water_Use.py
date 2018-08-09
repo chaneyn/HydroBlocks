@@ -110,7 +110,7 @@ class Human_Water_Use:
    self.irrig_land = HB.input_fp.groups['parameters'].variables['irrig_land'][:]
    self.mask_irrig = self.mask_agric & ( self.irrig_land > 0.0 )
    #self.mask_irrig = np.copy(self.mask_agric)
-   print 'Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric]))
+   print('Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric])))
    
    # Crop calendar
    self.st_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['start_growing_season'][:],dtype=np.int)
@@ -167,8 +167,8 @@ class Human_Water_Use:
    # Minimum Distance between a HRU centroid and it's neighboors boundary 
    self.hru_min_dist = HB.input_fp.groups['parameters'].variables['hru_min_dist'][:]
    self.hrus_boundary_distances = np.copy(self.hru_min_dist)  # km
-   print "HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]))
-   print "HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]))
+   print("HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.])))
+   print("HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.])))
 
    # HRU relative distances - Review this
    #self.hrus_rel_dist = np.copy(self.hrus_distances)
@@ -517,14 +517,14 @@ class Human_Water_Use:
      m = (self.alloc_sf > 0.0)
      #print 'sf:', self.alloc_sf
      if any(t < 0 for t in NOAH.runsf):
-       print '1 Negative Runoff!!!', NOAH.runsf
+       print('1 Negative Runoff!!!', NOAH.runsf)
      #print 'runoff', NOAH.runsf, self.alloc_sf*(1000.0/HB.dt)
      NOAH.runsf[m] = (NOAH.runsf - (self.alloc_sf*(1000.0/HB.dt)))[m] # mm/s
      #print 'runoff abs',NOAH.runsf
      if any(t < 0 for t in NOAH.runsf[m]):
-       print '2 Negative Runoff!!!', NOAH.runsf[m], (self.alloc_sf*(1000./HB.dt))[m]
-       print 'salloc',self.alloc_sf*(1000./HB.dt)
-       print 'mask',self.mask_sf
+       print('2 Negative Runoff!!!', NOAH.runsf[m], (self.alloc_sf*(1000./HB.dt))[m])
+       print('salloc',self.alloc_sf*(1000./HB.dt))
+       print('mask',self.mask_sf)
        exit()
 
    # Abstract from Grondwater

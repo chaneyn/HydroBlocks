@@ -126,7 +126,7 @@ class richards:
   if self.nhru <= 100: type = 'dense'
 
   #Iterate per layer
-  for il in xrange(self.theta.shape[1]):
+  for il in range(self.theta.shape[1]):
    #Calculate soil moisture potential
    psi = self.calculate_soil_moisture_potential(il)
    #Calculate hydraulic conductivity
