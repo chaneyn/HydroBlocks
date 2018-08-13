@@ -29,7 +29,8 @@ def plot_data(data):
  import matplotlib.pyplot as plt
  data = np.ma.masked_array(data,data==-9999)
  plt.figure(figsize=(10,10))
- plt.imshow(data,cmap=plt.get_cmap('Paired'))
+ #plt.imshow(data,cmap=plt.get_cmap('Paired'))
+ plt.imshow(data)
  plt.colorbar()
  plt.savefig('tmp.png')
 
@@ -462,15 +463,15 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydroblocks_info,wb
 
  return (cluster_ids,nhru)
 
-def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd):
+def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares):
 
  #PARAMETERS (NEED TO GO OUTSIDE)
- eares = 30 #meters
+ #eares = 30 #meters
 
  #Define the parameters for the hierarchical multivariate clustering
- ncatchments = hydroblocks_info['ncatchments']
- dh = hydroblocks_info['dh']
- nclusters = hydroblocks_info['nclusters']
+ ncatchments = hydroblocks_info['hmc_parameters']['number_of_characteristic_subbasins']
+ dh = hydroblocks_info['hmc_parameters']['average_height_difference_between_bands']
+ nclusters = hydroblocks_info['hmc_parameters']['number_of_intraband_clusters']
 
  #Pre-process DEM
  dem = covariates['dem']
@@ -502,6 +503,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd):
  #Compute the channels
  print("Defining channels")
  channels = terrain_tools.ttf.calculate_channels_wocean(ac,10**4,10**4,fdc,m2)
+ #area_in,threshold,basin_threshold,fdir,channels,nx,ny)
+ #channels = terrain_tools.ttf.calculate_channels(ac,10**4,10**4,fdc)#,m2)
  channels = np.ma.masked_array(channels,channels<=0)
 
  #If the dem is undefined then set to undefined
@@ -510,6 +513,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd):
  #Compute the basins
  print("Defining basins")
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
+ #basins[basins != 637] = -9999
+ #channels[channels != 637] = -9999
+ #print(basins[670,225])
+ #plot_data(channels)
+ #plot_data(basins)
+ #exit()
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area")
@@ -533,38 +542,32 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd):
 
  #Calculate the subbasin properties
  print("Assembling the subbasin properties")
- hp_in = terrain_tools.calculate_basin_properties_updated(basins,dem,eares,dem,dem)
+ hp_in = terrain_tools.calculate_basin_properties_updated(basins,eares,covariates,hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates'])
 
  #Clustering the basins
  print("Clustering the basins")
  #Assemble input data
- covariates = {}
- for var in ['dem','latitude','longitude']:
+ cvs = {}
+ for var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:
   tmp = np.copy(hp_in[var])
-  #Remove outliers
-  p5 = np.percentile(hp_in[var],5)
-  tmp[tmp < p5] = p5
-  p95 = np.percentile(hp_in[var],95)
-  tmp[tmp > p95] = p95
-  covariates[var] = {'min':p5,
-                     'max':p95,
-                     't':-9999,
-                     'd':tmp}
- (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,covariates,hp_in,nclusters)
+  cvs[var] = {'min':np.min(hp_in[var]),
+              'max':np.max(hp_in[var]),
+              't':-9999,
+              'd':tmp}
+ (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
 
  #Divide each subbasin into height bands
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
 
  #Calculate the hrus (kmeans on each tile of each basin)
- tmp = {'slope':slope,'ti':ti}
- covariates = {}
- for var in tmp:
-  covariates[var] = {'min':np.min(tmp[var]),
-                     'max':np.max(tmp[var]),
+ cvs = {}
+ for var in ['cslope','sand','clay']:
+  cvs[var] = {'min':np.min(covariates[var]),
+                     'max':np.max(covariates[var]),
                      't':-9999,
-                     'd':tmp[var]}
+                     'd':covariates[var]}
  print("Clustering the height bands into %d clusters" % nclusters)
- hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,covariates,nclusters)
+ hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
 
@@ -673,8 +676,9 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   OUTPUT['hsu']['ti'][hsu] = np.nanmean(covariates['ti'][idx])
   #DEM
   OUTPUT['hsu']['dem'][hsu] = np.nanmean(covariates['dem'][idx])
-  #HAND
-  OUTPUT['hsu']['hand'][hsu] = np.nanmean(covariates['hand'][idx])
+  if hydroblocks_info['clustering_version'] == 'hmc':
+   #HAND
+   OUTPUT['hsu']['hand'][hsu] = np.nanmean(covariates['hand'][idx])
   #Average Catchment Area
   OUTPUT['hsu']['carea'][hsu] = np.nanmean(covariates['carea'][idx])
   #Channel?
@@ -834,7 +838,16 @@ def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,dx):
 
  return cdata
 
-def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info):
+def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hmc):
+
+ if (h2 == -9999):return False
+ if (b1 != b2) & (hmc['interridge_connectivity'] == False):return False
+ if (tp1 == tp2) & (tp1 == 0) & (hmc['intervalley_connectivity'] == True):return True
+ if (np.abs(tp1 - tp2) != 1) & (hmc['intraband_connectivity'] == False):return False
+
+ return True
+
+def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info,hydroblocks_info):
 
  #Add pointers for simplicity
  tile_position = HMC_info['tile_position']
@@ -857,7 +870,8 @@ def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info
     h2 = cluster_ids[i+1,j]
     b2 = basins[i+1,j]
     tp2 = tile_position[i+1,j]
-    if (h2 != -9999) & (b1 == b2) & (np.abs(tp1 - tp2) == 1):
+    #if (h2 != -9999) & (b1 == b2) & (np.abs(tp1 - tp2) == 1):
+    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hydroblocks_info['hmc_parameters']):
      horg.append(h1)
      hdst.append(h2)
    #down
@@ -865,7 +879,7 @@ def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info
     h2 = cluster_ids[i-1,j]
     b2 = basins[i-1,j]
     tp2 = tile_position[i-1,j]
-    if (h2 != -9999) & (b1 == b2) & (np.abs(tp1 - tp2) == 1):
+    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hydroblocks_info['hmc_parameters']):
      horg.append(h1)
      hdst.append(h2)
    #left
@@ -873,7 +887,7 @@ def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info
     h2 = cluster_ids[i,j-1]
     b2 = basins[i,j-1]
     tp2 = tile_position[i,j-1]
-    if (h2 != -9999) & (b1 == b2) & (np.abs(tp1 - tp2) == 1):
+    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hydroblocks_info['hmc_parameters']):
      horg.append(h1)
      hdst.append(cluster_ids[i,j-1])
    #right
@@ -881,7 +895,7 @@ def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info
     h2 = cluster_ids[i,j+1]
     b2 = basins[i,j+1]
     tp2 = tile_position[i,j+1]
-    if (h2 != -9999) & (b1 == b2) & (np.abs(tp1 - tp2) == 1):
+    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hydroblocks_info['hmc_parameters']):
      horg.append(h1)
      hdst.append(cluster_ids[i,j+1])
  horg = np.array(horg)
@@ -925,11 +939,11 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
 
  #Constrain the lat/lon grid by the effective resolution (4km...)
- nres = int(np.floor(90.0/30.0))
+ '''nres = int(np.floor(90.0/30.0))
  for ilat in range(0,lats.size,nres):
   lats[ilat:ilat+nres] = np.mean(lats[ilat:ilat+nres])
  for ilon in range(0,lons.size,nres):
-  lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])
+  lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])'''
  
  #Need to fix so that it doesn't suck up all the clustering:
  lats, lons = np.meshgrid(lats, lons)
@@ -951,7 +965,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
 
  #Set all nans to the mean
  for var in covariates:
-  if var == 'dem':continue
+  if var in ['dem','lats','lons']:continue
   covariates[var][mask <= 0] = -9999.0
   mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0) 
   mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
@@ -973,13 +987,17 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
 
  #Set everything outside of the mask to -9999
  for var in covariates:
-  if var == 'dem':continue
+  if var in ['dem','lats','lons']:continue
   covariates[var][mask <= 0] = -9999.0
  
  return (covariates,mask)
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info):
  
+ #Retrieve some metadata
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
+ resx = metadata['resx']
+
  print("Creating and curating the covariates")
  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydroblocks_info)
 
@@ -989,8 +1007,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  if hydroblocks_info['model_type'] == 'semi':
   if hydroblocks_info['clustering_version'] == 'chaney2016':
    (cluster_ids,nhru) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydroblocks_info,wbd)
-  elif hydroblocks_info['clustering_version'] == 'chaney2018':
-   (cluster_ids,nhru,hand,HMC_info) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd)
+  elif hydroblocks_info['clustering_version'] == 'hmc':
+   (cluster_ids,nhru,hand,HMC_info) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
    covariates['hand'] = hand
  elif hydroblocks_info['model_type'] == 'full':
   nhru = np.sum(mask == True)
@@ -1000,10 +1018,6 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  #Create the netcdf file
  file_netcdf = hydroblocks_info['input_file']
  hydroblocks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
-
- #Retrieve some metadata
- metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
- resx = metadata['resx']
 
  #Create the dimensions (netcdf)
  idate = hydroblocks_info['idate']
@@ -1025,8 +1039,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  #Prepare the hru connections matrix (darcy clusters)
  if hydroblocks_info['clustering_version'] == 'chaney2016':
   cmatrix = Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,resx)
- elif hydroblocks_info['clustering_version'] == 'chaney2018':
-  cmatrix = Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,resx,HMC_info)
+ elif hydroblocks_info['clustering_version'] == 'hmc':
+  cmatrix = Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,resx,HMC_info,hydroblocks_info)
 
  #Define the metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])

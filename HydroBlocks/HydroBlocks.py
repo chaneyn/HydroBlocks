@@ -8,9 +8,12 @@ import sys
 import scipy.sparse as sparse
 import pickle
 
-def assign_string(dtype,pstring):
+def assign_string(nelem,pstring):
+ #def assign_string(dtype,pstring):
 
- nelem = int(str(dtype)[2:])
+ #print(str(dtype))
+ #nelem = int(str(dtype)[2:])
+ #nelem = len)
  tmp = np.chararray(shape=(nelem,))
  tmp[:] = ' '
  tmp2 = []
@@ -164,20 +167,20 @@ class HydroBlocks:
   self.noahmp.nsoil = self.nsoil
   self.noahmp.dt = self.dt
   self.noahmp.nsnow = 3
-  self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
-  print(self.noahmp.llanduse)
-  self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
+  self.noahmp.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
+  #self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
+  self.noahmp.lsoil[:] = 'CUST'
+  #self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
   dir = os.path.dirname(os.path.abspath(__file__))
   VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % dir
-  print(VEGPARM)
-  #self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
-  #self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
-  #self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
-  self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
-  self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
-  self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
+  self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
+  self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
+  self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
+  #self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
+  #self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
+  #self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
   self.noahmp.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -453,8 +456,15 @@ class HydroBlocks:
   self.noahmp.itime = self.itime
   dt = self.dt
   if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = self.itime
-  self.noahmp.nowdate = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
-  #self.noahmp.nowdate[:] = date.strftime('%Y-%m-%d_%H:%M:%S')
+  #self.noahmp.nowdate[:] = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
+  self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #print(self.noahmp.nowdate[:])
+  #print(self.noahmp.nowdate.dtype)
+  #print(date.strftime('%Y-%m-%d_%H:%M:%S').dtype)
+  #tmp = np.char.array(date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #exit()
+  #self.noahmp.nowdate[:] = tmp[:]#date.strftime('%Y-%m-%d_%H:%M:%S')
+  #print(len(self.noahmp.nowdate))
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
