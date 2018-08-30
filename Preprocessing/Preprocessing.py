@@ -571,6 +571,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
 
+ #plot
+ #print nhru
+ #plot_data(hrus)
+
  #Construct HMC info for creating connections matrix
  HMC_info = {}
  HMC_info['basins'] = basins
@@ -902,8 +906,11 @@ def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info
  hdst = np.array(hdst)
 
  #Prepare the sparse matrix
- cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),dtype=np.float32)
+ #cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),dtype=np.float32)
+ print np.max(horg),np.max(hdst),nhru
+ cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(nhru,nhru),dtype=np.float32)
  cmatrix = cmatrix.tocsr()
+ print cmatrix.shape
 
  #Prepare length, width, and ksat matrices
  wmatrix = cmatrix.copy()
