@@ -76,6 +76,7 @@ def Prepare_Model_Input_Data(hydrobloks_info):
 
  wbd['files'] = {
   'WLTSMC':'%s/theta1500_ea.tif' % workspace,
+  #'WLTSMC':'%s/thetar_ea.tif' % workspace,
   'TEXTURE_CLASS':'%s/texture_class_ea.tif' % workspace,
   'cslope':'%s/cslope_ea.tif' % workspace,
   'MAXSMC':'%s/thetas_ea.tif' % workspace,
@@ -524,8 +525,9 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
  if hydrobloks_info['water_management']['hwu_agric_flag']:
   for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
     vars.append(var)
- #import numpy as np
+
  OUTPUT['hsu'] = {}
+
  if hydrobloks_info['water_management']['hwu_flag']: OUTPUT['hsu']['hru_min_dist'] = np.zeros((nhru,nhru))
  for var in vars:
    OUTPUT['hsu'][var] = np.zeros(nhru)
@@ -541,38 +543,33 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydrobloks_info,OUTPUT
   OUTPUT['hsu']['area_pct'][hsu] = 100*OUTPUT['hsu']['area'][hsu]/(metadata['resx']**2*mask[mask].size)
   #Soil properties
   for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ','clay']:
-   #if var in ['SATDK']:
-   # OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
-   #elif var in ['SATDW']:
-   # OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])/3600.0/(1000.0*1000.0)  #mm2/hr -> m2/s #Noemi
-   #elif var in ['SATPSI']:
-   # OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])/1000.0 #mm -> m  # Noemi
    if var in ['SATDK','SATDW']:
-    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
+    tmp = covariates[var][idx]; tmp[np.isnan(tmp)]=-9999.0; tmp = tmp[tmp != -9999.0]
+    OUTPUT['hsu'][var][hsu] = stats.mstats.hmean(tmp)/3600.0/1000.0 #mm/hr -> m/s
    else:
-    OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
-  #Average Slope
-  OUTPUT['hsu']['slope'][hsu] = np.nanmean(covariates['cslope'][idx])
-  #Topographic index
-  OUTPUT['hsu']['ti'][hsu] = np.nanmean(covariates['ti'][idx])
-  #DEM
-  OUTPUT['hsu']['dem'][hsu] = np.nanmean(covariates['dem'][idx])
-  #Average Catchment Area
-  OUTPUT['hsu']['carea'][hsu] = np.nanmean(covariates['carea'][idx])
+    tmp = covariates[var][idx]; tmp[np.isnan(tmp)] = -9999.0; tmp = tmp[tmp != -9999.0]
+    OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(tmp)
+  #Topographic
+  tmp = covariates['cslope'][idx]; tmp = tmp[tmp != -9999.0]
+  OUTPUT['hsu']['slope'][hsu] = np.nanmean(tmp)
+  for var in ['ti', 'dem', 'carea']:
+   tmp = covariates[var][idx]; tmp = tmp[tmp > 0.0]
+   OUTPUT['hsu'][var][hsu] = np.nanmean(tmp)
+  
   #Channel?
   #OUTPUT['hsu']['channel'][hsu] = stats.mode(covariates['channels'][idx])[0]
+
   #Land cover type 
-  tmp = covariates['lc'][idx]
-  tmp = tmp[tmp>=1]
-  if len(tmp) >= 1 :
-   OUTPUT['hsu']['land_cover'][hsu] = stats.mode(tmp)[0][0]
-  else:
-   OUTPUT['hsu']['land_cover'][hsu] = 17  # if there is no valid value, set to water #Noemi
-      
+  tmp = covariates['lc'][idx]; tmp = tmp[tmp>=1]
+  if len(tmp) >= 1 : OUTPUT['hsu']['land_cover'][hsu] = stats.mode(tmp)[0][0]
+  else: OUTPUT['hsu']['land_cover'][hsu] = 17  # if there is no valid value, set to water #Noemi
+  
   #Soil texture class
   OUTPUT['hsu']['soil_texture_class'][hsu] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+
   #Define the estimate for the model parameters
-  OUTPUT['hsu']['m'][hsu] = np.nanmean(covariates['dbedrock'][idx]) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
+  tmp = covariates['dbedrock'][idx]; tmp[np.isnan(tmp)]=-9999.0; tmp=tmp[tmp>0.0]
+  OUTPUT['hsu']['m'][hsu] = stats.mstats.hmean(tmp) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
   OUTPUT['hsu']['pksat'][hsu] = 1.0 #saturated hydraulic conductivity scalar multiplier (0.1-1.0)
   OUTPUT['hsu']['psoil'][hsu] = 1.0 #soil hydraulic properties (residual,wilting,field capacity, and porosity) (0.1-10.0)
   OUTPUT['hsu']['sdmax'][hsu] = 5.0 #maximum effective deficit of subsurface saturated zone (0.1-10.0)
@@ -734,14 +731,13 @@ def Create_and_Curate_Covariates(wbd,hydrobloks_info):
  # masklc = covariates['lc'] == lc
  # covariates['ndvi'][masklc] = np.nanmean(tmp[masklc])
  
- # Create sub-covariates from the land cover
 
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
  lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
 
  #Constrain the lat/lon grid by the effective resolution (4km...)
- nres = int(np.floor(90.0/30.0))
+ nres = int(np.floor(1000.0/30.0))
  for ilat in xrange(0,lats.size,nres):
   lats[ilat:ilat+nres] = np.mean(lats[ilat:ilat+nres])
  for ilon in xrange(0,lons.size,nres):

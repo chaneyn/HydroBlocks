@@ -19,7 +19,7 @@ class Human_Water_Use:
   self.area = np.zeros(ncells)
 
   # tstep for water allocation 
-  self.dta = 3600*24.0 #HB.dt #Update dta
+  self.dta = 3600*24.0 #HB.dt #Update dta  -- solving water demand daily 
   self.ntt = int(np.copy(self.dta/HB.dt))
 
   self.hwu_flag = info['water_management']['hwu_flag']
@@ -39,9 +39,9 @@ class Human_Water_Use:
   demands = [self.hwu_agric_flag,self.hwu_domest_flag,self.hwu_indust_flag,self.hwu_lstock_flag]
   if self.hwu_flag == True:
    if not any(demands):
-     exit('Error: All water demands flags are off - at least one water demand is needed') 
+     exit('Error: At least one water demand is needed') 
 
-  # Land Cover for Water Use -- Must be the same defined at Preprocessing.py
+  # Land Cover for Water Use -- note: it must be the same defined at Preprocessing.py
   self.wuse_index = {}
   self.water_use_land_cover = {
     'industrial': [13],
@@ -49,7 +49,6 @@ class Human_Water_Use:
     'livestock':  [6,7,8,9,10,19],
     'agriculture':[12,14],
     'surface_water':[11,17]}
-
 
   # Calc topographic index
   self.beta = HB.input_fp.groups['parameters'].variables['slope'][:] #Noemi
@@ -65,8 +64,8 @@ class Human_Water_Use:
   # GROUNDWATER supply variables
   if self.hwu_gw_flag == True:
    # Well_depht
-   # Correct well_depht for shallow soils and add 25% buffer. Well depth = 80% of bedrock depth
-   self.well_depth = np.maximum(-1.0*m*0.8,NOAH.zsoil[:,-1]*0.75)
+   # Correct well_depht for shallow soils and add 20% buffer. Well depth = 80% of bedrock depth
+   self.well_depth = np.maximum(-1.0*m*0.8,NOAH.zsoil[:,-1]*0.8)
    self.well_layer = np.argmin(abs(NOAH.zsoil-self.well_depth[:,np.newaxis]))
    self.supply_gw = np.zeros(ncells,dtype=np.float64)
    self.alloc_gw = np.zeros(ncells,dtype=np.float64)
@@ -90,6 +89,8 @@ class Human_Water_Use:
    # Surface Water in water Bodies and/or wetlands
    cond2 = np.array([ True if x in self.water_use_land_cover["surface_water"] else False for x in NOAH.vegtyp ])
    self.mask_sf    = np.array([ True if i==True or j==True else False for i,j in zip(cond1,cond2) ])
+   print 'surface mask', self.mask_sf
+   print np.logical_or(cond1,cond2)
    # Maximum surface water abstractions distance (km)
    self.sf_dist_lim  = 10.0 # km
    # Maximum slope allowed for upstream abstraction
@@ -110,19 +111,21 @@ class Human_Water_Use:
    self.irrig_land = HB.input_fp.groups['parameters'].variables['irrig_land'][:]
    self.mask_irrig = self.mask_agric & ( self.irrig_land > 0.0 )
    #self.mask_irrig = np.copy(self.mask_agric)
-   print 'Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric]))
-   
+   print 'Irrig Percentile:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric]))
+   print 'Irrig Percentile:', np.round(np.sum(self.mask_irrig)/float(np.sum(self.mask_agric)+0.000001),2)
+ 
+
    # Crop calendar
    self.st_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['start_growing_season'][:],dtype=np.int)
    self.en_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['end_growing_season'][:],dtype=np.int)
    self.gscal = mgmt_funcs.calc_calendar(self,ncells)
    m = np.where(np.invert(self.mask_agric))[0]
    self.gscal[m,:] = 0.0
-   #print self.mask_agric
-   #print self.mask_irrig
-   #print self.st_gscal
-   #print self.en_gscal
-   #print self.gscal[0] 
+   print self.mask_agric
+   print self.mask_irrig
+   print self.st_gscal
+   print self.en_gscal
+   print self.gscal 
    # Test for the case with demand but zero irrigation
 
 
@@ -170,7 +173,7 @@ class Human_Water_Use:
    print "HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]))
    print "HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]))
 
-   # HRU relative distances - Review this
+   # HRU relative distances - Review this at some point
    #self.hrus_rel_dist = np.copy(self.hrus_distances)
    #for i in range(ncells): self.hrus_rel_dist[i,:] = self.hrus_distances[i,:]/np.sum(self.hrus_distances[i,:])
 
@@ -183,7 +186,7 @@ class Human_Water_Use:
     # Surface Water Ratio 
     self.ratio_sf = np.ones((self.nwuse_index,ncells,ncells))
 
-    # Update Ratio for Demands
+    # Ratio for Demands
     if self.hwu_agric_flag == True:
       m = np.copy(np.invert(self.mask_irrig))
       self.ratio_sf[self.wuse_index['a'],:,m] = 0.0
@@ -197,7 +200,7 @@ class Human_Water_Use:
       m = np.copy(np.invert(self.mask_lstock))
       self.ratio_sf[self.wuse_index['l'],:,m] = 0.0
 
-    # Update Ratio for Supply
+    # Ratio for Supply
     m = np.copy(np.invert(self.mask_sf)); self.ratio_sf[:,m,:] = 0.0
     m = np.copy(self.hrus_boundary_distances > self.sf_dist_lim ); self.ratio_sf[:,m] = 0.0
     m = np.copy(self.hrus_slopes < self.sf_slope_lim); self.ratio_sf[:,m] = 0.0
@@ -219,7 +222,7 @@ class Human_Water_Use:
     # Groundwater Ratio
     self.ratio_gw = np.ones((self.nwuse_index,ncells,ncells))*1.0
 
-    # Update Ratio for Demands
+    # Ratio for Demands
     if self.hwu_agric_flag == True:
       m = np.copy(np.invert(self.mask_irrig))
       self.ratio_gw[self.wuse_index['a'],:,m] = 0.0
@@ -233,7 +236,7 @@ class Human_Water_Use:
       m = np.copy(np.invert(self.mask_lstock))
       self.ratio_gw[self.wuse_index['l'],:,m] = 0.0
 
-    # Update Ratio for Supply
+    # Ratio for Supply
     m = np.copy(np.invert(self.mask_gw)); self.ratio_gw[:,m,:] = 0.0
     m = np.copy(self.hrus_centroid_distances > self.gw_dist_lim ); self.ratio_gw[:,m] = 0.0
     m = np.copy(self.hrus_slopes < self.gw_slope_lim); self.ratio_gw[:,m] = 0.0

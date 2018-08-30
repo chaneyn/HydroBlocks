@@ -161,18 +161,18 @@ class HydroBlocks:
   self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
   self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
   #Define the options
-  self.noahmp.idveg = 3#3#4 # dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 2#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
-  self.noahmp.iopt_run = 5#5#2#5##2#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 2#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
-  self.noahmp.iopt_frz = 2#1 # supercooled liquid water (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_inf = 2#1#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_rad = 2 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_run = 5#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_sfc = 1#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_frz = 1#1 # supercooled liquid water (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_inf = 2#2 # frozen soil permeability (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_rad = 1 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
   self.noahmp.iopt_alb = 1 # snow surface albedo (1->BATS; 2->CLASS)
-  self.noahmp.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 1#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
-  self.noahmp.iopt_stc = 1#1#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
+  self.noahmp.iopt_snf = 2 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+  self.noahmp.iopt_tbot = 2#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_stc = 1#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
 
   #Allocate memory
   self.noahmp.initialize_general()
@@ -633,6 +633,7 @@ class HydroBlocks:
   #Update the variables
   grp = self.output_fp.groups['data']
 
+  
   tmp = {}
   #NoahMP
   tmp['smc'] = np.copy(NOAH.smc) #m3/m3
@@ -645,6 +646,7 @@ class HydroBlocks:
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
   tmp['trad'] = np.copy(NOAH.trad) #K
   tmp['stc'] = np.copy(NOAH.stc[:,3]) #K
+  tmp['tv'] = np.copy(NOAH.tv) #K
   tmp['salb'] = np.copy(NOAH.salb) 
   tmp['wtd'] = np.copy(NOAH.zwt) #m
   #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
@@ -716,7 +718,8 @@ class HydroBlocks:
              #'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              'trad':{'description':'Land surface skin temperature','units':'K','dims':('time','hru',),'precision':2},
-             'stc':{'description': 'Snow soil temperature','units':'K','dims':('time','hru',),'precision':2},
+             'stc':{'description': 'Snow/soil temperature','units':'K','dims':('time','hru',),'precision':2},
+             'tv':{'description': 'Canopy temperature','units':'K','dims':('time','hru',),'precision':2},
              'salb':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
 
              'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',),'precision':4},
