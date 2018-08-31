@@ -89,8 +89,6 @@ class Human_Water_Use:
    # Surface Water in water Bodies and/or wetlands
    cond2 = np.array([ True if x in self.water_use_land_cover["surface_water"] else False for x in NOAH.vegtyp ])
    self.mask_sf    = np.array([ True if i==True or j==True else False for i,j in zip(cond1,cond2) ])
-   print 'surface mask', self.mask_sf
-   print np.logical_or(cond1,cond2)
    # Maximum surface water abstractions distance (km)
    self.sf_dist_lim  = 10.0 # km
    # Maximum slope allowed for upstream abstraction
@@ -111,21 +109,19 @@ class Human_Water_Use:
    self.irrig_land = HB.input_fp.groups['parameters'].variables['irrig_land'][:]
    self.mask_irrig = self.mask_agric & ( self.irrig_land > 0.0 )
    #self.mask_irrig = np.copy(self.mask_agric)
-   print 'Irrig Percentile:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric]))
-   print 'Irrig Percentile:', np.round(np.sum(self.mask_irrig)/float(np.sum(self.mask_agric)+0.000001),2)
- 
-
+   print('Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric])))
+   
    # Crop calendar
    self.st_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['start_growing_season'][:],dtype=np.int)
    self.en_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['end_growing_season'][:],dtype=np.int)
    self.gscal = mgmt_funcs.calc_calendar(self,ncells)
    m = np.where(np.invert(self.mask_agric))[0]
    self.gscal[m,:] = 0.0
-   print self.mask_agric
-   print self.mask_irrig
-   print self.st_gscal
-   print self.en_gscal
-   print self.gscal 
+   #print self.mask_agric
+   #print self.mask_irrig
+   #print self.st_gscal
+   #print self.en_gscal
+   #print self.gscal[0] 
    # Test for the case with demand but zero irrigation
 
 
@@ -170,8 +166,8 @@ class Human_Water_Use:
    # Minimum Distance between a HRU centroid and it's neighboors boundary 
    self.hru_min_dist = HB.input_fp.groups['parameters'].variables['hru_min_dist'][:]
    self.hrus_boundary_distances = np.copy(self.hru_min_dist)  # km
-   print "HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]))
-   print "HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]))
+   print("HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.])))
+   print("HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.])))
 
    # HRU relative distances - Review this at some point
    #self.hrus_rel_dist = np.copy(self.hrus_distances)
@@ -186,7 +182,7 @@ class Human_Water_Use:
     # Surface Water Ratio 
     self.ratio_sf = np.ones((self.nwuse_index,ncells,ncells))
 
-    # Ratio for Demands
+    # Update Ratio for Demands
     if self.hwu_agric_flag == True:
       m = np.copy(np.invert(self.mask_irrig))
       self.ratio_sf[self.wuse_index['a'],:,m] = 0.0
@@ -200,7 +196,7 @@ class Human_Water_Use:
       m = np.copy(np.invert(self.mask_lstock))
       self.ratio_sf[self.wuse_index['l'],:,m] = 0.0
 
-    # Ratio for Supply
+    # Update Ratio for Supply
     m = np.copy(np.invert(self.mask_sf)); self.ratio_sf[:,m,:] = 0.0
     m = np.copy(self.hrus_boundary_distances > self.sf_dist_lim ); self.ratio_sf[:,m] = 0.0
     m = np.copy(self.hrus_slopes < self.sf_slope_lim); self.ratio_sf[:,m] = 0.0
@@ -222,7 +218,7 @@ class Human_Water_Use:
     # Groundwater Ratio
     self.ratio_gw = np.ones((self.nwuse_index,ncells,ncells))*1.0
 
-    # Ratio for Demands
+    # Update Ratio for Demands
     if self.hwu_agric_flag == True:
       m = np.copy(np.invert(self.mask_irrig))
       self.ratio_gw[self.wuse_index['a'],:,m] = 0.0
@@ -236,7 +232,7 @@ class Human_Water_Use:
       m = np.copy(np.invert(self.mask_lstock))
       self.ratio_gw[self.wuse_index['l'],:,m] = 0.0
 
-    # Ratio for Supply
+    # Update Ratio for Supply
     m = np.copy(np.invert(self.mask_gw)); self.ratio_gw[:,m,:] = 0.0
     m = np.copy(self.hrus_centroid_distances > self.gw_dist_lim ); self.ratio_gw[:,m] = 0.0
     m = np.copy(self.hrus_slopes < self.gw_slope_lim); self.ratio_gw[:,m] = 0.0
@@ -520,14 +516,14 @@ class Human_Water_Use:
      m = (self.alloc_sf > 0.0)
      #print 'sf:', self.alloc_sf
      if any(t < 0 for t in NOAH.runsf):
-       print '1 Negative Runoff!!!', NOAH.runsf
+       print('1 Negative Runoff!!!', NOAH.runsf)
      #print 'runoff', NOAH.runsf, self.alloc_sf*(1000.0/HB.dt)
      NOAH.runsf[m] = (NOAH.runsf - (self.alloc_sf*(1000.0/HB.dt)))[m] # mm/s
      #print 'runoff abs',NOAH.runsf
      if any(t < 0 for t in NOAH.runsf[m]):
-       print '2 Negative Runoff!!!', NOAH.runsf[m], (self.alloc_sf*(1000./HB.dt))[m]
-       print 'salloc',self.alloc_sf*(1000./HB.dt)
-       print 'mask',self.mask_sf
+       print('2 Negative Runoff!!!', NOAH.runsf[m], (self.alloc_sf*(1000./HB.dt))[m])
+       print('salloc',self.alloc_sf*(1000./HB.dt))
+       print('mask',self.mask_sf)
        exit()
 
    # Abstract from Grondwater

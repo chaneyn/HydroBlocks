@@ -8,6 +8,22 @@ import sys
 import scipy.sparse as sparse
 import pickle
 
+def assign_string(nelem,pstring):
+ #def assign_string(dtype,pstring):
+
+ #print(str(dtype))
+ #nelem = int(str(dtype)[2:])
+ #nelem = len)
+ tmp = np.chararray(shape=(nelem,))
+ tmp[:] = ' '
+ tmp2 = []
+ for letter in pstring:
+  #print(letter)
+  tmp2.append(letter)
+ tmp[0:len(tmp2)] = tmp2
+
+ return tmp
+
 def initialize(info):
 
  HB = HydroBlocks(info)
@@ -22,15 +38,15 @@ class HydroBlocks:
   self.general_information(info)
 
   #Initialize Noah-MP
-  print "Initializing Noah-MP"
+  print("Initializing Noah-MP")
   self.initialize_noahmp()
 
   #Initialize subsurface module
-  print "Initializing subsurface module"
+  print("Initializing subsurface module")
   self.initialize_subsurface()
 
   #Initialize human water use module
-  print "Initializing Human Water Management"
+  print("Initializing Human Water Management")
   self.initialize_hwu(info)
 
   #Other metrics
@@ -60,7 +76,7 @@ class HydroBlocks:
   file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d'))
   if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
-    print "Cold startup"
+    print("Cold startup")
     return
 
   #Read in the restart information
@@ -152,7 +168,9 @@ class HydroBlocks:
   self.noahmp.dt = self.dt
   self.noahmp.nsnow = 3
   self.noahmp.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
+  #self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
   self.noahmp.lsoil[:] = 'CUST'
+  #self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
   dir = os.path.dirname(os.path.abspath(__file__))
   VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
@@ -160,6 +178,9 @@ class HydroBlocks:
   self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
   self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
   self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
+  #self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
+  #self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
+  #self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
   self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -235,7 +256,7 @@ class HydroBlocks:
   self.noahmp.smcmax[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
   self.noahmp.smcref[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
   self.noahmp.smcdry[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-  for ilayer in xrange(self.noahmp.sh2o.shape[1]):
+  for ilayer in range(self.noahmp.sh2o.shape[1]):
    self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
    #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
   self.noahmp.smc[:] = self.noahmp.sh2o[:]
@@ -259,7 +280,7 @@ class HydroBlocks:
   #Initialize output
   self.noahmp.tg[:] = 285.0
   self.noahmp.tv[:] = 285.0
-  for ilayer in xrange(self.noahmp.nsnow-1,self.noahmp.stc.shape[1]):
+  for ilayer in range(self.noahmp.nsnow-1,self.noahmp.stc.shape[1]):
    self.noahmp.stc[:,ilayer] = 285.0
   self.noahmp.tah[:] = 285.0
   self.noahmp.t2mv[:] = 285.0
@@ -293,15 +314,19 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
-  self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:] #Noemi
-  self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  print self.nhru
+  self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
+  #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
   self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
                                   self.input_fp.groups['wmatrix'].variables['indices'][:],
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
-                                  dtype=np.float64)[0:self.nhru,0:self.nhru]
+                                  shape=(self.nhru,self.nhru),dtype=np.float64)
+                                  #dtype=np.float64)[0:self.nhru,0:self.nhru]
+  print self.richards.width.shape
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
   
@@ -333,8 +358,7 @@ class HydroBlocks:
   self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
   af = 1.0 #anisotropy factor
-  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m #Noemi 
-  #self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*np.sum(self.metadata['dz'])
+  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
   self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
   self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
@@ -426,7 +450,7 @@ class HydroBlocks:
 
    #Output some statistics
    if (date.hour == 0) and (date.day == 1):
-    print date,time.time() - tic,'et:%f'%self.et,'prcp:%f'%self.prcp,'q:%f'%self.q,'WB ERR:%f' % self.errwat,'ENG ERR:%f' % self.erreng
+    print(date,time.time() - tic,'et:%f'%self.et,'prcp:%f'%self.prcp,'q:%f'%self.q,'WB ERR:%f' % self.errwat,'ENG ERR:%f' % self.erreng)
 
   return
 
@@ -435,7 +459,15 @@ class HydroBlocks:
   self.noahmp.itime = self.itime
   dt = self.dt
   if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = self.itime
-  self.noahmp.nowdate[:] = date.strftime('%Y-%m-%d_%H:%M:%S')
+  #self.noahmp.nowdate[:] = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
+  self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #print(self.noahmp.nowdate[:])
+  #print(self.noahmp.nowdate.dtype)
+  #print(date.strftime('%Y-%m-%d_%H:%M:%S').dtype)
+  #tmp = np.char.array(date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #exit()
+  #self.noahmp.nowdate[:] = tmp[:]#date.strftime('%Y-%m-%d_%H:%M:%S')
+  #print(len(self.noahmp.nowdate))
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
@@ -535,7 +567,7 @@ class HydroBlocks:
    #self.noahmp.dzwt[:] = 0
    self.noahmp.hdiv[:] = 0
    ls = []
-   for ihru in xrange(self.nhru):
+   for ihru in range(self.nhru):
     cs = np.cumsum(self.noahmp.sldpth[ihru,:])
     m = cs>np.abs(self.noahmp.zwt[ihru])
     if np.sum(m) > 0:
@@ -753,7 +785,7 @@ class HydroBlocks:
              }
 
   #Create the dimensions
-  print 'Creating the dimensions'
+  print('Creating the dimensions')
   #ntime = len(fp_in.dimensions['time'])
   ntime = 24*3600*((self.fdate - self.idate).days+1)/self.dt
   nhru = len(fp_in.dimensions['hsu'])
@@ -762,7 +794,7 @@ class HydroBlocks:
   fp_out.createDimension('soil',self.nsoil)
 
   #Create the output
-  print 'Creating the data group'
+  print('Creating the data group')
   grp = fp_out.createGroup('data')
   for var in self.metadata['output']['vars']:
    ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
@@ -770,7 +802,7 @@ class HydroBlocks:
    ncvar.units = metadata[var]['units']
 
   #Create the metadata
-  print 'Creating the metadata group'
+  print('Creating the metadata group')
   grp = fp_out.createGroup('metadata')
   #Time
   grp.createVariable('time','f8',('time',))
@@ -779,21 +811,21 @@ class HydroBlocks:
   dates.calendar = 'standard'
 
   #HRU percentage coverage
-  print 'Setting the HRU percentage coverage'
+  print('Setting the HRU percentage coverage')
   pcts = grp.createVariable('pct','f4',('hru',))
   pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
   pcts.description = 'hru percentage coverage'
   pcts.units = '%'
 
   #HRU area
-  print 'Setting the HRU areal coverage'
+  print('Setting the HRU areal coverage')
   area = grp.createVariable('area','f4',('hru',))
   area[:] = fp_in.groups['parameters'].variables['area'][:]
   area.units = 'meters squared'
-  print 'Defining the HRU ids'
+  print('Defining the HRU ids')
   hru = grp.createVariable('hru','i4',('hru',))
   hrus =[]
-  for value in xrange(nhru):hrus.append(value)
+  for value in range(nhru):hrus.append(value)
   hru[:] = np.array(hrus)
   hru.description = 'hru ids'
 

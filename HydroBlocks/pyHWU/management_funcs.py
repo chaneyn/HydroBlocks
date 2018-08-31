@@ -81,8 +81,8 @@ def calculate_min_distance(hsu,nhru,cluster_ids,lats,lons,clats,clons):
   if len(points) <= 5: nsamp = len(points)
 
   points = random.sample(points, nsamp)
-  bd_lats = np.array(zip(*points)[0])
-  bd_lons = np.array(zip(*points)[1])
+  bd_lats = np.array(list(zip(*points))[0])
+  bd_lons = np.array(list(zip(*points))[1])
 
   distance = np.ones(nhru)*10000000.
 
