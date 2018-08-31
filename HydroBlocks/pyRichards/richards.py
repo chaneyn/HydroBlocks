@@ -114,19 +114,25 @@ class richards:
   t1 = (I != 0).multiply(sparse.csr_matrix(T))
   n = 2*t1.T.multiply(t1)
   d = t1.T+t1
-  That = n.multiply(d.power(-1))
+  That = n.multiply(d.power(-1)).tocsr()
+  print That.count_nonzero,self.width.count_nonzero
   #Calculate the flux
   #[m/s] = [m/s]*[m]/[m]*[m]*[m]/[m2]
+  print That.multiply(dh).shape
+  print That.multiply(dh).multiply(self.width).count_nonzero
+  print 1.0/self.area
+  print That.multiply(dh).multiply(self.width).multiply(1.0/self.area).count_nonzero
+  print That.multiply(dh).multiply(self.width).multiply(1.0/self.area).multiply(dx.power(-1)).count_nonzero
   return -That.multiply(dh).multiply(self.width).multiply(1.0/self.area).multiply(dx.power(-1)).multiply(1000) #mm/s
   #return -Khat.multiply(dh).multiply(self.width).multiply(dz/self.dx/self.area).multiply(1000) #mm/s
 
  def update(self,type='sparse'):
 
   #Determine if sparse or not
-  if self.nhru <= 100: type = 'dense'
+  if self.nhru <= 1000: type = 'dense'
 
   #Iterate per layer
-  for il in xrange(self.theta.shape[1]):
+  for il in range(self.theta.shape[1]):
    #Calculate soil moisture potential
    psi = self.calculate_soil_moisture_potential(il)
    #Calculate hydraulic conductivity
@@ -135,7 +141,6 @@ class richards:
    zbot = np.sum(self.dz[:,0:il+1],axis=1)
    ztop = zbot - self.dz[:,il]
    T = self.calculate_transmissivity(psi,ztop,zbot)
-   #if il == 0: print T[0]
    #Calculate hydraulic head
    h = self.calculate_hydraulic_head(psi)
    #Calculate the divergence
