@@ -348,17 +348,6 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydroblocks_info,wb
    elif var == 'WLTSMC': info_general['smw'] =   {'data':covariates['WLTSMC'][mask == True],}
    else: info_general[var] =   {'data':covariates[var][mask == True],}
 
- # check if lc is a covariates, and disagregate it in classes
- if 'lc' in hydroblocks_info['covariates']:
-  for lc in np.unique(covariates['lc'][mask == True]):
-   if lc >= 0 :
-    vnam = 'lc_%i' % lc
-    masklc = covariates['lc'] == lc
-    covariates[vnam] = np.zeros(covariates['lc'].shape)
-    covariates[vnam][masklc] = 1.0
-    hydroblocks_info['covariates'][vnam] = 'n'
-    info_general[vnam] = {'data':covariates[vnam][mask_nc == True],}
-  del hydroblocks_info['covariates']['lc']    
 
  #Subset the chosen ones for the non-channels
  info = {}
@@ -478,7 +467,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Remove pits in dem
  print("Removing pits in dem")
  demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
-
+ covariates['demns'] = demns
+  
  #Calculate slope and aspect
  print("Calculating slope and aspect")
  res_array = np.copy(demns)
@@ -523,7 +513,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area")
  hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,demns)
-
+ 
  #Calculate topographic index
  print("Computing topographic index")
  ti = np.copy(area)
@@ -539,6 +529,20 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  basins[mask != 1] = -9999
  #hand[mask != 1] = -9999
  ti[mask != 1] = -9999
+
+ covariates['slope'] = slope
+ covariates['aspect'] = aspect
+ covariates['area'] = area
+ #covariates['fdir'] = fdir
+ covariates['ti'] = ti
+
+ import matplotlib.pyplot as plt
+ plt.imshow(mask); plt.show()
+ tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ 
 
  #Calculate the subbasin properties
  print("Assembling the subbasin properties")
@@ -559,13 +563,20 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Divide each subbasin into height bands
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
 
+ #Disagregate land cover
+ intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
+ if 'lc' in intraband_clust_vars: 
+  intraband_clust_vars.remove('lc')
+  disag = [i for i in covariates.keys() if 'lc_' in i]
+  intraband_clust_vars = intraband_clust_vars + disag
+
  #Calculate the hrus (kmeans on each tile of each basin)
  cvs = {}
- for var in ['cslope','sand','clay']:
+ for var in intraband_clust_vars:
   cvs[var] = {'min':np.min(covariates[var]),
-                     'max':np.max(covariates[var]),
-                     't':-9999,
-                     'd':covariates[var]}
+              'max':np.max(covariates[var]),
+              't':-9999,
+              'd':covariates[var]}
  print("Clustering the height bands into %d clusters" % nclusters)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
@@ -580,7 +591,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info['basins'] = basins
  HMC_info['tile_position'] = tile_position
 
- return (hrus.astype(np.float32),nhru,new_hand,HMC_info)
+ return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates)
 
 def Assign_Parameters_Fulldistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask):
 
@@ -924,9 +935,6 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  for file in wbd['files']:
   if os.path.isfile(wbd['files'][file]): 
    covariates[file] = gdal_tools.read_raster(wbd['files'][file])
-   if file == 'cslope':
-    mask = covariates[file] == 0.0
-    covariates[file][mask] = 0.000001
 
  #Curate the NDVI to match LC # Noemi
  #tmp = covariates['ndvi']
@@ -935,10 +943,19 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  # masklc = covariates['lc'] == lc
  # covariates['ndvi'][masklc] = np.nanmean(tmp[masklc])
 
-
+ # check if lc is a covariates, and disagregate it in classes
+ if 'lc' in hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']:
+  for lc in np.unique(covariates['lc'][covariates['mask'].astype(np.bool)]):
+   if lc >= 0 :
+    vnam = 'lc_%i' % lc
+    masklc = covariates['lc'] == lc
+    covariates[vnam] = np.zeros(covariates['lc'].shape)
+    covariates[vnam][masklc] = 1.0
+    hydroblocks_info['covariates'][vnam] = 'n'
+    
  #Create lat/lon grids
- lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['ti'].shape[0])
- lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['ti'].shape[1])
+ lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
+ lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['dem'].shape[1])
 
  #Constrain the lat/lon grid by the effective resolution (4km...)
  '''nres = int(np.floor(90.0/30.0))
@@ -952,19 +969,25 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  covariates['lats'] = lats.T
  covariates['lons'] = lons.T
  
+ '''
  #Add sti
  satdk = covariates['SATDK']
  satdk[satdk==-9999.0] = np.nan
  sti = covariates['ti'] - np.log(0.1*satdk) + np.log(np.nanmean(0.1*satdk))
  sti[sti==np.nan]=-9999.0
  covariates['sti'] = sti
+ '''
 
  #Define the mask
  mask = np.copy(covariates['mask'])
  mask[mask >= 0] = 1
  mask[mask < 0] = 0
+ #Mask regions without soil properties
+ nodata = (covariates['clay'] == -9999) & (covariates['lc'] == 17)
+ mask[nodata] = 0
  mask = mask.astype(np.bool)
 
+ 
  #Set all nans to the mean
  for var in covariates:
   if var in ['dem','lats','lons']:continue
@@ -1002,7 +1025,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
 
  print("Creating and curating the covariates")
  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydroblocks_info)
-
+ 
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs")
  print(hydroblocks_info['clustering_version'])
@@ -1010,7 +1033,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
   if hydroblocks_info['clustering_version'] == 'chaney2016':
    (cluster_ids,nhru) = Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydroblocks_info,wbd)
   elif hydroblocks_info['clustering_version'] == 'hmc':
-   (cluster_ids,nhru,hand,HMC_info) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
+   (cluster_ids,nhru,hand,HMC_info,covariates) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
    covariates['hand'] = hand
  elif hydroblocks_info['model_type'] == 'full':
   nhru = np.sum(mask == True)
