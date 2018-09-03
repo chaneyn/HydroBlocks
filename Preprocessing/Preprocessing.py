@@ -536,12 +536,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #covariates['fdir'] = fdir
  covariates['ti'] = ti
 
- import matplotlib.pyplot as plt
- plt.imshow(mask); plt.show()
- tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
- plt.imshow(tmp); plt.show()
- tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
- plt.imshow(tmp); plt.show()
+ #import matplotlib.pyplot as plt
+ #plt.imshow(mask); plt.show()
+ #tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
+ #plt.imshow(tmp); plt.show()
+ #tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
+ #plt.imshow(tmp); plt.show()
  
 
  #Calculate the subbasin properties
