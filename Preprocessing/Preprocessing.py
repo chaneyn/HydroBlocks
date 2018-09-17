@@ -15,7 +15,8 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-from geospatialtools import terrain_tools
+#from geospatialtools import terrain_tools
+import terrain_tools as terrain_tools
 #import matplotlib.pyplot as plt
 #import random
 import gc
@@ -330,7 +331,7 @@ def Compute_HRUs_Semidistributed_Kmeans(covariates,mask,nhru,hydroblocks_info,wb
  #Mask regions without soil properties
  tmp_clay = gdal_tools.read_raster(wbd['files']['clay'])
  tmp_lc = gdal_tools.read_raster(wbd['files']['lc'])
- nodata = (tmp_clay == -9999) & (tmp_lc == 17)
+ nodata = (tmp_clay == -9999) & ((tmp_lc == 17) | (tmp_lc == -9999))
  mask_nc[nodata]=False
  del tmp_clay,tmp_lc
  gc.collect()
@@ -532,17 +533,18 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  covariates['slope'] = slope
  covariates['aspect'] = aspect
- covariates['area'] = area
+ covariates['carea'] = area
  #covariates['fdir'] = fdir
  covariates['ti'] = ti
 
- #import matplotlib.pyplot as plt
- #plt.imshow(mask); plt.show()
- #tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
- #plt.imshow(tmp); plt.show()
- #tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
- #plt.imshow(tmp); plt.show()
- 
+ '''
+ import matplotlib.pyplot as plt
+ plt.imshow(mask); plt.show()
+ tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ '''
 
  #Calculate the subbasin properties
  print("Assembling the subbasin properties")
@@ -560,6 +562,42 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
               'd':tmp}
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
 
+ 
+ # remove tiny basins clusters
+ ubcs = np.unique(basin_clusters)
+ ubcs = ubcs[ubcs!=-9999]
+ for ubc in ubcs:
+  m = basin_clusters == ubc
+  valid_vals = np.invert((hand[m]==-9999) | ((covariates['clay'][m]==-9999) | (covariates['lc'][m]==17)))
+  #if the basin cluster has less than 50% of valid hand values
+  if np.sum(valid_vals) > 0:
+    missing_ratio = 1.0 - (np.sum(valid_vals)/float(np.sum(m)))
+    print missing_ratio
+  else:
+    missing_ratio = 1.0
+  if missing_ratio > 0.5 : 
+    basin_clusters[m] = -9999
+    basins[m] = -9999
+ if len(basin_clusters[basin_clusters != -9999]) < 1 : 
+  exit('Error_basin_clustering: catch_full_of_nans %s' % hydroblocks_info['icatch']) 
+
+ 
+ print basin_clusters, basin_clusters.shape
+ import matplotlib.pyplot as plt
+ tmp = np.copy(covariates['lc']).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(covariates['clay']).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(basins).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(basin_clusters).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(hand).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ tmp = np.copy(hand-basin_clusters).astype(float); tmp[tmp==-9999]=np.nan
+ plt.imshow(tmp); plt.show()
+ 
+ 
  #Divide each subbasin into height bands
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
 
@@ -577,7 +615,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
               'max':np.max(covariates[var]),
               't':-9999,
               'd':covariates[var]}
- print("Clustering the height bands into %d clusters" % nclusters)
+ #print("Clustering the height bands into %d clusters" % nclusters)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
@@ -680,7 +718,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
     #OUTPUT['hsu'][var][hsu] = stats.mstats.gmean(covariates[var][idx])
     OUTPUT['hsu'][var][hsu] = np.mean(covariates[var][idx])
   #Average Slope
-  OUTPUT['hsu']['slope'][hsu] = np.nanmean(covariates['cslope'][idx])
+  OUTPUT['hsu']['slope'][hsu] = np.nanmean(covariates['slope'][idx])
   #Topographic index
   OUTPUT['hsu']['ti'][hsu] = np.nanmean(covariates['ti'][idx])
   #DEM
@@ -720,9 +758,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
    npi = np.nansum([x==2 for x in irrig_vec])
    ttt = np.nansum([x>=0 for x in irrig_vec])
    iratio = 0
-   if ttt > 0: iratio = float((nii+npi))/ttt
-   if   iratio >= 0.50 and nii > npi: OUTPUT['hsu']['irrig_land'][hsu] = 1
-   elif iratio >= 0.50 and nii < npi: OUTPUT['hsu']['irrig_land'][hsu] = 2
+   if ttt > 0: 
+    iratio = float((nii+npi))/ttt
+    if   iratio >= 0.50 and nii > npi: OUTPUT['hsu']['irrig_land'][hsu] = 1
+    elif iratio >= 0.50 and nii < npi: OUTPUT['hsu']['irrig_land'][hsu] = 2
+    else: OUTPUT['hsu']['irrig_land'][hsu] = 0
    else: OUTPUT['hsu']['irrig_land'][hsu] = 0
  
     # Crop Calendar
@@ -983,14 +1023,14 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  mask[mask >= 0] = 1
  mask[mask < 0] = 0
  #Mask regions without soil properties
- nodata = (covariates['clay'] == -9999) & (covariates['lc'] == 17)
+ nodata = (covariates['clay'] == -9999) & ((covariates['lc'] == 17) | (covariates['lc'] == -9999))
  mask[nodata] = 0
  mask = mask.astype(np.bool)
 
  
  #Set all nans to the mean
  for var in covariates:
-  if var in ['dem','lats','lons']:continue
+  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
   covariates[var][mask <= 0] = -9999.0
   mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0) 
   mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
@@ -998,13 +1038,19 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
 
  #Set everything that is -9999 to the mean
  for var in covariates:
-  if len(covariates[var][covariates[var] != -9999.0]) < 1: 
+  tmp = np.copy(covariates[var])[mask] 
+  if len(tmp) > 0 : 
+   missing_ratio = 1.0 - (len(tmp[tmp!=-9999.0])/float(len(tmp))) # Report if missing more than 70% of data
+  else:
+   missing_ratio = 1.0
+  if missing_ratio > 0.70 : 
    print("Error: Covariate %s is full of Nan's" % (var), covariates[var], wbd['files'][var]) # Noemi insert
    if var == 'lc':
     covariates[var][mask == 1] = 17  # Water
    else:
     covariates[var][mask == 1] = 0.5
     print("Error: Covariate was set to 0.5")
+   if var in ['dem','fdir','sand','clay','silt','TEXTURE_CLASS']: exit('Error_clustering: catch_full_of_nans %s' % hydroblocks_info['icatch'])
   if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30']: 
    covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]  
   else:
@@ -1012,7 +1058,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
 
  #Set everything outside of the mask to -9999
  for var in covariates:
-  if var in ['dem','lats','lons']:continue
+  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
   covariates[var][mask <= 0] = -9999.0
  
  return (covariates,mask)
@@ -1068,7 +1114,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
   cmatrix = Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,resx,HMC_info,hydroblocks_info)
 
  #Define the metadata
- metadata = gdal_tools.retrieve_metadata(wbd['files']['ti'])
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['dem'])
 
  #Make the output dictionary for the basin
  OUTPUT = {'hsu':{},'metadata':metadata,'mask':mask,'flow_matrix':flow_matrix,'cmatrix':cmatrix}
@@ -1224,6 +1270,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   #Assing to hsus
   for hsu in mapping_info[var]:
    #print data_var,data, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords'],
+   print hsu, var, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords']
    pcts = mapping_info[var][hsu]['pcts']
    coords = mapping_info[var][hsu]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
