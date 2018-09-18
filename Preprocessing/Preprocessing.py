@@ -581,7 +581,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  if len(basin_clusters[basin_clusters != -9999]) < 1 : 
   exit('Error_basin_clustering: catch_full_of_nans %s' % hydroblocks_info['icatch']) 
 
- 
+ '''
  print basin_clusters, basin_clusters.shape
  import matplotlib.pyplot as plt
  tmp = np.copy(covariates['lc']).astype(float); tmp[tmp==-9999]=np.nan
@@ -596,7 +596,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  plt.imshow(tmp); plt.show()
  tmp = np.copy(hand-basin_clusters).astype(float); tmp[tmp==-9999]=np.nan
  plt.imshow(tmp); plt.show()
- 
+ '''
  
  #Divide each subbasin into height bands
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
@@ -1270,7 +1270,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   #Assing to hsus
   for hsu in mapping_info[var]:
    #print data_var,data, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords'],
-   print hsu, var, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords']
+   #print hsu, var, data.shape, hsu,mapping_info[var][hsu]['pcts'],mapping_info[var][hsu]['coords']
    pcts = mapping_info[var][hsu]['pcts']
    coords = mapping_info[var][hsu]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
