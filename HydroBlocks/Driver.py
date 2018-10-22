@@ -25,7 +25,7 @@ sidate = idate
 sfdate = idate
 while sidate < fdate:
  sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
- if sfdate > fdate:sfdate = fdate
+ if sfdate > fdate: sfdate = fdate
  #Set the parameters
  info['idate'] = sidate
  info['fdate'] = sfdate

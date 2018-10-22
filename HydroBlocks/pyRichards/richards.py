@@ -40,7 +40,26 @@ class richards:
   #m = theta > thetar
   #psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
   #psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
-  psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
+
+  '''
+  print thetas, thetar, theta
+  print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+  for i in range(len(theta)):
+   print i, (theta[i]-thetar[i])/(thetas[i]-thetar[i])
+   print i, (theta-thetar)[i]/(thetas-thetar)[i]
+  print "@@@@@@@@@@"
+  #print np.true_divide((theta-thetar),(thetas-thetar)), satpsi, b
+  if len(thetas[~np.isfinite(thetas)]) > 0 : 
+    print "INVALID:", thetas[~np.isfinite(thetas)]
+    thetas[~np.isfinite(thetas)] = np.nan
+  bad = np.invert(np.isfinite(theta-thetar))
+  if np.sum(bad):
+   print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+   print (thetas-thetar)[bad]
+  ''' 
+  
+  with np.errstate(invalid='ignore'):
+    psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
 
   return psi
 
@@ -51,7 +70,8 @@ class richards:
   #df = np.exp(-self.m[:,np.newaxis]/sdz)[:,il]
   #Ksat_x = af*df*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
-  K_x = Ksat_x*(psi/self.satpsi)**(-2-3/self.b)
+  with np.errstate(invalid='ignore'):
+   K_x = Ksat_x*(psi/self.satpsi)**(-2-3/self.b)
 
   return K_x
 
@@ -61,12 +81,14 @@ class richards:
   af = 2.0
   m = np.copy(self.m)
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
-  K_x = Ksat_x*(psi/self.satpsi)**(-2-3./self.b)
-  #Calculate transmissivity at top layer (exponential decay)
-  Ttop = m*K_x*np.exp(-ztop/m)
-  #Calculate transmissivity at bottom of layer (exponential decay)
-  Tbot = m*K_x*np.exp(-zbot/m)
-  T = Ttop - Tbot
+  with np.errstate(invalid='ignore', divide='ignore'):
+   K_x = Ksat_x*np.true_divide(psi,self.satpsi)**(-2-np.true_divide(3.,self.b))
+   K_x[~np.isfinite(K_x)] = np.nan
+   #Calculate transmissivity at top layer (exponential decay)
+   Ttop = m*K_x*np.exp(-ztop/m)
+   #Calculate transmissivity at bottom of layer (exponential decay)
+   Tbot = m*K_x*np.exp(-zbot/m)
+   T = Ttop - Tbot
     
   return T
 
@@ -84,10 +106,14 @@ class richards:
   dx = (np.abs(self.dem[:,np.newaxis] - self.dem[np.newaxis,:])**2 + self.dx**2)**0.5
   w = np.array(self.width.todense())
   area = self.area 
-  #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
-  That = (2*T[:,np.newaxis]*T[np.newaxis,:])/(T[:,np.newaxis] + T[np.newaxis,:])
-  #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
-  return -1000.0*That*dh/dx*w/area #mm/s
+  with np.errstate(invalid='ignore',divide='ignore'):
+   #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
+   That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
+   That[~np.isfinite(That)] = np.nan
+   #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
+   calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
+   calc_div[~np.isfinite(calc_div)] = np.nan
+  return calc_div
 
  #def calculate_divergence_sparse(self,h,K_x,dz):
  def calculate_divergence_sparse(self,h,T):

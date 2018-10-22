@@ -523,6 +523,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  ti[slope == 0] = 15.0
 
  #Cleanup
+ #Mask regions without soil properties
+ tmp_clay = gdal_tools.read_raster(wbd['files']['clay'])
+ tmp_lc = gdal_tools.read_raster(wbd['files']['lc'])
+ nodata = (tmp_clay == -9999) & ((tmp_lc == 17) | (tmp_lc == -9999))
+ mask[nodata]=0
+ del tmp_clay,tmp_lc
+ gc.collect()
+
+ # cleanup
  slope[mask != 1] = -9999
  aspect[mask != 1] = -9999
  area[mask != 1] = -9999
@@ -560,26 +569,25 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
               'max':np.max(hp_in[var]),
               't':-9999,
               'd':tmp}
- (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
-
  
+ (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
+  
  # remove tiny basins clusters
  ubcs = np.unique(basin_clusters)
  ubcs = ubcs[ubcs!=-9999]
  for ubc in ubcs:
   m = basin_clusters == ubc
-  valid_vals = np.invert((hand[m]==-9999) | ((covariates['clay'][m]==-9999) | (covariates['lc'][m]==17)))
+  valid_vals = (hand[m] != -9999) 
   #if the basin cluster has less than 50% of valid hand values
   if np.sum(valid_vals) > 0:
-    missing_ratio = 1.0 - (np.sum(valid_vals)/float(np.sum(m)))
-    print missing_ratio
+    missing_ratio = 1.0 - (np.sum(valid_vals)/float(np.sum(m)))  
   else:
     missing_ratio = 1.0
-  if missing_ratio > 0.5 : 
+  if missing_ratio > 0.9 : 
     basin_clusters[m] = -9999
     basins[m] = -9999
  if len(basin_clusters[basin_clusters != -9999]) < 1 : 
-  exit('Error_basin_clustering: catch_full_of_nans %s' % hydroblocks_info['icatch']) 
+  exit('Error_basin_clustering: hand_full_of_nans %s' % hydroblocks_info['icatch']) 
 
  '''
  print basin_clusters, basin_clusters.shape
@@ -997,18 +1005,21 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
  lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['dem'].shape[1])
 
+ '''
  #Constrain the lat/lon grid by the effective resolution (4km...)
- '''nres = int(np.floor(90.0/30.0))
+ nres = int(np.floor(90.0/30.0))
  for ilat in range(0,lats.size,nres):
   lats[ilat:ilat+nres] = np.mean(lats[ilat:ilat+nres])
  for ilon in range(0,lons.size,nres):
-  lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])'''
- 
+  lons[ilon:ilon+nres] = np.mean(lons[ilon:ilon+nres])
+ '''
+
  #Need to fix so that it doesn't suck up all the clustering:
  lats, lons = np.meshgrid(lats, lons)
  covariates['lats'] = lats.T
  covariates['lons'] = lons.T
  
+
  '''
  #Add sti
  satdk = covariates['SATDK']
@@ -1023,8 +1034,8 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  mask[mask >= 0] = 1
  mask[mask < 0] = 0
  #Mask regions without soil properties
- nodata = (covariates['clay'] == -9999) & ((covariates['lc'] == 17) | (covariates['lc'] == -9999))
- mask[nodata] = 0
+ #nodata = (covariates['clay'] == -9999) & ((covariates['lc'] == 17) | (covariates['lc'] == -9999))
+ #mask[nodata] = 0
  mask = mask.astype(np.bool)
 
  
@@ -1038,23 +1049,24 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
 
  #Set everything that is -9999 to the mean
  for var in covariates:
+
   tmp = np.copy(covariates[var])[mask] 
   if len(tmp) > 0 : 
-   missing_ratio = 1.0 - (len(tmp[tmp!=-9999.0])/float(len(tmp))) # Report if missing more than 70% of data
-  else:
-   missing_ratio = 1.0
-  if missing_ratio > 0.70 : 
+   missing_ratio = 1.0 - (len(tmp[tmp!=-9999.0])/float(len(tmp))) # Report if missing more than 90% of data
+  else: missing_ratio = 1.0
+  if missing_ratio > 0.90 : 
    print("Error: Covariate %s is full of Nan's" % (var), covariates[var], wbd['files'][var]) # Noemi insert
-   if var == 'lc':
-    covariates[var][mask == 1] = 17  # Water
-   else:
-    covariates[var][mask == 1] = 0.5
-    print("Error: Covariate was set to 0.5")
-   if var in ['dem','fdir','sand','clay','silt','TEXTURE_CLASS']: exit('Error_clustering: catch_full_of_nans %s' % hydroblocks_info['icatch'])
+   if var == 'lc': covariates[var][mask == 1] = 17  # Water
+   if var in ['dem','fdir']:
+     exit('Error_clustering: %s_full_of_nans %s' % (var,hydroblocks_info['icatch']))
+   if (missing_ratio >= 0.98) and (var in ['dbedrock','sand','clay','silt','TEXTURE_CLASS']): 
+     exit('Error_clustering: %s_full_of_nans %s' % (var,hydroblocks_info['icatch']))
+
   if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30']: 
-   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]  
+   covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][mask][covariates[var][mask] != -9999.0])[0][0]  
   else:
-   covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
+   covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][mask][covariates[var][mask] != -9999.0])
+  
 
  #Set everything outside of the mask to -9999
  for var in covariates:
@@ -1258,11 +1270,11 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
   nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
   nc_nt = len(fp.variables['t'][:])
-  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),1)]
-  for it in range(0,nc_nt-1): dates.append( dates[it] + datetime.timedelta(hours=nc_step) )
+  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),int(nc_idate[2]))]
+  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
   dates=np.array(dates)
-  startdate = datetime.datetime(idate.year,idate.month,1,0)
-  enddate = datetime.datetime(fdate.year,fdate.month,31,23)
+  startdate = info['time_info']['startdate']
+  enddate = info['time_info']['enddate']
   mask_dates = (dates >= startdate) & (dates <= enddate)
   data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
   fp.close()
@@ -1423,11 +1435,11 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
   nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
   nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
   nc_nt = len(fp.variables['t'][:])
-  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),1)]
-  for it in range(0,nc_nt-1): dates.append( dates[it] + datetime.timedelta(hours=nc_step) )
+  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),int(nc_idate[2]))]
+  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
   dates=np.array(dates)
-  startdate = datetime.datetime(idate.year,idate.month,1,0)
-  enddate = datetime.datetime(fdate.year,fdate.month,31,23)
+  startdate = info['time_info']['startdate']
+  enddate  = info['time_info']['enddate']
   mask_dates = (dates >= startdate) & (dates <= enddate)
   data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
   fp.close()
@@ -1475,7 +1487,6 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
    var.calendar = 'standard'
    dates = nc.date2num(dates,units=var.units,calendar=var.calendar)
    var[:] = dates[:]
-
 
  return
 

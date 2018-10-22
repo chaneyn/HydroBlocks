@@ -411,7 +411,7 @@ class HydroBlocks:
   self.noahmp.dzwt[:] = 0.0
 
   if self.subsurface_module == 'dtopmodel': self.dtopmodel.ex[:] = 0.0
-  while date <= self.fdate:
+  while date < self.fdate:
 
    #Update input data
    self.update_input(date)
@@ -450,7 +450,7 @@ class HydroBlocks:
 
    #Output some statistics
    if (date.hour == 0) and (date.day == 1):
-    print(date,time.time() - tic,'et:%f'%self.et,'prcp:%f'%self.prcp,'q:%f'%self.q,'WB ERR:%f' % self.errwat,'ENG ERR:%f' % self.erreng)
+    print(date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng)
 
   return
 
@@ -786,8 +786,7 @@ class HydroBlocks:
 
   #Create the dimensions
   print('Creating the dimensions')
-  #ntime = len(fp_in.dimensions['time'])
-  ntime = 24*3600*((self.fdate - self.idate).days+1)/self.dt
+  ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
   nhru = len(fp_in.dimensions['hsu'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)

@@ -1215,7 +1215,7 @@ contains
 
 #ifndef WRF_HYDRO
         !IF(ABS(ERRWAT) > 0.1) THEN 
-        IF(ABS(ERRWAT) > 20.0) THEN
+        IF(ABS(ERRWAT) > 50.0) THEN
            if (ERRWAT > 0) then
               call wrf_message ('The model is gaining water (ERRWAT is positive)')
            else
@@ -9174,13 +9174,13 @@ END  SUBROUTINE SHALLOWWATERTABLE
     SMCREF = REFSMC (SOILTYP)
     SMCWLT = WLTSMC (SOILTYP)
 
-    IF(VEGTYP==ISURBAN)THEN
-       SMCMAX = 0.45 
-       SMCREF = 0.42 
-       SMCWLT = 0.40 
-       SMCDRY = 0.40 
-       CSOIL  = 3.E6
-    ENDIF
+    !IF(VEGTYP==ISURBAN)THEN
+    !   SMCMAX = 0.45 
+    !   SMCREF = 0.42 
+    !   SMCWLT = 0.40 
+    !   SMCDRY = 0.40 
+    !   CSOIL  = 3.E6
+    !ENDIF
 
 ! ----------------------------------------------------------------------
 ! Set-up universal parameters (not dependent on SOILTYP, VEGTYP)
