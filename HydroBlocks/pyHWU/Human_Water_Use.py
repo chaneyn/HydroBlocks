@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from scipy.sparse import csc_matrix, csr_matrix
 import sys
-sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/pyHWU/')
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))#+'/pyHWU/')
 import management_funcs as mgmt_funcs
 import matplotlib.pyplot as plt
 
@@ -52,7 +52,7 @@ class Human_Water_Use:
 
   # Calc topographic index
   self.beta = HB.input_fp.groups['parameters'].variables['slope'][:] #Noemi
-  m = HB.input_fp.groups['parameters'].variables['m'][:] #Noemi
+  m = HB.input_fp.groups['parameters'].variables['m'][:] #Depth to bedrock #Noemi
   pct = HB.input_fp.groups['parameters'].variables['area_pct'][:]/100.0
   af=10 #anisotropic factor
   T0 = af*HB.input_fp.groups['parameters'].variables['SATDK'][:]*m
@@ -63,7 +63,7 @@ class Human_Water_Use:
  
   # GROUNDWATER supply variables
   if self.hwu_gw_flag == True:
-   # Well_depht
+   # Well_depht 
    # Correct well_depht for shallow soils and add 20% buffer. Well depth = 80% of bedrock depth
    self.well_depth = np.maximum(-1.0*m*0.8,NOAH.zsoil[:,-1]*0.8)
    self.well_layer = np.argmin(abs(NOAH.zsoil-self.well_depth[:,np.newaxis]))
@@ -83,12 +83,12 @@ class Human_Water_Use:
    self.supply_sf = np.zeros(ncells,dtype=np.float64)
    self.alloc_sf  = np.zeros(ncells,dtype=np.float64)
 
-   # Surface Water availability where ti > 10 and slope < 0.01
+   # Surface water availability where ti > 10 and slope < 0.01 (surface water only at the river streams -- update this later)
    cond1 = ( self.sti >= 10.0 ) & ( self.beta < 0.01)
    #cond1 = ( self.sti >= 10.0 )
-   # Surface Water in water Bodies and/or wetlands
+   # surface water from HRUs with land cover as water or wetlands 
    cond2 = np.array([ True if x in self.water_use_land_cover["surface_water"] else False for x in NOAH.vegtyp ])
-   self.mask_sf    = np.array([ True if i==True or j==True else False for i,j in zip(cond1,cond2) ])
+   self.mask_sf = np.array([ True if i==True or j==True else False for i,j in zip(cond1,cond2) ])
    # Maximum surface water abstractions distance (km)
    self.sf_dist_lim  = 10.0 # km
    # Maximum slope allowed for upstream abstraction
@@ -110,6 +110,8 @@ class Human_Water_Use:
    self.mask_irrig = self.mask_agric & ( self.irrig_land > 0.0 )
    #self.mask_irrig = np.copy(self.mask_agric)
    print('Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric])))
+   print('Irrig Percentage:', np.sum(self.mask_irrig)/float(np.sum(self.mask_agric)))
+
    
    # Crop calendar
    self.st_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['start_growing_season'][:],dtype=np.int)
@@ -158,7 +160,7 @@ class Human_Water_Use:
   if self.hwu_flag == True:
    ncells = NOAH.ncells
 
-   # HRU distances
+   # 1. HRU distances
    # Centroid Distances
    self.ctrd_lats = HB.input_fp.groups['parameters'].variables['centroid_lats'][:]
    self.ctrd_lons = HB.input_fp.groups['parameters'].variables['centroid_lons'][:]
@@ -166,6 +168,7 @@ class Human_Water_Use:
    # Minimum Distance between a HRU centroid and it's neighboors boundary 
    self.hru_min_dist = HB.input_fp.groups['parameters'].variables['hru_min_dist'][:]
    self.hrus_boundary_distances = np.copy(self.hru_min_dist)  # km
+   # Assign Distaces to Surface of Grounwater supply
    print("HRU's GW distance - mean:%f and std:%f" % (np.mean(self.hrus_centroid_distances[self.hrus_centroid_distances>0.]), np.std(self.hrus_centroid_distances[self.hrus_centroid_distances>0.])))
    print("HRU's SF distance - mean:%f and std:%f" % (np.mean(self.hrus_boundary_distances[self.hrus_boundary_distances>0.]), np.std(self.hrus_boundary_distances[self.hrus_boundary_distances>0.])))
 
@@ -177,7 +180,7 @@ class Human_Water_Use:
    self.hrus_slopes = mgmt_funcs.hrus_slope(self.dem,self.hrus_centroid_distances)  # m/m
 
 
-   # SURFACE WATER RATIO AND COST
+   # 2. SURFACE WATER RATIO AND COST
    if self.hwu_sf_flag == True:
     # Surface Water Ratio 
     self.ratio_sf = np.ones((self.nwuse_index,ncells,ncells))
@@ -207,12 +210,12 @@ class Human_Water_Use:
     #print  self.ratio_sf, self.mask_sf, total_ratio_sf 
     m = np.copy(np.invert(self.mask_sf)); self.ratio_sf[:,m,:] = 0.0
  
-
     # Surface Water Cost
     self.cost_sf    = np.ones((self.nwuse_index,ncells,ncells))
     #self.cost_sf[:] = self.hrus_boundary_distances
 
-   # GROUNDWATER RATIO AND COST 
+
+   # 3. GROUNDWATER RATIO AND COST 
    if self.hwu_gw_flag == True:
 
     # Groundwater Ratio
@@ -317,7 +320,7 @@ class Human_Water_Use:
      m = np.copy(self.ratio_sf > 0.0)
      sf_valid_links = m.flatten()
      for n,i,j in zip(*np.where(m)):
-      n = self.wuse_index.keys()[n]
+      n = list(self.wuse_index.keys())[n]
       link_sf = wr_Link(self.ntwkm, name='s%i_%s%i' % (i,n,j), min_flow = 0.0, max_flow = 0.0)
       self.ntwkm.nodes['s%i'%i].connect(link_sf)
       link_sf.connect(self.ntwkm.nodes['%s%i'% (n,j)])
@@ -329,7 +332,7 @@ class Human_Water_Use:
      m = np.copy(self.ratio_gw > 0.0)
      gw_valid_links = m.flatten()
      for n,i,j in zip(*np.where(m)):
-      n = self.wuse_index.keys()[n]
+      n = list(self.wuse_index.keys())[n]
       link_gw = wr_Link(self.ntwkm, name='g%i_%s%i' % (i,n,j), min_flow = 0.0, max_flow = 0.0)
       self.ntwkm.nodes['g%i'%i].connect(link_gw)
       link_gw.connect(self.ntwkm.nodes['%s%i'% (n,j)])
@@ -453,9 +456,10 @@ class Human_Water_Use:
      # Convert from m3 to m/tstep
      #print np.sum(self.alloc_gw+self.alloc_sf-self.alloc_agric)
      if self.hwu_agric_flag  == True: self.alloc_agric  = self.alloc_agric/(area/self.ntt)
-     if self.hwu_gw_flag == True : self.alloc_gw = self.alloc_gw/(area/self.ntt)
-     if self.hwu_sf_flag == True : self.alloc_sf = self.alloc_sf/area#/self.ntt #Abstract sf water just on dta
-     # Conver m3/m
+     with np.errstate(divide='ignore'):
+       if self.hwu_gw_flag == True : self.alloc_gw = self.alloc_gw/(area/self.ntt)
+       if self.hwu_sf_flag == True : self.alloc_sf = self.alloc_sf/area#/self.ntt #Abstract sf water just on dta
+     # Convert m3/m
      if self.hwu_sf_flag == True: self.supply_sf = self.supply_sf/area
      if self.hwu_gw_flag == True: self.supply_gw = self.supply_gw/area
      #print self.alloc_sf

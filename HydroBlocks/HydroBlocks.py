@@ -8,11 +8,11 @@ import sys
 import scipy.sparse as sparse
 import pickle
 
-def assign_string(nelem,pstring):
- #def assign_string(dtype,pstring):
+#def assign_string(nelem,pstring):
+def assign_string(dtype,pstring):
 
  #print(str(dtype))
- #nelem = int(str(dtype)[2:])
+ nelem = int(str(dtype)[2:])
  #nelem = len)
  tmp = np.chararray(shape=(nelem,))
  tmp[:] = ' '
@@ -167,20 +167,20 @@ class HydroBlocks:
   self.noahmp.nsoil = self.nsoil
   self.noahmp.dt = self.dt
   self.noahmp.nsnow = 3
-  self.noahmp.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
-  #self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
-  self.noahmp.lsoil[:] = 'CUST'
-  #self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
+  #self.noahmp.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
+  self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
+  #self.noahmp.lsoil[:] = 'CUST'
+  self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
   dir = os.path.dirname(os.path.abspath(__file__))
   VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % dir
-  self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
-  self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
-  self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
-  #self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
-  #self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
-  #self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
+  #self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
+  #self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
+  #self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
+  self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
+  self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
+  self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
   self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -314,7 +314,7 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
-  print self.nhru
+  print(self.nhru)
   self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
   #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
@@ -326,7 +326,7 @@ class HydroBlocks:
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
                                   shape=(self.nhru,self.nhru),dtype=np.float64)
                                   #dtype=np.float64)[0:self.nhru,0:self.nhru]
-  print self.richards.width.shape
+  print(self.richards.width.shape)
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
   
@@ -394,7 +394,7 @@ class HydroBlocks:
 
  def initialize_hwu(self,info):
 
-  from Human_Water_Use import Human_Water_Use as hwu
+  from pyHWU.Human_Water_Use import Human_Water_Use as hwu
   self.hwu = hwu(self,info)
   self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
 
@@ -459,8 +459,9 @@ class HydroBlocks:
   self.noahmp.itime = self.itime
   dt = self.dt
   if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = self.itime
-  #self.noahmp.nowdate[:] = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
-  self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
+  self.noahmp.nowdate = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
+
   #print(self.noahmp.nowdate[:])
   #print(self.noahmp.nowdate.dtype)
   #print(date.strftime('%Y-%m-%d_%H:%M:%S').dtype)
@@ -468,6 +469,7 @@ class HydroBlocks:
   #exit()
   #self.noahmp.nowdate[:] = tmp[:]#date.strftime('%Y-%m-%d_%H:%M:%S')
   #print(len(self.noahmp.nowdate))
+
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 

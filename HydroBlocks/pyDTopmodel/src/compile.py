@@ -33,7 +33,7 @@ cmd = 'f2py -c dynamic_topmodel_tools.pyf dynamic_topmodel_tools_wrapper.f90 *.o
 os.system(cmd)
 
 #Move to the previous directory
-os.system('mv dynamic_topmodel_tools.so ../.')
+os.system('mv dynamic_topmodel_tools*.so ../dynamic_topmodel_tools.so')
 
 #Remove the temporary file
 os.system('rm -f tmp.f90')
