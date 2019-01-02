@@ -448,21 +448,22 @@ class Human_Water_Use:
 
     
     if self.hwu_flag == True:
-     # Convert from m3 to m/s  
-     if self.hwu_indust_flag == True: self.deficit_indust = self.deficit_indust/(self.dta/area)
-     if self.hwu_domest_flag == True: self.deficit_domest = self.deficit_domest/(self.dta/area)
-     if self.hwu_lstock_flag == True: self.deficit_lstock = self.deficit_lstock/(self.dta/area)
+ 
+     with np.errstate(divide='ignore'): 
+       # Convert from m3 to m/s  
+       if self.hwu_indust_flag == True: self.deficit_indust = self.deficit_indust/(self.dta/area)
+       if self.hwu_domest_flag == True: self.deficit_domest = self.deficit_domest/(self.dta/area)
+       if self.hwu_lstock_flag == True: self.deficit_lstock = self.deficit_lstock/(self.dta/area)
      
-     # Convert from m3 to m/tstep
-     #print np.sum(self.alloc_gw+self.alloc_sf-self.alloc_agric)
-     if self.hwu_agric_flag  == True: self.alloc_agric  = self.alloc_agric/(area/self.ntt)
-     with np.errstate(divide='ignore'):
+       # Convert from m3 to m/tstep
+       if self.hwu_agric_flag  == True: self.alloc_agric  = self.alloc_agric/(area/self.ntt)
        if self.hwu_gw_flag == True : self.alloc_gw = self.alloc_gw/(area/self.ntt)
        if self.hwu_sf_flag == True : self.alloc_sf = self.alloc_sf/area#/self.ntt #Abstract sf water just on dta
-     # Convert m3/m
-     if self.hwu_sf_flag == True: self.supply_sf = self.supply_sf/area
-     if self.hwu_gw_flag == True: self.supply_gw = self.supply_gw/area
-     #print self.alloc_sf
+
+       # Convert from m3 to m (m3/m2)
+       if self.hwu_sf_flag == True: self.supply_sf = self.supply_sf/area
+       if self.hwu_gw_flag == True: self.supply_gw = self.supply_gw/area
+       #print self.alloc_sf
    
     #print 'D', self.demand_domest, self.deficit_domest
     #print 'I',self.demand_indust, self.deficit_indust

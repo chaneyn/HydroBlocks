@@ -64,8 +64,8 @@ def normalize_variable(input,min,max):
 
 def cluster_data(X,nc):
 
- #Assemble sample list`
- minsamples = (10**5)/2  # Taking very long per tile for large catchments
+ #Assemble sample list
+ minsamples = int((10**5)/2)  # Taking very long per tile for large catchments
  if X.shape[0] > minsamples:
   np.random.seed(1245)
   idx = np.random.choice(np.arange(X.shape[0]),minsamples)

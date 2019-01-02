@@ -69,7 +69,6 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  icatch = hydroblocks_info['icatch']
 
  #Get metadata
- print('%s/mask_latlon.tif' % workspace)
  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
  
  #Prepare the input file

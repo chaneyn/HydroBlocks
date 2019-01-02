@@ -46,7 +46,7 @@ class HydroBlocks:
   self.initialize_subsurface()
 
   #Initialize human water use module
-  print("Initializing Human Water Management")
+  #print("Initializing Human Water Management")
   self.initialize_hwu(info)
 
   #Other metrics
@@ -314,7 +314,7 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
-  print(self.nhru)
+  #print(self.nhru)
   self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
   #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
@@ -326,7 +326,7 @@ class HydroBlocks:
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
                                   shape=(self.nhru,self.nhru),dtype=np.float64)
                                   #dtype=np.float64)[0:self.nhru,0:self.nhru]
-  print(self.richards.width.shape)
+  #print(self.richards.width.shape)
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
   
@@ -399,6 +399,7 @@ class HydroBlocks:
   self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
 
   if self.hwu.hwu_flag == True:
+   print("Initializing Human Water Management")
    self.hwu.initialize_allocation(self,)
 
   return
@@ -719,12 +720,18 @@ class HydroBlocks:
    if self.hwu.hwu_indust_flag == True:
      tmp['demand_indust'] = np.copy(HWU.demand_indust)*NOAH.dt #m
      tmp['deficit_indust'] = np.copy(HWU.deficit_indust)*NOAH.dt #m
+     tmp['alloc_indust'] = np.copy(HWU.demand_indust-HWU.deficit_indust)*NOAH.dt #m
    if self.hwu.hwu_domest_flag == True:
      tmp['demand_domest'] = np.copy(HWU.demand_domest)*NOAH.dt #m
      tmp['deficit_domest'] = np.copy(HWU.deficit_domest)*NOAH.dt #m
+     tmp['alloc_domest'] = np.copy(HWU.demand_domest-HWU.deficit_domest)*NOAH.dt #m
    if self.hwu.hwu_lstock_flag == True:
      tmp['demand_lstock'] = np.copy(HWU.demand_lstock)*NOAH.dt #m
      tmp['deficit_lstock'] = np.copy(HWU.deficit_lstock)*NOAH.dt #m
+     tmp['alloc_lstock'] = np.copy(HWU.demand_lstock-HWU.deficit_lstock)*NOAH.dt #m
+   if self.hwu.hwu_sf_flag == True:
+     tmp['alloc_sf'] = np.copy(HWU.alloc_sf) #m
+   if self.hwu.hwu_gw_flag == True:                                                                                              tmp['alloc_gw'] = np.copy(HWU.alloc_gw) #m
 
   #Output the variables
   for var in self.metadata['output']['vars']:
@@ -775,15 +782,22 @@ class HydroBlocks:
 
              'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
              'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
-             'demand_agric':{'description':'Irrigation demand','units':'m','dims':('time','hru',),'precision':4},
-             'deficit_agric':{'description':'Irrigation deficit','units':'m','dims':('time','hru',),'precision':4},
-             'demand_indust':{'description':'Industrial demand','units':'m','dims':('time','hru',)},'precision':4,
-             'deficit_indust':{'description':'Industrial deficit','units':'m','dims':('time','hru',),'precision':4},
+
+             # Water Management
+             'demand_agric':{'description':'Irrigation water demand','units':'m','dims':('time','hru',),'precision':4},
+             'deficit_agric':{'description':'Irrigation water deficit','units':'m','dims':('time','hru',),'precision':4},
+             'irrig_agric':{'description':'Irrigated water volume','units':'m','dims':('time','hru',),'precision':4},
+             'demand_indust':{'description':'Industrial water demand','units':'m','dims':('time','hru',)},'precision':4,
+             'deficit_indust':{'description':'Industrial water deficit','units':'m','dims':('time','hru',),'precision':4},
+             'alloc_indust':{'description':'Industrial water allocated','units':'m','dims':('time','hru',),'precision':4},
              'demand_domest':{'description':'Domestic demand','units':'m','dims':('time','hru',),'precision':4},
              'deficit_domest':{'description':'Domestic deficit','units':'m','dims':('time','hru',),'precision':4},
+             'alloc_domest':{'description':'Domestic water allocated','units':'m','dims':('time','hru',),'precision':4},
              'demand_lstock':{'description':'Livestock demand','units':'m','dims':('time','hru',),'precision':4},
              'deficit_lstock':{'description':'Livestock deficit','units':'m','dims':('time','hru',),'precision':4},
-             'irrig_agric':{'description':'Irrigated volume','units':'m','dims':('time','hru',),'precision':4},
+             'alloc_lstock':{'description':'Livestock water allocated','units':'m','dims':('time','hru',),'precision':4},
+             'alloc_sf':{'description':'Surface water allocated','units':'m','dims':('time','hru',),'precision':4},
+             'alloc_gw':{'description':'Groundwater water allocated','units':'m','dims':('time','hru',),'precision':4}
              }
 
   #Create the dimensions
