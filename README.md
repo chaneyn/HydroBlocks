@@ -26,9 +26,9 @@ cd ..
 
 Install geospatial tools:
 ```
-git clone https://github.com/chaneyn/HydroBlocks.git
-cd HydroBlocks 
-python setup.py 
+git clone https://github.com/chaneyn/geospatialtools.git
+cd geospatialtools
+python setup.py install
 cd ..
 ```
 
