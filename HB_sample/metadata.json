@@ -1,0 +1,69 @@
+{
+ "Preprocessing":{
+  "icatch":1,
+  "nhru":400,
+  "startdate":{"year":2016,"month":1,"day":1},
+  "enddate":{"year":2016,"month":12,"day":31},
+  "dt":10800.0,
+  "model_type":"semi",
+  "clustering_version":"hmc",
+  "hmc_parameters":{
+               "number_of_characteristic_subbasins":40,
+               "average_height_difference_between_bands":30.0,
+               "number_of_intraband_clusters":10,
+               "subbasin_clustering_covariates":["dem","lats","lons","aspect"],
+               "intraband_clustering_covariates":["lc","dem","lats","lons","SATDK","slope","irrig_land"],
+               "interridge_connectivity":true,
+               "intervalley_connectivity":true,
+               "intraband_connectivity":true},
+  "input_file":"input_file.nc",
+  "workspace":"workspace",
+  "covariates":{"dem":"n",
+                "lats":"n",
+                "lons":"n"          
+                },
+  "water_management":{
+                      "hwu_flag":false,
+                      "hwu_sf_flag":false,
+                      "hwu_gw_flag":false,
+                      "hwu_agric_flag":false,
+                      "hwu_domest_flag":false,
+                      "hwu_indust_flag":false,
+                      "hwu_lstock_flag":false
+                     }
+ },
+ "HydroBlocks":{
+  "startdate":{"year":2016,"month":1,"day":1},
+  "enddate":{"year":2016,"month":12,"day":31},
+  "segment":{"years_per_segment":1},
+  "ncores":1,
+  "dt":10800.0,
+  "dz":[0.05, 0.1, 0.1, 0.1, 0.2, 0.2, 0.25, 0.25, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 10.0, 20.0, 20.0, 30.0],
+  "input_file":"input_file.nc",
+  "workspace":"workspace",
+  "subsurface_module":"richards",
+  "surface_flow_flag": false,
+  "mkl_flag":true,
+  "water_management":{
+                      "hwu_flag":false,
+                      "hwu_sf_flag":false,
+                      "hwu_gw_flag":false,
+                      "hwu_agric_flag":false,
+                      "hwu_domest_flag":false,
+                      "hwu_indust_flag":false,
+                      "hwu_lstock_flag":false
+                     },
+  "restart":{
+             "flag":false,
+             "dir":"restart"
+            },
+  "output":{
+            "dir":"./",
+            "vars":["smc1","trad","lh","runoff","prcp"]
+           }
+ },
+ "lakes_skip":[],
+ "to_be_fixed":[] 
+}
+
+
