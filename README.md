@@ -34,7 +34,7 @@ cd ..
 
 To run the model on a test dataset:
 ```
-wget https://www.dropbox.com/s/tw4z4rf9ol6p24x/HB_sample.tar.gz?dl=0
+wget https://www.dropbox.com/s/k7su7af5dk1l2vf/HB_sample.tar.gz?dl=0
 tar -xvzf HB_sample.tar.gz
 cd HB_sample
 python ../HydroBlocks/Preprocessing/Driver.py metadata.json

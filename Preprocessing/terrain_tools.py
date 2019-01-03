@@ -1053,7 +1053,7 @@ def create_hrus_hydroblocks(hillslopes,htiles,covariates,nclusters):
     #nc = nclusters
     size_tile = np.sum((mt == 1)) 
     nc = int(np.ceil(size_tile/scale_hru)) 
-    if nc < 5: nc = 5
+    if nc < 3: nc = 3
     if nc > size_tile*4: nc = np.int(size_tile/4.0)+1
     ws = np.ones(len(ccp.keys()))
    #print 'hillslope: %d, tile: %d, nc: %d' % (uh,ut,nc)
