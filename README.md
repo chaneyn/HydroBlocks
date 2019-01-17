@@ -14,6 +14,7 @@ source activate HydroBlocks
 Install HydroBlocks dependencies from intel channel:
 ```
 conda install -c intel gdal netcdf4 geos xerces-c jpeg scikit-image scikit-learn numpy pandas h5py kealib gcc libgcc python=3.6 mpi4py 
+conda install conda-forge::gdal=2.2.4 --force --update-dependencies
 ```
 
 Install HydroBlocks:
