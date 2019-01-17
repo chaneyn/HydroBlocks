@@ -197,7 +197,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  log = '%s/log.txt' % workspace
  lon_0 = (maxlon+minlon)/2.0
  lat_0 = (maxlat+minlat)/2.0
- os.system('gdalwarp -ot Int16 -tr %.16f %.16f -dstnodata %.16f -t_srs \'+proj=longlat +lon_0=%f +lat_0=%f +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +no_defs \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],lon_0,lat_0,minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
+ os.system('gdalwarp -tr %f %f -dstnodata %f -r mode -t_srs \'+proj=longlat +lon_0=%f +lat_0=%f +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +no_defs \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],lon_0,lat_0,minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
 
  #Write a map for the catchment id
  file_icatch = '%s/icatch_latlon.tif' % workspace
@@ -526,13 +526,14 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  ti[slope == 0] = 15.0
 
  #Cleanup
- #Mask regions without soil properties
+ '''#Mask regions without soil properties
  tmp_clay = gdal_tools.read_raster(wbd['files']['clay'])
  tmp_lc = gdal_tools.read_raster(wbd['files']['lc'])
  nodata = (tmp_clay == -9999) & ((tmp_lc == 17) | (tmp_lc == -9999))
  mask[nodata]=0
  del tmp_clay,tmp_lc
  gc.collect()
+ '''
 
  # cleanup
  slope[mask != 1] = -9999
@@ -614,6 +615,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Disagregate land cover
  intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
+ #print(intraband_clust_vars)
  if 'lc' in intraband_clust_vars: 
   intraband_clust_vars.remove('lc')
   disag = [i for i in covariates.keys() if 'lc_' in i]
@@ -623,15 +625,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Calculate the hrus (kmeans on each tile of each basin)
  cvs = {}
  for var in intraband_clust_vars:
-  cvs[var] = {'min':np.min(covariates[var]),
-              'max':np.max(covariates[var]),
+  cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
+              'max':np.max(covariates[var][covariates[var]!=-9999]),
               't':-9999,
               'd':covariates[var]}
  #print("Clustering the height bands into %d clusters" % nclusters)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
-
+ 
  #plot
  #print nhru
  #plot_data(hrus)
@@ -904,9 +906,9 @@ def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,dx):
 def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hmc):
 
  if (h2 == -9999):return False
- #if (b1 != b2) & (hmc['interridge_connectivity'] == False):return False
- #if (tp1 == tp2) & (tp1 == 0) & (hmc['intervalley_connectivity'] == True):return True
- #if (np.abs(tp1 - tp2) != 1) & (hmc['intraband_connectivity'] == False):return False
+ if (b1 != b2) & (hmc['interridge_connectivity'] == False):return False
+ if (tp1 == tp2) & (tp1 == 0) & (hmc['intervalley_connectivity'] == True):return True
+ if (np.abs(tp1 - tp2) != 1) & (hmc['intraband_connectivity'] == False):return False
 
  return True
 

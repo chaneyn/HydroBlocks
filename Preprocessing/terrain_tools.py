@@ -970,7 +970,7 @@ def create_basin_tiles(basin_clusters,hand,basins,dh):
   #compute number of bins
   nbins = int(np.ceil(np.max(data)/dh))
   #Compute the edges
-  pedges = 2#5  Noemi 
+  pedges = 3#5  Noemi 
   bin_edges = np.linspace(0.0,np.max(data)**(1.0/float(pedges)),nbins+1)**pedges
   
   # merge  height bands with dh < 1 meter
@@ -1007,7 +1007,7 @@ def create_hrus_hydroblocks(hillslopes,htiles,covariates,nclusters):
  flag = False
 
  #Curate the covariates
- for var in covariates: 
+ for var in covariates:
   val = np.mean(covariates[var]['d'][covariates[var]['d'] != -9999])
   covariates[var]['d'][covariates[var]['d'] == -9999] = val
  import sklearn.cluster
@@ -1027,11 +1027,11 @@ def create_hrus_hydroblocks(hillslopes,htiles,covariates,nclusters):
  # 4444 grids ~ 4.0 km2/hru
  # 5555 grids ~ 5.0 km2/hru
 
- scale_hru = 1111  # 1.0km2/hru
- if varea/scale_hru < 50:  scale_hru = varea/50.0
+ scale_hru = 555  # 0.5 km2/hru
+ if varea/scale_hru < 30:  scale_hru = varea/30.0
  #if varea/scale_hru > 400: scale_hru = 1111+555 #1.5km2/hru
  #if varea/scale_hru > 500: scale_hru = 2222 #2.00km2/hru
- if varea/scale_hru > 400: scale_hru = varea/400.0 
+ if varea/scale_hru > 300: scale_hru = varea/300.0 
 
  #print "expected average grids/hru: ", scale_hru
  maxc = 1
@@ -1054,7 +1054,7 @@ def create_hrus_hydroblocks(hillslopes,htiles,covariates,nclusters):
     size_tile = np.sum((mt == 1)) 
     nc = int(np.ceil(size_tile/scale_hru)) 
     if nc < 3: nc = 3
-    if nc > size_tile*4: nc = np.int(size_tile/4.0)+1
+    if nc > (size_tile/10): nc = int(np.ceil(size_tile/10)) # at least about 10 pixels in each cluster
     ws = np.ones(len(ccp.keys()))
    #print 'hillslope: %d, tile: %d, nc: %d' % (uh,ut,nc)
    #Add weights to covariates
