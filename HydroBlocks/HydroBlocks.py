@@ -299,8 +299,7 @@ class HydroBlocks:
 
  def initialize_subsurface(self,):
 
-  if self.subsurface_module == 'dtopmodel':self.initialize_dtopmodel()
-  elif self.subsurface_module == 'richards':self.initialize_richards()
+  if self.subsurface_module == 'richards':self.initialize_richards()
 
   return
 
@@ -332,66 +331,6 @@ class HydroBlocks:
   
   return
 
- def initialize_dtopmodel(self,):
-
-  from pyDTopmodel import dynamic_topmodel as dtopmodel
-
-  #Define some metadata
-  nhru_outlet = self.input_fp.groups['outlet'].groups['summary'].variables['hru_dst'].size
-
-  #Initialize Dynamic Topmodel
-  self.dtopmodel = dtopmodel.Dynamic_Topmodel(self.nhru,nhru_outlet,self.mkl_flag)
-
-  #Set flags
-  self.dtopmodel.surface_flow_flag = self.surface_flow_flag
-  #self.dtopmodel.subsurface_flow_flag = self.subsurface_flow_flag
-
-  #Set self.dtopmodel parameters
-  self.dtopmodel.dt = self.dt #seconds
-  self.dtopmodel.area[:] = 0.0 #meters^2
-  self.dtopmodel.dx[:] = self.dx #meters
-  #print self.input_fp.groups['parameters'].variables['m'][:]
-  self.dtopmodel.m[:] = self.input_fp.groups['parameters'].variables['m'][:] #Noemi
-  #self.dtopmodel.sdmax[:] = 100.0#self.input_fp.groups['parameters'].variables['sdmax'][:]
-  self.dtopmodel.sdmax[:] = self.input_fp.groups['parameters'].variables['sdmax'][:] #Noemi
-  #Set cluster information
-  self.dtopmodel.pct[:] = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
-  self.dtopmodel.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-  af = 1.0 #anisotropy factor
-  self.dtopmodel.T0[:] = af*self.input_fp.groups['parameters'].variables['SATDK'][:]*self.dtopmodel.m
-  self.dtopmodel.sti[:] = self.input_fp.groups['parameters'].variables['ti'][:]
-  self.dtopmodel.beta[:] = self.input_fp.groups['parameters'].variables['slope'][:]
-  self.dtopmodel.carea[:] = self.input_fp.groups['parameters'].variables['carea'][:]
-  self.dtopmodel.channel[:] = self.input_fp.groups['parameters'].variables['channel'][:]
-  self.dtopmodel.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:] 
-  self.dtopmodel.mannings[:] = self.input_fp.groups['parameters'].variables['mannings'][:]
-  #Set outlet information
-  self.dtopmodel.area_outlet[:] = self.dx**2*self.input_fp.groups['outlet'].groups['summary'].variables['counts'][:]
-  self.dtopmodel.pct = self.dtopmodel.pct/np.sum(self.dtopmodel.pct)
-  ti_mean = np.sum(self.dtopmodel.pct*self.dtopmodel.sti[:])
- 
-  #Calculate the sti
-  lnT0 = np.log(self.dtopmodel.T0)
-  lnTe = np.sum(self.dtopmodel.pct*lnT0)
-  self.dtopmodel.sti = self.dtopmodel.sti - (lnT0 - lnTe)
-
-  #Set weight matrix
-  self.dtopmodel.flow_matrix = sparse.csr_matrix((self.input_fp.groups['flow_matrix'].variables['data'][:],
-			          self.input_fp.groups['flow_matrix'].variables['indices'][:],
-			          self.input_fp.groups['flow_matrix'].variables['indptr'][:]),
- 				  dtype=np.float64)[0:self.nhru,0:self.nhru]
-  self.dtopmodel.flow_matrix.setdiag(self.dtopmodel.flow_matrix.diagonal()) #Ensure the zeros are not sparse (for kinematic wave solution).
-  self.dtopmodel.flow_matrix_T = sparse.csr_matrix(self.dtopmodel.flow_matrix.T) #transposed
-  self.dtopmodel.flow_matrix_T.setdiag(self.dtopmodel.flow_matrix_T.diagonal()) #Ensure the zeros are not sparse  (for kinematic wave solution).
-
-  #Initialize the solver
-  if self.mkl_flag: self.dtopmodel.dtt.initialize(self.dtopmodel.flow_matrix_T.indices,self.dtopmodel.flow_matrix_T.indptr)
-
-  #Initialize the soil moisture deficit values
-  self.dtopmodel.si[:] = 0.0
- 
-  return
-
  def initialize_hwu(self,info):
 
   from pyHWU.Human_Water_Use import Human_Water_Use as hwu
@@ -411,7 +350,6 @@ class HydroBlocks:
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
 
-  if self.subsurface_module == 'dtopmodel': self.dtopmodel.ex[:] = 0.0
   while date < self.fdate:
 
    #Update input data
@@ -459,7 +397,6 @@ class HydroBlocks:
 
   self.noahmp.itime = self.itime
   dt = self.dt
-  if self.subsurface_module == 'dtopmodel':self.dtopmodel.itime = self.itime
   self.noahmp.nowdate = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
   #self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
 
@@ -542,46 +479,7 @@ class HydroBlocks:
 
   self.noahmp.dzwt[:] = 0.0
 
-  if self.subsurface_module == 'dtopmodel':
-
-   #Calculate the updated soil moisture deficit
-   si0 = np.copy(self.noahmp.si0)
-   si1 = np.copy(self.noahmp.si1)
-
-   #Calculate the change in deficit
-   self.dtopmodel.si[:] = si1[:]
-   self.dtopmodel.dsi[:] = np.copy(si1 - si0)
-   self.dtopmodel.r[:] = -self.dtopmodel.dsi[:]/self.dtopmodel.dt
-
-   #Add the surface runoff
-   self.dtopmodel.qsurf[:] = self.noahmp.runsf[:]/1000.0
-
-   #Update dynamic topmodel
-   self.dtopmodel.update(self.ncores)
-
-   #Calculate the change in deficit
-   #self.dtopmodel.sideep[:] = self.dtopmodel.sideep.astype(np.float32)
-   #self.dtopmodel.si[:] = self.dtopmodel.si.astype(np.float32)
-   #dsi = np.copy(si1 - self.dtopmodel.si)
-
-   #Update the soil moisture values
-   #print self.dtopmodel.dt*self.dtopmodel.r
-   #self.noahmp.dzwt[:] = dsi+self.dtopmodel.dt*self.dtopmodel.ex-self.dtopmodel.dt*self.dtopmodel.r
-   #self.noahmp.dzwt[:] = 0
-   self.noahmp.hdiv[:] = 0
-   ls = []
-   for ihru in range(self.nhru):
-    cs = np.cumsum(self.noahmp.sldpth[ihru,:])
-    m = cs>np.abs(self.noahmp.zwt[ihru])
-    if np.sum(m) > 0:
-     idx = np.where(m)[0][0]
-     #weight the extraction
-     fs = self.noahmp.sldpth[ihru,idx:]/np.sum(self.noahmp.sldpth[ihru,idx:])
-     self.noahmp.hdiv[ihru,idx:] = 1000*fs*(self.dtopmodel.qout[ihru]-self.dtopmodel.qin[ihru])
-    else:
-     self.noahmp.hdiv[ihru,:] = 0.0
-
-  elif self.subsurface_module == 'richards':
+  if self.subsurface_module == 'richards':
 
    #Assign noahmp variables to subsurface module
    self.richards.theta[:] = self.noahmp.smc[:]
@@ -621,12 +519,7 @@ class HydroBlocks:
   NOAH = self.noahmp
   HWU = self.hwu
   dt = self.dt
-  if self.subsurface_module == 'dtopmodel':
-   #tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
-   #      NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb) - 1000*self.dzwt0)
-   tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
-         NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb-np.sum(NOAH.hdiv,axis=1)))
-  elif self.subsurface_module == 'richards':
+  if self.subsurface_module == 'richards':
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb-np.sum(NOAH.hdiv,axis=1)))
   else:
@@ -698,15 +591,6 @@ class HydroBlocks:
   dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
   tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
   
- 
-  #Dynamic TOPMODEL
-  if self.subsurface_module == 'dtopmodel':
-   TOPMODEL = self.dtopmodel
-   tmp['swd'] = np.copy(10**3*TOPMODEL.si) #mm
-   tmp['qout_subsurface'] = np.copy(TOPMODEL.qout) #m2/s
-   tmp['qout_surface'] = np.copy(TOPMODEL.qout_surface) #m2/s
-   tmp['sstorage'] = np.copy(TOPMODEL.storage_surface)
-
   #General
   tmp['errwat'] = np.copy(HB.errwat)
 
@@ -898,11 +782,6 @@ class HydroBlocks:
   #Close the LSM
   self.noahmp.finalize()
   del self.noahmp
-
-  #Close the subsurface module
-  if self.subsurface_module == 'dtopmodel':
-   if self.mkl_flag: self.dtopmodel.dtt.finalize()
-   del self.dtopmodel
 
   #Close the files
   self.input_fp.close()
