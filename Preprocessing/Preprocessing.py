@@ -15,8 +15,7 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-#from geospatialtools import terrain_tools
-import terrain_tools as terrain_tools
+from geospatialtools import terrain_tools
 #import matplotlib.pyplot as plt
 #import random
 import gc
@@ -906,8 +905,8 @@ def Calculate_HRU_Connections_Matrix(covariates,cluster_ids,nhru,dx):
 def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,hmc):
 
  if (h2 == -9999):return False
+ if ((tp1 != tp2) | (tp1 != 0)) & (hmc['intervalley_connectivity'] == False):return False
  if (b1 != b2) & (hmc['interridge_connectivity'] == False):return False
- if (tp1 == tp2) & (tp1 == 0) & (hmc['intervalley_connectivity'] == True):return True
  if (np.abs(tp1 - tp2) != 1) & (hmc['intraband_connectivity'] == False):return False
 
  return True
