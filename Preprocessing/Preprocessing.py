@@ -15,7 +15,8 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-from geospatialtools import terrain_tools
+#from geospatialtools import terrain_tools
+import terrain_tools as terrain_tools
 import gc
 from scipy.interpolate import griddata
 
