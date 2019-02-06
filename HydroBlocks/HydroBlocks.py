@@ -46,7 +46,7 @@ class HydroBlocks:
   self.initialize_subsurface()
 
   #Initialize human water use module
-  #print("Initializing Human Water Management")
+  print("Initializing Human Water Management")
   self.initialize_hwu(info)
 
   #Other metrics
@@ -137,7 +137,7 @@ class HydroBlocks:
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
   self.dx = self.input_fp.groups['metadata'].dx
-  self.nhru = len(self.input_fp.dimensions['hsu'])
+  self.nhru = len(self.input_fp.dimensions['hru'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
   self.hwu_flag = info['water_management']['hwu_flag']
@@ -175,9 +175,6 @@ class HydroBlocks:
   VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % dir
-  #self.noahmp.vegparm_file[0:len(VEGPARM)] = VEGPARM
-  #self.noahmp.genparm_file[0:len(GENPARM)] = GENPARM
-  #self.noahmp.mptable_file[0:len(MPTABLE)] = MPTABLE
   self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
   self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
@@ -185,6 +182,7 @@ class HydroBlocks:
   self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
+  #Runoff 5 is really messed up
   self.noahmp.iopt_run = 5#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
   self.noahmp.iopt_sfc = 1#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
   self.noahmp.iopt_frz = 2#1#1 # supercooled liquid water (1-> NY06; 2->Koren99)
@@ -324,8 +322,6 @@ class HydroBlocks:
                                   self.input_fp.groups['wmatrix'].variables['indices'][:],
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
                                   shape=(self.nhru,self.nhru),dtype=np.float64)
-                                  #dtype=np.float64)[0:self.nhru,0:self.nhru]
-  #print(self.richards.width.shape)
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
   
@@ -398,16 +394,6 @@ class HydroBlocks:
   self.noahmp.itime = self.itime
   dt = self.dt
   self.noahmp.nowdate = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
-  #self.noahmp.nowdate[:] = assign_string(len(self.noahmp.nowdate),date.strftime('%Y-%m-%d_%H:%M:%S'))
-
-  #print(self.noahmp.nowdate[:])
-  #print(self.noahmp.nowdate.dtype)
-  #print(date.strftime('%Y-%m-%d_%H:%M:%S').dtype)
-  #tmp = np.char.array(date.strftime('%Y-%m-%d_%H:%M:%S'))
-  #exit()
-  #self.noahmp.nowdate[:] = tmp[:]#date.strftime('%Y-%m-%d_%H:%M:%S')
-  #print(len(self.noahmp.nowdate))
-
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
@@ -577,6 +563,7 @@ class HydroBlocks:
   tmp['tv'] = np.copy(NOAH.tv) #K
   tmp['salb'] = np.copy(NOAH.salb) 
   tmp['wtd'] = np.copy(NOAH.zwt) #m
+  tmp['swe'] = np.copy(NOAH.swe) #m
   #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
 
@@ -587,9 +574,12 @@ class HydroBlocks:
   tmp['smc_root'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
   # top soil layer
   tmp['smc1'] = np.copy(NOAH.smc[:,0])
+  #print(tmp['smc1'])
   # total soil moisture / soil water storage -- only until depth to bedrock
   dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
   tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
+  #print(tmp['totsmc'])
+  #exit()
   
   #General
   tmp['errwat'] = np.copy(HB.errwat)
@@ -655,7 +645,7 @@ class HydroBlocks:
              'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',),'precision':4},
              'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',),'precision':4},
              #'sndpth':{'description':'Snow depth','units':'mm','dims':('time','hru',)},
-             #'swe':{'description':'Snow water equivalent','units':'mm','dims':('time','hru',)},
+             'swe':{'description':'Snow water equivalent','units':'mm','dims':('time','hru',),'precision':4},
 
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',),'precision':4},
              'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',),'precision':4},
@@ -687,7 +677,7 @@ class HydroBlocks:
   #Create the dimensions
   print('Creating the dimensions')
   ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
-  nhru = len(fp_in.dimensions['hsu'])
+  nhru = len(fp_in.dimensions['hru'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
   fp_out.createDimension('soil',self.nsoil)

@@ -41,23 +41,6 @@ class richards:
   #psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
   #psi[m] = satpsi[m]*((theta[m] - thetar[m])/(thetas[m] - thetar[m]))**(-b[m])
 
-  '''
-  print thetas, thetar, theta
-  print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-  for i in range(len(theta)):
-   print i, (theta[i]-thetar[i])/(thetas[i]-thetar[i])
-   print i, (theta-thetar)[i]/(thetas-thetar)[i]
-  print "@@@@@@@@@@"
-  #print np.true_divide((theta-thetar),(thetas-thetar)), satpsi, b
-  if len(thetas[~np.isfinite(thetas)]) > 0 : 
-    print "INVALID:", thetas[~np.isfinite(thetas)]
-    thetas[~np.isfinite(thetas)] = np.nan
-  bad = np.invert(np.isfinite(theta-thetar))
-  if np.sum(bad):
-   print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-   print (thetas-thetar)[bad]
-  ''' 
-  
   with np.errstate(invalid='ignore'):
     psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
 
@@ -77,9 +60,10 @@ class richards:
 
  def calculate_transmissivity(self,psi,ztop,zbot):
   
-  #af = 1.0  #safe
-  af = 2.0
+  af = 10.0  #safe
+  #af = 2.0
   m = np.copy(self.m)
+  #m[:] = 1000.0
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
   with np.errstate(invalid='ignore', divide='ignore'):
    K_x = Ksat_x*np.true_divide(psi,self.satpsi)**(-2-np.true_divide(3.,self.b))
@@ -92,9 +76,9 @@ class richards:
     
   return T
 
- def calculate_hydraulic_head(self,psi):
+ def calculate_hydraulic_head(self,psi,depth):
   
-  h = self.dem - psi
+  h = self.dem - depth - psi
 
   return h
 
@@ -105,6 +89,13 @@ class richards:
   #dx = self.dx #meters (distance between two adjacent grid cells)
   dx = (np.abs(self.dem[:,np.newaxis] - self.dem[np.newaxis,:])**2 + self.dx**2)**0.5
   w = np.array(self.width.todense())
+  #w[:] = 0.95*self.area[0]
+  #dx[:] = 10.0
+  #Calculate distance between centers (assuming hrus are rectangles... very large assumption)
+  tmp = np.copy(w)
+  tmp = self.area/w
+  dx = (tmp + tmp.T)/2
+  #dx[:] = 30.0#self.area[0]**0.5
   area = self.area 
   with np.errstate(invalid='ignore',divide='ignore'):
    #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
@@ -113,6 +104,7 @@ class richards:
    #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
    calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
    calc_div[~np.isfinite(calc_div)] = np.nan
+  #print(calc_div)
   return calc_div
 
  #def calculate_divergence_sparse(self,h,K_x,dz):
@@ -152,10 +144,10 @@ class richards:
   return -That.multiply(dh).multiply(self.width).multiply(1.0/self.area).multiply(dx.power(-1)).multiply(1000) #mm/s
   #return -Khat.multiply(dh).multiply(self.width).multiply(dz/self.dx/self.area).multiply(1000) #mm/s
 
- def update(self,type='sparse'):
+ def update(self,type='dense'):
 
   #Determine if sparse or not
-  if self.nhru <= 1000: type = 'dense'
+  #if self.nhru <= 1000: type = 'dense'
 
   #Iterate per layer
   for il in range(self.theta.shape[1]):
@@ -167,17 +159,22 @@ class richards:
    zbot = np.sum(self.dz[:,0:il+1],axis=1)
    ztop = zbot - self.dz[:,il]
    T = self.calculate_transmissivity(psi,ztop,zbot)
+   #print('T:',T)
    #Calculate hydraulic head
-   h = self.calculate_hydraulic_head(psi)
+   #h = self.calculate_hydraulic_head(psi,(ztop+zbot)/2,pw)
+   h = self.calculate_hydraulic_head(psi,ztop)
    #Calculate the divergence
-   if type == 'dense':
-    #q = self.calculate_divergence_dense(h,K_x)#,self.dz[:,il])
-    q = self.calculate_divergence_dense(h,T)
-    self.hdiv[:,il] = np.sum(q,axis=0) #mm/s
-    #print self.hdiv[:,il]
-   elif type == 'sparse':
-    q = self.calculate_divergence_sparse(h,T)#,self.dz[:,il])
-    self.hdiv[:,il] = q.sum(axis=0) #mm/s
+   #if type == 'dense':
+   #q = self.calculate_divergence_dense(h,K_x)#,self.dz[:,il])
+   q = self.calculate_divergence_dense(h,T)
+   #print(q)
+   #print(np.sum(q,axis=1))
+   self.hdiv[:,il] = np.sum(q,axis=0) #mm/s
+   #print(3600*self.hdiv)
+   #print self.hdiv[:,il]
+   #elif type == 'sparse': (Needs more work)
+   # q = self.calculate_divergence_sparse(h,T)#,self.dz[:,il])
+   # self.hdiv[:,il] = q.sum(axis=0) #mm/s
 
   return
 
