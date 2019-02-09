@@ -13,8 +13,8 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-from geospatialtools import terrain_tools
-#import terrain_tools as terrain_tools
+#from geospatialtools import terrain_tools
+import terrain_tools as terrain_tools
 import gc
 from scipy.interpolate import griddata
 
@@ -250,13 +250,13 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  print("Removing pits in dem")
  demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
  covariates['demns'] = demns
-  
+ 
  #Calculate slope and aspect
  print("Calculating slope and aspect")
  res_array = np.copy(demns)
  res_array[:] = eares
  (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(demns,res_array,res_array)
-
+ 
  #Compute accumulated area
  m2 = np.copy(demns)
  m2[:] = 1
@@ -281,16 +281,17 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
-
+ 
  #Compute the basins
  print("Defining basins")
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
 
  #Calculate the height above nearest drainage area
+ tmp_demns = demns - np.min(demns[demns!=-9999])
  print("Computing height above nearest drainage area")
- hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,demns)
- if np.all( (hand == -9999) ): hand[:] = 0.0 # Noemi
-
+ hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,tmp_demns)
+ hand = spatial_imputation(hand,-9999.0,'nearest')
+   
  #Calculate topographic index
  print("Computing topographic index")
  ti = np.copy(area)
@@ -329,7 +330,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
               'd':tmp}
  
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
-  
+ 
  # remove tiny basins clusters
  ubcs = np.unique(basin_clusters)
  ubcs = ubcs[ubcs!=-9999]
@@ -345,6 +346,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
     basin_clusters[m] = -9999
     basins[m] = -9999
  if len(basin_clusters[basin_clusters != -9999]) < 1 : 
+  #plot_data(basin_clusters)
   exit('Error_basin_clustering: hand_full_of_nans %s' % hydroblocks_info['icatch']) 
  
  #Divide each subbasin into height bands

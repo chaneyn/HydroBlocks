@@ -92,12 +92,13 @@ class richards:
   #w[:] = 0.95*self.area[0]
   #dx[:] = 10.0
   #Calculate distance between centers (assuming hrus are rectangles... very large assumption)
-  tmp = np.copy(w)
-  tmp = self.area/w
-  dx = (tmp + tmp.T)/2
-  #dx[:] = 30.0#self.area[0]**0.5
-  area = self.area 
   with np.errstate(invalid='ignore',divide='ignore'):
+   tmp = np.copy(w)
+   tmp = self.area/w
+   dx = (tmp + tmp.T)/2
+   #dx[:] = 30.0#self.area[0]**0.5
+   area = self.area 
+   
    #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
    That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
    That[~np.isfinite(That)] = np.nan
