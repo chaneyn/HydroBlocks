@@ -249,8 +249,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Remove pits in dem
  print("Removing pits in dem")
  demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
- covariates['demns'] = demns
- 
+ dem = spatial_imputation(dem,-9999.0,'nearest')
+ demns = spatial_imputation(demns,-9999.0,'nearest')
+ covariates['dem'] = dem 
+
  #Calculate slope and aspect
  print("Calculating slope and aspect")
  res_array = np.copy(demns)
@@ -287,17 +289,36 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
 
  #Calculate the height above nearest drainage area
- tmp_demns = demns - np.min(demns[demns!=-9999])
+ tmp_demns = demns - np.min(demns[demns!=-9999]) # normalize to the min val
  print("Computing height above nearest drainage area")
  hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,tmp_demns)
+
+
+ # Identify large flat lands
+ flatlands = cluster_flatlands(slope,mask)  
+ # set hand at the flat lands
+ for flat in np.unique(flatlands[flatlands!=-9999]):
+  m = (flatlands == flat)
+  hand[m] = np.min(hand[m][hand[m]!=-9999])
+ 
+ # Identify lakes 
+ lakes_hrus = cluster_lakes(covariates,mask)
+ # Set hand at the lakes
+ for lake in np.unique(lakes_hrus[lakes_hrus!=-9999]):
+  m = (lakes_hrus == lake)
+  hand[m] = np.min(hand[m][hand[m]!=-9999])
+
  hand = spatial_imputation(hand,-9999.0,'nearest')
-   
+
+ 
+ 
  #Calculate topographic index
  print("Computing topographic index")
  ti = np.copy(area)
  m = (area != -9999) & (slope != -9999) & (slope != 0.0)
  ti[m] = np.log(area[m]/eares/slope[m])
  ti[slope == 0] = 15.0
+ ti[slope < 0.0001] = 15.0
 
  # cleanup
  slope[mask != 1] = -9999
@@ -370,6 +391,19 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
+
+ # Add lakes as independent HRUs
+ count = np.max(hrus)+1
+ for lake in np.unique(lakes_hrus[lakes_hrus!=-9999]):
+  m = lakes_hrus == lake 
+  hrus[m] = count
+  count = count+1
+ unic = np.unique(hrus[hrus!=-9999])                        
+ new_hrus = np.ones(hrus.shape)*(-9999)                         
+ for nclust, oclust in enumerate(unic, 0):                      
+  new_hrus[hrus == oclust] = nclust     
+ hrus = new_hrus
+ nhru = np.unique(hrus[hrus!=-9999]).size
  
  #Construct HMC info for creating connections matrix
  HMC_info = {}
@@ -377,6 +411,54 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info['tile_position'] = tile_position
 
  return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates)
+
+
+
+def cluster_lakes(covariates,mask):
+ #Identify water bodies with area > 0.5km2
+ lc = covariates['lc']                           
+ lc[mask != 1] = -9999 
+ pos = np.where(lc == 17)
+ clust_map = np.ones(mask.shape)*(-9999)
+ if len(pos[0]) < 500: return clust_map 
+                                           
+ X = list(zip(*pos))                                                
+ from sklearn.cluster import DBSCAN                                 
+ clustering = DBSCAN(eps=1).fit(X)                                                  
+
+ unic = np.unique(clustering.labels_)                               
+ unic = unic[unic>=0]                                              
+ for c in unic:
+  m = clustering.labels_ == c                                       
+  if np.sum(m) > 500: # 1000 grids ~ 1km2                           
+   ml,mc = pos[0][m],pos[1][m]                                      
+   clust_map[ml,mc] = c  
+
+ return clust_map
+
+def cluster_flatlands(slope,mask):
+ #Identify areas (> 0.1 km2) where the slope is too flat for channels 
+ slope[mask != 1] = -9999
+ pos = np.where(((slope >= 0) & (slope < 0.0001)))
+ clust_map = np.ones(mask.shape)*(-9999)
+ if len(pos[0]) < 10: return clust_map
+
+ X = list(zip(*pos))
+ from sklearn.cluster import DBSCAN
+ clustering = DBSCAN(eps=1,n_jobs=-1).fit(X)
+
+ unic = np.unique(clustering.labels_)
+ unic = unic[unic>=0]
+ #print(unic)
+ for c in unic:
+  m = clustering.labels_ == c
+  if np.sum(m) > 100: # 1000 grids ~ 1km2
+   ml,mc = pos[0][m],pos[1][m]
+   clust_map[ml,mc] = c
+ #print(np.unique(clust_map[clust_map!=-9999]))
+ return clust_map
+
+
 
 def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask):
 
@@ -606,10 +688,11 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
     exit('Error_clustering: %s_full_of_nans %s' % (var,hydroblocks_info['icatch']))
    #else: sys.stderr.write("Error_clustering: variable %s has %.2f %% of nan's" % (var,100*missing_ratio))
 
-  #print var
   if var not in ['mask']:
    if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30','start_growing_season','end_growing_season']: 
-    covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest')  
+    covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest')
+   elif var[:3] == 'lc_': pass
+   elif var in ['dem']: pass  # do imputation afterwards
    else:
     #covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest') #faster
     covariates[var] = spatial_imputation(covariates[var],-9999.0,'linear')
