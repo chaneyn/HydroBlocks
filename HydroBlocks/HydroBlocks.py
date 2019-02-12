@@ -566,6 +566,7 @@ class HydroBlocks:
   tmp['swe'] = np.copy(NOAH.swe) #m
   #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
+  
 
   # root zone
   cs = np.cumsum(NOAH.sldpth[0,:])
@@ -574,12 +575,11 @@ class HydroBlocks:
   tmp['smc_root'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
   # top soil layer
   tmp['smc1'] = np.copy(NOAH.smc[:,0])
-  #print(tmp['smc1'])
+  tmp['relsmc1'] = (np.copy(NOAH.smc[:,0])-NOAH.drysmc0)/(NOAH.maxsmc0-NOAH.drysmc0)
   # total soil moisture / soil water storage -- only until depth to bedrock
   dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
   tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
-  #print(tmp['totsmc'])
-  #exit()
+  
   
   #General
   tmp['errwat'] = np.copy(HB.errwat)
@@ -653,9 +653,10 @@ class HydroBlocks:
              'errwat':{'description':'errwat','units':'mm','dims':('time','hru',),'precision':4},
              'totsmc':{'description':'totsmc','units':'m3/m3','dims':('time','hru',),'precision':2},
              'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':4},
-
-             'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
+             'smc1':{'description':'Soil water content at the top soil layer','units':'m3/m3','dims':('time','hru',),'precision':3},
+             'relsmc1':{'description':'Relative soil water content at the top soil layer','units':'m3/m3','dims':('time','hru',),'precision':3},
              'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
+
 
              # Water Management
              'demand_agric':{'description':'Irrigation water demand','units':'m','dims':('time','hru',),'precision':4},
