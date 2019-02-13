@@ -576,6 +576,8 @@ class HydroBlocks:
   # top soil layer
   tmp['smc1'] = np.copy(NOAH.smc[:,0])
   tmp['relsmc1'] = (np.copy(NOAH.smc[:,0])-NOAH.drysmc0)/(NOAH.maxsmc0-NOAH.drysmc0)
+  #print(NOAH.smc[:10,0],NOAH.drysmc0[:10],NOAH.maxsmc0[:10],tmp['relsmc1'][:10])
+  #exit()
   # total soil moisture / soil water storage -- only until depth to bedrock
   dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
   tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
