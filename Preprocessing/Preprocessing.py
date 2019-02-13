@@ -13,8 +13,8 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-#from geospatialtools import terrain_tools
-import terrain_tools as terrain_tools
+from geospatialtools import terrain_tools
+#import terrain_tools as terrain_tools
 import gc
 from scipy.interpolate import griddata
 
@@ -299,14 +299,20 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  # set hand at the flat lands
  for flat in np.unique(flatlands[flatlands!=-9999]):
   m = (flatlands == flat)
-  hand[m] = np.min(hand[m][hand[m]!=-9999])
+  tmp = hand[m][hand[m]!=-9999]
+  if len(tmp) > 0: hand[m] = np.min(tmp)
  
  # Identify lakes 
  lakes_hrus = cluster_lakes(covariates,mask)
  # Set hand at the lakes
  for lake in np.unique(lakes_hrus[lakes_hrus!=-9999]):
   m = (lakes_hrus == lake)
-  hand[m] = np.min(hand[m][hand[m]!=-9999])
+  tmp = hand[m][hand[m]!=-9999]
+  if len(tmp) > 0: hand[m] = np.min(tmp)
+  tmp = dem[m][dem[m]!=-9999]                                                                                       
+  if len(tmp) > 0: dem[m] = np.min(tmp)
+  tmp = demns[m][demns[m]!=-9999]      
+  if len(tmp) > 0: demns[m] = np.min(tmp)
 
  hand = spatial_imputation(hand,-9999.0,'nearest')
 
@@ -329,6 +335,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #hand[mask != 1] = -9999
  ti[mask != 1] = -9999
 
+ covariates['dem'] = dem
+ covariates['demns'] = demns
  covariates['slope'] = slope
  covariates['aspect'] = aspect
  covariates['carea'] = area
