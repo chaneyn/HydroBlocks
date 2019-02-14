@@ -408,6 +408,9 @@ class HydroBlocks:
    #identify the position
    self.minitial_itime = np.where(ndates == ndate)[0][0]
   i = self.itime + self.minitial_itime
+
+  #Downscale meteorology
+  
   self.noahmp.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
   self.noahmp.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
   self.noahmp.psfc[:] = meteorology.variables['psurf'][i,:] #Pa

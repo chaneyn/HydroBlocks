@@ -122,11 +122,11 @@ def Prepare_Model_Input_Data(hydroblocks_info):
    wbd['files_water_use']['livestock']  = '%s/livestock.nc' % workspace
 
  #Create the clusters and their connections
- output = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info)
+ (output,covariates) = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info)
 
  #Extract the meteorological forcing
  print("Preparing the meteorology")
- Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info)
+ Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info,covariates)
 
  #Extract the water use demands
  print("Preparing the water use")
@@ -208,7 +208,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
         'dem','soil_texture_class','ti','carea','area',
         'BB','F11','SATPSI','SATDW','QTZ','clay',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
-        'm','hand']
+        'm','hand','y_aspect','x_aspect']
 
  if hydroblocks_info['water_management']['hwu_agric_flag']:
   for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -254,7 +254,14 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  print("Calculating slope and aspect")
  res_array = np.copy(demns)
  res_array[:] = eares
- (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(demns,res_array,res_array)
+ (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(np.flipud(demns),res_array,res_array)
+ #(slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(demns,res_array,res_array)
+ slope = np.flipud(slope)
+ aspect = np.flipud(aspect)
+ #import matplotlib.pyplot as plt
+ #plt.imshow(np.cos(aspect))
+ #plt.show()
+ #exit()
 
  #Compute accumulated area
  m2 = np.copy(demns)
@@ -308,6 +315,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  covariates['slope'] = slope
  covariates['aspect'] = aspect
+ covariates['x_aspect'] = np.sin(aspect)
+ covariates['y_aspect'] = np.cos(aspect)
  covariates['carea'] = area
  #covariates['fdir'] = fdir
  covariates['ti'] = ti
@@ -382,7 +391,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
          'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
          'land_cover','soil_texture_class','clay','sand','silt',
-         'm','hand']
+         'm','hand','x_aspect','y_aspect']
 
  if hydroblocks_info['water_management']['hwu_agric_flag']:
   for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -420,6 +429,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   OUTPUT['hru']['carea'][hru] = np.nanmean(covariates['carea'][idx])
   #Channel?
   #OUTPUT['hru']['channel'][hru] = stats.mode(covariates['channels'][idx])[0]
+  #Average aspect
+  #OUTPUT['hru']['aspect'][hru] = np.arctan(y_aspect/x_aspect)
+  #OUTPUT['hru']['aspect'][hru] = np.arctan(x_aspect/y_aspect)
+  OUTPUT['hru']['x_aspect'][hru] = np.nanmean(covariates['x_aspect'][idx])
+  OUTPUT['hru']['y_aspect'][hru] = np.nanmean(covariates['y_aspect'][idx])
 
   #Land cover type 
   tmp = covariates['lc'][idx]
@@ -712,9 +726,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  OUTPUT['nhru'] = nhru
  OUTPUT['mask'] = mask
 
- return OUTPUT
+ return (OUTPUT,covariates)
 
-def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info):
+def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info,covariates):
 
  #Define the mapping directory
  mapping_info = {}
@@ -736,20 +750,21 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   #Compute the mapping for each hru
   for hru in np.arange(hydroblocks_info['nhru']):
    idx = OUTPUT['hru_map'] == hru
-   #print "Catch:",hydroblocks_info['icatch'], "HRU: ", mask_fine[idx].astype(np.int)
    icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
    counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
-   coords,pcts = [],[]
+   coords,pcts,dem_coarse = [],[],[] #dem for downscaling
    for icell in icells:
     ilat = int(np.floor(icell/mask_coarse.shape[1]))
     jlat = icell - ilat*mask_coarse.shape[1]
-    #ilat = int(mask_coarse.shape[0] - ilat - 1) #CAREFUL
     pct = float(counts[icell])/float(np.sum(counts))
     coords.append([ilat,jlat])
     pcts.append(pct)
+    dem_coarse.append(np.mean(covariates['dem'][mask_fine == icell]))
    pcts = np.array(pcts)
    coords = list(np.array(coords).T)
-   mapping_info[var][hru] = {'pcts':pcts,'coords':coords}
+   dem_fine = np.mean(covariates['dem'][idx])
+   dem_coarse = np.array(dem_coarse)
+   mapping_info[var][hru] = {'pcts':pcts,'coords':coords,'dem_coarse':dem_coarse,'dem_fine':dem_fine}
 
  #Iterate through variable creating forcing product per HSU
  idate = info['time_info']['startdate']
@@ -769,8 +784,6 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   #fp = h5py.File(file)
   
   #Determine the time steps to retrieve
-  #fidate = ' '.join(fp.variables['t'].units.split(' ')[2::])
-  #dates = nc.num2date(fp.variables['t'][:],units='hours since %s' % (fidate))  # num2date doesnt work for step of 3h.
   nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
   nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
   nc_nt = len(fp.variables['t'][:])
@@ -785,24 +798,21 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 
   #Assing to hrus
   for hru in mapping_info[var]:
-   #print data_var,data, data.shape, hru,mapping_info[var][hru]['pcts'],mapping_info[var][hru]['coords'],
-   #print hru, var, data.shape, hru,mapping_info[var][hru]['pcts'],mapping_info[var][hru]['coords']
    pcts = mapping_info[var][hru]['pcts']
    coords = mapping_info[var][hru]['coords']
    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
    tmp = data[:,coords[0],coords[1]]
-   #m1 = tmp < -999
-   #m2 = tmp > -999
+   #This is where the downscaling would happen
+   downscale_meteorology_variable(var,tmp,mapping_info[var][hru]['dem_coarse'],
+                                  mapping_info[var][hru]['dem_fine'])
    tmp = pcts*tmp
    meteorology[data_var][:,hru] = np.sum(tmp,axis=1)
-   #print data_var,np.unique(meteorology[data_var][:,:])
 
   #Write the meteorology to the netcdf file (single chunk for now...)
   grp = hydroblocks_info['input_fp'].groups['meteorology']
   grp.createVariable(var,'f4',('time','hru'))#,zlib=True)
   grp.variables[data_var][:] = meteorology[data_var][:]
-
 
  #Add time information
  dates = []
@@ -819,6 +829,16 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 
  return
 
+def downscale_meteorology_variable(var,din,dem_coarse,dem_fine):
+ 
+ print(var)
+ print(din.shape)
+ print(dem_coarse.shape)
+ print(dem_fine.shape)
+ print('dem_coarse',dem_coarse)
+ print('dem_fine',dem_fine)
+
+ return
 
 def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info):
 
