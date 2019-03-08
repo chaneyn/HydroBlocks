@@ -7,20 +7,20 @@ HydroBlocks relies on a number python libraries. To make this straightforward us
 Create a conda environment for HydroBlocks:
 ```
 conda update conda
-conda create -n HydroBlocks -c intel python=3.6 anaconda
+conda create -n HydroBlocks -c conga-forge python=3.6 anaconda
 source activate HydroBlocks
 ```
 
 Install HydroBlocks dependencies from intel channel:
 ```
-conda install -c intel netcdf4 xerces-c jpeg scikit-image scikit-learn numpy pandas h5py kealib gcc libgcc python=3.6 mpi4py 
-conda install -c conda-forge gdal geos 
+conda install -c conda-forge python=3.6 netcdf4 h5py gdal geos gcc libgcc-ng numpy-base numpy scipy pandas scikit-image scikit-learn mpi4py jpeg kealib xerces-c
 ```
 
 Install HydroBlocks:
 ```
 git clone https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
+git checkout dev_noemi
 python setup.py 
 cd ..
 ```
