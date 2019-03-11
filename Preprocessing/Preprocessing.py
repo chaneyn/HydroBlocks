@@ -749,6 +749,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 
   #Compute the mapping for each hru
   for hru in np.arange(hydroblocks_info['nhru']):
+   print(hru)
    idx = OUTPUT['hru_map'] == hru
    icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
    counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
@@ -759,14 +760,18 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
     pct = float(counts[icell])/float(np.sum(counts))
     coords.append([ilat,jlat])
     pcts.append(pct)
-    dem_coarse.append(np.mean(covariates['dem'][mask_fine == icell]))
+    if var == 'tair':dem_coarse.append(np.mean(covariates['dem'][mask_fine == icell]))
    pcts = np.array(pcts)
    coords = list(np.array(coords).T)
-   dem_fine = np.mean(covariates['dem'][idx])
-   dem_coarse = np.array(dem_coarse)
-   mapping_info[var][hru] = {'pcts':pcts,'coords':coords,'dem_coarse':dem_coarse,'dem_fine':dem_fine}
+   if var == 'tair':
+    dem_fine = np.mean(covariates['dem'][idx])
+    dem_coarse = np.array(dem_coarse)
+    mapping_info[var][hru] = {'pcts':pcts,'coords':coords,'dem_coarse':dem_coarse,'dem_fine':dem_fine}
+   else:
+    mapping_info[var][hru] = {'pcts':pcts,'coords':coords}
 
  #Iterate through variable creating forcing product per HSU
+ #R
  idate = info['time_info']['startdate']
  fdate = info['time_info']['enddate']
  dt = info['time_info']['dt']
@@ -776,12 +781,12 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
  for data_var in wbd['files_meteorology']:
   meteorology[data_var] = np.zeros((nt,hydroblocks_info['nhru']))
  #Load data into structured array
+ db_data = {}
  for data_var in wbd['files_meteorology']:
   var = data_var#data_var.split('_')[1]
   date = idate
   file = wbd['files_meteorology'][data_var]
   fp = nc.Dataset(file)
-  #fp = h5py.File(file)
   
   #Determine the time steps to retrieve
   nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
@@ -793,26 +798,31 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   startdate = info['time_info']['startdate']
   enddate = info['time_info']['enddate']
   mask_dates = (dates >= startdate) & (dates <= enddate)
-  data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
+  db_data[var] = np.ma.getdata(fp.variables[var][mask_dates,:,:])
   fp.close()
+ 
+ #Downscale the variables
+ flag_downscale = True
+ if flag_downscale == True:db_downscaled_data = Downscale_Meteorology(db_data,mapping_info)
 
-  #Assing to hrus
+ #Finalize data
+ for var in db_data:
   for hru in mapping_info[var]:
    pcts = mapping_info[var][hru]['pcts']
-   coords = mapping_info[var][hru]['coords']
-   coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
-   coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
-   tmp = data[:,coords[0],coords[1]]
-   #This is where the downscaling would happen
-   downscale_meteorology_variable(var,tmp,mapping_info[var][hru]['dem_coarse'],
-                                  mapping_info[var][hru]['dem_fine'])
+   if flag_downscale == False:
+    coords = mapping_info[var][hru]['coords']
+    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
+    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
+    tmp = data[:,coords[0],coords[1]]
+   else:
+    tmp = db_downscaled_data[hru][var]
    tmp = pcts*tmp
-   meteorology[data_var][:,hru] = np.sum(tmp,axis=1)
+   meteorology[var][:,hru] = np.sum(tmp,axis=1)
 
   #Write the meteorology to the netcdf file (single chunk for now...)
   grp = hydroblocks_info['input_fp'].groups['meteorology']
   grp.createVariable(var,'f4',('time','hru'))#,zlib=True)
-  grp.variables[data_var][:] = meteorology[data_var][:]
+  grp.variables[var][:] = meteorology[var][:]
 
  #Add time information
  dates = []
@@ -829,16 +839,62 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 
  return
 
-def downscale_meteorology_variable(var,din,dem_coarse,dem_fine):
+def Downscale_Meteorology(db_data,mapping_info):
  
- print(var)
- print(din.shape)
- print(dem_coarse.shape)
- print(dem_fine.shape)
- print('dem_coarse',dem_coarse)
- print('dem_fine',dem_fine)
+ #Iterate per hru
+ db_org = {}
+ db_ds = {}
+ for hru in mapping_info['tair']:
+  db_org[hru] = {}
+  db_ds[hru] = {}
+  #Collect the data
+  for var in db_data:
+   pcts = mapping_info[var][hru]['pcts']
+   coords = mapping_info[var][hru]['coords']
+   coords[0][coords[0] >= db_data[var].shape[1]] = db_data[var].shape[1] - 1
+   coords[1][coords[1] >= db_data[var].shape[2]] = db_data[var].shape[2] - 1
+   db_org[hru][var] = db_data[var][:,coords[0],coords[1]]
+  df = mapping_info['tair'][hru]['dem_fine']
+  dc = mapping_info['tair'][hru]['dem_coarse']
+  #A.Downscale temperature
+  dT = -6.0*10**-3*(df - dc)
+  db_ds[hru]['tair'] = dT[np.newaxis,:] + db_org[hru]['tair']
+  #db_ds[hru]['tair'] = db_org[hru]['tair'][:]
+  #B.Downscale longwave
+  #0.Compute radiative temperature 
+  sigma = 5.67*10**-8
+  emis = 1.0
+  trad = (db_org[hru]['lwdown']/sigma/emis)**0.25
+  #1.Apply lapse rate to trad
+  trad = dT[np.newaxis,:] + trad
+  #2.Compute longwave with new radiative tempearture
+  db_ds[hru]['lwdown'] = emis*sigma*trad**4
+  #db_ds[hru]['lwdown'] = db_org[hru]['lwdown'][:]
+  #C.Downscale pressure
+  psurf = db_org[hru]['psurf'][:]*np.exp(-10**-3*(df-dc)/7.2)
+  db_ds[hru]['psurf'] = psurf[:]
+  #D.Downscale specific humidity
+  #db_ds[hru]['spfh'] = db_org[hru]['spfh'][:]
+  #Convert to vapor pressure
+  e = db_org[hru]['psurf'][:]*db_org[hru]['spfh'][:]/0.622 #Pa
+  esat = 1000*saturated_vapor_pressure(db_org[hru]['tair'][:] - 273.15) #Pa
+  rh = e/esat
+  esat = 1000*saturated_vapor_pressure(db_ds[hru]['tair'][:] - 273.15) #Pa
+  e = rh*esat
+  q = 0.622*e/db_ds[hru]['psurf']
+  db_ds[hru]['spfh'] = q[:]
+  #E.Downscale shortwave radiation
+  db_ds[hru]['swdown'] = db_org[hru]['swdown'][:]
+  #F.Downscale wind speed
+  db_ds[hru]['wind'] = db_org[hru]['wind'][:]
+  #G.Downscale precipitation
+  db_ds[hru]['precip'] = db_org[hru]['precip'][:]
 
- return
+ return db_ds
+
+def saturated_vapor_pressure(T):
+    es = 0.6112*np.exp(17.67*T/(T + 243.5))
+    return es
 
 def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info):
 
