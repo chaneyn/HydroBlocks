@@ -21,6 +21,7 @@ Install HydroBlocks:
 ```
 git clone https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
+git checkout dev_noemi
 python setup.py 
 cd ..
 ```
@@ -43,6 +44,9 @@ python ../HydroBlocks/HydroBlocks/Driver.py metadata.json
 ```
 
 ```
+source deactivate 
+```
+
 source deactivate 
 ```
 
