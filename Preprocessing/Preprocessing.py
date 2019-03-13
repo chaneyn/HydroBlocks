@@ -13,8 +13,8 @@ import netCDF4 as nc
 import time
 import glob
 from geospatialtools import gdal_tools
-from geospatialtools import terrain_tools
-#import terrain_tools as terrain_tools
+#from geospatialtools import terrain_tools
+import terrain_tools as terrain_tools
 import gc
 from scipy.interpolate import griddata
 
@@ -447,7 +447,7 @@ def cluster_lakes(covariates,mask):
 def cluster_flatlands(slope,mask):
  #Identify areas (> 0.1 km2) where the slope is too flat for channels 
  slope[mask != 1] = -9999
- pos = np.where(((slope >= 0) & (slope < 0.0001)))
+ pos = np.where(((slope >= 0) & (slope < 0.001)))
  clust_map = np.ones(mask.shape)*(-9999)
  if len(pos[0]) < 10: return clust_map
 

@@ -313,8 +313,8 @@ class HydroBlocks:
   self.richards.nhru = self.nhru
   #print(self.nhru)
   self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
-  #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
-  self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
+  self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
+  #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
