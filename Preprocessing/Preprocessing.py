@@ -749,7 +749,6 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
 
   #Compute the mapping for each hru
   for hru in np.arange(hydroblocks_info['nhru']):
-   print(hru)
    idx = OUTPUT['hru_map'] == hru
    icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
    counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
