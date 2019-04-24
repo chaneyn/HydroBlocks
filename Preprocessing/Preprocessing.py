@@ -32,7 +32,6 @@ def plot_data(data):
 
  return
 
-
 def Prepare_Model_Input_Data(hydroblocks_info):
 
  #Prepare the info dictionary
@@ -222,6 +221,13 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   grp.createVariable('hru_min_dist','f4',('hru','hru'))#,zlib=True)
   grp.variables['hru_min_dist'][:] = data['hru']['hru_min_dist']
 
+ #Write out the stream network info
+ grp = fp.createGroup('stream_network')
+ grp.createDimension('nc',data['stream_network']['slope'].size)
+ for var in data['stream_network']:
+  grp.createVariable(var,'f4',('nc'))
+  grp.variables[var][:] = data['stream_network'][var][:]
+
  #Remove info from output
  del output['hru']
 
@@ -234,9 +240,6 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  return output
 
 def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares):
-
- #PARAMETERS (NEED TO GO OUTSIDE)
- #eares = 30 #meters
 
  #Define the parameters for the hierarchical multivariate clustering
  ncatchments = hydroblocks_info['hmc_parameters']['number_of_characteristic_subbasins']
@@ -267,7 +270,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  m2 = np.copy(demns)
  m2[:] = 1
  print("Calculating accumulated area")
- (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,m2,eares)
+ (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask,eares)
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
@@ -275,15 +278,16 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
- (ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,m2,ipoints,eares)
+ (ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
  ac[ac != 0] = area[ac != 0]
 
  #Compute the channels
  print("Defining channels")
- channels = terrain_tools.ttf.calculate_channels_wocean(ac,10**4,10**4,fdc,m2)
- #area_in,threshold,basin_threshold,fdir,channels,nx,ny)
- #channels = terrain_tools.ttf.calculate_channels(ac,10**4,10**4,fdc)#,m2)
- channels = np.ma.masked_array(channels,channels<=0)
+ (channels,channels_wob,channel_topology) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdc,mask)
+ #Curate channel_topology
+ channel_topology = channel_topology[channel_topology != -9999]
+ #Compute channel properties
+ db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask)
 
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -382,7 +386,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info['basins'] = basins
  HMC_info['tile_position'] = tile_position
 
- return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates)
+ return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels)
 
 def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask):
 
@@ -684,7 +688,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs")
- (cluster_ids,nhru,hand,HMC_info,covariates) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
+ (cluster_ids,nhru,hand,HMC_info,covariates,dbc) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
  covariates['hand'] = hand
  hydroblocks_info['nhru'] = nhru
   
@@ -725,6 +729,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  #Add the new number of clusters
  OUTPUT['nhru'] = nhru
  OUTPUT['mask'] = mask
+ OUTPUT['stream_network'] = dbc
 
  return (OUTPUT,covariates)
 
