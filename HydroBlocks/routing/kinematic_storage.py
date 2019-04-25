@@ -104,24 +104,26 @@ c_slope = dbc['slope'][:]
 c_manning = dbc['manning'][:]
 c_width = dbc['width'][:]
 c_n = dbc['manning'][:]
-c_n[:] = 0.01
-c_width[:] = 100.0
-c_slope[:] = 0.001
-c_length[:] = 1000.0
+#c_n[:] = 0.01
+#c_width[:] = 100.0
+#c_slope[:] = 0.001
+#c_length[:] = 1000.0
 #c_length = 1000.0*np.ones(cdst.size)
+c_length[:] = np.mean(c_length)
 #c_n = 0.01*np.ones(cdst.size)
 #c_width = 1*np.ones(cdst.size)
 #c_slope = 0.01*np.ones(cdst.size)
 hinit = np.zeros(c_length.size)
-#hinit[cup == -1] = 0.1
-hinit[:] = 0.001
+hinit[cup == -1] = 0.1
+#hinit[:] = 0.01
+#hinit[1] = 0.01
 h0 = np.copy(hinit)
 h1 = np.copy(hinit)
 #c_width[:] = 1.0
 
 #Filler
-tmax = 10**7
-dt = 100000 #s
+tmax = 10**6
+dt = 3600 #s
 nt = int(tmax/dt)
 #Define initial conditions
 Qinit = np.zeros(nc)
@@ -140,19 +142,16 @@ for t in range(nt):
   print(t,it)
   #Compute conveyance
   dKdh = np.zeros(h0.size)
+  #m = h0 > 0
   h = np.zeros(h0.size)
   h[0:-1] = (h0[1:] + h0[0:-1])/2
-  h[-1] = h0[-1]#/2
-  #m = h0 > 0
-  #dKdh[m] = 5.0/3.0*c_width[m]*h0[m]**(2.0/3.0)/c_n[m]
+  h[-1] = h0[-1]/2
+  #dKdh[m] = 5.0/3.0*c_width[m]*h[m]**(2.0/3.0)/c_n[m]
   #Q0_org[~m] = 0.9*Q0_org[~m]
   dKdh = 5.0/3.0*c_width*h**(2.0/3.0)/c_n
   #Q0_org[~m] = 0.01*Q0_org[~m]#h0_org[~m]*c_length[~m]*c_width[~m]
   #Compute celerity
   c = c_slope**0.5/c_width*dKdh #Use value from previous time step
-  #Qinit[:] = c_width*h0**(5.0/3.0)*c_slope**0.5/c_n
-  c = 5.0/3.0*h**(2.0/3.0)*c_slope**0.5/c_n
-  #c = h[:]#1.0
   #c = 0.1 #m/s
   #c = 0.001
   #Fill non-diagonals
@@ -163,9 +162,9 @@ for t in range(nt):
   #if t % 100 == 0:
   # b = Q0_org/dt + 0.1*c_width*c_length/dt**2
   #else:
-  b = Q0_org/dt
+  b = h0_org/dt
   #Ax = b
-  Q1 = scipy.sparse.linalg.spsolve(A,b,use_umfpack=True)
+  h1 = scipy.sparse.linalg.spsolve(A,b,use_umfpack=True)
   #Update h
   #B = cmatrix.multiply(1)
   #B.setdiag(-1)
@@ -177,21 +176,25 @@ for t in range(nt):
   #Compute flux in/out
   #dQ = np.array(B.multiply(Q1).sum(axis=1))[:,0]
   #h1[:] = h0_org[:] + dt*dQ/c_length/c_width
-  h1[:] = (Q1/c_width/c_slope**0.5*c_n)**(3.0/5.0)
+  #h1[:] = (Q1/c_width/c_slope**0.5*c_n)**(3.0/5.0)
   #Qinit[:] = c_width*h0**(5.0/3.0)*c_slope**0.5/c_n
   #QC
+  h0[h0 < 0] = 0.0
   #print(np.mean(np.abs(Q0 - Q1)),np.min(h1))
-  dif1 = np.mean(np.abs(Q0 - Q1))
+  dif1 = np.mean(np.abs(h0 - h1))
+  #dif1 = np.mean(np.abs(Q0 - Q1))
   if (dif1 < 10**-10):# | (dif1 == dif0):
-   #Reset h0,Q0
+   #Reset h0
    h0[:] = h1[:]
-   Q0[:] = Q1[:]
+   #Calculate Q1
+   #Q1 = c_width*h0**(5.0/3.0)*c_slope**0.5/c_n
+   Q1 = c*h0*c_width
+   #Q1 = h1 - h0
    dif0 = -9999
    break
   else:
-   #Reset h0,Q0
+   #Reset h0
    h0[:] = h1[:]
-   Q0[:] = Q1[:]
    dif0 = dif1
   #if(np.sum(h0 < 0) == 0):break
  #Append to output
@@ -201,8 +204,6 @@ for var in out:
  out[var] = np.array(out[var])
 m = cdst == -1
 #print(np.sum(np.trapz(out['Q'][:,m].T,dx=dt)),"m3")
-#print(dt*np.sum(out['Q'][:,1]))
-#print(np.sum((hinit[1]-out['h'][-1,1])*c_length[1]*c_width[1]))
 print(dt*np.sum(out['Q'][:,m]))
 print(np.sum((hinit-out['h'][-1,:])*c_length*c_width))
 plt.subplot(121)
