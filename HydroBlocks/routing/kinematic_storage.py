@@ -107,15 +107,16 @@ c_n = dbc['manning'][:]
 #c_n[:] = 0.01
 #c_width[:] = 100.0
 #c_slope[:] = 0.001
-#c_length[:] = 1000.0
+c_length[:] = 1000.0
 #c_length = 1000.0*np.ones(cdst.size)
-c_length[:] = np.mean(c_length)
+#c_length[:] = np.mean(c_length)
+#c_length[c_length > 10**3] = 10**3
 #c_n = 0.01*np.ones(cdst.size)
 #c_width = 1*np.ones(cdst.size)
 #c_slope = 0.01*np.ones(cdst.size)
 hinit = np.zeros(c_length.size)
-hinit[cup == -1] = 0.1
-#hinit[:] = 0.01
+#hinit[cup == -1] = 0.1
+hinit[:] = 0.01
 #hinit[1] = 0.01
 h0 = np.copy(hinit)
 h1 = np.copy(hinit)
@@ -131,6 +132,22 @@ Qinit[:] = c_width*h0**(5.0/3.0)*c_slope**0.5/c_n
 #Qinit[:] = 10**-1
 #Qinit[:] = 0.1
 Q0 = Qinit[:]
+#print(c_length)
+#exit()
+cmatrix_dense = np.array(cmatrix.todense())
+#np.fill_diagonal(cmatrix_dense,1.0)
+dx = (c_length[:,np.newaxis] + c_length[np.newaxis,:])/2
+dx1 = np.copy(1/dx)
+dx1[cmatrix_dense == 0] = 0.0
+print(dx1)
+exit()
+print(c_length)
+cdx = 1/dx1.sum(axis=1)
+cdx[np.isinf(cdx)] = c_length[np.isinf(cdx)]
+print(cdx)
+exit()
+#cdx = c_length[:]
+
 print('Q0',Q0)
 out = {'Q':[],'h':[]}
 dif0 = -9999
@@ -144,8 +161,13 @@ for t in range(nt):
   dKdh = np.zeros(h0.size)
   #m = h0 > 0
   h = np.zeros(h0.size)
-  h[0:-1] = (h0[1:] + h0[0:-1])/2
-  h[-1] = h0[-1]/2
+  #h[0:-1] = (h0[1:] + h0[0:-1])/2
+  #h[-1] = h0[-1]/2
+  #Should change this back
+  h[:] = h0[:]
+  #cl = np.zeros(c_length.size)
+  #cl[0:-1] = (c_length[1:] + c_length[0:-1])/2
+  #cl[-1] = c_length[-1]/2
   #dKdh[m] = 5.0/3.0*c_width[m]*h[m]**(2.0/3.0)/c_n[m]
   #Q0_org[~m] = 0.9*Q0_org[~m]
   dKdh = 5.0/3.0*c_width*h**(2.0/3.0)/c_n
@@ -155,9 +177,12 @@ for t in range(nt):
   #c = 0.1 #m/s
   #c = 0.001
   #Fill non-diagonals
-  A = cmatrix.multiply(-c/c_length)
+  A = cmatrix.multiply(-c/dx)
+  #A = cmatrix.multiply(-c/c_length)
   #Fill diagonal
-  A.setdiag(1.0/dt + c/c_length)
+  A.setdiag(1.0/dt + c/cdx)
+  #A.setdiag(1.0/dt + c/c_length)
+  #1.0/dt + c/dx = (dx + c*dt)/(dx*dt)
   #Define Q_nm1
   #if t % 100 == 0:
   # b = Q0_org/dt + 0.1*c_width*c_length/dt**2
@@ -195,7 +220,8 @@ for t in range(nt):
   else:
    #Reset h0
    h0[:] = h1[:]
-   dif0 = dif1
+   dif0 = dif1 
+   Q1 = c*h0*c_width
   #if(np.sum(h0 < 0) == 0):break
  #Append to output
  out['Q'].append(np.copy(Q1))

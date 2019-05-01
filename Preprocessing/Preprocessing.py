@@ -284,6 +284,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Compute the channels
  print("Defining channels")
  (channels,channels_wob,channel_topology) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdc,mask)
+ #channels_wob[channels_wob != 0] = -9999
+ #channels[channels != 0] = -9999
+ #plt.imshow(channels_wob)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  #Compute channel properties
@@ -295,6 +298,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Compute the basins
  print("Defining basins")
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
+ basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
+ #basins_wob = np.ma.masked_array(basins_wob,basins_wob==-9999)
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area")
@@ -380,7 +385,31 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
- 
+
+ #Compute areal coverage of each HRU per basin (or hillslope) (THIS NEEDS TO BE FORMALLY MERGED)
+ db = {}
+ for i in range(basins_wob.shape[0]):
+  for j in range(basins_wob.shape[1]):
+   basin = basins_wob[i,j]
+   if basin <= 0:continue
+   if basin not in db:db[basin] = {}
+   if hrus[i,j] not in db[basin]: db[basin][hrus[i,j]] = 0.0
+   db[basin][hrus[i,j]] += eares**2
+ pickle.dump(db,open('test.pck','wb'))
+
+ #Calculate hand database per reach (THIS NEEDS TO BE FORMALLY MERGED)
+ ubasins = np.unique(basins_wob)
+ ubasins = ubasins[ubasins != -9999]
+ db = {}
+ for ub in ubasins:
+  print(ub)
+  (hist,edges) = np.histogram(new_hand[basins_wob == ub])
+  print(hist,edges)
+  #Compute maximum area
+  #db[ub] = {'hist':hist,'edges':edges}
+ #pickle.dump(db,open('test2.pck','wb'))
+ exit()
+
  #Construct HMC info for creating connections matrix
  HMC_info = {}
  HMC_info['basins'] = basins
