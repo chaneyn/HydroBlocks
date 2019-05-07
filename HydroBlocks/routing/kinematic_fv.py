@@ -80,7 +80,7 @@ qout = np.zeros(c_length.size)
 print('Q0',Q0)
 out = {'Q':[],'h':[],'qin':[],'qout':[]}
 dif0 = -9999
-max_niter = 4
+max_niter = 2
 for t in range(nt):
  h0_org = np.copy(h0)
  Q0_org = np.copy(Q0)

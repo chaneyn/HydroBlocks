@@ -306,6 +306,22 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,demns)
  if np.all( (hand == -9999) ): hand[:] = 0.0 # Noemi
 
+ #Compute the areal coverage of each hand value within the basin
+ #Assume rectangular segment and calculate width of areal coverage 
+ #Calculate perimeter and cross sectional area
+ db = {}
+ for i in range(basins_wob.shape[0]):
+  for j in range(basins_wob.shape[1]):
+   basin = basins_wob[i,j]
+   h = hand[i,j]
+   if basin <= 0:continue
+   if basin not in db:db[basin] = {}
+   if h not in db[basin]: db[basin][h] = 0.0
+   db[basin][h] += eares**2
+ pickle.dump(db,open('test2.pck','wb'))
+ odb = {'channels':channels_wob,'hand':hand,'basins':basins_wob}
+ pickle.dump(odb,open('test4.pck','wb'))
+
  #Calculate topographic index
  print("Computing topographic index")
  ti = np.copy(area)
@@ -397,18 +413,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    db[basin][hrus[i,j]] += eares**2
  pickle.dump(db,open('test.pck','wb'))
 
- #Calculate hand database per reach (THIS NEEDS TO BE FORMALLY MERGED)
- ubasins = np.unique(basins_wob)
- ubasins = ubasins[ubasins != -9999]
- db = {}
- for ub in ubasins:
-  print(ub)
-  (hist,edges) = np.histogram(new_hand[basins_wob == ub])
-  print(hist,edges)
-  #Compute maximum area
-  #db[ub] = {'hist':hist,'edges':edges}
- #pickle.dump(db,open('test2.pck','wb'))
- exit()
 
  #Construct HMC info for creating connections matrix
  HMC_info = {}
