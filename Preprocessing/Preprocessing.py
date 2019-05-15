@@ -17,9 +17,9 @@ from geospatialtools import terrain_tools
 import gc
 from scipy.interpolate import griddata
 
-dir = os.path.dirname(os.path.abspath(__file__))
+'''dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
-import management_funcs as mgmt_funcs
+import management_funcs as mgmt_funcs'''
 
 def plot_data(data):
 
@@ -511,11 +511,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
    OUTPUT['hru']['centroid_lats'][hru] = np.nanmean(covariates['lats'][idx])
    #print OUTPUT['hru']['centroid_lons']  
 
- if hydroblocks_info['water_management']['hwu_flag'] == True: 
+ '''if hydroblocks_info['water_management']['hwu_flag'] == True: 
   for hru in np.arange(nhru):
    #HRU distance between the centroids of the hru and all the other hrus 
    OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
-   OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0
+   OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
    
  return OUTPUT
 
@@ -655,12 +655,12 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
    #else: sys.stderr.write("Error_clustering: variable %s has %.2f %% of nan's" % (var,100*missing_ratio))
 
   #print var
-  if var not in ['mask']:
+  '''if var not in ['mask']:
    if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30','start_growing_season','end_growing_season']: 
     covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest')  
    else:
     #covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest') #faster
-    covariates[var] = spatial_imputation(covariates[var],-9999.0,'linear')
+    covariates[var] = spatial_imputation(covariates[var],-9999.0,'linear')'''
 
  #Set everything outside of the mask to -9999
  for var in covariates:
@@ -669,7 +669,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  
  return (covariates,mask)
 
-def spatial_imputation(array,fill_val,method):
+'''def spatial_imputation(array,fill_val,method):
  pos_fill = (array==fill_val)
  if np.sum(pos_fill) == 0: return array
  
@@ -708,7 +708,7 @@ def spatial_imputation(array,fill_val,method):
   yf = yy[array.mask] #fill vals
   filled  = griddata((x1, y1), newarr.ravel(),(xf, yf), method='nearest')
   array[array.mask] = filled
- return np.ma.filled(array)
+ return np.ma.filled(array)'''
 
 def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info):
  

@@ -1,6 +1,7 @@
 import datetime
 import Preprocessing
 import sys
+import time
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -26,5 +27,7 @@ info['fdate'] = datetime.datetime(metadata['enddate']['year'],
 
 
 #Cluster the data
+tic = time.time()
 Preprocessing.Prepare_Model_Input_Data(info)
+print("Elapsed time: ",time.time() - tic)
 

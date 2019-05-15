@@ -47,7 +47,7 @@ class HydroBlocks:
 
   #Initialize human water use module
   print("Initializing Human Water Management")
-  self.initialize_hwu(info)
+  #self.initialize_hwu(info)
 
   #Other metrics
   self.dE = 0.0
@@ -140,7 +140,7 @@ class HydroBlocks:
   self.nhru = len(self.input_fp.dimensions['hru'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
-  self.hwu_flag = info['water_management']['hwu_flag']
+  #self.hwu_flag = info['water_management']['hwu_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
@@ -329,13 +329,13 @@ class HydroBlocks:
 
  def initialize_hwu(self,info):
 
-  from pyHWU.Human_Water_Use import Human_Water_Use as hwu
-  self.hwu = hwu(self,info)
-  self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
+  #from pyHWU.Human_Water_Use import Human_Water_Use as hwu
+  #self.hwu = hwu(self,info)
+  #self.hwu.area = self.input_fp.groups['parameters'].variables['area'][:]
 
-  if self.hwu.hwu_flag == True:
-   print("Initializing Human Water Management")
-   self.hwu.initialize_allocation(self,)
+  #if self.hwu.hwu_flag == True:
+  # print("Initializing Human Water Management")
+  # self.hwu.initialize_allocation(self,)
 
   return
 
@@ -427,7 +427,7 @@ class HydroBlocks:
   self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
   # Update water demands
-  if self.hwu.hwu_flag == True:
+  '''if self.hwu.hwu_flag == True:
    if (date.hour*3600)%self.hwu.dta == 0:
     water_use = self.input_fp.groups['water_use']
     if self.hwu.hwu_indust_flag == True:
@@ -438,7 +438,7 @@ class HydroBlocks:
      self.hwu.deficit_domest[:] = np.copy(self.hwu.demand_domest[:])
     if self.hwu.hwu_lstock_flag == True:
      self.hwu.demand_lstock[:]  = water_use.variables['livestock'][i,:] #m/s
-     self.hwu.deficit_lstock[:] = np.copy(self.hwu.demand_lstock[:])
+     self.hwu.deficit_lstock[:] = np.copy(self.hwu.demand_lstock[:])'''
 
 
   return
@@ -446,7 +446,7 @@ class HydroBlocks:
  def update(self,date):
 
   # Apply irrigation
-  self.hwu.Human_Water_Irrigation(self,date)
+  #self.hwu.Human_Water_Irrigation(self,date)
   
   # Update subsurface
   self.update_subsurface()
@@ -455,10 +455,10 @@ class HydroBlocks:
   self.noahmp.run_model(self.ncores)
 
   # Calculate water demands and supplies, and allocate volumes
-  self.hwu.Calc_Human_Water_Demand_Supply(self,date)
+  #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 
   # Abstract Surface Water and Groundwater
-  self.hwu.Water_Supply_Abstraction(self,date)
+  #self.hwu.Water_Supply_Abstraction(self,date)
 
 
 
@@ -506,7 +506,7 @@ class HydroBlocks:
  def calculate_water_balance_error(self,):
 
   NOAH = self.noahmp
-  HWU = self.hwu
+  #HWU = self.hwu
   dt = self.dt
   if self.subsurface_module == 'richards':
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
@@ -535,7 +535,7 @@ class HydroBlocks:
  def update_output(self,date):
 
   NOAH = self.noahmp
-  HWU = self.hwu
+  #HWU = self.hwu
   HB = self
   itime = self.itime
 
@@ -588,7 +588,7 @@ class HydroBlocks:
   tmp['errwat'] = np.copy(HB.errwat)
 
   # Water Management
-  if self.hwu.hwu_agric_flag == True:
+  '''if self.hwu.hwu_agric_flag == True:
    tmp['demand_agric'] = np.copy(HWU.demand_agric)*NOAH.dt       #m
    tmp['deficit_agric'] = np.copy(HWU.deficit_agric)*NOAH.dt     #m
    tmp['irrig_agric'] = np.copy(HWU.irrigation)*(NOAH.dt/1000.0)   #m
@@ -608,7 +608,7 @@ class HydroBlocks:
      tmp['alloc_lstock'] = np.copy(HWU.demand_lstock-HWU.deficit_lstock)*NOAH.dt #m
    if self.hwu.hwu_sf_flag == True:
      tmp['alloc_sf'] = np.copy(HWU.alloc_sf) #m
-   if self.hwu.hwu_gw_flag == True:                                                                                              tmp['alloc_gw'] = np.copy(HWU.alloc_gw) #m
+   if self.hwu.hwu_gw_flag == True:                                                                                              tmp['alloc_gw'] = np.copy(HWU.alloc_gw) #m'''
 
   #Output the variables
   for var in self.metadata['output']['vars']:
