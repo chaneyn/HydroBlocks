@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse as sparse
 import time
+import numba
 
 class richards:
 
@@ -83,6 +84,7 @@ class richards:
   return h
 
  #def calculate_divergence_dense(self,h,K_x,dz):
+ #@numba.jit(nopython=True,cache=True)
  def calculate_divergence_dense(self,h,T):
  
   dh = h[:,np.newaxis] - h[np.newaxis,:]
@@ -97,14 +99,14 @@ class richards:
   dx = (tmp + tmp.T)/2
   #dx[:] = 30.0#self.area[0]**0.5
   area = self.area 
-  with np.errstate(invalid='ignore',divide='ignore'):
-   #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
-   That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
-   That[~np.isfinite(That)] = np.nan
-   #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
-   calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
-   calc_div[~np.isfinite(calc_div)] = np.nan
-  #print(calc_div)
+  #with np.errstate(invalid='ignore',divide='ignore'):
+  #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
+  That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
+  That[~np.isfinite(That)] = np.nan
+  #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
+  calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
+  calc_div[~np.isfinite(calc_div)] = np.nan
+
   return calc_div
 
  #def calculate_divergence_sparse(self,h,K_x,dz):

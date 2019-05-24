@@ -38,15 +38,15 @@ class HydroBlocks:
   self.general_information(info)
 
   #Initialize Noah-MP
-  print("Initializing Noah-MP")
+  print("Initializing Noah-MP",flush=True)
   self.initialize_noahmp()
 
   #Initialize subsurface module
-  print("Initializing subsurface module")
+  print("Initializing subsurface module",flush=True)
   self.initialize_subsurface()
 
   #Initialize human water use module
-  print("Initializing Human Water Management")
+  print("Initializing Human Water Management",flush=True)
   #self.initialize_hwu(info)
 
   #Other metrics
@@ -76,7 +76,7 @@ class HydroBlocks:
   file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d'))
   if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
-    print("Cold startup")
+    print("Cold startup",flush=True)
     return
 
   #Read in the restart information
@@ -349,7 +349,9 @@ class HydroBlocks:
   while date < self.fdate:
 
    #Update input data
+   tic0 = time.time()
    self.update_input(date)
+   #print('update input',time.time() - tic0,flush=True)
 
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
@@ -358,7 +360,9 @@ class HydroBlocks:
    self.initialize_water_balance()
 
    #Update model
+   tic0 = time.time()
    self.update(date)
+   #print('update model',time.time() - tic0,flush=True)
    
    #Return precip to original value
    self.noahmp.prcp[:] = precip[:] 
@@ -385,7 +389,7 @@ class HydroBlocks:
 
    #Output some statistics
    if (date.hour == 0) and (date.day == 1):
-    print(date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng)
+    print(date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng,flush=True)
 
   return
 
@@ -678,7 +682,7 @@ class HydroBlocks:
              }
 
   #Create the dimensions
-  print('Creating the dimensions')
+  print('Creating the dimensions',flush=True)
   ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
   nhru = len(fp_in.dimensions['hru'])
   fp_out.createDimension('hru',nhru)
@@ -686,7 +690,7 @@ class HydroBlocks:
   fp_out.createDimension('soil',self.nsoil)
 
   #Create the output
-  print('Creating the data group')
+  print('Creating the data group',flush=True)
   grp = fp_out.createGroup('data')
   for var in self.metadata['output']['vars']:
    ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
@@ -694,7 +698,7 @@ class HydroBlocks:
    ncvar.units = metadata[var]['units']
 
   #Create the metadata
-  print('Creating the metadata group')
+  print('Creating the metadata group',flush=True)
   grp = fp_out.createGroup('metadata')
   #Time
   grp.createVariable('time','f8',('time',))
@@ -703,18 +707,18 @@ class HydroBlocks:
   dates.calendar = 'standard'
 
   #HRU percentage coverage
-  print('Setting the HRU percentage coverage')
+  print('Setting the HRU percentage coverage',flush=True)
   pcts = grp.createVariable('pct','f4',('hru',))
   pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
   pcts.description = 'hru percentage coverage'
   pcts.units = '%'
 
   #HRU area
-  print('Setting the HRU areal coverage')
+  print('Setting the HRU areal coverage',flush=True)
   area = grp.createVariable('area','f4',('hru',))
   area[:] = fp_in.groups['parameters'].variables['area'][:]
   area.units = 'meters squared'
-  print('Defining the HRU ids')
+  print('Defining the HRU ids',flush=True)
   hru = grp.createVariable('hru','i4',('hru',))
   hrus =[]
   for value in range(nhru):hrus.append(value)
