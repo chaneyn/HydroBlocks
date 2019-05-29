@@ -1,12 +1,15 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import time
+import os
+import glob
+import json
 import netCDF4 as nc
+import numpy as np
+np.seterr(divide='ignore', invalid='ignore')
 import scipy.sparse as sparse
 import scipy.sparse.linalg
 import pickle
 import numba
-import sys
+import time
+from mpi4py import MPI
 
 @numba.jit(nopython=True,cache=True)
 def calculate_hydraulic_radius(A,P,W,A1):
@@ -30,12 +33,37 @@ def calculate_hydraulic_radius(A,P,W,A1):
 
  return Rh
 
-#cid = 7100454060
-#cid = 7100456120
-#cid = 7100454070
-cid = 7100456120
+#Get some general info
+dir = os.getcwd()
+
+#Determine communication information
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
+name = MPI.Get_processor_name()
+
+#Define the catchment
+rdir = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/ohio_basin'
+tmp = glob.glob('%s/input_data/domain/*' % rdir)
+tmp.remove('%s/input_data/domain/domain_database.pck' % rdir)
+cids = []
+for cid in tmp:
+ cids.append(int(cid.split('/')[-1]))
+cid = cids[rank]
+
+#Determine catchments that rely on this catchment (ids to send to)
+scids = []
+for ucid in cids:
+ if ucid == cid:continue
+ file = '%s/input_data/domain/%d/input_file_enhanced_test.nc' % (rdir,ucid)
+ fp = nc.Dataset(file)
+ grp = fp['stream_network']
+ ucids = np.unique(grp['cid'][:])
+ fp.close()
+ if cid in ucids:scids.append(ucid)
+
 #Read in the stream network information
-file = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/run_marion_county/input_data/catchments/%d/input_file_enhanced_test.nc' % cid
+file = '%s/input_data/domain/%d/input_file_enhanced_test.nc' % (rdir,cid)
 fp = nc.Dataset(file)
 grp = fp['stream_network']
 dbc = {}
@@ -44,35 +72,39 @@ for var in grp.variables:
 ucids = np.unique(dbc['cid'])
 fp.close()
 
+#Define ids to receive from
+rcids = list(ucids)
+rcids.remove(cid)
+
+#Determine the rank of all the cid
+ranks = []
+for ucid in ucids:
+ if ucid == cid:continue
+ ranks.append(cids.index(ucid))
+
 #Read in the other info
 odbc = {}
 for ucid in ucids:
- file = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/run_marion_county/input_data/catchments/%d/input_file_enhanced.nc' % ucid
+ file = '%s/input_data/domain/%d/input_file_enhanced_test.nc' % (rdir,ucid)
  fp = nc.Dataset(file)
  grp = fp['stream_network']
  odbc[ucid] = {}
  for var in ['channelid','cid']:
   odbc[ucid][var] = grp[var][:]
 
-#Read in the boundary condition data to assimilate
-bcdata = {}
-for ucid in ucids:
- file = 'workspace/%s.pck' % ucid
- bcdata[ucid] = pickle.load(open(file,'rb'))
-
 #Read in the runoff output
-file = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/run_marion_county/output_data/%s/output/2002-01-01.nc' % cid
+file = '%s/output_data/%s/output/2002-01-01.nc' % (rdir,cid)
 fp = nc.Dataset(file)
 runoff = fp['data']['runoff'][:]
 
 #Read in reach/hru area
-file = '../../../hydroblocks_inter_catchment/run_marion_county/input_data/catchments/%d/routing_info.pck' % cid
+file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,cid)
 db = pickle.load(open(file,'rb'))['reach_hru_area']
 
 #Read in the reach/hand database and remap to new topology (THERE COULD BE AN ORDERING PROBLEM)
 hdb = {}
 for ucid in ucids:
- file = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/run_marion_county/input_data/catchments/%d/routing_info.pck' % ucid
+ file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,ucid)
  ohdb = pickle.load(open(file,'rb'))['reach_cross_section']
  for var in ohdb:
   if var not in hdb:hdb[var] = np.zeros((dbc['topology'].size,ohdb[var].shape[1]))
@@ -84,22 +116,15 @@ reach2hru = np.zeros((np.sum(odbc[cid]['cid']==cid),runoff.shape[1]))
 for reach in db:
  for hru in db[reach]:
   reach2hru[reach-1,hru] = db[reach][hru]
-  #reach2hru[reach-1,hru] = db[reach][hru]
 reach2hru = sparse.csr_matrix(reach2hru)
 area = np.sum(reach2hru,axis=0)
 
-#Construct mapping of other catchment network to that of the current network
-mapping_ucid = {}
-for ucid in ucids:
- mapping_ucid[ucid] = {'cid':[],'ocid':[]}
- idxs = np.where(dbc['cid'] == ucid)[0]
- for idx in idxs:
-  m = (odbc[ucid]['cid'] == ucid) & (odbc[ucid]['channelid'] == dbc['channelid'][idx])
-  mapping_ucid[ucid]['cid'].append(idx)
-  mapping_ucid[ucid]['ocid'].append(np.where(m)[0][0])
- #Convert to arrays
- for var in mapping_ucid[ucid]:
-  mapping_ucid[ucid][var] = np.array(mapping_ucid[ucid][var])
+#Bring in all the pertaining mapping_ucid
+odb = {}
+for ucid in scids:
+ odb[ucid] = pickle.load(open('input/%s.pck' % ucid,'rb'))
+for ucid in [cid,]:
+ odb[ucid] = pickle.load(open('input/%s.pck' % ucid,'rb'))
 
 #Assemble the connectivity array (Best to define this reordering in the database creation)
 corg = np.arange(dbc['topology'].size)
@@ -107,12 +132,13 @@ cdst = dbc['topology'][:]
 m = cdst != -1
 nc = cdst.size
 cmatrix = sparse.coo_matrix((np.ones(cdst[m].size),(corg[m],cdst[m])),shape=(nc,nc),dtype=np.float32)
-cmatrix = cmatrix.tocsr().T
+cmatrix = cmatrix.tocsr().T.tocsr()
 
 #Assemble mapping
 mapping = np.zeros(np.sum(dbc['cid']==cid)).astype(np.int64)
 for i in range(mapping.size):
- mapping[i] = np.where((dbc['cid'] == cid) & (dbc['channelid'] == i))[0][0]
+ m = (dbc['cid'] == cid) & (dbc['channelid'] == i)
+ mapping[i] = np.where(m)[0][0]
 
 #Identify headwaters
 cup = -1*np.ones(cdst.size)
@@ -126,6 +152,7 @@ c_slope = dbc['slope'][:]
 c_width = dbc['width'][:]
 c_n = dbc['manning'][:]
 Ainit = np.zeros(c_length.size)
+Ainit[:] = 0.001
 A0 = np.copy(Ainit)
 A1 = np.copy(Ainit)
 
@@ -144,25 +171,58 @@ qout = np.zeros(c_length.size)
 out = {'Q':[],'A':[],'qin':[],'qout':[]}
 dif0 = -9999
 max_niter = 10
+stime = 0.0
+rtime = 0.0
 for t in range(nt):
  print(cid,t)
  A0_org = np.copy(A0)
- #Q0_org = np.copy(Q0)
  qin[:] = 0.0
+ #Compute inflows
+ qin[mapping] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length[mapping] #m/s
+ qin[qin < 0] = 0.0
+ #Everyone hold here before continuing
+ comm.Barrier()
+ tic = time.time()
+ #Assemble data to send
+ recv = {}
+ #Send data (Send to everyone as a first pass)
+ for ucid in scids:
+  db = {'qin':qin[odb[ucid]['mapping_ucid'][cid]['ocid']],
+        'A0':A0[odb[ucid]['mapping_ucid'][cid]['ocid']]}
+  comm.send(db,dest=list(cids).index(ucid),tag=11)
+ stime += time.time() - tic
+ tic = time.time()
+ #Receive data
+ for ucid in rcids:
+  if ucid not in recv:recv[ucid] = {}
+  db = comm.recv(source=list(cids).index(ucid),tag=11)
+  for var in db:
+   recv[ucid][var] = db[var]
+ '''for var in ['qin','A0']:
+  for ucid in scids:
+   #if ucid == cid:continue
+   if var == 'qin':data = qin[odb[ucid]['mapping_ucid'][cid]['ocid']]
+   if var == 'A0':data = A0[odb[ucid]['mapping_ucid'][cid]['ocid']]
+   comm.send(data,dest=list(cids).index(ucid),tag=11)
+   #comm.Send(data,dest=list(cids).index(ucid),tag=13)
+  #Receive data
+  for ucid in rcids:
+   if ucid not in recv:recv[ucid] = {}
+   recv[ucid][var] = comm.recv(source=list(cids).index(ucid),tag=11)
+   #recv[ucid][var] = np.empty(odb[cid]['mapping_ucid'][ucid]['ocid'].size,np.float64)
+   #comm.Recv(recv[ucid][var], source=list(cids).index(ucid), tag=13)'''
+ rtime += time.time() - tic
  #Update initial conditions using upstream information
  if t > 0:
   for ucid in ucids:
    if ucid == cid:continue
-   A0_org[mapping_ucid[ucid]['cid']] = bcdata[ucid]['A'][t-1,mapping_ucid[ucid]['ocid']]
+   A0_org[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['A0'][:]#[mapping_ucid[ucid]['ocid']]
  #Update the lateral inputs/outputs
  for ucid in ucids:
   if ucid == cid:continue
-  qin[mapping_ucid[ucid]['cid']] = bcdata[ucid]['qin'][t,mapping_ucid[ucid]['ocid']]
+  qin[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['qin'][:]#[mapping_ucid[ucid]['ocid']]
 
  for it in range(max_niter):
-  #Compute inflows
-  qin[mapping] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length[mapping] #m/s
-  qin[qin < 0] = 0.0
   #Determine hydraulic radius
   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
   #Determine velocity
@@ -174,7 +234,8 @@ for t in range(nt):
   #Set right hand side
   RHS = c_length*A0_org + dt*qin*c_length - dt*qout*c_length
   #Ax = b
-  A1 = scipy.sparse.linalg.spsolve(LHS,RHS,use_umfpack=True)
+  A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=True)
+  #A1 = scipy.sparse.linalg.spsolve(LHS,RHS,use_umfpack=True)
   #QC
   A0[A0 < 0] = 0.0
   dif1 = np.mean(np.abs(A0 - A1))
@@ -193,7 +254,7 @@ for t in range(nt):
   else:
    #Reset A0
    A0[:] = A1[:]
-   dif0 = dif1 
+   dif0 = dif1
 
  #Append to output
  out['Q'].append(np.copy(Q1))
@@ -208,29 +269,8 @@ dVh = -np.sum(c_length*np.diff(out['A'],axis=0),axis=1)
 dVh += np.sum(c_length*dt*out['qin'],axis=1)[1:]
 dVh -= np.sum(c_length*dt*out['qout'],axis=1)[1:]
 dVQ = dt*np.sum(out['Q'][1:,m],axis=1)
-print(np.sum(dVh),np.sum(dVQ))
-print(np.sum(dVQ)/np.sum(area))
-#plt.plot(out['Q'][:,dbc['cid']==cid])
-#plt.plot(bcdata[cid]['Q'][:,odbc[cid]['cid']==cid])
-#A0_org[mapping_ucid[ucid]['cid']] = bcdata[ucid]['A'][t-1,mapping_ucid[ucid]['ocid']]
-Q1 = out['Q'][:,mapping_ucid[cid]['cid']]
-Q0 = bcdata[cid]['Q'][:,mapping_ucid[cid]['ocid']]
-maxe = 0
-for b in range(Q1.shape[1]):
- if 100*np.mean(np.abs(Q1[:,b]-Q0[:,b]))/(np.max(Q0[:,b]) - np.min(Q0[:,b])) > maxe:
-  maxe = 100*np.mean(np.abs(Q1[:,b]-Q0[:,b]))/(np.max(Q0[:,b]) - np.min(Q0[:,b]))
- print('b',b,100*np.mean(np.abs(Q1[:,b]-Q0[:,b]))/(np.max(Q0[:,b]) - np.min(Q0[:,b])))
-print(maxe)
-plt.plot(Q1[:,0])
-plt.plot(Q0[:,0])
-plt.show()
-exit()
-plt.subplot(121)
-plt.plot(out['Q'][:,:])
-#plt.plot(np.log10(out['Q'][:,0]))
-plt.legend(['C1','C2'])
-plt.subplot(122)
-plt.plot(out['A'][:,:])
-#plt.plot(out['A'][:,0])
-plt.show()
-#pickle.dump(out,open('workspace/%s.pck' % cid,'wb'))
+print(cid,'stime',stime/nt)
+print(cid,'rtime',rtime/nt)
+#print(np.sum(dVh),np.sum(dVQ))
+#print(np.sum(dVQ)/np.sum(area))
+pickle.dump(out,open('../workspace/%s_parallel.pck' % cid,'wb'))

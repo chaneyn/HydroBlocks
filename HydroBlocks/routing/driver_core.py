@@ -148,7 +148,7 @@ c_n = dbc['manning'][:]
 #c_length[:] = 1000.0#np.random.choice(np.linspace(1.0,1000.0,c_width.size))
 Ainit = np.zeros(c_length.size)
 #hinit[cup == -1] = 0.1
-Ainit[:] = 0.1
+#Ainit[:] = 0.1
 #Ainit[cup == -1] = 0.1
 A0 = np.copy(Ainit)
 A1 = np.copy(Ainit)
@@ -174,7 +174,7 @@ for t in range(nt):
  Q0_org = np.copy(Q0)
  for it in range(max_niter):
   #Compute inflows
-  #qin[:] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length #m/s
+  qin[:] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length #m/s
   #if t == 0:qin[:] = 10**-6
   #else:qin[:] = 0.0
   qin[qin < 0] = 0.0

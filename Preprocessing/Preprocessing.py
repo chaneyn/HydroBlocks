@@ -250,13 +250,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  channel_topology = channel_topology[channel_topology != -9999]
  #Compute channel properties
  db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask)
- import matplotlib.pyplot as plt
  channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
- #mask_all = np.ma.masked_array(mask_all,mask_all==-9999)
- plt.imshow(channels_wob)
- #plt.colorbar()
- plt.show()
- exit()
 
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -290,10 +284,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #pickle.dump(odb,open('test4.pck','wb'))
  
  #Compute channel cross section information
- odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),2000)),
-       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),2000)),
-       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),2000)),
-       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),2000))}
+ odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
+       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
+       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
+       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000))}
  for b in db_routing['reach_hand_area']:
   #Define reach length
   c_length = db_channels['length'][b-1]
@@ -407,7 +401,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    if hrus[i,j] not in db_routing['reach_hru_area'][basin]: db_routing['reach_hru_area'][basin][hrus[i,j]] = 0.0
    db_routing['reach_hru_area'][basin][hrus[i,j]] += eares**2 #EARES
  pickle.dump(db_routing,open('routing_info.pck','wb'))
-
+ pickle.dump(db_routing['i/o'],open('routing_io.pck','wb'))
 
  #Construct HMC info for creating connections matrix
  HMC_info = {}
