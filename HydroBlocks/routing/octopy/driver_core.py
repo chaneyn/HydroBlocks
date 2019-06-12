@@ -46,12 +46,13 @@ name = MPI.Get_processor_name()
 rdir = '/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/ohio_basin'
 tmp = glob.glob('%s/input_data/domain/*' % rdir)
 tmp.remove('%s/input_data/domain/domain_database.pck' % rdir)
-cids = []
+cids = [] #THIS RANK ASSIGNMENT NEEDS TO BE REWORKED
 for cid in tmp:
  cids.append(int(cid.split('/')[-1]))
 cid = cids[rank]
 
 #Determine catchments that rely on this catchment (ids to send to)
+#THIS SHOULD BE DONE BEFORE THE MODEL IS RUN
 scids = []
 for ucid in cids:
  if ucid == cid:continue
@@ -152,14 +153,15 @@ c_slope = dbc['slope'][:]
 c_width = dbc['width'][:]
 c_n = dbc['manning'][:]
 Ainit = np.zeros(c_length.size)
-Ainit[:] = 0.001
+Ainit[:] = 1.0
 A0 = np.copy(Ainit)
 A1 = np.copy(Ainit)
 
 #Filler
-dt = 10800 #s
+dt = 60#1800#10800 #s
 #tmax = 100*3600*24
 tmax = dt*250#runoff.shape[0]
+#tmax = dt*runoff.shape[0]
 #maxc = 10.0 #m/s
 nt = int(tmax/dt)
 #Define initial conditions
@@ -170,25 +172,32 @@ qout = np.zeros(c_length.size)
 
 out = {'Q':[],'A':[],'qin':[],'qout':[]}
 dif0 = -9999
-max_niter = 10
+max_niter = 1
 stime = 0.0
 rtime = 0.0
+tsolve = 0.0
+tcount = 0.0
 for t in range(nt):
- print(cid,t)
+ print(t)
+ if t % 100 == 0:print(cid,t)
  A0_org = np.copy(A0)
  qin[:] = 0.0
  #Compute inflows
- qin[mapping] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length[mapping] #m/s
- qin[qin < 0] = 0.0
- #Everyone hold here before continuing
+ #qin[mapping] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length[mapping] #m/s
+ #qin[qin < 0] = 0.0
+ #Everyone hold here before proceeding (probably good to actually remove this to avoid
+ #everyone communicating at once)
+ #print("waiting...")
  comm.Barrier()
+ #print("got through...")
  tic = time.time()
  #Assemble data to send
  recv = {}
  #Send data (Send to everyone as a first pass)
  for ucid in scids:
-  db = {'qin':qin[odb[ucid]['mapping_ucid'][cid]['ocid']],
-        'A0':A0[odb[ucid]['mapping_ucid'][cid]['ocid']]}
+  #if ucid == 44:print(A0)
+  db = {'qin':qin[odb[ucid]['mapping_ucid'][cid]['ocid']].astype(np.float32),
+        'A0':A0[odb[ucid]['mapping_ucid'][cid]['ocid']].astype(np.float32)}
   comm.send(db,dest=list(cids).index(ucid),tag=11)
  stime += time.time() - tic
  tic = time.time()
@@ -198,35 +207,30 @@ for t in range(nt):
   db = comm.recv(source=list(cids).index(ucid),tag=11)
   for var in db:
    recv[ucid][var] = db[var]
- '''for var in ['qin','A0']:
-  for ucid in scids:
-   #if ucid == cid:continue
-   if var == 'qin':data = qin[odb[ucid]['mapping_ucid'][cid]['ocid']]
-   if var == 'A0':data = A0[odb[ucid]['mapping_ucid'][cid]['ocid']]
-   comm.send(data,dest=list(cids).index(ucid),tag=11)
-   #comm.Send(data,dest=list(cids).index(ucid),tag=13)
-  #Receive data
-  for ucid in rcids:
-   if ucid not in recv:recv[ucid] = {}
-   recv[ucid][var] = comm.recv(source=list(cids).index(ucid),tag=11)
-   #recv[ucid][var] = np.empty(odb[cid]['mapping_ucid'][ucid]['ocid'].size,np.float64)
-   #comm.Recv(recv[ucid][var], source=list(cids).index(ucid), tag=13)'''
  rtime += time.time() - tic
  #Update initial conditions using upstream information
  if t > 0:
   for ucid in ucids:
    if ucid == cid:continue
+   '''if (cid == 60) & (ucid == 44):
+    print(ucids)
+    print(recv[ucid]['A0'][:].size)
+    print(A0_org[odb[cid]['mapping_ucid'][ucid]['cid']])
+    print(recv[ucid]['A0'][:])
+    exit()'''
    A0_org[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['A0'][:]#[mapping_ucid[ucid]['ocid']]
  #Update the lateral inputs/outputs
  for ucid in ucids:
   if ucid == cid:continue
-  qin[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['qin'][:]#[mapping_ucid[ucid]['ocid']]
+  qin[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['qin'][:]
 
+ u = np.zeros(A0.size)
  for it in range(max_niter):
   #Determine hydraulic radius
   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
   #Determine velocity
-  u = rh**(2.0/3.0)*c_slope**0.5/c_n
+  #u = rh**(2.0/3.0)*c_slope**0.5/c_n
+  u[:] = 2.0
   #Fill non-diagonals
   LHS = cmatrix.multiply(-dt*u)
   #Fill diagonal
@@ -234,7 +238,10 @@ for t in range(nt):
   #Set right hand side
   RHS = c_length*A0_org + dt*qin*c_length - dt*qout*c_length
   #Ax = b
+  tic = time.time()
   A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=True)
+  tsolve += time.time() - tic
+  tcount += 1
   #A1 = scipy.sparse.linalg.spsolve(LHS,RHS,use_umfpack=True)
   #QC
   A0[A0 < 0] = 0.0
@@ -242,11 +249,12 @@ for t in range(nt):
   if (dif1 < 10**-10) | (it == max_niter-1):
    #Reset A0
    A0[:] = A1[:]
-   h = A0/c_length #rectangular channel
+   #h = A0/c_length #rectangular channel
    #Determine hydraulic radius
    rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
-   u = rh**(2.0/3.0)*c_slope**0.5/c_n
+   #u = rh**(2.0/3.0)*c_slope**0.5/c_n
+   u[:] = 2.0
    #Calculate Q1
    Q1 = A0*u
    dif0 = -9999
@@ -269,8 +277,11 @@ dVh = -np.sum(c_length*np.diff(out['A'],axis=0),axis=1)
 dVh += np.sum(c_length*dt*out['qin'],axis=1)[1:]
 dVh -= np.sum(c_length*dt*out['qout'],axis=1)[1:]
 dVQ = dt*np.sum(out['Q'][1:,m],axis=1)
-print(cid,'stime',stime/nt)
-print(cid,'rtime',rtime/nt)
+print(cid,np.sum(dVh),np.sum(dVQ))
+print(cid,np.sum(dVQ)/np.sum(area))
+#print(cid,'stime',stime/nt)
+#print(cid,'rtime',rtime/nt)
+#print(cid,'tsolve',tsolve/tcount)
 #print(np.sum(dVh),np.sum(dVQ))
 #print(np.sum(dVQ)/np.sum(area))
 pickle.dump(out,open('../workspace/%s_parallel.pck' % cid,'wb'))

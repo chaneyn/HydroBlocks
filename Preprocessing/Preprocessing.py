@@ -82,6 +82,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'F11':'%s/f11_latlon.tif' % workspace,
   'SATDK':'%s/ksat_latlon.tif' % workspace,
   'dem':'%s/dem_latlon.tif' % workspace,
+  'acc':'%s/acc_latlon.tif' % workspace,
   'demns':'%s/demns_latlon.tif' % workspace,
   'sand':'%s/sand_latlon.tif' % workspace,
   'clay':'%s/clay_latlon.tif' % workspace,
@@ -149,6 +150,13 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,hru_map)
 
+ #Write out the channels
+ channel_map = np.copy(output['channel_map'])
+ channel_map[np.isnan(channel_map) == 1] = -9999.0
+ file_ca = '%s/channel_mapping_latlon.tif' % workspace
+ metadata['nodata'] = -9999.0
+ gdal_tools.write_raster(file_ca,metadata,channel_map)
+
  #Write the connection matrices
  #width
  wmatrix = output['cmatrix']['width']
@@ -215,8 +223,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  dem = covariates['dem']
  #Remove pits in dem
  print("Removing pits in dem",flush=True)
- demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
+ #demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
+ demns = dem
  covariates['demns'] = demns
+ area_all = covariates['acc']
   
  #Calculate slope and aspect
  print("Calculating slope and aspect",flush=True)
@@ -249,7 +259,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  #Compute channel properties
- db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask)
+ db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all)
  channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
 
  #If the dem is undefined then set to undefined
@@ -258,7 +268,19 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Determine inlets/outlets
  os.system('mkdir -p routing')
  db_routing = {}
- db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all)
+ db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #import matplotlib.pyplot as plt
+ #mask_all = np.ma.masked_array(mask_all,mask_all==-9999)
+ #print(np.unique(mask_all))
+ #plt.subplot(121)
+ #plt.imshow(channels_wob[270:340,500:580])
+ #plt.imshow(mask[270:340,500:580])
+ #plt.imshow(mask_all[1150:1300,500:650])
+ #plt.subplot(122)
+ #plt.imshow(np.log10(area)[1150:1300,500:650])
+ #plt.show()
+ #print(db_routing['i/o'])
+ #exit()
 
  #Compute the basins
  print("Defining basins",flush=True)
@@ -284,10 +306,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #pickle.dump(odb,open('test4.pck','wb'))
  
  #Compute channel cross section information
- odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
-       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
-       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000)),
-       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),50000))}
+ odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100))}
  for b in db_routing['reach_hand_area']:
   #Define reach length
   c_length = db_channels['length'][b-1]
@@ -297,6 +319,22 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   argsort = np.argsort(c_hand)
   c_hand = c_hand[argsort]
   c_area = c_area[argsort]
+  #Need to reduce the size of the c_hand array by binning by percentiles (only if necessary)
+  if c_hand.size > 100:
+   argsort = np.argsort(c_hand)
+   pcts = np.copy(c_hand)
+   pcts[argsort] = np.linspace(0,1,c_hand.size)
+   (hist, bin_edges) = np.histogram(pcts,bins=100)
+   #Update c_hand and c_area
+   tmp_hand = []
+   tmp_area = []
+   for ib in range(bin_edges.size-1):
+    if ib == 0:m = (pcts >= bin_edges[ib]) & (pcts <= bin_edges[ib+1])
+    else:m = (pcts > bin_edges[ib]) & (pcts <= bin_edges[ib+1])
+    tmp_hand.append(np.mean(c_hand[m])) #Compute the mean hand for within the bins
+    tmp_area.append(np.sum(c_area[m])) #Compute the area sum for within the bins
+   c_hand = np.array(tmp_hand)
+   c_area = np.array(tmp_area)
   odb['hand'][b-1,0:c_hand.size] = c_hand[:]
   #Calculate width
   c_width = c_area/c_length
@@ -407,6 +445,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info = {}
  HMC_info['basins'] = basins
  HMC_info['tile_position'] = tile_position
+ HMC_info['channel_map'] = channels_wob
 
  return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels)
 
@@ -765,6 +804,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
 
  #Remember the map of hrus
  OUTPUT['hru_map'] = cluster_ids
+ OUTPUT['channel_map'] = HMC_info['channel_map']
 
  #Assign the model parameters
  print("Assigning the model parameters",flush=True)

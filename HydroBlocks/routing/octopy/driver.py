@@ -1,5 +1,5 @@
 import os
-ncores = 16
+ncores = 64
 #Run the preprocessor
 os.system('mpirun -n %d python preprocessor.py' % (ncores,))
 #Run the model
