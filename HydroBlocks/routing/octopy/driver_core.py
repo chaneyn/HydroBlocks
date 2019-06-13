@@ -63,6 +63,18 @@ for ucid in cids:
  fp.close()
  if cid in ucids:scids.append(ucid)
 
+#Determine the catchments that have this catchment as a "headwater"
+scids_hdw = []
+for ucid in cids:
+ if ucid == cid:continue
+ file = '%s/input_data/domain/%d/input_file_enhanced_test.nc' % (rdir,ucid)
+ fp = nc.Dataset(file)
+ grp = fp['stream_network']
+ if (len(grp['headwaters_outlet']) == 0):continue
+ ucids = np.unique(grp['headwaters_outlet'][:,0])
+ fp.close()
+ if cid in ucids:scids_hdw.append(ucid)
+
 #Read in the stream network information
 file = '%s/input_data/domain/%d/input_file_enhanced_test.nc' % (rdir,cid)
 fp = nc.Dataset(file)
@@ -76,6 +88,12 @@ fp.close()
 #Define ids to receive from
 rcids = list(ucids)
 rcids.remove(cid)
+
+#Define ids to receive from
+if len(dbc['headwaters_outlet']) > 0:
+ rcids_hdw = np.unique(dbc['headwaters_outlet'][:,0])
+else: 
+ rcids_hdw = []
 
 #Determine the rank of all the cid
 ranks = []
@@ -127,6 +145,11 @@ for ucid in scids:
 for ucid in [cid,]:
  odb[ucid] = pickle.load(open('input/%s.pck' % ucid,'rb'))
 
+#Bring in the headwaters mapping
+hdw = {}
+for ucid in cids:
+ hdw[ucid] = pickle.load(open('input/hdw_%s.pck' % ucid,'rb')) #Could probably simplify this in the future
+
 #Assemble the connectivity array (Best to define this reordering in the database creation)
 corg = np.arange(dbc['topology'].size)
 cdst = dbc['topology'][:]
@@ -141,7 +164,7 @@ for i in range(mapping.size):
  m = (dbc['cid'] == cid) & (dbc['channelid'] == i)
  mapping[i] = np.where(m)[0][0]
 
-#Identify headwaters
+#Identify headwaters (note that this concept extends to boundary conditions as well...)
 cup = -1*np.ones(cdst.size)
 for id in corg:
  n = np.sum(cdst == id)
@@ -157,8 +180,11 @@ Ainit[:] = 1.0
 A0 = np.copy(Ainit)
 A1 = np.copy(Ainit)
 
+#Initialize container for boundary conditions
+bcs = np.zeros(c_length.size)
+
 #Filler
-dt = 60#1800#10800 #s
+dt = 10800 #s
 #tmax = 100*3600*24
 tmax = dt*250#runoff.shape[0]
 #tmax = dt*runoff.shape[0]
@@ -210,33 +236,50 @@ for t in range(nt):
  rtime += time.time() - tic
  #Update initial conditions using upstream information
  if t > 0:
-  for ucid in ucids:
+  for ucid in ucids: #Can't this be changed to rcids? (It is... but it should be changed anyway)
    if ucid == cid:continue
-   '''if (cid == 60) & (ucid == 44):
-    print(ucids)
-    print(recv[ucid]['A0'][:].size)
-    print(A0_org[odb[cid]['mapping_ucid'][ucid]['cid']])
-    print(recv[ucid]['A0'][:])
-    exit()'''
    A0_org[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['A0'][:]#[mapping_ucid[ucid]['ocid']]
  #Update the lateral inputs/outputs
  for ucid in ucids:
   if ucid == cid:continue
   qin[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['qin'][:]
+ #Send headwater data
+ for ucid in scids_hdw:
+  db = {'Q0':Q0[hdw[ucid][cid]['outlet']]}
+  comm.send(db,dest=list(cids).index(ucid),tag=11)
+ recv = {}
+ #Receive headwater data
+ for ucid in rcids_hdw:
+  if ucid not in recv:recv[ucid] = {}
+  db = comm.recv(source=list(cids).index(ucid),tag=11)
+  for var in db:
+   recv[ucid][var] = db[var]
+ #Update the boundary conditions
+ for ucid in rcids_hdw:
+  bcs[hdw[cid][ucid]['inlet']] = recv[ucid]['Q0']
 
  u = np.zeros(A0.size)
  for it in range(max_niter):
   #Determine hydraulic radius
   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+  #Define implicit/explicit weights
+  omega = 1.0
   #Determine velocity
   #u = rh**(2.0/3.0)*c_slope**0.5/c_n
   u[:] = 2.0
   #Fill non-diagonals
-  LHS = cmatrix.multiply(-dt*u)
+  LHS = cmatrix.multiply(-omega*dt*u)
   #Fill diagonal
-  LHS.setdiag(c_length + dt*u)
+  LHS.setdiag(c_length + omega*dt*u)
   #Set right hand side
-  RHS = c_length*A0_org + dt*qin*c_length - dt*qout*c_length
+  RHS0 = c_length*A0_org
+  u0_org =  2.0*np.ones(A0.size) #CAREFUL!!!
+  RHS1 = (1-omega)*(-u0_org*A0_org*dt + dt*u0_org*cmatrix.dot(A0_org)) #Explicit component
+  RHS2 = dt*qin*c_length - dt*qout*c_length
+  RHS3 = np.zeros(A0.size)
+  #RHS3[cup == -1] = dt*u0_org[cup==-1]*A0_org[cup == -1]
+  RHS3[:] = dt*bcs[:]
+  RHS = RHS0 + RHS1 + RHS2 + RHS3
   #Ax = b
   tic = time.time()
   A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=True)
@@ -258,6 +301,8 @@ for t in range(nt):
    #Calculate Q1
    Q1 = A0*u
    dif0 = -9999
+   #Reset Q0
+   Q0[:] = Q1[:]
    break
   else:
    #Reset A0

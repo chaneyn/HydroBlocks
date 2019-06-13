@@ -47,7 +47,12 @@ grp = fp['stream_network']
 dbc = {}
 for var in grp.variables:
  dbc[var] = grp[var][:]
-ucids = np.unique(dbc['cid'])
+if len(dbc['headwaters_outlet']) > 0:
+ ucids0 = np.unique(dbc['cid'])
+ ucids1 = np.unique(dbc['headwaters_outlet'][:,0])
+ ucids = np.unique(np.concatenate((ucids0,ucids1)))
+else:
+ ucids = np.unique(dbc['cid'])
 fp.close()
 
 #Define ids to receive from
@@ -61,7 +66,7 @@ for ucid in ucids:
  fp = nc.Dataset(file)
  grp = fp['stream_network']
  odbc[ucid] = {}
- for var in ['channelid','cid']:
+ for var in ['channelid','cid','headwaters_inlet','headwaters_outlet']:
   odbc[ucid][var] = grp[var][:]
 
 #Construct mapping of other catchment network to that of the current network
@@ -80,3 +85,22 @@ for ucid in ucids:
 #Assemble database
 odb = {'mapping_ucid':mapping_ucid}
 pickle.dump(odb,open('input/%s.pck' % cid,'wb'))
+
+#Construct mapping of other catchment network inlet/outlet to that of the current network
+mapping_hdw = {}
+for i in range(dbc['headwaters_inlet'].shape[0]):
+ #Determine the position of the outlet points in their home
+ cid0 = dbc['headwaters_outlet'][i,0]
+ if cid0 not in mapping_hdw:mapping_hdw[cid0] = {'inlet':[],'outlet':[]}
+ channelid = dbc['headwaters_outlet'][i,1]
+ idx = np.where((odbc[cid0]['cid'] == cid0) & (odbc[cid0]['channelid'] == channelid))[0][0]
+ mapping_hdw[cid0]['outlet'].append(idx)
+ #Determine the position of these points in the inlet structure
+ cid1 = dbc['headwaters_inlet'][i,0]
+ channelid = dbc['headwaters_inlet'][i,1]
+ idx = np.where((dbc['cid'] == cid1) & (dbc['channelid'] == channelid))[0][0]
+ mapping_hdw[cid0]['inlet'].append(idx)
+for cid0 in mapping_hdw:
+ for var in mapping_hdw[cid0]:
+  mapping_hdw[cid0][var] = np.array(mapping_hdw[cid0][var])
+pickle.dump(mapping_hdw,open('input/hdw_%s.pck' % cid,'wb'))
