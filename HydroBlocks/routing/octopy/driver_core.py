@@ -179,6 +179,7 @@ Ainit = np.zeros(c_length.size)
 Ainit[:] = 1.0
 A0 = np.copy(Ainit)
 A1 = np.copy(Ainit)
+u0 = np.zeros(Ainit.size)
 
 #Initialize container for boundary conditions
 bcs = np.zeros(c_length.size)
@@ -207,6 +208,7 @@ for t in range(nt):
  print(t)
  if t % 100 == 0:print(cid,t)
  A0_org = np.copy(A0)
+ u0_org =  np.copy(u0)
  qin[:] = 0.0
  #Compute inflows
  #qin[mapping] = reach2hru.dot(runoff[t,:]/1000.0/dt)/c_length[mapping] #m/s
@@ -260,24 +262,43 @@ for t in range(nt):
 
  u = np.zeros(A0.size)
  for it in range(max_niter):
+
+  '''comm.Barrier()
+  for ucid in scids_hdw:
+   db = {'Q0':Q0[hdw[ucid][cid]['outlet']]}
+   comm.send(db,dest=list(cids).index(ucid),tag=11)
+  recv = {}
+  #Receive headwater data
+  for ucid in rcids_hdw:
+   if ucid not in recv:recv[ucid] = {}
+   db = comm.recv(source=list(cids).index(ucid),tag=11)
+   for var in db:
+    recv[ucid][var] = db[var]
+  #Update the boundary conditions
+  for ucid in rcids_hdw:
+   bcs[hdw[cid][ucid]['inlet']] = recv[ucid]['Q0']
+   #bcs[:] = 0.0
+  '''
+
   #Determine hydraulic radius
   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
   #Define implicit/explicit weights
   omega = 1.0
   #Determine velocity
-  #u = rh**(2.0/3.0)*c_slope**0.5/c_n
-  u[:] = 2.0
+  u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+  #Constrain velocity
+  #maxu = 10 #m/s
+  #u1[u1 > maxu] = maxu
+  u1[:] = 1.0
   #Fill non-diagonals
-  LHS = cmatrix.multiply(-omega*dt*u)
+  LHS = cmatrix.multiply(-omega*dt*u1)
   #Fill diagonal
-  LHS.setdiag(c_length + omega*dt*u)
+  LHS.setdiag(c_length + omega*dt*u1)
   #Set right hand side
   RHS0 = c_length*A0_org
-  u0_org =  2.0*np.ones(A0.size) #CAREFUL!!!
   RHS1 = (1-omega)*(-u0_org*A0_org*dt + dt*u0_org*cmatrix.dot(A0_org)) #Explicit component
   RHS2 = dt*qin*c_length - dt*qout*c_length
   RHS3 = np.zeros(A0.size)
-  #RHS3[cup == -1] = dt*u0_org[cup==-1]*A0_org[cup == -1]
   RHS3[:] = dt*bcs[:]
   RHS = RHS0 + RHS1 + RHS2 + RHS3
   #Ax = b
@@ -296,18 +317,29 @@ for t in range(nt):
    #Determine hydraulic radius
    rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
-   #u = rh**(2.0/3.0)*c_slope**0.5/c_n
-   u[:] = 2.0
+   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+   u1[:] = 0.1
    #Calculate Q1
-   Q1 = A0*u
+   Q1 = A0*u1
    dif0 = -9999
    #Reset Q0
    Q0[:] = Q1[:]
-   break
+   u0[:] = u1[:]
+   #break
   else:
    #Reset A0
    A0[:] = A1[:]
    dif0 = dif1
+   #Determine hydraulic radius
+   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #Determine velocity
+   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+   #u1[:] = 2.0
+   #Calculate Q1
+   Q1 = A0*u1
+   #Reset Q0,u0
+   Q0[:] = Q1[:]
+   u0[:] = u1[:]
 
  #Append to output
  out['Q'].append(np.copy(Q1))
