@@ -196,8 +196,9 @@ Qinit = np.zeros(nc)
 Q0 = Qinit[:]
 qin = np.zeros(c_length.size)
 qout = np.zeros(c_length.size)
+dA = np.zeros(c_length.size)
 
-out = {'Q':[],'A':[],'qin':[],'qout':[]}
+out = {'Q':[],'A':[],'qin':[],'qout':[],'dA':[]}
 dif0 = -9999
 max_niter = 1
 stime = 0.0
@@ -240,6 +241,7 @@ for t in range(nt):
  if t > 0:
   for ucid in ucids: #Can't this be changed to rcids? (It is... but it should be changed anyway)
    if ucid == cid:continue
+   dA[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['A0'][:] - A0_org[odb[cid]['mapping_ucid'][ucid]['cid']]
    A0_org[odb[cid]['mapping_ucid'][ucid]['cid']] = recv[ucid]['A0'][:]#[mapping_ucid[ucid]['ocid']]
  #Update the lateral inputs/outputs
  for ucid in ucids:
@@ -276,9 +278,7 @@ for t in range(nt):
     recv[ucid][var] = db[var]
   #Update the boundary conditions
   for ucid in rcids_hdw:
-   bcs[hdw[cid][ucid]['inlet']] = recv[ucid]['Q0']
-   #bcs[:] = 0.0
-  '''
+   bcs[hdw[cid][ucid]['inlet']] = recv[ucid]['Q0']'''
 
   #Determine hydraulic radius
   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
@@ -289,7 +289,7 @@ for t in range(nt):
   #Constrain velocity
   #maxu = 10 #m/s
   #u1[u1 > maxu] = maxu
-  u1[:] = 1.0
+  u1[:] = 0.1
   #Fill non-diagonals
   LHS = cmatrix.multiply(-omega*dt*u1)
   #Fill diagonal
@@ -333,8 +333,8 @@ for t in range(nt):
    #Determine hydraulic radius
    rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
-   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
-   #u1[:] = 2.0
+   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+   u1[:] = 0.1
    #Calculate Q1
    Q1 = A0*u1
    #Reset Q0,u0
@@ -344,6 +344,7 @@ for t in range(nt):
  #Append to output
  out['Q'].append(np.copy(Q1))
  out['A'].append(np.copy(A1))
+ out['dA'].append(np.copy(dA) + dt*bcs/c_length)
  out['qin'].append(np.copy(qin))
  out['qout'].append(np.copy(qout))
 for var in out:
@@ -351,6 +352,7 @@ for var in out:
 m = cdst == -1
 #print(np.sum(np.trapz(out['Q'][:,m].T,dx=dt)),"m3")
 dVh = -np.sum(c_length*np.diff(out['A'],axis=0),axis=1)
+dVh += np.sum(c_length*out['dA'],axis=1)[1:]
 dVh += np.sum(c_length*dt*out['qin'],axis=1)[1:]
 dVh -= np.sum(c_length*dt*out['qout'],axis=1)[1:]
 dVQ = dt*np.sum(out['Q'][1:,m],axis=1)
