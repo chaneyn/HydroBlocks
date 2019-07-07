@@ -61,8 +61,8 @@ class richards:
 
  def calculate_transmissivity(self,psi,ztop,zbot):
   
-  af = 10.0  #safe
-  #af = 2.0
+  #af = 10.0  #safe
+  af = 2.0
   m = np.copy(self.m)
   #m[:] = 1000.0
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -87,25 +87,17 @@ class richards:
  #@numba.jit(nopython=True,cache=True)
  def calculate_divergence_dense(self,h,T):
  
+  #tic = time.time()
   dh = h[:,np.newaxis] - h[np.newaxis,:]
-  #dx = self.dx #meters (distance between two adjacent grid cells)
-  dx = (np.abs(self.dem[:,np.newaxis] - self.dem[np.newaxis,:])**2 + self.dx**2)**0.5
-  w = np.array(self.width.todense())
-  #w[:] = 0.95*self.area[0]
-  #dx[:] = 10.0
-  #Calculate distance between centers (assuming hrus are rectangles... very large assumption)
-  tmp = np.copy(w)
-  tmp = self.area/w
-  dx = (tmp + tmp.T)/2
-  #dx[:] = 30.0#self.area[0]**0.5
+  w = self.w
+  dx = self.dx
   area = self.area 
-  #with np.errstate(invalid='ignore',divide='ignore'):
-  #Khat = (K_x[:,np.newaxis]*K_x[np.newaxis,:]*(w+w.T))/(K_x[:,np.newaxis]*w.T + K_x[np.newaxis,:]*w)
   That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
   That[~np.isfinite(That)] = np.nan
   #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
   calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
   calc_div[~np.isfinite(calc_div)] = np.nan
+  #print('calc_div',time.time() - tic)
 
   return calc_div
 

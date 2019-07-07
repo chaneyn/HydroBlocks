@@ -15,6 +15,11 @@ def Read_Metadata_File(file):
 metadata_file = sys.argv[1]
 metadata = Read_Metadata_File(metadata_file)
 info = metadata
+#info['enddate']['year'] = 2002
+#info['enddate']['month'] = 2
+#info['enddate']['day'] = 1
+#info['subsurface_module'] = 'none'
+info['segment']['years_per_segment'] = 2017-2002+1
 
 #Define idate and fdate
 idate = datetime.datetime(metadata['startdate']['year'],metadata['startdate']['month'],metadata['startdate']['day'],0)

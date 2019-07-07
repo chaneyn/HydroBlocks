@@ -145,6 +145,8 @@ class HydroBlocks:
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
   self.m =  self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
+  #self.m[:] = 0.1 #m
+  self.input_fp_meteo_time = self.input_fp.groups['meteorology'].variables['time']
 
   #Create a list of all the dates
   dates = []
@@ -196,6 +198,7 @@ class HydroBlocks:
   #Allocate memory
   self.noahmp.initialize_general()
 
+  print(self.noahmp.sldpth.shape)
   #Set info
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
@@ -262,14 +265,22 @@ class HydroBlocks:
   #Initialize the soil parameters
   self.noahmp.bb0[:] = self.input_fp.groups['parameters'].variables['BB'][:]
   self.noahmp.drysmc0[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-  self.noahmp.f110[:] = self.input_fp.groups['parameters'].variables['F11'][:]
+  self.noahmp.f110[:] = 0.0#self.input_fp.groups['parameters'].variables['F11'][:]
   self.noahmp.maxsmc0[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
   self.noahmp.refsmc0[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
+  #satpsi = self.input_fp.groups['parameters'].variables['SATPSI'][:]
+  #satpsi[satpsi < 0.1] = 0.1
   self.noahmp.satpsi0[:] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
+  #satdk0 = self.input_fp.groups['parameters'].variables['SATDK'][:]
+  #satdk0[satdk0 > 5.0/100.0/3600.0] = 5.0/100.0/3600.0
   self.noahmp.satdk0[:] = self.input_fp.groups['parameters'].variables['SATDK'][:]
+  #print(100*3600*np.max(self.input_fp.groups['parameters'].variables['SATDK'][:]))
+  #exit()
   self.noahmp.satdw0[:] = self.input_fp.groups['parameters'].variables['SATDW'][:]
   self.noahmp.wltsmc0[:] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
   self.noahmp.qtz0[:] = self.input_fp.groups['parameters'].variables['QTZ'][:]
+  #for var in ['QTZ','WLTSMC','SATPSI','SATDW','SATDK','REFSMC','MAXSMC','DRYSMC','BB']:
+  # print(var,np.unique(self.input_fp.groups['parameters'].variables[var][:]))
 
   #Set lat/lon (declination calculation)
   self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
@@ -322,8 +333,16 @@ class HydroBlocks:
                                   self.input_fp.groups['wmatrix'].variables['indices'][:],
                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
                                   shape=(self.nhru,self.nhru),dtype=np.float64)
+  #self.richards.width_dense = np.array(self.richards.width.todense())
+  #with np.errstate(invalid='ignore',divide='ignore'):tmp = self.richards.width_dense/self.richards.area
+  #self.richards.dx = (tmp + tmp.T)/2
   self.richards.I = self.richards.width.copy()
   self.richards.I[self.richards.I != 0] = 1
+  self.richards.w = np.array(self.richards.width.todense())
+  with np.errstate(invalid='ignore', divide='ignore'):
+   tmp = self.richards.area/self.richards.w
+  dx = (tmp + tmp.T)/2
+  self.richards.dx = dx
   
   return
 
@@ -389,6 +408,7 @@ class HydroBlocks:
 
    #Output some statistics
    if (date.hour == 0) and (date.day == 1):
+    #print('cid: %d' % info['cid'],date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng,flush=True)
     print(date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng,flush=True)
 
   return
@@ -401,7 +421,7 @@ class HydroBlocks:
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
-  #Update meteorology
+  '''#Update meteorology
   meteorology = self.input_fp.groups['meteorology']
   if date == self.idate:
    #determine the first time step for the meteorology
@@ -411,10 +431,16 @@ class HydroBlocks:
    ndate = nc.date2num(date,units=var.units,calendar=var.calendar)
    #identify the position
    self.minitial_itime = np.where(ndates == ndate)[0][0]
-  i = self.itime + self.minitial_itime
+  i = self.itime + self.minitial_itime'''
+
+  #Update meteorology
+  meteorology = self.input_fp.groups['meteorology']
+  #convert current date to num
+  ndate = nc.date2num(date,units=self.input_fp_meteo_time.units,calendar=self.input_fp_meteo_time.calendar)
+  #identify the position
+  i = np.argmin(np.abs(self.input_fp_meteo_time[:]-ndate))
 
   #Downscale meteorology
-  
   self.noahmp.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
   self.noahmp.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
   self.noahmp.psfc[:] = meteorology.variables['psurf'][i,:] #Pa
@@ -571,7 +597,7 @@ class HydroBlocks:
   tmp['salb'] = np.copy(NOAH.salb) 
   tmp['wtd'] = np.copy(NOAH.zwt) #m
   tmp['swe'] = np.copy(NOAH.swe) #m
-  #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
+  tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
 
   # root zone
@@ -583,8 +609,8 @@ class HydroBlocks:
   tmp['smc1'] = np.copy(NOAH.smc[:,0])
   #print(tmp['smc1'])
   # total soil moisture / soil water storage -- only until depth to bedrock
-  dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
-  tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
+  #dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
+  #tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
   #print(tmp['totsmc'])
   #exit()
   
@@ -783,5 +809,8 @@ class HydroBlocks:
   #Close the files
   self.input_fp.close()
   self.output_fp.close()
+
+  #Delete self
+  #del self
 
   return

@@ -82,7 +82,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'F11':'%s/f11_latlon.tif' % workspace,
   'SATDK':'%s/ksat_latlon.tif' % workspace,
   'dem':'%s/dem_latlon.tif' % workspace,
-  'acc':'%s/acc_latlon.tif' % workspace,
+  #'acc':'%s/acc_latlon.tif' % workspace,
   'demns':'%s/demns_latlon.tif' % workspace,
   'sand':'%s/sand_latlon.tif' % workspace,
   'clay':'%s/clay_latlon.tif' % workspace,
@@ -141,7 +141,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  if lon < 0:lon += 360
  grp.longitude = lon
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
- grp.dx = 30.0#metadata['resx'] #UPDATE WITH DEM!
+ grp.dx = 26.0#25.0#metadata['resx'] #UPDATE WITH DEM!
 
  #Write out the mapping
  hru_map = np.copy(output['hru_map'])
@@ -226,7 +226,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
  demns = dem
  covariates['demns'] = demns
- area_all = covariates['acc']
+ #area_all = covariates['acc']
   
  #Calculate slope and aspect
  print("Calculating slope and aspect",flush=True)
@@ -243,15 +243,19 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #m2[:] = 1
  print("Calculating accumulated area",flush=True)
  (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
+ area_all = area[:] #This could be defined for entire domain instead
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
- ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
+ #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
+ ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
  (ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
+ #(ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask_all,ipoints,eares)
  ac[(ac != 0) & (mask == 1)] = area[(ac != 0) & (mask == 1)]
+ #ac[(ac != 0)] = area[(ac != 0)]
 
  #Compute the channels
  print("Defining channels",flush=True)
@@ -260,7 +264,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  channel_topology = channel_topology[channel_topology != -9999]
  #Compute channel properties
  db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all)
- channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
+ #channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
 
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -269,18 +273,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  os.system('mkdir -p routing')
  db_routing = {}
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
- #import matplotlib.pyplot as plt
- #mask_all = np.ma.masked_array(mask_all,mask_all==-9999)
- #print(np.unique(mask_all))
- #plt.subplot(121)
- #plt.imshow(channels_wob[270:340,500:580])
- #plt.imshow(mask[270:340,500:580])
- #plt.imshow(mask_all[1150:1300,500:650])
- #plt.subplot(122)
- #plt.imshow(np.log10(area)[1150:1300,500:650])
- #plt.show()
- #print(db_routing['i/o'])
- #exit()
 
  #Compute the basins
  print("Defining basins",flush=True)
@@ -289,8 +281,29 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
- hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,demns)
- if np.all( (hand == -9999) ): hand[:] = 0.0 # Noemi
+ #hand = terrain_tools.ttf.calculate_depth2channel(channels,basins,fdir,demns)
+ hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)
+ #if np.all( (hand == -9999) ): hand[:] = 0.0 # Noemi
+ #tmp = np.ma.masked_array(basins_wob,basins_wob != 0)
+ #tmp = np.ma.masked_array(hand,mask == 0)
+ #print(np.unique(hand[mask_all != -9999]))
+ #print(np.unique(hand[mask != -9999]))
+ #print(np.unique(basins_wob[mask_all != -9999]))
+ #print(np.unique(basins_wob[mask_all != -9999]).size)
+ #print(np.unique(basins_wob[mask == 1]))
+ #print(np.unique(mask))
+ #print(np.unique(tmp))
+ #tmp = (basins_wob == -9999) & (mask != 0)
+ #import matplotlib.pyplot as plt 
+ #tmp = np.ma.masked_array(basins_wob,basins_wob<=0)
+ #tmp = np.ma.masked_array(area,area<=0)
+ #plt.imshow(np.log10(tmp))
+ #plt.imshow(np.log(C))
+ #plt.colorbar()
+ #tmp = np.ma.masked_array(channels_wob,channels_wob<=0)
+ #plt.imshow(tmp,cmap=plt.get_cmap('binary'))
+ #plt.show()
+ #exit()
 
  #Compute the areal coverage of each hand value within the basin
  db_routing['reach_hand_area'] = {}
@@ -446,6 +459,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info['basins'] = basins
  HMC_info['tile_position'] = tile_position
  HMC_info['channel_map'] = channels_wob
+ tmp = np.ma.masked_array(basins,basins==-9999)
+ #import matplotlib.pyplot as plt
+ #plt.imshow(tmp)
+ #plt.show()
+ #exit()
 
  return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels)
 
@@ -474,17 +492,20 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   idx = np.where(cluster_ids == hru)
   #Calculate area per hru
   #OUTPUT['hru']['area'][hru] = metadata['resx']**2*idx[0].size
-  OUTPUT['hru']['area'][hru] = 30.0**2*idx[0].size #NEED TO FIX WITH DEM
+  OUTPUT['hru']['area'][hru] = 26.0**2*idx[0].size #NEED TO FIX WITH DEM
   #Calculate area percentage per hru
   #OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(metadata['resx']**2*mask[mask].size)
-  OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(30.0**2*mask[mask].size) #NEED TO FIX WITH DEM
+  OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(26.0**2*mask[mask].size) #NEED TO FIX WITH DEM
   #Soil properties
-  for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ','clay','sand','silt']:
+  #for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ','clay','sand','silt']:
+  for var in ['BB','DRYSMC','F11','MAXSMC','SATPSI','SATDK','SATDW','QTZ','clay','sand','silt']:
    #print(var,np.unique(covariates[var][idx]))
    if var in ['SATDK','SATDW']:
     OUTPUT['hru'][var][hru] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
    else:
     OUTPUT['hru'][var][hru] = np.mean(covariates[var][idx])
+  OUTPUT['hru']['WLTSMC'][hru] = OUTPUT['hru']['MAXSMC'][hru]*(OUTPUT['hru']['SATPSI'][hru]/150)**(1/OUTPUT['hru']['BB'][hru])
+  OUTPUT['hru']['REFSMC'][hru] = OUTPUT['hru']['MAXSMC'][hru]*(OUTPUT['hru']['SATPSI'][hru]/3.3)**(1/OUTPUT['hru']['BB'][hru])
   #Average Slope
   OUTPUT['hru']['slope'][hru] = np.nanmean(covariates['slope'][idx])
   #Topographic index
@@ -763,8 +784,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  
  #Retrieve some metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
- #resx = metadata['resx']
- resx = 30 #meters NEED TO REDEFINE FROM DEM
+ #resx = metadata['resx'] #NEED TO REDEFINE FROM DEM
+ #eares = 25.0#30 #meters NEED TO REDEFINE FROM DEM
+ resx = 26.0
 
  print("Creating and curating the covariates",flush=True)
  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydroblocks_info)
@@ -1029,7 +1051,7 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
   wuse_lc_ea_file = '%s/%s_lc_ea.tif' % (workspace,data_var)
   gdal_tools.write_raster(wuse_lc_ea_file,md,hrus_lc)
   fine_size = hrus_lc.shape
-  fine_res = abs(md['resx'])
+  #fine_res = abs(md['resx']) #NEED TO UPDATE
   
   # Get the coarse water use info and regrid the fine lc to coarser lc
   wuse_lc_coarse_file = '%s/%s_latlon_coarse.tif' % (workspace,data_var)
