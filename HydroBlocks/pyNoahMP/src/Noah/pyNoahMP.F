@@ -1,811 +1,819 @@
-module model
+!module model
+!
+! implicit none
+!
+! !Declare variables
+!
+! !Miscellanous parameters
+! real :: badval = 0.0!-1.E36 
+! real :: co2 = 395.e-06
+! real :: o2 = 0.209
+!  
+! !General parameters
+! integer :: nsoil ! Number of soil layers
+! integer :: ncells ! Number of grid cells
+! integer :: nsnow = 3 ! Number of snow layers
+! real :: dt ! Timestep in seconds
+! real :: dx ! Spatial resolution (m)
+! real :: julian ! Julian day
+! integer :: yearlen
+! logical :: iz0tlnd
+! integer :: itime
+! character(len=256) :: llanduse
+! character(len=256) :: lsoil
+! !character(:), allocatable :: llanduse,lsoil
+! character(len=256) :: vegparm_file,soilparm_file,genparm_file,mptable_file
+! character(len=19) :: nowdate
+!
+! !Model options
+! integer :: idveg ! dynamic vegetation (1 -> off ; 2 -> on) with opt_crs = 1      
+! integer :: iopt_crs ! canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+! integer :: iopt_btr ! soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
+! integer :: iopt_run ! runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+! integer :: iopt_sfc ! surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+! integer :: iopt_frz ! supercooled liquid water (1-> NY06; 2->Koren99)
+! integer :: iopt_inf ! frozen soil permeability (1-> NY06; 2->Koren99)
+! integer :: iopt_rad ! radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+! integer :: iopt_alb ! snow surface albedo (1->BATS; 2->CLASS)
+! integer :: iopt_snf ! rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+! integer :: iopt_tbot ! lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+! integer :: iopt_stc ! snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
+!
+! !Single layer
+! integer,dimension(:),allocatable :: isnow ! actual number of snow layers
+! real,dimension(:),allocatable :: z_ml ! model height [m]
+! real,dimension(:),allocatable :: lwdn       ! Downward longwave radiation flux at surface [W/m2]
+! real,dimension(:),allocatable :: swdn      ! Downward shortwave radiation flux at surface [W/m2]
+! real,dimension(:),allocatable :: p_ml    !  Surface pressure defined at intermediate level [Pa]
+! real,dimension(:),allocatable :: psfc    ! Surface pressure [Pa]
+! real,dimension(:),allocatable :: prcp       ! Precipitation rate (kg m-2 s-1)
+! real,dimension(:),allocatable :: t_ml     ! Air temperature (K) [Forcing]
+! real,dimension(:),allocatable :: q_ml         ! Surface specific humidity (kg kg-1)
+! real,dimension(:),allocatable :: u_ml       ! West-to-east component of the surface [m/s]
+! real,dimension(:),allocatable :: v_ml       ! North-to-south component of the surface [m/s]
+! real,dimension(:),allocatable :: fsh ! total sensible heat (w/m2)
+! real,dimension(:),allocatable :: ssoil ! soil heat (w/m2)
+! real,dimension(:),allocatable :: salb ! surface albedo
+! real,dimension(:),allocatable :: fsno ! snow cover fraction
+! real,dimension(:),allocatable :: swe ! snow water equivalent (mm)
+! real,dimension(:),allocatable :: sndpth ! snow depth (m)
+! real,dimension(:),allocatable :: emissi ! net surface emissivity
+! real,dimension(:),allocatable :: qsfc1d ! bulk surface specific humidity (kg/kg)
+! real,dimension(:),allocatable :: tv ! vegetation canopy temperature
+! real,dimension(:),allocatable :: tg ! ground surface temperature
+! real,dimension(:),allocatable :: canice ! canopy-intercepted ice (mm)
+! real,dimension(:),allocatable :: canliq ! canopy-intercepted liquid water (mm)
+! real,dimension(:),allocatable :: eah ! canopy air vapor pressure (pa)
+! real,dimension(:),allocatable :: tah ! canopy air temperature (K)
+! real,dimension(:),allocatable :: cm ! momentum drag coefficient
+! real,dimension(:),allocatable :: ch ! sensible heat exchange coefficient
+! real,dimension(:),allocatable :: fwet ! weted or snowed fraction of the canopy
+! real,dimension(:),allocatable :: sneqvo ! snow mass at last time step (mm h2o)
+! real,dimension(:),allocatable :: albold ! snow albedo at last time step
+! real,dimension(:),allocatable :: qsnow ! snowfall on the ground (mm/s)
+! real,dimension(:),allocatable :: wslake ! lake water storage (mm)
+! real,dimension(:),allocatable :: zwt ! water table depth (m)
+! real,dimension(:),allocatable :: dzwt ! change in water table depth (m)
+! real,dimension(:),allocatable :: wa ! water in the aquifer (mm)
+! real,dimension(:),allocatable :: wt ! groundwater storage (mm)
+! real,dimension(:),allocatable :: smcwtd ! soil moisture content in the transmission zone
+! real,dimension(:),allocatable :: deeprech ! recharge to the water table when deep
+! real,dimension(:),allocatable :: rech ! recharge to the water table (diagnostic)
+! real,dimension(:),allocatable :: lfmass ! leaf mass (g/m2)
+! real,dimension(:),allocatable :: rtmass ! mass of fine roots (g/m2)
+! real,dimension(:),allocatable :: stmass ! stem mass (g/m2)
+! real,dimension(:),allocatable :: wood ! mass of wood (incl. woody roots) (g/m2)
+! real,dimension(:),allocatable :: stblcp ! stable carbon in deep soil (g/m2)
+! real,dimension(:),allocatable :: fastcp ! short lived carbon, shallow soil (g/m2)
+! real,dimension(:),allocatable :: plai ! leaf area index
+! real,dimension(:),allocatable :: psai ! stem area index
+! real,dimension(:),allocatable :: tauss ! non-dimensional snow age
+! real,dimension(:),allocatable :: t2mv ! 2m temperature of vegetation part
+! real,dimension(:),allocatable :: t2mb ! 2m temperature of bare ground part
+! real,dimension(:),allocatable :: q2mv ! 2m mixing ratio of vegetation part
+! real,dimension(:),allocatable :: q2mb ! 2m mixing ratio of bare ground part
+! real,dimension(:),allocatable :: trad ! surface radiative temperature (k)
+! real,dimension(:),allocatable :: nee ! net ecosys exchange (g/m2/s CO2)
+! real,dimension(:),allocatable :: gpp ! gross primary assimilation [g/m2/s C]
+! real,dimension(:),allocatable :: npp ! net primary productivity [g/m2/s C]
+! real,dimension(:),allocatable :: fvegmp ! greenness vegetation fraction [-]
+! real,dimension(:),allocatable :: runsf ! surface runoff [mm/s]
+! real,dimension(:),allocatable :: runsb ! subsurface runoff [mm/s]
+! real,dimension(:),allocatable :: ecan ! evaporation of intercepted water (mm/s)
+! real,dimension(:),allocatable :: etran ! transpiration rate (mm/s)
+! real,dimension(:),allocatable :: esoil ! soil surface evaporation rate (mm/s]
+! real,dimension(:),allocatable :: fsa ! total absorbed solar radiation (w/m2)
+! real,dimension(:),allocatable :: fira ! total net longwave rad (w/m2) [+ to atm]
+! real,dimension(:),allocatable :: apar ! photosyn active energy by canopy (w/m2)
+! real,dimension(:),allocatable :: psn ! total photosynthesis (umol co2/m2/s) [+]
+! real,dimension(:),allocatable :: sav ! solar rad absorbed by veg. (w/m2)
+! real,dimension(:),allocatable :: sag ! solar rad absorbed by ground (w/m2)
+! real,dimension(:),allocatable :: rssun ! sunlit leaf stomatal resistance (s/m)
+! real,dimension(:),allocatable :: rssha ! shaded leaf stomatal resistance (s/m)
+! real,dimension(:),allocatable :: bgap ! between gap fraction
+! real,dimension(:),allocatable :: wgap ! within gap fraction
+! real,dimension(:),allocatable :: tgv ! under canopy ground temperature [K]
+! real,dimension(:),allocatable :: tgb ! bare ground temperature [K]
+! real,dimension(:),allocatable :: chv ! sensible heat exchange coefficient vegetated
+! real,dimension(:),allocatable :: chb ! sensible heat exchange coefficient bare-ground
+! real,dimension(:),allocatable :: irc ! canopy net LW rad. [w/m2] [+ to atm]
+! real,dimension(:),allocatable :: irg ! veg ground net LW rad. [w/m2] [+ to atm]
+! real,dimension(:),allocatable :: shc ! canopy sen. heat [w/m2]   [+ to atm]
+! real,dimension(:),allocatable :: shg ! veg ground sen. heat [w/m2]   [+ to atm]
+! real,dimension(:),allocatable :: evg ! veg ground evap. heat [w/m2]  [+ to atm]
+! real,dimension(:),allocatable :: ghv ! veg ground heat flux [w/m2]  [+ to soil]
+! real,dimension(:),allocatable :: irb ! bare net longwave rad. [w/m2] [+ to atm]
+! real,dimension(:),allocatable :: shb ! bare sensible heat [w/m2]     [+ to atm]
+! real,dimension(:),allocatable :: evb ! bare evaporation heat [w/m2]  [+ to atm]
+! real,dimension(:),allocatable :: ghb ! bare ground heat flux [w/m2] [+ to soil]
+! real,dimension(:),allocatable :: tr ! transpiration [w/m2]  [+ to atm]
+! real,dimension(:),allocatable :: evc ! canopy evaporation heat [w/m2]  [+ to atm]
+! real,dimension(:),allocatable :: chleaf ! leaf exchange coefficient
+! real,dimension(:),allocatable :: chuc ! under canopy exchange coefficient
+! real,dimension(:),allocatable :: chv2 ! veg 2m exchange coefficient
+! real,dimension(:),allocatable :: chb2 ! bare 2m exchange coefficient 
+! real,dimension(:),allocatable :: cosz ! cosine zenith angle
+! real,dimension(:),allocatable :: lat  ! latitude [rad]
+! real,dimension(:),allocatable :: lon  ! longitude [rad]
+! real,dimension(:),allocatable :: fveg ! vegetation fraction
+! real,dimension(:),allocatable :: fvgmax ! annual max vegetation
+! real,dimension(:),allocatable :: fpice ! snow fraction of precip
+! real,dimension(:),allocatable :: fcev ! canopy evaporation heat (w/m2) [+ to atm]
+! real,dimension(:),allocatable :: fgev ! ground evaporation heat (w/m2) [+ to atm]
+! real,dimension(:),allocatable :: fctr ! transpiration heat flux (w/m2) [+ to atm]
+! real,dimension(:),allocatable :: qsnbot ! snowmelt out bottom of pack [mm/s]
+! real,dimension(:),allocatable :: ponding ! snowmelt with no pack [mm]
+! real,dimension(:),allocatable :: ponding1 ! snowmelt with no pack [mm]
+! real,dimension(:),allocatable :: ponding2 ! snowmelt with no pack [mm]
+! real,dimension(:),allocatable :: fsr ! total reflected solar radiation (w/m2)
+! real,dimension(:),allocatable :: co2pp ! CO2 partial pressure [Pa]
+! real,dimension(:),allocatable :: o2pp ! O2 partial pressure [Pa]
+! real,dimension(:),allocatable :: foln ! nitrogen saturation [%
+! real,dimension(:),allocatable :: tbot ! deep soil temperature [K]
+! integer,dimension(:),allocatable :: isurban ! if cell is urban
+! integer,dimension(:),allocatable :: slopetyp
+! integer,dimension(:),allocatable :: soiltyp ! soil type
+! integer,dimension(:),allocatable :: vegtyp ! vegetation type
+! integer,dimension(:),allocatable :: ice ! glacier cell
+! integer,dimension(:),allocatable :: isc ! soil color index
+! integer,dimension(:),allocatable :: ist ! surface type 1-soil; 1-lake
+! real,dimension(:),allocatable :: smcmax ! saturated soil moisture
+! real,dimension(:),allocatable :: smcdry ! residual soil moisture
+! real,dimension(:),allocatable :: smcref ! field capacity soil moisture
+! real,dimension(:),allocatable :: errwat ! water balance error
+! real,dimension(:),allocatable :: si0 ! initial soil moisture deficit
+! real,dimension(:),allocatable :: si1 ! final soil moisture deficit
+! real,dimension(:),allocatable :: zwt0 ! initial water table depth
+! real,dimension(:),allocatable :: minzwt ! minimum water table depth
+! real,dimension(:),allocatable :: co2air
+! real,dimension(:),allocatable :: o2air
+! real,dimension(:),allocatable :: bb0
+! real,dimension(:),allocatable :: drysmc0
+! real,dimension(:),allocatable :: f110
+! real,dimension(:),allocatable :: maxsmc0
+! real,dimension(:),allocatable :: refsmc0
+! real,dimension(:),allocatable :: satpsi0
+! real,dimension(:),allocatable :: satdk0
+! real,dimension(:),allocatable :: satdw0
+! real,dimension(:),allocatable :: wltsmc0
+! real,dimension(:),allocatable :: qtz0
+!
+! ! Noemi
+! integer,dimension(:),allocatable :: root_depth
+!
+! !Multi layer
+! real,dimension(:,:),allocatable :: stc ! snow/soil temperatures
+! real,dimension(:,:),allocatable :: sh2o ! vol. soil liquid water (m3/m3)
+! real,dimension(:,:),allocatable :: smc ! vol. soil moisture (m3/m3)
+! real,dimension(:,:),allocatable :: smceq ! eq vol. soil moisture (m3/m3)
+! real,dimension(:,:),allocatable :: zsnso ! snow layer depth (m)
+! real,dimension(:,:),allocatable :: snice ! snow layer ice (mm)
+! real,dimension(:,:),allocatable :: snliq ! snow layer liquid water (mm)
+! real,dimension(:,:),allocatable :: ficeold ! snow layer ice fraction 
+! real,dimension(:,:),allocatable :: zsoil ! depth to soil interfaces
+! real,dimension(:,:),allocatable :: sldpth ! soil layer thickness
+! real,dimension(:,:),allocatable :: hdiv ! horizontal divergence (mm/s) [+]
+!
+!contains
+!
+! subroutine finalize()
+!
+!  !Single layer
+!  if (allocated(isnow)) deallocate(isnow) ! actual number of snow layers
+!  if (allocated(z_ml)) deallocate(z_ml) ! model height [m]
+!  if (allocated(lwdn) .eqv. .True.) deallocate(lwdn)       ! Downward longwave radiation flux at surface [W/m2]
+!  if (allocated(swdn) .eqv. .True.) deallocate(swdn)      ! Downward shortwave radiation flux at surface [W/m2]
+!  if (allocated(p_ml) .eqv. .True.) deallocate(p_ml)    !  Surface pressure defined at intermediate level [Pa]
+!  if (allocated(psfc) .eqv. .True.) deallocate(psfc)    ! Surface pressure [Pa]
+!  if (allocated(prcp) .eqv. .True.) deallocate(prcp)       ! Precipitation rate (kg m-2 s-1)
+!  if (allocated(t_ml) .eqv. .True.) deallocate(t_ml)     ! Air temperature (K) [Forcing]
+!  if (allocated(q_ml) .eqv. .True.) deallocate(q_ml)         ! Surface specific humidity (kg kg-1)
+!  if (allocated(u_ml) .eqv. .True.) deallocate(u_ml)       ! West-to-east component of the surface [m/s]
+!  if (allocated(v_ml) .eqv. .True.) deallocate(v_ml)       ! North-to-south component of the surface [m/s]
+!  if (allocated(fsh) .eqv. .True.) deallocate(fsh) ! total sensible heat (w/m2)
+!  if (allocated(ssoil) .eqv. .True.) deallocate(ssoil) ! soil heat (w/m2)
+!  if (allocated(salb) .eqv. .True.) deallocate(salb) ! surface albedo
+!  if (allocated(fsno) .eqv. .True.) deallocate(fsno) ! snow cover fraction
+!  if (allocated(swe) .eqv. .True.) deallocate(swe) ! snow water equivalent (mm)
+!  if (allocated(sndpth) .eqv. .True.) deallocate(sndpth) ! snow depth (m)
+!  if (allocated(emissi) .eqv. .True.) deallocate(emissi) ! net surface emissivity
+!  if (allocated(qsfc1d) .eqv. .True.) deallocate(qsfc1d) ! bulk surface specific humidity (kg/kg)
+!  if (allocated(tv) .eqv. .True.) deallocate(tv) ! vegetation canopy temperature
+!  if (allocated(tg) .eqv. .True.) deallocate(tg) ! ground surface temperature
+!  if (allocated(canice) .eqv. .True.) deallocate(canice) ! canopy-intercepted ice (mm)
+!  if (allocated(canliq) .eqv. .True.) deallocate(canliq) ! canopy-intercepted liquid water (mm)
+!  if (allocated(eah) .eqv. .True.) deallocate(eah) ! canopy air vapor pressure (pa)
+!  if (allocated(tah) .eqv. .True.) deallocate(tah) ! canopy air temperature (K)
+!  if (allocated(cm) .eqv. .True.) deallocate(cm) ! momentum drag coefficient
+!  if (allocated(ch) .eqv. .True.) deallocate(ch) ! sensible heat exchange coefficient
+!  if (allocated(fwet) .eqv. .True.) deallocate(fwet) ! weted or snowed fraction of the canopy
+!  if (allocated(sneqvo) .eqv. .True.) deallocate(sneqvo) ! snow mass at last time step (mm h2o)
+!  if (allocated(albold) .eqv. .True.) deallocate(albold) ! snow albedo at last time step
+!  if (allocated(qsnow) .eqv. .True.) deallocate(qsnow) ! snowfall on the ground (mm/s)
+!  if (allocated(wslake) .eqv. .True.) deallocate(wslake) ! lake water storage (mm)
+!  if (allocated(zwt) .eqv. .True.) deallocate(zwt) ! water table depth (m)
+!  if (allocated(dzwt) .eqv. .True.) deallocate(dzwt) ! change in water table depth (m)
+!  if (allocated(wa) .eqv. .True.) deallocate(wa) ! water in the aquifer (mm)
+!  if (allocated(wt) .eqv. .True.) deallocate(wt) ! groundwater storage (mm)
+!  if (allocated(smcwtd) .eqv. .True.) deallocate(smcwtd) ! soil moisture content in the transmission zone
+!  if (allocated(deeprech) .eqv. .True.) deallocate(deeprech) ! recharge to the water table when deep
+!  if (allocated(rech) .eqv. .True.) deallocate(rech) ! recharge to the water table (diagnostic)
+!  if (allocated(lfmass) .eqv. .True.) deallocate(lfmass) ! leaf mass (g/m2)
+!  if (allocated(rtmass) .eqv. .True.) deallocate(rtmass) ! mass of fine roots (g/m2)
+!  if (allocated(stmass) .eqv. .True.) deallocate(stmass) ! stem mass (g/m2)
+!  if (allocated(wood) .eqv. .True.) deallocate(wood) ! mass of wood (incl. woody roots) (g/m2)
+!  if (allocated(stblcp) .eqv. .True.) deallocate(stblcp) ! stable carbon in deep soil (g/m2)
+!  if (allocated(fastcp) .eqv. .True.) deallocate(fastcp) ! short lived carbon, shallow soil (g/m2)
+!  if (allocated(plai) .eqv. .True.) deallocate(plai) ! leaf area index
+!  if (allocated(psai) .eqv. .True.) deallocate(psai) ! stem area index
+!  if (allocated(tauss) .eqv. .True.) deallocate(tauss) ! non-dimensional snow age
+!  if (allocated(t2mv) .eqv. .True.) deallocate(t2mv) ! 2m temperature of vegetation part
+!  if (allocated(t2mb) .eqv. .True.) deallocate(t2mb) ! 2m temperature of bare ground part
+!  if (allocated(q2mv) .eqv. .True.) deallocate(q2mv) ! 2m mixing ratio of vegetation part
+!  if (allocated(q2mb) .eqv. .True.) deallocate(q2mb) ! 2m mixing ratio of bare ground part
+!  if (allocated(trad) .eqv. .True.) deallocate(trad) ! surface radiative temperature (k)
+!  if (allocated(nee) .eqv. .True.) deallocate(nee) ! net ecosys exchange (g/m2/s CO2)
+!  if (allocated(gpp) .eqv. .True.) deallocate(gpp) ! gross primary assimilation [g/m2/s C]
+!  if (allocated(npp) .eqv. .True.) deallocate(npp) ! net primary productivity [g/m2/s C]
+!  if (allocated(fvegmp) .eqv. .True.) deallocate(fvegmp) ! greenness vegetation fraction [-]
+!  if (allocated(runsf) .eqv. .True.) deallocate(runsf) ! surface runoff [mm/s]
+!  if (allocated(runsb) .eqv. .True.) deallocate(runsb) ! subsurface runoff [mm/s]
+!  if (allocated(ecan) .eqv. .True.) deallocate(ecan) ! evaporation of intercepted water (mm/s)
+!  if (allocated(etran) .eqv. .True.) deallocate(etran) ! transpiration rate (mm/s)
+!  if (allocated(esoil) .eqv. .True.) deallocate(esoil) ! soil surface evaporation rate (mm/s]
+!  if (allocated(fsa) .eqv. .True.) deallocate(fsa) ! total absorbed solar radiation (w/m2)
+!  if (allocated(fira) .eqv. .True.) deallocate(fira) ! total net longwave rad (w/m2) [+ to atm]
+!  if (allocated(apar) .eqv. .True.) deallocate(apar) ! photosyn active energy by canopy (w/m2)
+!  if (allocated(psn) .eqv. .True.) deallocate(psn) ! total photosynthesis (umol co2/m2/s) [+]
+!  if (allocated(sav) .eqv. .True.) deallocate(sav) ! solar rad absorbed by veg. (w/m2)
+!  if (allocated(sag) .eqv. .True.) deallocate(sag) ! solar rad absorbed by ground (w/m2)
+!  if (allocated(rssun) .eqv. .True.) deallocate(rssun) ! sunlit leaf stomatal resistance (s/m)
+!  if (allocated(rssha) .eqv. .True.) deallocate(rssha) ! shaded leaf stomatal resistance (s/m)
+!  if (allocated(bgap) .eqv. .True.) deallocate(bgap) ! between gap fraction
+!  if (allocated(wgap) .eqv. .True.) deallocate(wgap) ! within gap fraction
+!  if (allocated(tgv) .eqv. .True.) deallocate(tgv) ! under canopy ground temperature [K]
+!  if (allocated(tgb) .eqv. .True.) deallocate(tgb) ! bare ground temperature [K]
+!  if (allocated(chv) .eqv. .True.) deallocate(chv) ! sensible heat exchange coefficient vegetated
+!  if (allocated(chb) .eqv. .True.) deallocate(chb) ! sensible heat exchange coefficient bare-ground
+!  if (allocated(irc) .eqv. .True.) deallocate(irc) ! canopy net LW rad. [w/m2] [+ to atm]
+!  if (allocated(irg) .eqv. .True.) deallocate(irg) ! veg ground net LW rad. [w/m2] [+ to atm]
+!  if (allocated(shc) .eqv. .True.) deallocate(shc) ! canopy sen. heat [w/m2]   [+ to atm]
+!  if (allocated(shg) .eqv. .True.) deallocate(shg) ! veg ground sen. heat [w/m2]   [+ to atm]
+!  if (allocated(evg) .eqv. .True.) deallocate(evg) ! veg ground evap. heat [w/m2]  [+ to atm]
+!  if (allocated(ghv) .eqv. .True.) deallocate(ghv) ! veg ground heat flux [w/m2]  [+ to soil]
+!  if (allocated(irb) .eqv. .True.) deallocate(irb) ! bare net longwave rad. [w/m2] [+ to atm]
+!  if (allocated(shb) .eqv. .True.) deallocate(shb) ! bare sensible heat [w/m2]     [+ to atm]
+!  if (allocated(evb) .eqv. .True.) deallocate(evb) ! bare evaporation heat [w/m2]  [+ to atm]
+!  if (allocated(ghb) .eqv. .True.) deallocate(ghb) ! bare ground heat flux [w/m2] [+ to soil]
+!  if (allocated(tr) .eqv. .True.) deallocate(tr) ! transpiration [w/m2]  [+ to atm]
+!  if (allocated(evc) .eqv. .True.) deallocate(evc) ! canopy evaporation heat [w/m2]  [+ to atm]
+!  if (allocated(chleaf) .eqv. .True.) deallocate(chleaf) ! leaf exchange coefficient
+!  if (allocated(chuc) .eqv. .True.) deallocate(chuc) ! under canopy exchange coefficient
+!  if (allocated(chv2) .eqv. .True.) deallocate(chv2) ! veg 2m exchange coefficient
+!  if (allocated(chb2) .eqv. .True.) deallocate(chb2) ! bare 2m exchange coefficient 
+!  if (allocated(cosz) .eqv. .True.) deallocate(cosz) ! cosine zenith angle
+!  if (allocated(lat) .eqv. .True.) deallocate(lat)  ! latitude [rad]
+!  if (allocated(lon) .eqv. .True.) deallocate(lon)  ! longitude [rad]
+!  if (allocated(fveg) .eqv. .True.) deallocate(fveg) ! vegetation fraction
+!  if (allocated(fvgmax) .eqv. .True.) deallocate(fvgmax) ! annual max vegetation
+!  if (allocated(fpice) .eqv. .True.) deallocate(fpice) ! snow fraction of precip
+!  if (allocated(fcev) .eqv. .True.) deallocate(fcev) ! canopy evaporation heat (w/m2) [+ to atm]
+!  if (allocated(fgev) .eqv. .True.) deallocate(fgev) ! ground evaporation heat (w/m2) [+ to atm]
+!  if (allocated(fctr) .eqv. .True.) deallocate(fctr) ! transpiration heat flux (w/m2) [+ to atm]
+!  if (allocated(qsnbot) .eqv. .True.) deallocate(qsnbot) ! snowmelt out bottom of pack [mm/s]
+!  if (allocated(ponding) .eqv. .True.) deallocate(ponding) ! snowmelt with no pack [mm]
+!  if (allocated(ponding1) .eqv. .True.) deallocate(ponding1) ! snowmelt with no pack [mm]
+!  if (allocated(ponding2) .eqv. .True.) deallocate(ponding2) ! snowmelt with no pack [mm]
+!  if (allocated(fsr) .eqv. .True.) deallocate(fsr) ! total reflected solar radiation (w/m2)
+!  if (allocated(co2pp) .eqv. .True.) deallocate(co2pp) ! CO2 partial pressure [Pa]
+!  if (allocated(o2pp) .eqv. .True.) deallocate(o2pp) ! O2 partial pressure [Pa]
+!  if (allocated(foln) .eqv. .True.) deallocate(foln) ! nitrogen saturation [%
+!  if (allocated(tbot) .eqv. .True.) deallocate(tbot) ! deep soil temperature [K]
+!  if (allocated(isurban) .eqv. .True.) deallocate(isurban) ! if cell is urban
+!  if (allocated(slopetyp) .eqv. .True.) deallocate(slopetyp)
+!  if (allocated(soiltyp) .eqv. .True.) deallocate(soiltyp) ! soil type
+!  if (allocated(vegtyp) .eqv. .True.) deallocate(vegtyp) ! vegetation type
+!  if (allocated(ice) .eqv. .True.) deallocate(ice) ! glacier cell
+!  if (allocated(isc) .eqv. .True.) deallocate(isc) ! soil color index
+!  if (allocated(ist) .eqv. .True.) deallocate(ist) ! surface type
+!  if (allocated(smcmax) .eqv. .True.) deallocate(smcmax) ! saturated soil moisture
+!  if (allocated(smcdry) .eqv. .True.) deallocate(smcdry) ! residual soil moisture
+!  if (allocated(smcref) .eqv. .True.) deallocate(smcref)
+!  if (allocated(errwat) .eqv. .True.) deallocate(errwat) 
+!  if (allocated(si0) .eqv. .True.) deallocate(si0) 
+!  if (allocated(si1) .eqv. .True.) deallocate(si1) 
+!  if (allocated(zwt0) .eqv. .True.) deallocate(zwt0)
+!  if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
+!  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
+!  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
+!  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
+!  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
+!  if (allocated(f110) .eqv. .True.) deallocate(f110)
+!  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
+!  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
+!  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
+!  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
+!  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
+!  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
+!  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
+!
+!  ! Noemi
+!  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
+!
+!  !Multi layer
+!  if (allocated(stc) .eqv. .True.) deallocate(stc)
+!  if (allocated(zsoil) .eqv. .True.) deallocate(zsoil)
+!  if (allocated(sh2o) .eqv. .True.) deallocate(sh2o)
+!  if (allocated(smc) .eqv. .True.) deallocate(smc)
+!  if (allocated(smceq) .eqv. .True.) deallocate(smceq) ! eq vol. soil moisture (m3/m3)
+!  if (allocated(zsnso) .eqv. .True.) deallocate(zsnso) ! snow layer depth (m)
+!  if (allocated(snice) .eqv. .True.) deallocate(snice) ! snow layer ice (mm)
+!  if (allocated(snliq) .eqv. .True.) deallocate(snliq) ! snow layer liquid water (mm)
+!  if (allocated(ficeold) .eqv. .True.) deallocate(ficeold) ! snow layer ice fraction 
+!  if (allocated(sldpth) .eqv. .True.) deallocate(sldpth) !soil layer thickness
+!  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv) !
+!
+! end subroutine finalize
+!
+! subroutine initialize_general()
+! 
+!  USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
+!  implicit none
+!  integer :: i
+!  !Allocate all memory
+!
+!  !Single layer
+!  if (allocated(isnow) .eqv. .True.) deallocate(isnow)
+!  allocate(isnow(ncells)) ! actual number of snow layers
+!  if (allocated(z_ml) .eqv. .True.) deallocate(z_ml)
+!  allocate(z_ml(ncells)) ! model height [m]
+!  if (allocated(lwdn) .eqv. .True.) deallocate(lwdn)
+!  allocate(lwdn(ncells))       ! Downward longwave radiation flux at surface [W/m2]
+!  if (allocated(swdn) .eqv. .True.) deallocate(swdn)
+!  allocate(swdn(ncells))      ! Downward shortwave radiation flux at surface [W/m2]
+!  if (allocated(p_ml) .eqv. .True.) deallocate(p_ml)
+!  allocate(p_ml(ncells))    !  Surface pressure defined at intermediate level [Pa]
+!  if (allocated(psfc) .eqv. .True.) deallocate(psfc)
+!  allocate(psfc(ncells))    ! Surface pressure [Pa]
+!  if (allocated(prcp) .eqv. .True.) deallocate(prcp)
+!  allocate(prcp(ncells))       ! Precipitation rate (kg m-2 s-1)
+!  if (allocated(t_ml) .eqv. .True.) deallocate(t_ml)
+!  allocate(t_ml(ncells))     ! Air temperature (K) [Forcing]
+!  if (allocated(q_ml) .eqv. .True.) deallocate(q_ml)
+!  allocate(q_ml(ncells))         ! Surface specific humidity (kg kg-1)
+!  if (allocated(u_ml) .eqv. .True.) deallocate(u_ml)
+!  allocate(u_ml(ncells))       ! West-to-east component of the surface [m/s]
+!  if (allocated(v_ml) .eqv. .True.) deallocate(v_ml)
+!  allocate(v_ml(ncells))       ! North-to-south component of the surface [m/s]
+!  if (allocated(fsh) .eqv. .True.) deallocate(fsh)
+!  allocate(fsh(ncells)) ! total sensible heat (w/m2)
+!  if (allocated(ssoil) .eqv. .True.) deallocate(ssoil)
+!  allocate(ssoil(ncells)) ! soil heat (w/m2)
+!  if (allocated(salb) .eqv. .True.) deallocate(salb)
+!  allocate(salb(ncells)) ! surface albedo
+!  if (allocated(fsno) .eqv. .True.) deallocate(fsno)
+!  allocate(fsno(ncells)) ! snow cover fraction
+!  if (allocated(swe) .eqv. .True.) deallocate(swe)
+!  allocate(swe(ncells)) ! snow water equivalent (mm)
+!  if (allocated(sndpth) .eqv. .True.) deallocate(sndpth)
+!  allocate(sndpth(ncells)) ! snow depth (m)
+!  if (allocated(emissi) .eqv. .True.) deallocate(emissi)
+!  allocate(emissi(ncells)) ! net surface emissivity
+!  if (allocated(qsfc1d) .eqv. .True.) deallocate(qsfc1d)
+!  allocate(qsfc1d(ncells)) ! bulk surface specific humidity (kg/kg)
+!  if (allocated(tv) .eqv. .True.) deallocate(tv)
+!  allocate(tv(ncells)) ! vegetation canopy temperature
+!  if (allocated(tg) .eqv. .True.) deallocate(tg)
+!  allocate(tg(ncells)) ! ground surface temperature
+!  if (allocated(canice) .eqv. .True.) deallocate(canice)
+!  allocate(canice(ncells)) ! canopy-intercepted ice (mm)
+!  if (allocated(canliq) .eqv. .True.) deallocate(canliq)
+!  allocate(canliq(ncells)) ! canopy-intercepted liquid water (mm)
+!  if (allocated(eah) .eqv. .True.) deallocate(eah)
+!  allocate(eah(ncells)) ! canopy air vapor pressure (pa)
+!  if (allocated(tah) .eqv. .True.) deallocate(tah)
+!  allocate(tah(ncells)) ! canopy air temperature (K)
+!  if (allocated(cm) .eqv. .True.) deallocate(cm)
+!  allocate(cm(ncells)) ! momentum drag coefficient
+!  if (allocated(ch) .eqv. .True.) deallocate(ch)
+!  allocate(ch(ncells)) ! sensible heat exchange coefficient
+!  if (allocated(fwet) .eqv. .True.) deallocate(fwet)
+!  allocate(fwet(ncells)) ! weted or snowed fraction of the canopy
+!  if (allocated(sneqvo) .eqv. .True.) deallocate(sneqvo)
+!  allocate(sneqvo(ncells)) ! snow mass at last time step (mm h2o)
+!  if (allocated(albold) .eqv. .True.) deallocate(albold)
+!  allocate(albold(ncells)) ! snow albedo at last time step
+!  if (allocated(qsnow) .eqv. .True.) deallocate(qsnow)
+!  allocate(qsnow(ncells)) ! snowfall on the ground (mm/s)
+!  if (allocated(wslake) .eqv. .True.) deallocate(wslake)
+!  allocate(wslake(ncells)) ! lake water storage (mm)
+!  if (allocated(zwt) .eqv. .True.) deallocate(zwt)
+!  allocate(zwt(ncells)) ! water table depth (m)
+!  if (allocated(dzwt) .eqv. .True.) deallocate(dzwt)
+!  allocate(dzwt(ncells)) ! change in water table depth (m)
+!  if (allocated(wa) .eqv. .True.) deallocate(wa)
+!  allocate(wa(ncells)) ! water in the aquifer (mm)
+!  if (allocated(wt) .eqv. .True.) deallocate(wt)
+!  allocate(wt(ncells)) ! groundwater storage (mm)
+!  if (allocated(smcwtd) .eqv. .True.) deallocate(smcwtd)
+!  allocate(smcwtd(ncells)) ! soil moisture content in the transmission zone
+!  if (allocated(deeprech) .eqv. .True.) deallocate(deeprech)
+!  allocate(deeprech(ncells)) ! recharge to the water table when deep
+!  if (allocated(rech) .eqv. .True.) deallocate(rech)
+!  allocate(rech(ncells)) ! recharge to the water table (diagnostic)
+!  if (allocated(lfmass) .eqv. .True.) deallocate(lfmass)
+!  allocate(lfmass(ncells)) ! leaf mass (g/m2)
+!  if (allocated(rtmass) .eqv. .True.) deallocate(rtmass)
+!  allocate(rtmass(ncells)) ! mass of fine roots (g/m2)
+!  if (allocated(stmass) .eqv. .True.) deallocate(stmass)
+!  allocate(stmass(ncells)) ! stem mass (g/m2)
+!  if (allocated(wood) .eqv. .True.) deallocate(wood)
+!  allocate(wood(ncells)) ! mass of wood (incl. woody roots) (g/m2)
+!  if (allocated(stblcp) .eqv. .True.) deallocate(stblcp)
+!  allocate(stblcp(ncells)) ! stable carbon in deep soil (g/m2)
+!  if (allocated(fastcp) .eqv. .True.) deallocate(fastcp)
+!  allocate(fastcp(ncells)) ! short lived carbon, shallow soil (g/m2)
+!  if (allocated(plai) .eqv. .True.) deallocate(plai)
+!  allocate(plai(ncells)) ! leaf area index
+!  if (allocated(psai) .eqv. .True.) deallocate(psai)
+!  allocate(psai(ncells)) ! stem area index
+!  if (allocated(tauss) .eqv. .True.) deallocate(tauss)
+!  allocate(tauss(ncells)) ! non-dimensional snow age
+!  if (allocated(t2mv) .eqv. .True.) deallocate(t2mv)
+!  allocate(t2mv(ncells)) ! 2m temperature of vegetation part
+!  if (allocated(t2mb) .eqv. .True.) deallocate(t2mb)
+!  allocate(t2mb(ncells)) ! 2m temperature of bare ground part
+!  if (allocated(q2mv) .eqv. .True.) deallocate(q2mv)
+!  allocate(q2mv(ncells)) ! 2m mixing ratio of vegetation part
+!  if (allocated(q2mb) .eqv. .True.) deallocate(q2mb)
+!  allocate(q2mb(ncells)) ! 2m mixing ratio of bare ground part
+!  if (allocated(trad) .eqv. .True.) deallocate(trad)
+!  allocate(trad(ncells)) ! surface radiative temperature (k)
+!  if (allocated(nee) .eqv. .True.) deallocate(nee)
+!  allocate(nee(ncells)) ! net ecosys exchange (g/m2/s CO2)
+!  if (allocated(gpp) .eqv. .True.) deallocate(gpp)
+!  allocate(gpp(ncells)) ! gross primary assimilation [g/m2/s C]
+!  if (allocated(npp) .eqv. .True.) deallocate(npp)
+!  allocate(npp(ncells)) ! net primary productivity [g/m2/s C]
+!  if (allocated(fvegmp) .eqv. .True.) deallocate(fvegmp)
+!  allocate(fvegmp(ncells)) ! greenness vegetation fraction [-]
+!  if (allocated(runsf) .eqv. .True.) deallocate(runsf)
+!  allocate(runsf(ncells)) ! surface runoff [mm/s]
+!  if (allocated(runsb) .eqv. .True.) deallocate(runsb)
+!  allocate(runsb(ncells)) ! subsurface runoff [mm/s]
+!  if (allocated(ecan) .eqv. .True.) deallocate(ecan)
+!  allocate(ecan(ncells)) ! evaporation of intercepted water (mm/s)
+!  if (allocated(etran) .eqv. .True.) deallocate(etran)
+!  allocate(etran(ncells)) ! transpiration rate (mm/s)
+!  if (allocated(esoil) .eqv. .True.) deallocate(esoil)
+!  allocate(esoil(ncells)) ! soil surface evaporation rate (mm/s]
+!  if (allocated(fsa) .eqv. .True.) deallocate(fsa)
+!  allocate(fsa(ncells)) ! total absorbed solar radiation (w/m2)
+!  if (allocated(fira) .eqv. .True.) deallocate(fira)
+!  allocate(fira(ncells)) ! total net longwave rad (w/m2) [+ to atm]
+!  if (allocated(apar) .eqv. .True.) deallocate(apar)
+!  allocate(apar(ncells)) ! photosyn active energy by canopy (w/m2)
+!  if (allocated(psn) .eqv. .True.) deallocate(psn)
+!  allocate(psn(ncells)) ! total photosynthesis (umol co2/m2/s) [+]
+!  if (allocated(sav) .eqv. .True.) deallocate(sav)
+!  allocate(sav(ncells)) ! solar rad absorbed by veg. (w/m2)
+!  if (allocated(sag) .eqv. .True.) deallocate(sag)
+!  allocate(sag(ncells)) ! solar rad absorbed by ground (w/m2)
+!  if (allocated(rssun) .eqv. .True.) deallocate(rssun)
+!  allocate(rssun(ncells)) ! sunlit leaf stomatal resistance (s/m)
+!  if (allocated(rssha) .eqv. .True.) deallocate(rssha)
+!  allocate(rssha(ncells)) ! shaded leaf stomatal resistance (s/m)
+!  if (allocated(bgap) .eqv. .True.) deallocate(bgap)
+!  allocate(bgap(ncells)) ! between gap fraction
+!  if (allocated(wgap) .eqv. .True.) deallocate(wgap)
+!  allocate(wgap(ncells)) ! within gap fraction
+!  if (allocated(tgv) .eqv. .True.) deallocate(tgv)
+!  allocate(tgv(ncells)) ! under canopy ground temperature [K]
+!  if (allocated(tgb) .eqv. .True.) deallocate(tgb)
+!  allocate(tgb(ncells)) ! bare ground temperature [K]
+!  if (allocated(chv) .eqv. .True.) deallocate(chv)
+!  allocate(chv(ncells)) ! sensible heat exchange coefficient vegetated
+!  if (allocated(chb) .eqv. .True.) deallocate(chb)
+!  allocate(chb(ncells)) ! sensible heat exchange coefficient bare-ground
+!  if (allocated(irc) .eqv. .True.) deallocate(irc)
+!  allocate(irc(ncells)) ! canopy net LW rad. [w/m2] [+ to atm]
+!  if (allocated(irg) .eqv. .True.) deallocate(irg)
+!  allocate(irg(ncells)) ! veg ground net LW rad. [w/m2] [+ to atm]
+!  if (allocated(shc) .eqv. .True.) deallocate(shc)
+!  allocate(shc(ncells)) ! canopy sen. heat [w/m2]   [+ to atm]
+!  if (allocated(shg) .eqv. .True.) deallocate(shg)
+!  allocate(shg(ncells)) ! veg ground sen. heat [w/m2]   [+ to atm]
+!  if (allocated(evg) .eqv. .True.) deallocate(evg)
+!  allocate(evg(ncells)) ! veg ground evap. heat [w/m2]  [+ to atm]
+!  if (allocated(ghv) .eqv. .True.) deallocate(ghv)
+!  allocate(ghv(ncells)) ! veg ground heat flux [w/m2]  [+ to soil]
+!  if (allocated(irb) .eqv. .True.) deallocate(irb)
+!  allocate(irb(ncells)) ! bare net longwave rad. [w/m2] [+ to atm]
+!  if (allocated(shb) .eqv. .True.) deallocate(shb)
+!  allocate(shb(ncells)) ! bare sensible heat [w/m2]     [+ to atm]
+!  if (allocated(evb) .eqv. .True.) deallocate(evb)
+!  allocate(evb(ncells)) ! bare evaporation heat [w/m2]  [+ to atm]
+!  if (allocated(ghb) .eqv. .True.) deallocate(ghb)
+!  allocate(ghb(ncells)) ! bare ground heat flux [w/m2] [+ to soil]
+!  if (allocated(tr) .eqv. .True.) deallocate(tr)
+!  allocate(tr(ncells)) ! transpiration [w/m2]  [+ to atm]
+!  if (allocated(evc) .eqv. .True.) deallocate(evc)
+!  allocate(evc(ncells)) ! canopy evaporation heat [w/m2]  [+ to atm]
+!  if (allocated(chleaf) .eqv. .True.) deallocate(chleaf)
+!  allocate(chleaf(ncells)) ! leaf exchange coefficient
+!  if (allocated(chuc) .eqv. .True.) deallocate(chuc)
+!  allocate(chuc(ncells)) ! under canopy exchange coefficient
+!  if (allocated(chv2) .eqv. .True.) deallocate(chv2)
+!  allocate(chv2(ncells)) ! veg 2m exchange coefficient
+!  if (allocated(chb2) .eqv. .True.) deallocate(chb2)
+!  allocate(chb2(ncells)) ! bare 2m exchange coefficient 
+!  if (allocated(cosz) .eqv. .True.) deallocate(cosz)
+!  allocate(cosz(ncells)) ! cosine zenith angle
+!  if (allocated(lat) .eqv. .True.) deallocate(lat)
+!  allocate(lat(ncells))  ! latitude [rad]
+!  if (allocated(lon) .eqv. .True.) deallocate(lon)
+!  allocate(lon(ncells))  ! longitude [rad]
+!  if (allocated(fveg) .eqv. .True.) deallocate(fveg)
+!  allocate(fveg(ncells)) ! vegetation fraction
+!  if (allocated(fvgmax) .eqv. .True.) deallocate(fvgmax)
+!  allocate(fvgmax(ncells)) ! annual max vegetation
+!  if (allocated(fpice) .eqv. .True.) deallocate(fpice)
+!  allocate(fpice(ncells)) ! snow fraction of precip
+!  if (allocated(fcev) .eqv. .True.) deallocate(fcev)
+!  allocate(fcev(ncells)) ! canopy evaporation heat (w/m2) [+ to atm]
+!  if (allocated(fgev) .eqv. .True.) deallocate(fgev)
+!  allocate(fgev(ncells)) ! ground evaporation heat (w/m2) [+ to atm]
+!  if (allocated(fctr) .eqv. .True.) deallocate(fctr)
+!  allocate(fctr(ncells)) ! transpiration heat flux (w/m2) [+ to atm]
+!  if (allocated(qsnbot) .eqv. .True.) deallocate(qsnbot)
+!  allocate(qsnbot(ncells)) ! snowmelt out bottom of pack [mm/s]
+!  if (allocated(ponding) .eqv. .True.) deallocate(ponding)
+!  allocate(ponding(ncells)) ! snowmelt with no pack [mm]
+!  if (allocated(ponding1) .eqv. .True.) deallocate(ponding1)
+!  allocate(ponding1(ncells)) ! snowmelt with no pack [mm]
+!  if (allocated(ponding2) .eqv. .True.) deallocate(ponding2)
+!  allocate(ponding2(ncells)) ! snowmelt with no pack [mm]
+!  if (allocated(fsr) .eqv. .True.) deallocate(fsr)
+!  allocate(fsr(ncells)) ! total reflected solar radiation (w/m2)
+!  if (allocated(co2pp) .eqv. .True.) deallocate(co2pp)
+!  allocate(co2pp(ncells)) ! CO2 partial pressure [Pa]
+!  if (allocated(o2pp) .eqv. .True.) deallocate(o2pp)
+!  allocate(o2pp(ncells)) ! O2 partial pressure [Pa]
+!  if (allocated(foln) .eqv. .True.) deallocate(foln)
+!  allocate(foln(ncells)) ! nitrogen saturation [%
+!  if (allocated(tbot) .eqv. .True.) deallocate(tbot)
+!  allocate(tbot(ncells)) ! deep soil temperature [K]
+!  if (allocated(isurban) .eqv. .True.) deallocate(isurban)
+!  allocate(isurban(ncells)) ! if cell is urban
+!  if (allocated(slopetyp) .eqv. .True.) deallocate(slopetyp)
+!  allocate(slopetyp(ncells))
+!  if (allocated(soiltyp) .eqv. .True.) deallocate(soiltyp)
+!  allocate(soiltyp(ncells)) ! soil type
+!  if (allocated(vegtyp) .eqv. .True.) deallocate(vegtyp)
+!  allocate(vegtyp(ncells)) ! vegetation type
+!  if (allocated(ice) .eqv. .True.) deallocate(ice)
+!  allocate(ice(ncells)) ! glacier cell
+!  if (allocated(isc) .eqv. .True.) deallocate(isc)
+!  allocate(isc(ncells)) ! soil color index
+!  if (allocated(ist) .eqv. .True.) deallocate(ist)
+!  allocate(ist(ncells)) ! surface type
+!  if (allocated(smcmax) .eqv. .True.) deallocate(smcmax)
+!  allocate(smcmax(ncells)) ! saturated soil moisture
+!  if (allocated(smcdry) .eqv. .True.) deallocate(smcdry)
+!  allocate(smcdry(ncells)) ! residual soil moisture
+!  if (allocated(smcref) .eqv. .True.) deallocate(smcref)
+!  allocate(smcref(ncells))
+!  if (allocated(errwat) .eqv. .True.) deallocate(errwat)
+!  allocate(errwat(ncells))
+!  if (allocated(si0) .eqv. .True.) deallocate(si0)
+!  allocate(si0(ncells))
+!  if (allocated(si1) .eqv. .True.) deallocate(si1)
+!  allocate(si1(ncells))
+!  if (allocated(zwt0) .eqv. .True.) deallocate(zwt0)
+!  allocate(zwt0(ncells))
+!  if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
+!  allocate(minzwt(ncells))
+!  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
+!  allocate(co2air(ncells))
+!  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
+!  allocate(o2air(ncells))
+!  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
+!  allocate(bb0(ncells))
+!  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
+!  allocate(drysmc0(ncells))
+!  if (allocated(f110) .eqv. .True.) deallocate(f110)
+!  allocate(f110(ncells))
+!  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
+!  allocate(maxsmc0(ncells))
+!  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
+!  allocate(refsmc0(ncells))
+!  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
+!  allocate(satpsi0(ncells))
+!  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
+!  allocate(satdk0(ncells))
+!  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
+!  allocate(satdw0(ncells))
+!  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
+!  allocate(wltsmc0(ncells))
+!  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
+!  allocate(qtz0(ncells))
+!  
+!  ! Noemi
+!  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
+!  allocate(root_depth(ncells))
+!
+!  !Multi layer
+!  if (allocated(stc) .eqv. .True.) deallocate(stc)
+!  allocate(stc(ncells,-nsnow+1:nsoil))
+!  if (allocated(zsoil) .eqv. .True.) deallocate(zsoil)
+!  allocate(zsoil(ncells,nsoil))
+!  if (allocated(sh2o) .eqv. .True.) deallocate(sh2o)
+!  allocate(sh2o(ncells,nsoil))
+!  if (allocated(smc) .eqv. .True.) deallocate(smc)
+!  allocate(smc(ncells,nsoil))
+!  if (allocated(smceq) .eqv. .True.) deallocate(smceq)
+!  allocate(smceq(ncells,nsoil)) ! eq vol. soil moisture (m3/m3)
+!  if (allocated(zsnso) .eqv. .True.) deallocate(zsnso)
+!  allocate(zsnso(ncells,-nsnow+1:nsoil)) ! snow layer depth (m)
+!  if (allocated(snice) .eqv. .True.) deallocate(snice)
+!  allocate(snice(ncells,-nsnow+1:0))! snow layer ice (mm)
+!  if (allocated(snliq) .eqv. .True.) deallocate(snliq)
+!  allocate(snliq(ncells,-nsnow+1:0)) ! snow layer liquid water (mm)
+!  if (allocated(ficeold) .eqv. .True.) deallocate(ficeold)
+!  allocate(ficeold(ncells,-nsnow+1:0)) ! snow layer ice fraction 
+!  if (allocated(sldpth) .eqv. .True.) deallocate(sldpth)
+!  allocate(sldpth(ncells,nsoil)) !soil layer thickness
+!  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv)
+!  allocate(hdiv(ncells,nsoil)) !horizontal divergence
+!  
+!  !Set initial values
+!  
+!  !Single layer
+!  z_ml = badval
+!  lwdn = badval
+!  swdn = badval
+!  p_ml = badval
+!  psfc = badval
+!  prcp = badval
+!  t_ml = badval
+!  q_ml = badval
+!  u_ml = badval
+!  v_ml = badval
+!  fsh = badval
+!  ssoil = badval
+!  salb = badval 
+!  fsno = badval
+!  sndpth = badval
+!  emissi = badval
+!  qsfc1d = badval
+!  tv = badval
+!  tg = badval
+!  canice = badval
+!  canliq = badval
+!  eah = badval
+!  tah = badval
+!  cm = badval
+!  ch = badval
+!  fwet = badval
+!  sneqvo = badval
+!  albold = badval
+!  qsnow = badval
+!  wslake = badval
+!  zwt = badval
+!  wa = badval
+!  wt = badval
+!  smcwtd = badval
+!  deeprech = badval
+!  rech = badval
+!  lfmass = badval
+!  stmass = badval
+!  wood = badval
+!  stblcp = badval
+!  fastcp = badval
+!  plai = badval
+!  psai = badval
+!  tauss = badval
+!  t2mv = badval
+!  t2mb = badval
+!  q2mv = badval
+!  q2mb = badval
+!  trad = badval
+!  nee = badval
+!  gpp = badval
+!  npp = badval
+!  fvegmp = badval
+!  etran = badval
+!  esoil = badval
+!  fsa = badval
+!  fira = badval
+!  apar = badval
+!  psn = badval
+!  sav = badval
+!  sag = badval
+!  rssun = badval
+!  rssha = badval
+!  bgap = badval
+!  wgap = badval
+!  tgv = badval
+!  tgb = badval
+!  chv = badval
+!  chb = badval
+!  irc = badval
+!  irg = badval
+!  shc = badval
+!  shg = badval
+!  evg = badval
+!  ghv = badval
+!  irb = badval
+!  shb = badval
+!  evb = badval
+!  ghb = badval
+!  tr = badval
+!  evc = badval
+!  chleaf = badval
+!  chuc = badval
+!  chv2 = badval
+!  chb2 = badval
+!  cosz = badval
+!  lat = badval
+!  fveg = badval
+!  fvgmax = badval
+!  fpice = badval
+!  fcev = badval
+!  fgev = badval
+!  fctr = badval
+!  qsnbot = badval
+!  ponding = badval
+!  ponding1 = badval
+!  ponding2 = badval
+!  fsr = badval
+!  o2pp = badval
+!  foln = badval
+!  tbot= badval
+!  isurban = -9999
+!  slopetyp = -9999
+!  soiltyp = -9999
+!  vegtyp = -9999
+!  isnow = -9999
+!  ice = -9999
+!  isc = -9999
+!  ist = -9999
+!  si0 = badval
+!  si1 = badval
+!  zwt0 = badval
+!  minzwt = badval
+!  co2air = badval
+!  o2air = badval
+!
+!  !Noemi
+!  root_depth = badval
+!
+!  !Multi layer
+!  zsoil = badval
+!  sh2o = badval
+!  smc = badval
+!  smceq = badval
+!  zsnso = badval
+!  snice = badval
+!  snliq = badval
+!  ficeold = badval
+!  hdiv = badval
+!
+! end subroutine
+!
+ subroutine initialize_parameters(llanduse,lsoil,vegparm_file,genparm_file,&
+         IOPT_CRS,IOPT_BTR,IOPT_RUN,IOPT_SFC,IOPT_FRZ,IOPT_INF,IOPT_RAD,IOPT_ALB,&
+         IOPT_SNF,IOPT_TBOT,IOPT_STC,IDVEG,&
+         mptable_file,BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0,ncells)
 
- implicit none
-
- !Declare variables
-
- !Miscellanous parameters
- real :: badval = 0.0!-1.E36 
- real :: co2 = 395.e-06
- real :: o2 = 0.209
-  
- !General parameters
- integer :: nsoil ! Number of soil layers
- integer :: ncells ! Number of grid cells
- integer :: nsnow = 3 ! Number of snow layers
- real :: dt ! Timestep in seconds
- real :: dx ! Spatial resolution (m)
- real :: julian ! Julian day
- integer :: yearlen
- logical :: iz0tlnd
- integer :: itime
- character(len=256) :: llanduse
- character(len=256) :: lsoil
- !character(:), allocatable :: llanduse,lsoil
- character(len=256) :: vegparm_file,soilparm_file,genparm_file,mptable_file
- character(len=19) :: nowdate
-
- !Model options
- integer :: idveg ! dynamic vegetation (1 -> off ; 2 -> on) with opt_crs = 1      
- integer :: iopt_crs ! canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
- integer :: iopt_btr ! soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
- integer :: iopt_run ! runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
- integer :: iopt_sfc ! surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
- integer :: iopt_frz ! supercooled liquid water (1-> NY06; 2->Koren99)
- integer :: iopt_inf ! frozen soil permeability (1-> NY06; 2->Koren99)
- integer :: iopt_rad ! radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
- integer :: iopt_alb ! snow surface albedo (1->BATS; 2->CLASS)
- integer :: iopt_snf ! rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
- integer :: iopt_tbot ! lower boundary of soil temperature (1->zero-flux; 2->Noah) 
- integer :: iopt_stc ! snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
-
- !Single layer
- integer,dimension(:),allocatable :: isnow ! actual number of snow layers
- real,dimension(:),allocatable :: z_ml ! model height [m]
- real,dimension(:),allocatable :: lwdn       ! Downward longwave radiation flux at surface [W/m2]
- real,dimension(:),allocatable :: swdn      ! Downward shortwave radiation flux at surface [W/m2]
- real,dimension(:),allocatable :: p_ml    !  Surface pressure defined at intermediate level [Pa]
- real,dimension(:),allocatable :: psfc    ! Surface pressure [Pa]
- real,dimension(:),allocatable :: prcp       ! Precipitation rate (kg m-2 s-1)
- real,dimension(:),allocatable :: t_ml     ! Air temperature (K) [Forcing]
- real,dimension(:),allocatable :: q_ml         ! Surface specific humidity (kg kg-1)
- real,dimension(:),allocatable :: u_ml       ! West-to-east component of the surface [m/s]
- real,dimension(:),allocatable :: v_ml       ! North-to-south component of the surface [m/s]
- real,dimension(:),allocatable :: fsh ! total sensible heat (w/m2)
- real,dimension(:),allocatable :: ssoil ! soil heat (w/m2)
- real,dimension(:),allocatable :: salb ! surface albedo
- real,dimension(:),allocatable :: fsno ! snow cover fraction
- real,dimension(:),allocatable :: swe ! snow water equivalent (mm)
- real,dimension(:),allocatable :: sndpth ! snow depth (m)
- real,dimension(:),allocatable :: emissi ! net surface emissivity
- real,dimension(:),allocatable :: qsfc1d ! bulk surface specific humidity (kg/kg)
- real,dimension(:),allocatable :: tv ! vegetation canopy temperature
- real,dimension(:),allocatable :: tg ! ground surface temperature
- real,dimension(:),allocatable :: canice ! canopy-intercepted ice (mm)
- real,dimension(:),allocatable :: canliq ! canopy-intercepted liquid water (mm)
- real,dimension(:),allocatable :: eah ! canopy air vapor pressure (pa)
- real,dimension(:),allocatable :: tah ! canopy air temperature (K)
- real,dimension(:),allocatable :: cm ! momentum drag coefficient
- real,dimension(:),allocatable :: ch ! sensible heat exchange coefficient
- real,dimension(:),allocatable :: fwet ! weted or snowed fraction of the canopy
- real,dimension(:),allocatable :: sneqvo ! snow mass at last time step (mm h2o)
- real,dimension(:),allocatable :: albold ! snow albedo at last time step
- real,dimension(:),allocatable :: qsnow ! snowfall on the ground (mm/s)
- real,dimension(:),allocatable :: wslake ! lake water storage (mm)
- real,dimension(:),allocatable :: zwt ! water table depth (m)
- real,dimension(:),allocatable :: dzwt ! change in water table depth (m)
- real,dimension(:),allocatable :: wa ! water in the aquifer (mm)
- real,dimension(:),allocatable :: wt ! groundwater storage (mm)
- real,dimension(:),allocatable :: smcwtd ! soil moisture content in the transmission zone
- real,dimension(:),allocatable :: deeprech ! recharge to the water table when deep
- real,dimension(:),allocatable :: rech ! recharge to the water table (diagnostic)
- real,dimension(:),allocatable :: lfmass ! leaf mass (g/m2)
- real,dimension(:),allocatable :: rtmass ! mass of fine roots (g/m2)
- real,dimension(:),allocatable :: stmass ! stem mass (g/m2)
- real,dimension(:),allocatable :: wood ! mass of wood (incl. woody roots) (g/m2)
- real,dimension(:),allocatable :: stblcp ! stable carbon in deep soil (g/m2)
- real,dimension(:),allocatable :: fastcp ! short lived carbon, shallow soil (g/m2)
- real,dimension(:),allocatable :: plai ! leaf area index
- real,dimension(:),allocatable :: psai ! stem area index
- real,dimension(:),allocatable :: tauss ! non-dimensional snow age
- real,dimension(:),allocatable :: t2mv ! 2m temperature of vegetation part
- real,dimension(:),allocatable :: t2mb ! 2m temperature of bare ground part
- real,dimension(:),allocatable :: q2mv ! 2m mixing ratio of vegetation part
- real,dimension(:),allocatable :: q2mb ! 2m mixing ratio of bare ground part
- real,dimension(:),allocatable :: trad ! surface radiative temperature (k)
- real,dimension(:),allocatable :: nee ! net ecosys exchange (g/m2/s CO2)
- real,dimension(:),allocatable :: gpp ! gross primary assimilation [g/m2/s C]
- real,dimension(:),allocatable :: npp ! net primary productivity [g/m2/s C]
- real,dimension(:),allocatable :: fvegmp ! greenness vegetation fraction [-]
- real,dimension(:),allocatable :: runsf ! surface runoff [mm/s]
- real,dimension(:),allocatable :: runsb ! subsurface runoff [mm/s]
- real,dimension(:),allocatable :: ecan ! evaporation of intercepted water (mm/s)
- real,dimension(:),allocatable :: etran ! transpiration rate (mm/s)
- real,dimension(:),allocatable :: esoil ! soil surface evaporation rate (mm/s]
- real,dimension(:),allocatable :: fsa ! total absorbed solar radiation (w/m2)
- real,dimension(:),allocatable :: fira ! total net longwave rad (w/m2) [+ to atm]
- real,dimension(:),allocatable :: apar ! photosyn active energy by canopy (w/m2)
- real,dimension(:),allocatable :: psn ! total photosynthesis (umol co2/m2/s) [+]
- real,dimension(:),allocatable :: sav ! solar rad absorbed by veg. (w/m2)
- real,dimension(:),allocatable :: sag ! solar rad absorbed by ground (w/m2)
- real,dimension(:),allocatable :: rssun ! sunlit leaf stomatal resistance (s/m)
- real,dimension(:),allocatable :: rssha ! shaded leaf stomatal resistance (s/m)
- real,dimension(:),allocatable :: bgap ! between gap fraction
- real,dimension(:),allocatable :: wgap ! within gap fraction
- real,dimension(:),allocatable :: tgv ! under canopy ground temperature [K]
- real,dimension(:),allocatable :: tgb ! bare ground temperature [K]
- real,dimension(:),allocatable :: chv ! sensible heat exchange coefficient vegetated
- real,dimension(:),allocatable :: chb ! sensible heat exchange coefficient bare-ground
- real,dimension(:),allocatable :: irc ! canopy net LW rad. [w/m2] [+ to atm]
- real,dimension(:),allocatable :: irg ! veg ground net LW rad. [w/m2] [+ to atm]
- real,dimension(:),allocatable :: shc ! canopy sen. heat [w/m2]   [+ to atm]
- real,dimension(:),allocatable :: shg ! veg ground sen. heat [w/m2]   [+ to atm]
- real,dimension(:),allocatable :: evg ! veg ground evap. heat [w/m2]  [+ to atm]
- real,dimension(:),allocatable :: ghv ! veg ground heat flux [w/m2]  [+ to soil]
- real,dimension(:),allocatable :: irb ! bare net longwave rad. [w/m2] [+ to atm]
- real,dimension(:),allocatable :: shb ! bare sensible heat [w/m2]     [+ to atm]
- real,dimension(:),allocatable :: evb ! bare evaporation heat [w/m2]  [+ to atm]
- real,dimension(:),allocatable :: ghb ! bare ground heat flux [w/m2] [+ to soil]
- real,dimension(:),allocatable :: tr ! transpiration [w/m2]  [+ to atm]
- real,dimension(:),allocatable :: evc ! canopy evaporation heat [w/m2]  [+ to atm]
- real,dimension(:),allocatable :: chleaf ! leaf exchange coefficient
- real,dimension(:),allocatable :: chuc ! under canopy exchange coefficient
- real,dimension(:),allocatable :: chv2 ! veg 2m exchange coefficient
- real,dimension(:),allocatable :: chb2 ! bare 2m exchange coefficient 
- real,dimension(:),allocatable :: cosz ! cosine zenith angle
- real,dimension(:),allocatable :: lat  ! latitude [rad]
- real,dimension(:),allocatable :: lon  ! longitude [rad]
- real,dimension(:),allocatable :: fveg ! vegetation fraction
- real,dimension(:),allocatable :: fvgmax ! annual max vegetation
- real,dimension(:),allocatable :: fpice ! snow fraction of precip
- real,dimension(:),allocatable :: fcev ! canopy evaporation heat (w/m2) [+ to atm]
- real,dimension(:),allocatable :: fgev ! ground evaporation heat (w/m2) [+ to atm]
- real,dimension(:),allocatable :: fctr ! transpiration heat flux (w/m2) [+ to atm]
- real,dimension(:),allocatable :: qsnbot ! snowmelt out bottom of pack [mm/s]
- real,dimension(:),allocatable :: ponding ! snowmelt with no pack [mm]
- real,dimension(:),allocatable :: ponding1 ! snowmelt with no pack [mm]
- real,dimension(:),allocatable :: ponding2 ! snowmelt with no pack [mm]
- real,dimension(:),allocatable :: fsr ! total reflected solar radiation (w/m2)
- real,dimension(:),allocatable :: co2pp ! CO2 partial pressure [Pa]
- real,dimension(:),allocatable :: o2pp ! O2 partial pressure [Pa]
- real,dimension(:),allocatable :: foln ! nitrogen saturation [%
- real,dimension(:),allocatable :: tbot ! deep soil temperature [K]
- integer,dimension(:),allocatable :: isurban ! if cell is urban
- integer,dimension(:),allocatable :: slopetyp
- integer,dimension(:),allocatable :: soiltyp ! soil type
- integer,dimension(:),allocatable :: vegtyp ! vegetation type
- integer,dimension(:),allocatable :: ice ! glacier cell
- integer,dimension(:),allocatable :: isc ! soil color index
- integer,dimension(:),allocatable :: ist ! surface type 1-soil; 1-lake
- real,dimension(:),allocatable :: smcmax ! saturated soil moisture
- real,dimension(:),allocatable :: smcdry ! residual soil moisture
- real,dimension(:),allocatable :: smcref ! field capacity soil moisture
- real,dimension(:),allocatable :: errwat ! water balance error
- real,dimension(:),allocatable :: si0 ! initial soil moisture deficit
- real,dimension(:),allocatable :: si1 ! final soil moisture deficit
- real,dimension(:),allocatable :: zwt0 ! initial water table depth
- real,dimension(:),allocatable :: minzwt ! minimum water table depth
- real,dimension(:),allocatable :: co2air
- real,dimension(:),allocatable :: o2air
- real,dimension(:),allocatable :: bb0
- real,dimension(:),allocatable :: drysmc0
- real,dimension(:),allocatable :: f110
- real,dimension(:),allocatable :: maxsmc0
- real,dimension(:),allocatable :: refsmc0
- real,dimension(:),allocatable :: satpsi0
- real,dimension(:),allocatable :: satdk0
- real,dimension(:),allocatable :: satdw0
- real,dimension(:),allocatable :: wltsmc0
- real,dimension(:),allocatable :: qtz0
-
- ! Noemi
- integer,dimension(:),allocatable :: root_depth
-
- !Multi layer
- real,dimension(:,:),allocatable :: stc ! snow/soil temperatures
- real,dimension(:,:),allocatable :: sh2o ! vol. soil liquid water (m3/m3)
- real,dimension(:,:),allocatable :: smc ! vol. soil moisture (m3/m3)
- real,dimension(:,:),allocatable :: smceq ! eq vol. soil moisture (m3/m3)
- real,dimension(:,:),allocatable :: zsnso ! snow layer depth (m)
- real,dimension(:,:),allocatable :: snice ! snow layer ice (mm)
- real,dimension(:,:),allocatable :: snliq ! snow layer liquid water (mm)
- real,dimension(:,:),allocatable :: ficeold ! snow layer ice fraction 
- real,dimension(:,:),allocatable :: zsoil ! depth to soil interfaces
- real,dimension(:,:),allocatable :: sldpth ! soil layer thickness
- real,dimension(:,:),allocatable :: hdiv ! horizontal divergence (mm/s) [+]
-
-contains
-
- subroutine finalize()
-
-  !Single layer
-  if (allocated(isnow)) deallocate(isnow) ! actual number of snow layers
-  if (allocated(z_ml)) deallocate(z_ml) ! model height [m]
-  if (allocated(lwdn) .eqv. .True.) deallocate(lwdn)       ! Downward longwave radiation flux at surface [W/m2]
-  if (allocated(swdn) .eqv. .True.) deallocate(swdn)      ! Downward shortwave radiation flux at surface [W/m2]
-  if (allocated(p_ml) .eqv. .True.) deallocate(p_ml)    !  Surface pressure defined at intermediate level [Pa]
-  if (allocated(psfc) .eqv. .True.) deallocate(psfc)    ! Surface pressure [Pa]
-  if (allocated(prcp) .eqv. .True.) deallocate(prcp)       ! Precipitation rate (kg m-2 s-1)
-  if (allocated(t_ml) .eqv. .True.) deallocate(t_ml)     ! Air temperature (K) [Forcing]
-  if (allocated(q_ml) .eqv. .True.) deallocate(q_ml)         ! Surface specific humidity (kg kg-1)
-  if (allocated(u_ml) .eqv. .True.) deallocate(u_ml)       ! West-to-east component of the surface [m/s]
-  if (allocated(v_ml) .eqv. .True.) deallocate(v_ml)       ! North-to-south component of the surface [m/s]
-  if (allocated(fsh) .eqv. .True.) deallocate(fsh) ! total sensible heat (w/m2)
-  if (allocated(ssoil) .eqv. .True.) deallocate(ssoil) ! soil heat (w/m2)
-  if (allocated(salb) .eqv. .True.) deallocate(salb) ! surface albedo
-  if (allocated(fsno) .eqv. .True.) deallocate(fsno) ! snow cover fraction
-  if (allocated(swe) .eqv. .True.) deallocate(swe) ! snow water equivalent (mm)
-  if (allocated(sndpth) .eqv. .True.) deallocate(sndpth) ! snow depth (m)
-  if (allocated(emissi) .eqv. .True.) deallocate(emissi) ! net surface emissivity
-  if (allocated(qsfc1d) .eqv. .True.) deallocate(qsfc1d) ! bulk surface specific humidity (kg/kg)
-  if (allocated(tv) .eqv. .True.) deallocate(tv) ! vegetation canopy temperature
-  if (allocated(tg) .eqv. .True.) deallocate(tg) ! ground surface temperature
-  if (allocated(canice) .eqv. .True.) deallocate(canice) ! canopy-intercepted ice (mm)
-  if (allocated(canliq) .eqv. .True.) deallocate(canliq) ! canopy-intercepted liquid water (mm)
-  if (allocated(eah) .eqv. .True.) deallocate(eah) ! canopy air vapor pressure (pa)
-  if (allocated(tah) .eqv. .True.) deallocate(tah) ! canopy air temperature (K)
-  if (allocated(cm) .eqv. .True.) deallocate(cm) ! momentum drag coefficient
-  if (allocated(ch) .eqv. .True.) deallocate(ch) ! sensible heat exchange coefficient
-  if (allocated(fwet) .eqv. .True.) deallocate(fwet) ! weted or snowed fraction of the canopy
-  if (allocated(sneqvo) .eqv. .True.) deallocate(sneqvo) ! snow mass at last time step (mm h2o)
-  if (allocated(albold) .eqv. .True.) deallocate(albold) ! snow albedo at last time step
-  if (allocated(qsnow) .eqv. .True.) deallocate(qsnow) ! snowfall on the ground (mm/s)
-  if (allocated(wslake) .eqv. .True.) deallocate(wslake) ! lake water storage (mm)
-  if (allocated(zwt) .eqv. .True.) deallocate(zwt) ! water table depth (m)
-  if (allocated(dzwt) .eqv. .True.) deallocate(dzwt) ! change in water table depth (m)
-  if (allocated(wa) .eqv. .True.) deallocate(wa) ! water in the aquifer (mm)
-  if (allocated(wt) .eqv. .True.) deallocate(wt) ! groundwater storage (mm)
-  if (allocated(smcwtd) .eqv. .True.) deallocate(smcwtd) ! soil moisture content in the transmission zone
-  if (allocated(deeprech) .eqv. .True.) deallocate(deeprech) ! recharge to the water table when deep
-  if (allocated(rech) .eqv. .True.) deallocate(rech) ! recharge to the water table (diagnostic)
-  if (allocated(lfmass) .eqv. .True.) deallocate(lfmass) ! leaf mass (g/m2)
-  if (allocated(rtmass) .eqv. .True.) deallocate(rtmass) ! mass of fine roots (g/m2)
-  if (allocated(stmass) .eqv. .True.) deallocate(stmass) ! stem mass (g/m2)
-  if (allocated(wood) .eqv. .True.) deallocate(wood) ! mass of wood (incl. woody roots) (g/m2)
-  if (allocated(stblcp) .eqv. .True.) deallocate(stblcp) ! stable carbon in deep soil (g/m2)
-  if (allocated(fastcp) .eqv. .True.) deallocate(fastcp) ! short lived carbon, shallow soil (g/m2)
-  if (allocated(plai) .eqv. .True.) deallocate(plai) ! leaf area index
-  if (allocated(psai) .eqv. .True.) deallocate(psai) ! stem area index
-  if (allocated(tauss) .eqv. .True.) deallocate(tauss) ! non-dimensional snow age
-  if (allocated(t2mv) .eqv. .True.) deallocate(t2mv) ! 2m temperature of vegetation part
-  if (allocated(t2mb) .eqv. .True.) deallocate(t2mb) ! 2m temperature of bare ground part
-  if (allocated(q2mv) .eqv. .True.) deallocate(q2mv) ! 2m mixing ratio of vegetation part
-  if (allocated(q2mb) .eqv. .True.) deallocate(q2mb) ! 2m mixing ratio of bare ground part
-  if (allocated(trad) .eqv. .True.) deallocate(trad) ! surface radiative temperature (k)
-  if (allocated(nee) .eqv. .True.) deallocate(nee) ! net ecosys exchange (g/m2/s CO2)
-  if (allocated(gpp) .eqv. .True.) deallocate(gpp) ! gross primary assimilation [g/m2/s C]
-  if (allocated(npp) .eqv. .True.) deallocate(npp) ! net primary productivity [g/m2/s C]
-  if (allocated(fvegmp) .eqv. .True.) deallocate(fvegmp) ! greenness vegetation fraction [-]
-  if (allocated(runsf) .eqv. .True.) deallocate(runsf) ! surface runoff [mm/s]
-  if (allocated(runsb) .eqv. .True.) deallocate(runsb) ! subsurface runoff [mm/s]
-  if (allocated(ecan) .eqv. .True.) deallocate(ecan) ! evaporation of intercepted water (mm/s)
-  if (allocated(etran) .eqv. .True.) deallocate(etran) ! transpiration rate (mm/s)
-  if (allocated(esoil) .eqv. .True.) deallocate(esoil) ! soil surface evaporation rate (mm/s]
-  if (allocated(fsa) .eqv. .True.) deallocate(fsa) ! total absorbed solar radiation (w/m2)
-  if (allocated(fira) .eqv. .True.) deallocate(fira) ! total net longwave rad (w/m2) [+ to atm]
-  if (allocated(apar) .eqv. .True.) deallocate(apar) ! photosyn active energy by canopy (w/m2)
-  if (allocated(psn) .eqv. .True.) deallocate(psn) ! total photosynthesis (umol co2/m2/s) [+]
-  if (allocated(sav) .eqv. .True.) deallocate(sav) ! solar rad absorbed by veg. (w/m2)
-  if (allocated(sag) .eqv. .True.) deallocate(sag) ! solar rad absorbed by ground (w/m2)
-  if (allocated(rssun) .eqv. .True.) deallocate(rssun) ! sunlit leaf stomatal resistance (s/m)
-  if (allocated(rssha) .eqv. .True.) deallocate(rssha) ! shaded leaf stomatal resistance (s/m)
-  if (allocated(bgap) .eqv. .True.) deallocate(bgap) ! between gap fraction
-  if (allocated(wgap) .eqv. .True.) deallocate(wgap) ! within gap fraction
-  if (allocated(tgv) .eqv. .True.) deallocate(tgv) ! under canopy ground temperature [K]
-  if (allocated(tgb) .eqv. .True.) deallocate(tgb) ! bare ground temperature [K]
-  if (allocated(chv) .eqv. .True.) deallocate(chv) ! sensible heat exchange coefficient vegetated
-  if (allocated(chb) .eqv. .True.) deallocate(chb) ! sensible heat exchange coefficient bare-ground
-  if (allocated(irc) .eqv. .True.) deallocate(irc) ! canopy net LW rad. [w/m2] [+ to atm]
-  if (allocated(irg) .eqv. .True.) deallocate(irg) ! veg ground net LW rad. [w/m2] [+ to atm]
-  if (allocated(shc) .eqv. .True.) deallocate(shc) ! canopy sen. heat [w/m2]   [+ to atm]
-  if (allocated(shg) .eqv. .True.) deallocate(shg) ! veg ground sen. heat [w/m2]   [+ to atm]
-  if (allocated(evg) .eqv. .True.) deallocate(evg) ! veg ground evap. heat [w/m2]  [+ to atm]
-  if (allocated(ghv) .eqv. .True.) deallocate(ghv) ! veg ground heat flux [w/m2]  [+ to soil]
-  if (allocated(irb) .eqv. .True.) deallocate(irb) ! bare net longwave rad. [w/m2] [+ to atm]
-  if (allocated(shb) .eqv. .True.) deallocate(shb) ! bare sensible heat [w/m2]     [+ to atm]
-  if (allocated(evb) .eqv. .True.) deallocate(evb) ! bare evaporation heat [w/m2]  [+ to atm]
-  if (allocated(ghb) .eqv. .True.) deallocate(ghb) ! bare ground heat flux [w/m2] [+ to soil]
-  if (allocated(tr) .eqv. .True.) deallocate(tr) ! transpiration [w/m2]  [+ to atm]
-  if (allocated(evc) .eqv. .True.) deallocate(evc) ! canopy evaporation heat [w/m2]  [+ to atm]
-  if (allocated(chleaf) .eqv. .True.) deallocate(chleaf) ! leaf exchange coefficient
-  if (allocated(chuc) .eqv. .True.) deallocate(chuc) ! under canopy exchange coefficient
-  if (allocated(chv2) .eqv. .True.) deallocate(chv2) ! veg 2m exchange coefficient
-  if (allocated(chb2) .eqv. .True.) deallocate(chb2) ! bare 2m exchange coefficient 
-  if (allocated(cosz) .eqv. .True.) deallocate(cosz) ! cosine zenith angle
-  if (allocated(lat) .eqv. .True.) deallocate(lat)  ! latitude [rad]
-  if (allocated(lon) .eqv. .True.) deallocate(lon)  ! longitude [rad]
-  if (allocated(fveg) .eqv. .True.) deallocate(fveg) ! vegetation fraction
-  if (allocated(fvgmax) .eqv. .True.) deallocate(fvgmax) ! annual max vegetation
-  if (allocated(fpice) .eqv. .True.) deallocate(fpice) ! snow fraction of precip
-  if (allocated(fcev) .eqv. .True.) deallocate(fcev) ! canopy evaporation heat (w/m2) [+ to atm]
-  if (allocated(fgev) .eqv. .True.) deallocate(fgev) ! ground evaporation heat (w/m2) [+ to atm]
-  if (allocated(fctr) .eqv. .True.) deallocate(fctr) ! transpiration heat flux (w/m2) [+ to atm]
-  if (allocated(qsnbot) .eqv. .True.) deallocate(qsnbot) ! snowmelt out bottom of pack [mm/s]
-  if (allocated(ponding) .eqv. .True.) deallocate(ponding) ! snowmelt with no pack [mm]
-  if (allocated(ponding1) .eqv. .True.) deallocate(ponding1) ! snowmelt with no pack [mm]
-  if (allocated(ponding2) .eqv. .True.) deallocate(ponding2) ! snowmelt with no pack [mm]
-  if (allocated(fsr) .eqv. .True.) deallocate(fsr) ! total reflected solar radiation (w/m2)
-  if (allocated(co2pp) .eqv. .True.) deallocate(co2pp) ! CO2 partial pressure [Pa]
-  if (allocated(o2pp) .eqv. .True.) deallocate(o2pp) ! O2 partial pressure [Pa]
-  if (allocated(foln) .eqv. .True.) deallocate(foln) ! nitrogen saturation [%
-  if (allocated(tbot) .eqv. .True.) deallocate(tbot) ! deep soil temperature [K]
-  if (allocated(isurban) .eqv. .True.) deallocate(isurban) ! if cell is urban
-  if (allocated(slopetyp) .eqv. .True.) deallocate(slopetyp)
-  if (allocated(soiltyp) .eqv. .True.) deallocate(soiltyp) ! soil type
-  if (allocated(vegtyp) .eqv. .True.) deallocate(vegtyp) ! vegetation type
-  if (allocated(ice) .eqv. .True.) deallocate(ice) ! glacier cell
-  if (allocated(isc) .eqv. .True.) deallocate(isc) ! soil color index
-  if (allocated(ist) .eqv. .True.) deallocate(ist) ! surface type
-  if (allocated(smcmax) .eqv. .True.) deallocate(smcmax) ! saturated soil moisture
-  if (allocated(smcdry) .eqv. .True.) deallocate(smcdry) ! residual soil moisture
-  if (allocated(smcref) .eqv. .True.) deallocate(smcref)
-  if (allocated(errwat) .eqv. .True.) deallocate(errwat) 
-  if (allocated(si0) .eqv. .True.) deallocate(si0) 
-  if (allocated(si1) .eqv. .True.) deallocate(si1) 
-  if (allocated(zwt0) .eqv. .True.) deallocate(zwt0)
-  if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
-  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
-  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
-  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
-  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
-  if (allocated(f110) .eqv. .True.) deallocate(f110)
-  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
-  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
-  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
-  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
-  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
-  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
-  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
-
-  ! Noemi
-  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
-
-  !Multi layer
-  if (allocated(stc) .eqv. .True.) deallocate(stc)
-  if (allocated(zsoil) .eqv. .True.) deallocate(zsoil)
-  if (allocated(sh2o) .eqv. .True.) deallocate(sh2o)
-  if (allocated(smc) .eqv. .True.) deallocate(smc)
-  if (allocated(smceq) .eqv. .True.) deallocate(smceq) ! eq vol. soil moisture (m3/m3)
-  if (allocated(zsnso) .eqv. .True.) deallocate(zsnso) ! snow layer depth (m)
-  if (allocated(snice) .eqv. .True.) deallocate(snice) ! snow layer ice (mm)
-  if (allocated(snliq) .eqv. .True.) deallocate(snliq) ! snow layer liquid water (mm)
-  if (allocated(ficeold) .eqv. .True.) deallocate(ficeold) ! snow layer ice fraction 
-  if (allocated(sldpth) .eqv. .True.) deallocate(sldpth) !soil layer thickness
-  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv) !
-
- end subroutine finalize
-
- subroutine initialize_general()
- 
   USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
   implicit none
   integer :: i
-  !Allocate all memory
-
-  !Single layer
-  if (allocated(isnow) .eqv. .True.) deallocate(isnow)
-  allocate(isnow(ncells)) ! actual number of snow layers
-  if (allocated(z_ml) .eqv. .True.) deallocate(z_ml)
-  allocate(z_ml(ncells)) ! model height [m]
-  if (allocated(lwdn) .eqv. .True.) deallocate(lwdn)
-  allocate(lwdn(ncells))       ! Downward longwave radiation flux at surface [W/m2]
-  if (allocated(swdn) .eqv. .True.) deallocate(swdn)
-  allocate(swdn(ncells))      ! Downward shortwave radiation flux at surface [W/m2]
-  if (allocated(p_ml) .eqv. .True.) deallocate(p_ml)
-  allocate(p_ml(ncells))    !  Surface pressure defined at intermediate level [Pa]
-  if (allocated(psfc) .eqv. .True.) deallocate(psfc)
-  allocate(psfc(ncells))    ! Surface pressure [Pa]
-  if (allocated(prcp) .eqv. .True.) deallocate(prcp)
-  allocate(prcp(ncells))       ! Precipitation rate (kg m-2 s-1)
-  if (allocated(t_ml) .eqv. .True.) deallocate(t_ml)
-  allocate(t_ml(ncells))     ! Air temperature (K) [Forcing]
-  if (allocated(q_ml) .eqv. .True.) deallocate(q_ml)
-  allocate(q_ml(ncells))         ! Surface specific humidity (kg kg-1)
-  if (allocated(u_ml) .eqv. .True.) deallocate(u_ml)
-  allocate(u_ml(ncells))       ! West-to-east component of the surface [m/s]
-  if (allocated(v_ml) .eqv. .True.) deallocate(v_ml)
-  allocate(v_ml(ncells))       ! North-to-south component of the surface [m/s]
-  if (allocated(fsh) .eqv. .True.) deallocate(fsh)
-  allocate(fsh(ncells)) ! total sensible heat (w/m2)
-  if (allocated(ssoil) .eqv. .True.) deallocate(ssoil)
-  allocate(ssoil(ncells)) ! soil heat (w/m2)
-  if (allocated(salb) .eqv. .True.) deallocate(salb)
-  allocate(salb(ncells)) ! surface albedo
-  if (allocated(fsno) .eqv. .True.) deallocate(fsno)
-  allocate(fsno(ncells)) ! snow cover fraction
-  if (allocated(swe) .eqv. .True.) deallocate(swe)
-  allocate(swe(ncells)) ! snow water equivalent (mm)
-  if (allocated(sndpth) .eqv. .True.) deallocate(sndpth)
-  allocate(sndpth(ncells)) ! snow depth (m)
-  if (allocated(emissi) .eqv. .True.) deallocate(emissi)
-  allocate(emissi(ncells)) ! net surface emissivity
-  if (allocated(qsfc1d) .eqv. .True.) deallocate(qsfc1d)
-  allocate(qsfc1d(ncells)) ! bulk surface specific humidity (kg/kg)
-  if (allocated(tv) .eqv. .True.) deallocate(tv)
-  allocate(tv(ncells)) ! vegetation canopy temperature
-  if (allocated(tg) .eqv. .True.) deallocate(tg)
-  allocate(tg(ncells)) ! ground surface temperature
-  if (allocated(canice) .eqv. .True.) deallocate(canice)
-  allocate(canice(ncells)) ! canopy-intercepted ice (mm)
-  if (allocated(canliq) .eqv. .True.) deallocate(canliq)
-  allocate(canliq(ncells)) ! canopy-intercepted liquid water (mm)
-  if (allocated(eah) .eqv. .True.) deallocate(eah)
-  allocate(eah(ncells)) ! canopy air vapor pressure (pa)
-  if (allocated(tah) .eqv. .True.) deallocate(tah)
-  allocate(tah(ncells)) ! canopy air temperature (K)
-  if (allocated(cm) .eqv. .True.) deallocate(cm)
-  allocate(cm(ncells)) ! momentum drag coefficient
-  if (allocated(ch) .eqv. .True.) deallocate(ch)
-  allocate(ch(ncells)) ! sensible heat exchange coefficient
-  if (allocated(fwet) .eqv. .True.) deallocate(fwet)
-  allocate(fwet(ncells)) ! weted or snowed fraction of the canopy
-  if (allocated(sneqvo) .eqv. .True.) deallocate(sneqvo)
-  allocate(sneqvo(ncells)) ! snow mass at last time step (mm h2o)
-  if (allocated(albold) .eqv. .True.) deallocate(albold)
-  allocate(albold(ncells)) ! snow albedo at last time step
-  if (allocated(qsnow) .eqv. .True.) deallocate(qsnow)
-  allocate(qsnow(ncells)) ! snowfall on the ground (mm/s)
-  if (allocated(wslake) .eqv. .True.) deallocate(wslake)
-  allocate(wslake(ncells)) ! lake water storage (mm)
-  if (allocated(zwt) .eqv. .True.) deallocate(zwt)
-  allocate(zwt(ncells)) ! water table depth (m)
-  if (allocated(dzwt) .eqv. .True.) deallocate(dzwt)
-  allocate(dzwt(ncells)) ! change in water table depth (m)
-  if (allocated(wa) .eqv. .True.) deallocate(wa)
-  allocate(wa(ncells)) ! water in the aquifer (mm)
-  if (allocated(wt) .eqv. .True.) deallocate(wt)
-  allocate(wt(ncells)) ! groundwater storage (mm)
-  if (allocated(smcwtd) .eqv. .True.) deallocate(smcwtd)
-  allocate(smcwtd(ncells)) ! soil moisture content in the transmission zone
-  if (allocated(deeprech) .eqv. .True.) deallocate(deeprech)
-  allocate(deeprech(ncells)) ! recharge to the water table when deep
-  if (allocated(rech) .eqv. .True.) deallocate(rech)
-  allocate(rech(ncells)) ! recharge to the water table (diagnostic)
-  if (allocated(lfmass) .eqv. .True.) deallocate(lfmass)
-  allocate(lfmass(ncells)) ! leaf mass (g/m2)
-  if (allocated(rtmass) .eqv. .True.) deallocate(rtmass)
-  allocate(rtmass(ncells)) ! mass of fine roots (g/m2)
-  if (allocated(stmass) .eqv. .True.) deallocate(stmass)
-  allocate(stmass(ncells)) ! stem mass (g/m2)
-  if (allocated(wood) .eqv. .True.) deallocate(wood)
-  allocate(wood(ncells)) ! mass of wood (incl. woody roots) (g/m2)
-  if (allocated(stblcp) .eqv. .True.) deallocate(stblcp)
-  allocate(stblcp(ncells)) ! stable carbon in deep soil (g/m2)
-  if (allocated(fastcp) .eqv. .True.) deallocate(fastcp)
-  allocate(fastcp(ncells)) ! short lived carbon, shallow soil (g/m2)
-  if (allocated(plai) .eqv. .True.) deallocate(plai)
-  allocate(plai(ncells)) ! leaf area index
-  if (allocated(psai) .eqv. .True.) deallocate(psai)
-  allocate(psai(ncells)) ! stem area index
-  if (allocated(tauss) .eqv. .True.) deallocate(tauss)
-  allocate(tauss(ncells)) ! non-dimensional snow age
-  if (allocated(t2mv) .eqv. .True.) deallocate(t2mv)
-  allocate(t2mv(ncells)) ! 2m temperature of vegetation part
-  if (allocated(t2mb) .eqv. .True.) deallocate(t2mb)
-  allocate(t2mb(ncells)) ! 2m temperature of bare ground part
-  if (allocated(q2mv) .eqv. .True.) deallocate(q2mv)
-  allocate(q2mv(ncells)) ! 2m mixing ratio of vegetation part
-  if (allocated(q2mb) .eqv. .True.) deallocate(q2mb)
-  allocate(q2mb(ncells)) ! 2m mixing ratio of bare ground part
-  if (allocated(trad) .eqv. .True.) deallocate(trad)
-  allocate(trad(ncells)) ! surface radiative temperature (k)
-  if (allocated(nee) .eqv. .True.) deallocate(nee)
-  allocate(nee(ncells)) ! net ecosys exchange (g/m2/s CO2)
-  if (allocated(gpp) .eqv. .True.) deallocate(gpp)
-  allocate(gpp(ncells)) ! gross primary assimilation [g/m2/s C]
-  if (allocated(npp) .eqv. .True.) deallocate(npp)
-  allocate(npp(ncells)) ! net primary productivity [g/m2/s C]
-  if (allocated(fvegmp) .eqv. .True.) deallocate(fvegmp)
-  allocate(fvegmp(ncells)) ! greenness vegetation fraction [-]
-  if (allocated(runsf) .eqv. .True.) deallocate(runsf)
-  allocate(runsf(ncells)) ! surface runoff [mm/s]
-  if (allocated(runsb) .eqv. .True.) deallocate(runsb)
-  allocate(runsb(ncells)) ! subsurface runoff [mm/s]
-  if (allocated(ecan) .eqv. .True.) deallocate(ecan)
-  allocate(ecan(ncells)) ! evaporation of intercepted water (mm/s)
-  if (allocated(etran) .eqv. .True.) deallocate(etran)
-  allocate(etran(ncells)) ! transpiration rate (mm/s)
-  if (allocated(esoil) .eqv. .True.) deallocate(esoil)
-  allocate(esoil(ncells)) ! soil surface evaporation rate (mm/s]
-  if (allocated(fsa) .eqv. .True.) deallocate(fsa)
-  allocate(fsa(ncells)) ! total absorbed solar radiation (w/m2)
-  if (allocated(fira) .eqv. .True.) deallocate(fira)
-  allocate(fira(ncells)) ! total net longwave rad (w/m2) [+ to atm]
-  if (allocated(apar) .eqv. .True.) deallocate(apar)
-  allocate(apar(ncells)) ! photosyn active energy by canopy (w/m2)
-  if (allocated(psn) .eqv. .True.) deallocate(psn)
-  allocate(psn(ncells)) ! total photosynthesis (umol co2/m2/s) [+]
-  if (allocated(sav) .eqv. .True.) deallocate(sav)
-  allocate(sav(ncells)) ! solar rad absorbed by veg. (w/m2)
-  if (allocated(sag) .eqv. .True.) deallocate(sag)
-  allocate(sag(ncells)) ! solar rad absorbed by ground (w/m2)
-  if (allocated(rssun) .eqv. .True.) deallocate(rssun)
-  allocate(rssun(ncells)) ! sunlit leaf stomatal resistance (s/m)
-  if (allocated(rssha) .eqv. .True.) deallocate(rssha)
-  allocate(rssha(ncells)) ! shaded leaf stomatal resistance (s/m)
-  if (allocated(bgap) .eqv. .True.) deallocate(bgap)
-  allocate(bgap(ncells)) ! between gap fraction
-  if (allocated(wgap) .eqv. .True.) deallocate(wgap)
-  allocate(wgap(ncells)) ! within gap fraction
-  if (allocated(tgv) .eqv. .True.) deallocate(tgv)
-  allocate(tgv(ncells)) ! under canopy ground temperature [K]
-  if (allocated(tgb) .eqv. .True.) deallocate(tgb)
-  allocate(tgb(ncells)) ! bare ground temperature [K]
-  if (allocated(chv) .eqv. .True.) deallocate(chv)
-  allocate(chv(ncells)) ! sensible heat exchange coefficient vegetated
-  if (allocated(chb) .eqv. .True.) deallocate(chb)
-  allocate(chb(ncells)) ! sensible heat exchange coefficient bare-ground
-  if (allocated(irc) .eqv. .True.) deallocate(irc)
-  allocate(irc(ncells)) ! canopy net LW rad. [w/m2] [+ to atm]
-  if (allocated(irg) .eqv. .True.) deallocate(irg)
-  allocate(irg(ncells)) ! veg ground net LW rad. [w/m2] [+ to atm]
-  if (allocated(shc) .eqv. .True.) deallocate(shc)
-  allocate(shc(ncells)) ! canopy sen. heat [w/m2]   [+ to atm]
-  if (allocated(shg) .eqv. .True.) deallocate(shg)
-  allocate(shg(ncells)) ! veg ground sen. heat [w/m2]   [+ to atm]
-  if (allocated(evg) .eqv. .True.) deallocate(evg)
-  allocate(evg(ncells)) ! veg ground evap. heat [w/m2]  [+ to atm]
-  if (allocated(ghv) .eqv. .True.) deallocate(ghv)
-  allocate(ghv(ncells)) ! veg ground heat flux [w/m2]  [+ to soil]
-  if (allocated(irb) .eqv. .True.) deallocate(irb)
-  allocate(irb(ncells)) ! bare net longwave rad. [w/m2] [+ to atm]
-  if (allocated(shb) .eqv. .True.) deallocate(shb)
-  allocate(shb(ncells)) ! bare sensible heat [w/m2]     [+ to atm]
-  if (allocated(evb) .eqv. .True.) deallocate(evb)
-  allocate(evb(ncells)) ! bare evaporation heat [w/m2]  [+ to atm]
-  if (allocated(ghb) .eqv. .True.) deallocate(ghb)
-  allocate(ghb(ncells)) ! bare ground heat flux [w/m2] [+ to soil]
-  if (allocated(tr) .eqv. .True.) deallocate(tr)
-  allocate(tr(ncells)) ! transpiration [w/m2]  [+ to atm]
-  if (allocated(evc) .eqv. .True.) deallocate(evc)
-  allocate(evc(ncells)) ! canopy evaporation heat [w/m2]  [+ to atm]
-  if (allocated(chleaf) .eqv. .True.) deallocate(chleaf)
-  allocate(chleaf(ncells)) ! leaf exchange coefficient
-  if (allocated(chuc) .eqv. .True.) deallocate(chuc)
-  allocate(chuc(ncells)) ! under canopy exchange coefficient
-  if (allocated(chv2) .eqv. .True.) deallocate(chv2)
-  allocate(chv2(ncells)) ! veg 2m exchange coefficient
-  if (allocated(chb2) .eqv. .True.) deallocate(chb2)
-  allocate(chb2(ncells)) ! bare 2m exchange coefficient 
-  if (allocated(cosz) .eqv. .True.) deallocate(cosz)
-  allocate(cosz(ncells)) ! cosine zenith angle
-  if (allocated(lat) .eqv. .True.) deallocate(lat)
-  allocate(lat(ncells))  ! latitude [rad]
-  if (allocated(lon) .eqv. .True.) deallocate(lon)
-  allocate(lon(ncells))  ! longitude [rad]
-  if (allocated(fveg) .eqv. .True.) deallocate(fveg)
-  allocate(fveg(ncells)) ! vegetation fraction
-  if (allocated(fvgmax) .eqv. .True.) deallocate(fvgmax)
-  allocate(fvgmax(ncells)) ! annual max vegetation
-  if (allocated(fpice) .eqv. .True.) deallocate(fpice)
-  allocate(fpice(ncells)) ! snow fraction of precip
-  if (allocated(fcev) .eqv. .True.) deallocate(fcev)
-  allocate(fcev(ncells)) ! canopy evaporation heat (w/m2) [+ to atm]
-  if (allocated(fgev) .eqv. .True.) deallocate(fgev)
-  allocate(fgev(ncells)) ! ground evaporation heat (w/m2) [+ to atm]
-  if (allocated(fctr) .eqv. .True.) deallocate(fctr)
-  allocate(fctr(ncells)) ! transpiration heat flux (w/m2) [+ to atm]
-  if (allocated(qsnbot) .eqv. .True.) deallocate(qsnbot)
-  allocate(qsnbot(ncells)) ! snowmelt out bottom of pack [mm/s]
-  if (allocated(ponding) .eqv. .True.) deallocate(ponding)
-  allocate(ponding(ncells)) ! snowmelt with no pack [mm]
-  if (allocated(ponding1) .eqv. .True.) deallocate(ponding1)
-  allocate(ponding1(ncells)) ! snowmelt with no pack [mm]
-  if (allocated(ponding2) .eqv. .True.) deallocate(ponding2)
-  allocate(ponding2(ncells)) ! snowmelt with no pack [mm]
-  if (allocated(fsr) .eqv. .True.) deallocate(fsr)
-  allocate(fsr(ncells)) ! total reflected solar radiation (w/m2)
-  if (allocated(co2pp) .eqv. .True.) deallocate(co2pp)
-  allocate(co2pp(ncells)) ! CO2 partial pressure [Pa]
-  if (allocated(o2pp) .eqv. .True.) deallocate(o2pp)
-  allocate(o2pp(ncells)) ! O2 partial pressure [Pa]
-  if (allocated(foln) .eqv. .True.) deallocate(foln)
-  allocate(foln(ncells)) ! nitrogen saturation [%
-  if (allocated(tbot) .eqv. .True.) deallocate(tbot)
-  allocate(tbot(ncells)) ! deep soil temperature [K]
-  if (allocated(isurban) .eqv. .True.) deallocate(isurban)
-  allocate(isurban(ncells)) ! if cell is urban
-  if (allocated(slopetyp) .eqv. .True.) deallocate(slopetyp)
-  allocate(slopetyp(ncells))
-  if (allocated(soiltyp) .eqv. .True.) deallocate(soiltyp)
-  allocate(soiltyp(ncells)) ! soil type
-  if (allocated(vegtyp) .eqv. .True.) deallocate(vegtyp)
-  allocate(vegtyp(ncells)) ! vegetation type
-  if (allocated(ice) .eqv. .True.) deallocate(ice)
-  allocate(ice(ncells)) ! glacier cell
-  if (allocated(isc) .eqv. .True.) deallocate(isc)
-  allocate(isc(ncells)) ! soil color index
-  if (allocated(ist) .eqv. .True.) deallocate(ist)
-  allocate(ist(ncells)) ! surface type
-  if (allocated(smcmax) .eqv. .True.) deallocate(smcmax)
-  allocate(smcmax(ncells)) ! saturated soil moisture
-  if (allocated(smcdry) .eqv. .True.) deallocate(smcdry)
-  allocate(smcdry(ncells)) ! residual soil moisture
-  if (allocated(smcref) .eqv. .True.) deallocate(smcref)
-  allocate(smcref(ncells))
-  if (allocated(errwat) .eqv. .True.) deallocate(errwat)
-  allocate(errwat(ncells))
-  if (allocated(si0) .eqv. .True.) deallocate(si0)
-  allocate(si0(ncells))
-  if (allocated(si1) .eqv. .True.) deallocate(si1)
-  allocate(si1(ncells))
-  if (allocated(zwt0) .eqv. .True.) deallocate(zwt0)
-  allocate(zwt0(ncells))
-  if (allocated(minzwt) .eqv. .True.) deallocate(minzwt)
-  allocate(minzwt(ncells))
-  if (allocated(co2air) .eqv. .True.) deallocate(co2air)
-  allocate(co2air(ncells))
-  if (allocated(o2air) .eqv. .True.) deallocate(o2air)
-  allocate(o2air(ncells))
-  if (allocated(bb0) .eqv. .True.) deallocate(bb0)
-  allocate(bb0(ncells))
-  if (allocated(drysmc0) .eqv. .True.) deallocate(drysmc0)
-  allocate(drysmc0(ncells))
-  if (allocated(f110) .eqv. .True.) deallocate(f110)
-  allocate(f110(ncells))
-  if (allocated(maxsmc0) .eqv. .True.) deallocate(maxsmc0)
-  allocate(maxsmc0(ncells))
-  if (allocated(refsmc0) .eqv. .True.) deallocate(refsmc0)
-  allocate(refsmc0(ncells))
-  if (allocated(satpsi0) .eqv. .True.) deallocate(satpsi0)
-  allocate(satpsi0(ncells))
-  if (allocated(satdk0) .eqv. .True.) deallocate(satdk0)
-  allocate(satdk0(ncells))
-  if (allocated(satdw0) .eqv. .True.) deallocate(satdw0)
-  allocate(satdw0(ncells))
-  if (allocated(wltsmc0) .eqv. .True.) deallocate(wltsmc0)
-  allocate(wltsmc0(ncells))
-  if (allocated(qtz0) .eqv. .True.) deallocate(qtz0)
-  allocate(qtz0(ncells))
-  
-  ! Noemi
-  if (allocated(root_depth) .eqv. .True.) deallocate(root_depth)
-  allocate(root_depth(ncells))
-
-  !Multi layer
-  if (allocated(stc) .eqv. .True.) deallocate(stc)
-  allocate(stc(ncells,-nsnow+1:nsoil))
-  if (allocated(zsoil) .eqv. .True.) deallocate(zsoil)
-  allocate(zsoil(ncells,nsoil))
-  if (allocated(sh2o) .eqv. .True.) deallocate(sh2o)
-  allocate(sh2o(ncells,nsoil))
-  if (allocated(smc) .eqv. .True.) deallocate(smc)
-  allocate(smc(ncells,nsoil))
-  if (allocated(smceq) .eqv. .True.) deallocate(smceq)
-  allocate(smceq(ncells,nsoil)) ! eq vol. soil moisture (m3/m3)
-  if (allocated(zsnso) .eqv. .True.) deallocate(zsnso)
-  allocate(zsnso(ncells,-nsnow+1:nsoil)) ! snow layer depth (m)
-  if (allocated(snice) .eqv. .True.) deallocate(snice)
-  allocate(snice(ncells,-nsnow+1:0))! snow layer ice (mm)
-  if (allocated(snliq) .eqv. .True.) deallocate(snliq)
-  allocate(snliq(ncells,-nsnow+1:0)) ! snow layer liquid water (mm)
-  if (allocated(ficeold) .eqv. .True.) deallocate(ficeold)
-  allocate(ficeold(ncells,-nsnow+1:0)) ! snow layer ice fraction 
-  if (allocated(sldpth) .eqv. .True.) deallocate(sldpth)
-  allocate(sldpth(ncells,nsoil)) !soil layer thickness
-  if (allocated(hdiv) .eqv. .True.) deallocate(hdiv)
-  allocate(hdiv(ncells,nsoil)) !horizontal divergence
-  
-  !Set initial values
-  
-  !Single layer
-  z_ml = badval
-  lwdn = badval
-  swdn = badval
-  p_ml = badval
-  psfc = badval
-  prcp = badval
-  t_ml = badval
-  q_ml = badval
-  u_ml = badval
-  v_ml = badval
-  fsh = badval
-  ssoil = badval
-  salb = badval 
-  fsno = badval
-  sndpth = badval
-  emissi = badval
-  qsfc1d = badval
-  tv = badval
-  tg = badval
-  canice = badval
-  canliq = badval
-  eah = badval
-  tah = badval
-  cm = badval
-  ch = badval
-  fwet = badval
-  sneqvo = badval
-  albold = badval
-  qsnow = badval
-  wslake = badval
-  zwt = badval
-  wa = badval
-  wt = badval
-  smcwtd = badval
-  deeprech = badval
-  rech = badval
-  lfmass = badval
-  stmass = badval
-  wood = badval
-  stblcp = badval
-  fastcp = badval
-  plai = badval
-  psai = badval
-  tauss = badval
-  t2mv = badval
-  t2mb = badval
-  q2mv = badval
-  q2mb = badval
-  trad = badval
-  nee = badval
-  gpp = badval
-  npp = badval
-  fvegmp = badval
-  etran = badval
-  esoil = badval
-  fsa = badval
-  fira = badval
-  apar = badval
-  psn = badval
-  sav = badval
-  sag = badval
-  rssun = badval
-  rssha = badval
-  bgap = badval
-  wgap = badval
-  tgv = badval
-  tgb = badval
-  chv = badval
-  chb = badval
-  irc = badval
-  irg = badval
-  shc = badval
-  shg = badval
-  evg = badval
-  ghv = badval
-  irb = badval
-  shb = badval
-  evb = badval
-  ghb = badval
-  tr = badval
-  evc = badval
-  chleaf = badval
-  chuc = badval
-  chv2 = badval
-  chb2 = badval
-  cosz = badval
-  lat = badval
-  fveg = badval
-  fvgmax = badval
-  fpice = badval
-  fcev = badval
-  fgev = badval
-  fctr = badval
-  qsnbot = badval
-  ponding = badval
-  ponding1 = badval
-  ponding2 = badval
-  fsr = badval
-  o2pp = badval
-  foln = badval
-  tbot= badval
-  isurban = -9999
-  slopetyp = -9999
-  soiltyp = -9999
-  vegtyp = -9999
-  isnow = -9999
-  ice = -9999
-  isc = -9999
-  ist = -9999
-  si0 = badval
-  si1 = badval
-  zwt0 = badval
-  minzwt = badval
-  co2air = badval
-  o2air = badval
-
-  !Noemi
-  root_depth = badval
-
-  !Multi layer
-  zsoil = badval
-  sh2o = badval
-  smc = badval
-  smceq = badval
-  zsnso = badval
-  snice = badval
-  snliq = badval
-  ficeold = badval
-  hdiv = badval
-
- end subroutine
-
- subroutine initialize_parameters()
-
-  USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
-  implicit none
-  integer :: i
+  integer,intent(in) :: ncells,IOPT_CRS,IOPT_BTR,IOPT_RUN,IOPT_SFC,IOPT_FRZ,IOPT_INF,IOPT_RAD,IOPT_ALB
+  integer,intent(in) :: IOPT_SNF,IOPT_TBOT,IOPT_STC,IDVEG
+  character(len=256),intent(in) :: llanduse,lsoil,vegparm_file,genparm_file,mptable_file
+  real,dimension(ncells),intent(in) :: BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0
+  character(len=256) :: soilparm_file
 
   ! Read our lookup tables and parameter tables:  VEGPARM.TBL, SOILPARM.TBL, GENPARM.TBL
   call soil_veg_gen_parm(llanduse,lsoil,vegparm_file,soilparm_file,genparm_file,&
@@ -820,11 +828,41 @@ contains
 
  end subroutine
 
- subroutine run_model(ncores)
+ subroutine run_model(ncores,yearlen,idveg,ioptcrs,iopt_btr,iopt_run,iopt_sfc,iopt_frz,iopt_inf,iopt_rad,iopt_alb,& !0D,integer
+                      iopt_snf,iopt_tbot,iopt_stc,itime,iz0tlnd,& !0D,integer
+                      dt,dx,julian,& !0D,real
+                      isnow,isurban,slopetyp,soiltyp,vegtyp,ice,isc,ist,root_depth,& !1D,integer
+                      nowdate,& !1D,character
+                      z_ml,lwdn,swdn,p_ml,psfc,prcp,t_ml,q_ml,u_ml,v_ml,fsh,ssoil,salb,fsno,swe,sndpth,emissi,& !1D,real
+                      qsfc1d,tv,tg,canice,canliq,eah,tah,cm,ch,fwet,sneqvo,albold,qsnow,wslake,zwt,dzwt,wa,wt,smcwtd,& !1D,real
+                      deeprech,rech,lfmass,rtmass,stmass,wood,stblcp,fastcp,plai,psai,tauss,t2mv,t2mb,q2mv,q2mb,& !1D,real
+                      trad,nee,gpp,npp,fvegmp,runsf,runsb,ecan,etran,esoil,fsa,fira,apar,psn,sav,sag,rssun,rssha,& !1D,real
+                      bgap,wgap,tgv,tgb,chv,chb,irc,irg,shc,shg,evg,ghv,irb,shb,evb,ghb,tr,evc,chleaf,chuc,chv2,& !1D,real
+                      chb2,cosz,lat,lon,fveg,fvgmax,fpice,fcev,fgev,fctr,qsnbot,ponding,ponding1,ponding2,fsr,& !1D,real
+                      co2pp,o2pp,foln,tbot,smcmax,smcdry,smcref,errwat,si0,si1,zwt0,minzwt,co2air,o2air,bb0,& !1D,real
+                      drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0,satdw0,wltsmc0,qtz0,& !1D,real
+                      stc,sh2o,smc,smceq,zsnso,snice,snliq,ficeold,zsoil,sldpth,hdiv,&!2D,real
+                      ncells,nsoil,nsnow)
 
   implicit none
   integer :: i,ncores,omp_get_thread_num
   real*8 :: ostart,oend,ostart1,oend1,omp_get_wtime,tmp
+  integer,intent(inout) :: ncells,nsoil,nsnow,yearlen,idveg,ioptcrs,iopt_btr,iopt_run,iopt_sfc,iopt_frz,iopt_inf,iopt_rad,iopt_alb,&
+                        iopt_snf,iopt_tbot,iopt_stc,itime,iz0tlnd
+  real,intent(inout) :: dt,dx,julian
+  character(len=19),intent(inout) :: nowdate
+  integer,dimension(ncells),intent(inout) :: isnow,isurban,slopetyp,soiltyp,vegtyp,ice,isc,ist,root_depth
+  real,dimension(ncells),intent(inout) :: z_ml,lwdn,swdn,p_ml,psfc,prcp,t_ml,q_ml,u_ml,v_ml,fsh,ssoil,salb,fsno,swe,sndpth,emissi,&
+                                          qsfc1d,tv,tg,canice,canliq,eah,tah,cm,ch,fwet,sneqvo,albold,qsnow,wslake,zwt,dzwt,wa,wt,smcwtd,&
+                                          deeprech,rech,lfmass,rtmass,stmass,wood,stblcp,fastcp,plai,psai,tauss,t2mv,t2mb,q2mv,q2mb,&
+                                          trad,nee,gpp,npp,fvegmp,runsf,runsb,ecan,etran,esoil,fsa,fira,apar,psn,sav,sag,rssun,rssha,&
+                                          bgap,wgap,tgv,tgb,chv,chb,irc,irg,shc,shg,evg,ghv,irb,shb,evb,ghb,tr,evc,chleaf,chuc,chv2,&
+                                          chb2,cosz,lat,lon,fveg,fvgmax,fpice,fcev,fgev,fctr,qsnbot,ponding,ponding1,ponding2,fsr,&
+                                          co2pp,o2pp,foln,tbot,smcmax,smcdry,smcref,errwat,si0,si1,zwt0,minzwt,co2air,o2air,bb0,&
+                                          drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0,satdw0,wltsmc0,qtz0 
+  real,intent(inout),dimension(ncells,-nsnow+1:nsoil) :: zsnso,stc
+  real,intent(inout),dimension(ncells,-nsnow+1:0) :: snice,snliq,ficeold
+  real,dimension(ncells,nsoil),intent(inout) :: sh2o,smc,smceq,zsoil,sldpth,hdiv
   call OMP_SET_NUM_THREADS(ncores)
   !$OMP PARALLEL
   !$OMP DO
@@ -867,7 +905,7 @@ contains
 
  end subroutine
 
-end module model
+!end module model
 
 subroutine run_model_cell(&
             LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
@@ -1089,7 +1127,7 @@ subroutine run_model_cell(&
 
     !Calculate the soil moisture deficit
     zwt0 = zwt
-    call Calculate_Deficit(si0,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
+    !call Calculate_Deficit(si0,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
     CALL NOAHMP_SFLX (&
             I       , J       , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
             DT      , DX      , DZ8W1D  , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
@@ -1122,9 +1160,6 @@ subroutine run_model_cell(&
      !Add in QSPRING
      runsb = runsb+1000*qspring/dt! (Dynamic TOPMODEL ONLY)
 
-    !Calculate the soil moisture deficit
-    call Calculate_Deficit(si1,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
-
 end subroutine run_model_cell
 
 !-----------------------------------------------------------------
@@ -1147,7 +1182,6 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 
   character*128 :: mess , message
   logical, external :: wrf_dm_on_monitor
-
 
 !-----SPECIFY VEGETATION RELATED CHARACTERISTICS :
 !             ALBBCK: SFC albedo (in percentage)
@@ -1390,12 +1424,12 @@ SUBROUTINE SOIL_VEG_GEN_PARM( MMINLU, MMINSL, VEGPARM_FILE, SOILPARM_FILE,GENPAR
 !-----------------------------------------------------------------
 END SUBROUTINE SOIL_VEG_GEN_PARM
 !-----------------------------------------------------------------
-
+!
 logical function wrf_dm_on_monitor() result(l)
   l = .TRUE.
   return
 end function wrf_dm_on_monitor
-
+!
 SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ)
 
   USE MODULE_DATE_UTILITIES
@@ -1880,26 +1914,3 @@ ENDIF
          !print*,'final',1000*(wb1 - wb0 - totwater0 + qspring),1000*totwater0,1000*totwater,-wtd
   
 END SUBROUTINE UPDATEWTD
-
-subroutine Calculate_Deficit(si,smcmax,smcwtd,zwt,sldpth,smc,nsoil)
-
- implicit none
- integer :: nsoil
- real,intent(inout) :: si
- real,intent(in) :: smcmax,smcwtd,zwt
- real,intent(in),dimension(nsoil) :: sldpth,smc
- integer :: isoil
-
- si = 0.0
- !Iterate though all soil layers
- do isoil = 1,nsoil
-
-  !Calculate the empty space
-  si = si + smcmax*sldpth(isoil) - smc(isoil)*sldpth(isoil)
-
- enddo
-
- !Add in the transmission zone deficit
- if (abs(zwt) .gt. sum(sldpth)) si = si + (abs(zwt) - sum(sldpth))*(smcmax - smcwtd)
-
-end subroutine Calculate_Deficit

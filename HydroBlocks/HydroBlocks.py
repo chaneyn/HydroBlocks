@@ -8,11 +8,11 @@ import sys
 import scipy.sparse as sparse
 import pickle
 
-#def assign_string(nelem,pstring):
-def assign_string(dtype,pstring):
+def assign_string(nelem,pstring):
+ #def assign_string(dtype,pstring):
 
  #print(str(dtype))
- nelem = int(str(dtype)[2:])
+ #nelem = int(str(dtype)[2:])
  #nelem = len)
  tmp = np.chararray(shape=(nelem,))
  tmp[:] = ' '
@@ -161,25 +161,29 @@ class HydroBlocks:
  def initialize_noahmp(self,):
 
   #Initialize noahmp
-  from pyNoahMP.NoahMP import model as noahmp
-  self.noahmp = noahmp
+  #from pyNoahMP.NoahMP import model as noahmp
+  import pyNoahMP.NoahMP
+  self.noahmp = pyNoahMP.NoahMP
 
   #Initialize parameters
   self.noahmp.ncells = self.nhru
   self.noahmp.nsoil = self.nsoil
   self.noahmp.dt = self.dt
   self.noahmp.nsnow = 3
-  #self.noahmp.llanduse[:] = 'MODIFIED_IGBP_MODIS_NOAH'
-  self.noahmp.llanduse = assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
-  #self.noahmp.lsoil[:] = 'CUST'
-  self.noahmp.lsoil = assign_string(self.noahmp.lsoil.dtype,'CUST')
+  self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
+  #assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
+  self.noahmp.lsoil = 'CUST'
+  #self.noahmp['lsoil'] = assign_string(self.noahmp.lsoil.dtype,'CUST')
   dir = os.path.dirname(os.path.abspath(__file__))
   VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % dir
-  self.noahmp.vegparm_file = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
-  self.noahmp.genparm_file = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
-  self.noahmp.mptable_file = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
+  self.noahmp.vegparm_file = VEGPARM
+  self.noahmp.genparm_file = GENPARM
+  self.noahmp.mptable_file = MPTABLE
+  #self.noahmp['vegparm_file'] = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
+  #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
+  #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
   self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -195,17 +199,44 @@ class HydroBlocks:
   self.noahmp.iopt_tbot = 2#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_stc = 2#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
 
-  #Allocate memory
-  self.noahmp.initialize_general()
+  #Initialize variables
 
-  print(self.noahmp.sldpth.shape)
+  #Allocate memory
+  #1d,integer
+  vars = ['isnow','isurban','slopetyp','soiltyp','vegtyp','ice','isc','ist','root_depth']
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.int32)' % var)
+  #1d,real
+  vars = ['z_ml','lwdn','swdn','p_ml','psfc','prcp','t_ml','q_ml','u_ml','v_ml','fsh','ssoil','salb',\
+          'fsno','swe','sndpth','emissi','qsfc1d','tv','tg','canice','canliq','eah','tah','cm','ch',\
+          'fwet','sneqvo','albold','qsnow','wslake','zwt','dzwt','wa','wt','smcwtd','deeprech','rech',\
+          'lfmass','rtmass','stmass','wood','stblcp','fastcp','plai','psai','tauss','t2mv','t2mb','q2mv',\
+          'q2mb','trad','nee','gpp','npp','fvegmp','runsf','runsb','ecan','etran','esoil','fsa','fira',\
+          'apar','psn','sav','sag','rssun','rssha','bgap','wgap','tgv','tgb','chv','chb','irc','irg','shc',\
+          'shg','evg','ghv','irb','shb','evb','ghb','tr','evc','chleaf','chuc','chv2','chb2','cosz','lat',\
+          'lon','fveg','fvgmax','fpice','fcev','fgev','fctr','qsnbot','ponding','ponding1','ponding2','fsr',\
+          'co2pp','o2pp','foln','tbot','smcmax','smcdry','smcref','errwat','si0','si1','zwt0','minzwt','co2air',\
+          'o2air','bb0','drysmc0','f110','maxsmc0','refsmc0','satpsi0','satdk0','satdw0','wltsmc0','qtz0']
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.float32)' % var)
+  #2d,real
+  #vars = ['stc','sh2o','smc','smceq','zsnso','snice','snliq','ficeold','zsoil','sldpth','hdiv']
+  vars = ['sh2o','smc','smceq','zsoil','sldpth','hdiv']
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros((self.nhru,self.nsoil),order=\'F\').astype(np.float32)' % var)
+  self.noahmp.zsnso = np.zeros((self.nhru,self.noahmp.nsoil+self.noahmp.nsnow),order='F').astype(np.float32)
+  self.noahmp.stc = np.zeros((self.nhru,self.noahmp.nsoil+self.noahmp.nsnow),order='F').astype(np.float32)
+  self.noahmp.snice = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
+  self.noahmp.snliq = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
+  self.noahmp.ficeold = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
+  #self.noahmp.initialize_general()
   #Set info
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
-  self.noahmp.z_ml[:] = np.sum(self.noahmp.sldpth) 
-  self.noahmp.zsoil[:] = -np.cumsum(self.noahmp.sldpth[:],axis=1)
+  self.noahmp.z_ml[:] = 2.0
+  self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
-  self.noahmp.zsnso[:,3::] = self.noahmp.zsoil[:]
+  self.noahmp.zsnso[:,3:] = self.noahmp.zsoil[:]
   
   #Set all to land (can include lake in the future...)
   self.noahmp.ist[:] = 1
@@ -289,7 +320,7 @@ class HydroBlocks:
   #Initialize output
   self.noahmp.tg[:] = 285.0
   self.noahmp.tv[:] = 285.0
-  for ilayer in range(self.noahmp.nsnow-1,self.noahmp.stc.shape[1]):
+  for ilayer in range(self.noahmp.nsnow,self.noahmp.stc.shape[1]):
    self.noahmp.stc[:,ilayer] = 285.0
   self.noahmp.tah[:] = 285.0
   self.noahmp.t2mv[:] = 285.0
@@ -302,7 +333,13 @@ class HydroBlocks:
   self.noahmp.tbot[:] = 285.0
 
   #Define the parameters
-  self.noahmp.initialize_parameters()
+  noah = self.noahmp
+  self.noahmp.initialize_parameters(noah.llanduse,noah.lsoil,noah.vegparm_file,\
+         noah.genparm_file,noah.iopt_crs,noah.iopt_btr,noah.iopt_run,noah.iopt_sfc,\
+         noah.iopt_frz,noah.iopt_inf,noah.iopt_rad,noah.iopt_alb,noah.iopt_snf,\
+         noah.iopt_tbot,noah.iopt_stc,noah.idveg,noah.mptable_file,noah.bb0,\
+         noah.drysmc0,noah.f110,noah.maxsmc0,\
+         noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,noah.wltsmc0,noah.qtz0)
 
   return
 
@@ -417,7 +454,8 @@ class HydroBlocks:
 
   self.noahmp.itime = self.itime
   dt = self.dt
-  self.noahmp.nowdate = assign_string(self.noahmp.nowdate.dtype,date.strftime('%Y-%m-%d_%H:%M:%S'))
+  self.noahmp.nowdate = assign_string(19,date.strftime('%Y-%m-%d_%H:%M:%S'))
+  #self.noahmp.nowdate = date.strftime('%Y-%m-%d_%H:%M:%S')
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
@@ -482,15 +520,42 @@ class HydroBlocks:
   self.update_subsurface()
 
   # Update NOAH
-  self.noahmp.run_model(self.ncores)
+  noah = self.noahmp
+  self.noahmp.run_model(self.ncores,noah.yearlen,noah.idveg,noah.iopt_crs,noah.iopt_btr,\
+                        noah.iopt_run,noah.iopt_sfc,noah.iopt_frz,noah.iopt_inf,noah.iopt_rad,\
+                        noah.iopt_alb,noah.iopt_snf,noah.iopt_tbot,noah.iopt_stc,noah.itime,\
+                        noah.iz0tlnd,noah.dt,noah.dx,noah.julian,noah.isnow,noah.isurban,\
+                        noah.slopetyp,noah.soiltyp,noah.vegtyp,noah.ice,noah.isc,noah.ist,\
+                        noah.root_depth,noah.nowdate,noah.z_ml,noah.lwdn,noah.swdn,noah.p_ml,\
+                        noah.psfc,noah.prcp,noah.t_ml,noah.q_ml,noah.u_ml,noah.v_ml,noah.fsh,\
+                        noah.ssoil,noah.salb,noah.fsno,noah.swe,noah.sndpth,noah.emissi,\
+                        noah.qsfc1d,noah.tv,noah.tg,noah.canice,noah.canliq,noah.eah,\
+                        noah.tah,noah.cm,noah.ch,noah.fwet,noah.sneqvo,noah.albold,noah.qsnow,\
+                        noah.wslake,noah.zwt,noah.dzwt,noah.wa,noah.wt,noah.smcwtd,noah.deeprech,\
+                        noah.rech,noah.lfmass,noah.rtmass,noah.stmass,noah.wood,noah.stblcp,\
+                        noah.fastcp,noah.plai,noah.psai,noah.tauss,noah.t2mv,noah.t2mb,noah.q2mv,\
+                        noah.q2mb,noah.trad,noah.nee,noah.gpp,noah.npp,noah.fvegmp,noah.runsf,\
+                        noah.runsb,noah.ecan,noah.etran,noah.esoil,noah.fsa,noah.fira,noah.apar,\
+                        noah.psn,noah.sav,noah.sag,noah.rssun,noah.rssha,noah.bgap,noah.wgap,\
+                        noah.tgv,noah.tgb,noah.chv,noah.chb,noah.irc,noah.irg,noah.shc,noah.shg,\
+                        noah.evg,noah.ghv,noah.irb,noah.shb,noah.evb,noah.ghb,noah.tr,noah.evc,\
+                        noah.chleaf,noah.chuc,noah.chv2,noah.chb2,noah.cosz,noah.lat,noah.lon,\
+                        noah.fveg,noah.fvgmax,noah.fpice,noah.fcev,noah.fgev,noah.fctr,noah.qsnbot,\
+                        noah.ponding,noah.ponding1,noah.ponding2,noah.fsr,noah.co2pp,noah.o2pp,\
+                        noah.foln,noah.tbot,noah.smcmax,noah.smcdry,noah.smcref,noah.errwat,noah.si0,\
+                        noah.si1,noah.zwt0,noah.minzwt,noah.co2air,noah.o2air,noah.bb0,noah.drysmc0,\
+                        noah.f110,noah.maxsmc0,noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,\
+                        noah.wltsmc0,noah.qtz0,noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
+                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv)
+  '''bgap,wgap,tgv,tgb,chv,chb,irc,irg,shc,shg,evg,ghv,irb,shb,evb,ghb,tr,evc,chleaf,chuc,chv2,& !1D,real
+                      stc,sh2o,smc,smceq,zsnso,snice,snliq,ficeold,zsoil,sldpth,hdiv,&!2D,real
+                      ncells,nsoil)'''
 
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 
   # Abstract Surface Water and Groundwater
   #self.hwu.Water_Supply_Abstraction(self,date)
-
-
 
   return
 
