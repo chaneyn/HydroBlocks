@@ -240,6 +240,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #m2 = np.copy(demns)
  m2 = np.copy(mask_all)
  m2[m2 > 0] = 1
+ mall = np.copy(m2)
+ mall[m2 <= 0] = 0
+ mall = mall.astype(np.bool)
  #m2[:] = 1
  print("Calculating accumulated area",flush=True)
  (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
@@ -253,18 +256,28 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Create area for channel delineation
  (ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
- #(ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask_all,ipoints,eares)
+ (ac_all,fdc_all) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mall,ipoints,eares)
  ac[(ac != 0) & (mask == 1)] = area[(ac != 0) & (mask == 1)]
- #ac[(ac != 0)] = area[(ac != 0)]
+ ac_all[(ac_all != 0) & (mall == 1)] = area[(ac_all != 0) & (mall == 1)]
+ ac_all = np.ma.masked_array(ac_all,ac_all<=0)
 
  #Compute the channels
  print("Defining channels",flush=True)
- (channels,channels_wob,channel_topology) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdc,mask)
+ (channels,channels_wob,channel_topology,tmp1) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdc,mask)
+ (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  #Compute channel properties
- db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all)
+ #db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all)
+ #import matplotlib.pyplot as plt
  #channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
+ #plt.imshow(channels_wob)
+ #shreve_order = np.ma.masked_array(shreve_order,shreve_order<=0)
+ #plt.imshow(np.log(ac_all))
+ #plt.imshow(channels_wob)
+ #plt.imshow(shreve_order)
+ #plt.show()
+ #exit()
 
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -278,6 +291,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  print("Defining basins",flush=True)
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
  basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
+ 
+ #Compute channel properties
+ db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,basins_wob,shreve_order)
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
@@ -377,12 +393,14 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  basins[mask != 1] = -9999
  #hand[mask != 1] = -9999
  ti[mask != 1] = -9999
+ shreve_order[mask != 1] = -9999
 
  covariates['slope'] = slope
  covariates['aspect'] = aspect
  covariates['x_aspect'] = np.sin(aspect)
  covariates['y_aspect'] = np.cos(aspect)
  covariates['carea'] = area
+ covariates['shreve_order'] = shreve_order
  #covariates['fdir'] = fdir
  covariates['ti'] = ti
 
@@ -396,12 +414,28 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  cvs = {}
  for var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:
   tmp = np.copy(hp_in[var])
-  cvs[var] = {'min':np.min(hp_in[var]),
-              'max':np.max(hp_in[var]),
+  if var == 'shreve_order':
+   print(tmp)
+   argsort = np.argsort(tmp)
+   print(argsort)
+   tmp[argsort] = np.linspace(0,1,tmp.size)
+   print(tmp)
+  cvs[var] = {'min':np.min(tmp),
+              'max':np.max(tmp),
               't':-9999,
               'd':tmp}
  
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
+ import matplotlib.pyplot as plt
+ tmp = np.ma.masked_array(basins,basins==-9999)
+ print(np.unique(tmp))
+ plt.subplot(121)
+ plt.imshow(tmp)
+ plt.subplot(122)
+ tmp = np.ma.masked_array(basin_clusters,basin_clusters==-9999)
+ plt.imshow(tmp)
+ plt.show()
+ exit()
   
  # remove tiny basins clusters
  ubcs = np.unique(basin_clusters)

@@ -156,50 +156,38 @@ class HydroBlocks:
    date = date + self.dt_timedelta
   self.dates = np.array(dates)
 
+  #Read in all the meteorology for the given time period
+  #determine the first time step for the meteorology
+  var = self.input_fp['meteorology'].variables['time']
+  ndates = var[:]
+  #convert current date to num
+  ndate = nc.date2num(self.idate,units=var.units,calendar=var.calendar)
+  minitial_time = np.where(ndates == ndate)[0][0]
+  #define period to extract
+  idate = nc.date2num(self.idate,units=var.units,calendar=var.calendar)
+  fdate = nc.date2num(self.fdate,units=var.units,calendar=var.calendar)
+  idx  = np.where((ndates >= idate) & (ndates < fdate))[0]
+  self.meteodata = {}
+  for var in ['lwdown','swdown','psurf','wind','tair','spfh','precip']:
+   self.meteodata[var] = self.input_fp['meteorology'][var][idx,:]
+  #Define subtimestep
+  dt = self.dt
+  dt_meteo = (ndates[1] - ndates[0])*3600.0
+  self.nt_timestep = int(dt_meteo/dt)
+
   return
 
  def initialize_noahmp(self,):
 
   #Initialize noahmp
-  #from pyNoahMP.NoahMP import model as noahmp
   import pyNoahMP.NoahMP
   self.noahmp = pyNoahMP.NoahMP
 
   #Initialize parameters
   self.noahmp.ncells = self.nhru
   self.noahmp.nsoil = self.nsoil
-  self.noahmp.dt = self.dt
   self.noahmp.nsnow = 3
-  self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
-  #assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
-  self.noahmp.lsoil = 'CUST'
-  #self.noahmp['lsoil'] = assign_string(self.noahmp.lsoil.dtype,'CUST')
-  dir = os.path.dirname(os.path.abspath(__file__))
-  VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % dir
-  GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % dir
-  MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % dir
-  self.noahmp.vegparm_file = VEGPARM
-  self.noahmp.genparm_file = GENPARM
-  self.noahmp.mptable_file = MPTABLE
-  #self.noahmp['vegparm_file'] = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
-  #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
-  #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
-  #Define the options
-  self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 1#2 # canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
-  self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
-  #Runoff 5 is really messed up
-  self.noahmp.iopt_run = 5#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 1#2 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
-  self.noahmp.iopt_frz = 2#1#1 # supercooled liquid water (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_inf = 2#2 # frozen soil permeability (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_rad = 1 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
-  self.noahmp.iopt_alb = 2 # snow surface albedo (1->BATS; 2->CLASS)
-  self.noahmp.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 2#1#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
-  self.noahmp.iopt_stc = 2#2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
-
-  #Initialize variables
+  self.noahmp.dt = self.dt
 
   #Allocate memory
   #1d,integer
@@ -229,14 +217,42 @@ class HydroBlocks:
   self.noahmp.snice = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.snliq = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.ficeold = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
-  #self.noahmp.initialize_general()
-  #Set info
+
+  #Define data
+  self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
+  #assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
+  self.noahmp.lsoil = 'CUST'
+  #self.noahmp['lsoil'] = assign_string(self.noahmp.lsoil.dtype,'CUST')
+  fdir = os.path.dirname(os.path.abspath(__file__))
+  VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % fdir
+  GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
+  MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % fdir
+  self.noahmp.vegparm_file = VEGPARM
+  self.noahmp.genparm_file = GENPARM
+  self.noahmp.mptable_file = MPTABLE
+  #self.noahmp['vegparm_file'] = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
+  #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
+  #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
+  #Define the options
+  self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.iopt_crs = 1#1 canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
+  #Runoff 5 is really messed up
+  self.noahmp.iopt_run = 2#5 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_sfc = 1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_frz = 2#2 # supercooled liquid water (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_inf = 2#2 # frozen soil permeability (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_rad = 1 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_alb = 2 #2 snow surface albedo (1->BATS; 2->CLASS)
+  self.noahmp.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+  self.noahmp.iopt_tbot = 1#2 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_stc = 2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
-  self.noahmp.z_ml[:] = 2.0
+  self.noahmp.z_ml[:] = 10.0
   self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
-  self.noahmp.zsnso[:,3:] = self.noahmp.zsoil[:]
+  self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
   
   #Set all to land (can include lake in the future...)
   self.noahmp.ist[:] = 1
@@ -299,19 +315,11 @@ class HydroBlocks:
   self.noahmp.f110[:] = 0.0#self.input_fp.groups['parameters'].variables['F11'][:]
   self.noahmp.maxsmc0[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
   self.noahmp.refsmc0[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-  #satpsi = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-  #satpsi[satpsi < 0.1] = 0.1
   self.noahmp.satpsi0[:] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-  #satdk0 = self.input_fp.groups['parameters'].variables['SATDK'][:]
-  #satdk0[satdk0 > 5.0/100.0/3600.0] = 5.0/100.0/3600.0
   self.noahmp.satdk0[:] = self.input_fp.groups['parameters'].variables['SATDK'][:]
-  #print(100*3600*np.max(self.input_fp.groups['parameters'].variables['SATDK'][:]))
-  #exit()
   self.noahmp.satdw0[:] = self.input_fp.groups['parameters'].variables['SATDW'][:]
   self.noahmp.wltsmc0[:] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
   self.noahmp.qtz0[:] = self.input_fp.groups['parameters'].variables['QTZ'][:]
-  #for var in ['QTZ','WLTSMC','SATPSI','SATDW','SATDK','REFSMC','MAXSMC','DRYSMC','BB']:
-  # print(var,np.unique(self.input_fp.groups['parameters'].variables[var][:]))
 
   #Set lat/lon (declination calculation)
   self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
@@ -437,7 +445,9 @@ class HydroBlocks:
    info['date'] = date
 
    #Update output
+   tic0 = time.time()
    self.update_output(date)
+   #print('update output',time.time() - tic0,flush=True)
 
    #Update time step
    date = date + self.dt_timedelta
@@ -459,9 +469,9 @@ class HydroBlocks:
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
   self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
 
-  '''#Update meteorology
-  meteorology = self.input_fp.groups['meteorology']
-  if date == self.idate:
+  #Update meteorology
+  #meteorology = self.input_fp.groups['meteorology']
+  '''if date == self.idate:
    #determine the first time step for the meteorology
    var = meteorology.variables['time']
    ndates = var[:]
@@ -471,6 +481,7 @@ class HydroBlocks:
    self.minitial_itime = np.where(ndates == ndate)[0][0]
   i = self.itime + self.minitial_itime'''
 
+  '''
   #Update meteorology
   meteorology = self.input_fp.groups['meteorology']
   #convert current date to num
@@ -482,13 +493,27 @@ class HydroBlocks:
   self.noahmp.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
   self.noahmp.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
   self.noahmp.psfc[:] = meteorology.variables['psurf'][i,:] #Pa
-  self.noahmp.p_ml[:] = meteorology.variables['psurf'][i,:] #Pa
+  self.noahmp.p_ml[:] = self.noahmp.psfc[:] #Pa
   self.noahmp.u_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
-  self.noahmp.v_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
+  self.noahmp.v_ml[:] = self.noahmp.u_ml[:] #m/s
   self.noahmp.t_ml[:] = meteorology.variables['tair'][i,:] #K
   self.noahmp.q_ml[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
-  self.noahmp.qsfc1d[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
+  self.noahmp.qsfc1d[:] = self.noahmp.q_ml[:] #Kg/Kg
   self.noahmp.prcp[:] = meteorology.variables['precip'][i,:] #mm/s
+  '''
+  
+  #Update meteorology
+  i = int(np.floor(self.itime/self.nt_timestep))
+  self.noahmp.lwdn[:] = self.meteodata['lwdown'][i,:] #W/m2
+  self.noahmp.swdn[:] = self.meteodata['swdown'][i,:] #W/m2
+  self.noahmp.psfc[:] = self.meteodata['psurf'][i,:] #Pa
+  self.noahmp.p_ml[:] = self.noahmp.psfc[:] #Pa
+  self.noahmp.u_ml[:] = (self.meteodata['wind'][i,:]**2/2)**0.5 #m/s
+  self.noahmp.v_ml[:] = self.noahmp.u_ml[:] #m/s
+  self.noahmp.t_ml[:] = self.meteodata['tair'][i,:] #K
+  self.noahmp.q_ml[:] = self.meteodata['spfh'][i,:] #Kg/Kg
+  self.noahmp.qsfc1d[:] = self.noahmp.q_ml[:] #Kg/Kg
+  self.noahmp.prcp[:] = self.meteodata['precip'][i,:] #mm/s
 
   #Set the partial pressure of CO2 and O2
   self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
@@ -547,9 +572,6 @@ class HydroBlocks:
                         noah.f110,noah.maxsmc0,noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,\
                         noah.wltsmc0,noah.qtz0,noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
                         noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv)
-  '''bgap,wgap,tgv,tgb,chv,chb,irc,irg,shc,shg,evg,ghv,irb,shb,evb,ghb,tr,evc,chleaf,chuc,chv2,& !1D,real
-                      stc,sh2o,smc,smceq,zsnso,snice,snliq,ficeold,zsoil,sldpth,hdiv,&!2D,real
-                      ncells,nsoil)'''
 
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
@@ -575,7 +597,8 @@ class HydroBlocks:
    self.richards.dz[:] = self.noahmp.sldpth[:]
 
    #Update subsurface module
-   self.richards.update()
+   #self.richards.update()
+   self.richards.update_numba()
 
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
@@ -645,7 +668,6 @@ class HydroBlocks:
   #Update the variables
   grp = self.output_fp.groups['data']
 
-  
   tmp = {}
   #NoahMP
   tmp['smc'] = np.copy(NOAH.smc) #m3/m3
@@ -706,9 +728,24 @@ class HydroBlocks:
    if self.hwu.hwu_gw_flag == True:                                                                                              tmp['alloc_gw'] = np.copy(HWU.alloc_gw) #m'''
 
   #Output the variables
+  sep = 100
+  if itime == 0:
+   self.output = {}
+   for var in self.metadata['output']['vars']:
+    shp = grp.variables[var].shape
+    self.output[var] = np.zeros((sep,shp[1]))
+  #Fill the data (MISSING!)
+  val = itime % sep
   for var in self.metadata['output']['vars']:
-   grp.variables[var][itime,:] = tmp[var][:]
-
+    self.output[var][val,:] = tmp[var]
+  # self.output[itime] =
+  if (itime+1) % sep == 0:
+   for var in self.metadata['output']['vars']:
+    grp.variables[var][itime-sep+1:itime+1,:] = self.output[var][:]
+  if (itime+1) == self.ntime:
+   val = int(sep*np.ceil((itime - sep)/sep))
+   for var in self.metadata['output']['vars']:
+    grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
 
   return
 
@@ -775,6 +812,7 @@ class HydroBlocks:
   #Create the dimensions
   print('Creating the dimensions',flush=True)
   ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
+  self.ntime = ntime
   nhru = len(fp_in.dimensions['hru'])
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
@@ -868,14 +906,10 @@ class HydroBlocks:
   fp.close()
    
   #Close the LSM
-  self.noahmp.finalize()
   del self.noahmp
 
   #Close the files
   self.input_fp.close()
   self.output_fp.close()
-
-  #Delete self
-  #del self
 
   return

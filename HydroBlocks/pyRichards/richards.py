@@ -61,7 +61,7 @@ class richards:
 
  def calculate_transmissivity(self,psi,ztop,zbot):
   
-  #af = 10.0  #safe
+  #af = 1.0  #safe
   af = 2.0
   m = np.copy(self.m)
   #m[:] = 1000.0
@@ -138,37 +138,126 @@ class richards:
   return -That.multiply(dh).multiply(self.width).multiply(1.0/self.area).multiply(dx.power(-1)).multiply(1000) #mm/s
   #return -Khat.multiply(dh).multiply(self.width).multiply(dz/self.dx/self.area).multiply(1000) #mm/s
 
- def update(self,type='dense'):
-
-  #Determine if sparse or not
-  #if self.nhru <= 1000: type = 'dense'
+ def update(self):
 
   #Iterate per layer
   for il in range(self.theta.shape[1]):
    #Calculate soil moisture potential
    psi = self.calculate_soil_moisture_potential(il)
-   #Calculate hydraulic conductivity
-   #K_x = self.calculate_hydraulic_conductivity(psi)
-   #ztop = np.cumsum(self.dz[0:il],axis=1)
    zbot = np.sum(self.dz[:,0:il+1],axis=1)
    ztop = zbot - self.dz[:,il]
    T = self.calculate_transmissivity(psi,ztop,zbot)
-   #print('T:',T)
    #Calculate hydraulic head
-   #h = self.calculate_hydraulic_head(psi,(ztop+zbot)/2,pw)
    h = self.calculate_hydraulic_head(psi,ztop)
    #Calculate the divergence
-   #if type == 'dense':
-   #q = self.calculate_divergence_dense(h,K_x)#,self.dz[:,il])
    q = self.calculate_divergence_dense(h,T)
-   #print(q)
-   #print(np.sum(q,axis=1))
-   self.hdiv[:,il] = np.sum(q,axis=0) #mm/s
-   #print(3600*self.hdiv)
-   #print self.hdiv[:,il]
-   #elif type == 'sparse': (Needs more work)
-   # q = self.calculate_divergence_sparse(h,T)#,self.dz[:,il])
-   # self.hdiv[:,il] = q.sum(axis=0) #mm/s
+   self.hdiv[:,il] = np.sum(q,axis=0) #mm/s  
 
   return
 
+ def update_numba(self):
+
+  theta = self.theta
+  dz = self.dz
+  hdiv = self.hdiv
+  thetar = self.thetar
+  thetas = self.thetas
+  b = self.b
+  satpsi = self.satpsi
+  m = self.m
+  ksat = self.ksat
+  hand = self.dem
+  w = self.w
+  dx = self.dx
+  area = self.area
+  self.hdiv[:] = update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area)
+
+  return
+ 
+@numba.jit(nopython=True,cache=True)
+def update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
+
+ #Iterate per layer
+ for il in range(theta.shape[1]):
+  #Calculate soil moisture potential
+  psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
+  zbot = np.sum(dz[:,0:il+1],axis=1)
+  ztop = zbot - dz[:,il]
+  T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
+  #Calculate hydraulic head
+  h = calculate_hydraulic_head(hand,psi,ztop)
+  #Calculate the divergence
+  q = calculate_divergence(h,T,w,dx,area)
+  hdiv[:,il] = np.sum(q,axis=0) #mm/s'''
+
+ return hdiv
+
+@numba.jit(nopython=True,cache=True)
+def calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi):
+  
+ eps = 0.01
+ theta = theta[:,il]
+ m = (theta <= (1+eps)*thetar)
+ theta[m] = (1+eps)*thetar[m]
+ psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
+
+ return psi
+
+@numba.jit(nopython=True,cache=True)
+def calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b):
+  
+ af = 1.0#10.0#2.0
+ Ksat_x = af*ksat #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
+ K_x = Ksat_x*np.true_divide(psi,satpsi)**(-2-np.true_divide(3.,b))
+ #Calculate transmissivity at top layer (exponential decay)
+ Ttop = m*K_x*np.exp(-ztop/m)
+ #Calculate transmissivity at bottom of layer (exponential decay)
+ Tbot = m*K_x*np.exp(-zbot/m)
+ T = Ttop - Tbot
+  
+ return T
+
+@numba.jit(nopython=True,cache=True)
+def calculate_hydraulic_head(hand,psi,depth):
+  
+ h = hand - depth - psi
+
+ return h
+
+@numba.jit(nopython=True,cache=True)
+def calculate_divergence(h,T,w,dx,area):
+ 
+ #Calculate dh
+ #dh = h[:,np.newaxis] - h[np.newaxis,:]
+ dh = calculate_dh(h)
+ #Calculate That
+ #That = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
+ That = calculate_That(T)
+ #That[~np.isfinite(That)] = np.nan
+ #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
+ calc_div = -1000.0*That*dh/dx*w/area # mm/s
+ #calc_div[~np.isfinite(calc_div)] = np.nan
+
+ return calc_div
+
+@numba.jit(nopython=True,cache=True)
+def calculate_dh(h):
+
+ dh = np.zeros((h.size,h.size))
+ for i in range(h.size):
+  for j in range(h.size):
+   dh[i,j] = h[i] - h[j]
+   #dh = h[:,np.newaxis] - h[np.newaxis,:]
+
+ return dh
+
+@numba.jit(nopython=True,cache=True)
+def calculate_That(T):
+
+ That = np.zeros((T.size,T.size))
+ for i in range(T.size):
+  for j in range(T.size):
+   That[i,j] = (2*T[i]*T[j])/(T[i] + T[j])
+   #That[i,j] = np.true_divide((2*T[:,np.newaxis]*T[np.newaxis,:]),(T[:,np.newaxis] + T[np.newaxis,:]))
+
+ return That
