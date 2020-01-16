@@ -234,19 +234,19 @@ class HydroBlocks:
   #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  self.noahmp.idveg = 1#4 # dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 1#1 canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
-  self.noahmp.iopt_btr = 1#2 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
+  self.noahmp.idveg = 4 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.iopt_crs = 1#2 canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
-  self.noahmp.iopt_run = 2#5 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
-  self.noahmp.iopt_frz = 2#2 # supercooled liquid water (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_inf = 2#2 # frozen soil permeability (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_rad = 1 # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
-  self.noahmp.iopt_alb = 2 #2 snow surface albedo (1->BATS; 2->CLASS)
-  self.noahmp.iopt_snf = 3 # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 1#2 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
-  self.noahmp.iopt_stc = 2 # snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
+  self.noahmp.iopt_run = 2#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_sfc = 1#2#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_frz = 2#1#2 # supercooled liquid water (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_inf = 2#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_rad = 1#3#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_alb = 2#2 snow surface albedo (1->BATS; 2->CLASS)
+  self.noahmp.iopt_snf = 3#1#3 rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+  self.noahmp.iopt_tbot = 1#2#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_stc = 2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
   self.noahmp.z_ml[:] = 10.0
@@ -255,7 +255,12 @@ class HydroBlocks:
   self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
   
   #Set all to land (can include lake in the future...)
-  self.noahmp.ist[:] = 1
+  lc = self.input_fp.groups['parameters'].variables['land_cover'][:]
+  ist = np.copy(lc).astype(np.int32)
+  ist[:] = 1
+  ist[lc == 17] = 2
+  self.noahmp.ist[:] = ist[:]#1
+  self.noahmp.isurban[:] = 13
   #Set soil color
   self.noahmp.isc[:] = 4#4
   self.noahmp.ice[:] = 0
@@ -674,6 +679,11 @@ class HydroBlocks:
   tmp['g'] = np.copy(NOAH.ssoil) #W/m2
   tmp['sh'] = np.copy(NOAH.fsh) #W/m2
   tmp['lh'] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
+  tmp['shb'] = np.copy(NOAH.shb) #W/m2
+  tmp['evb'] = np.copy(NOAH.evb) #W/m2
+  tmp['swdn'] = np.copy(NOAH.swdn) #W/m2
+  tmp['t2mv'] = np.copy(NOAH.t2mv) #W/m2
+  tmp['t2mb'] = np.copy(NOAH.t2mb) #W/m2
   tmp['qbase'] = NOAH.dt*np.copy(NOAH.runsb) #mm
   tmp['qsurface'] = NOAH.dt*np.copy(NOAH.runsf) #mm
   tmp['runoff'] = NOAH.dt*(np.copy(NOAH.runsf)+np.copy(NOAH.runsb)) #mm 
@@ -767,6 +777,11 @@ class HydroBlocks:
              'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              #'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             "t2mv":{'description':'Vegetated air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
+	     "t2mb":{'description':'Bare air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
+             "shb":{'description':'Bare sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "evb":{'description':'Bare latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "swdn":{'description':'Shortwave down','units':'W/m2','dims':('time','hru',),'precision':4},
              'trad':{'description':'Land surface skin temperature','units':'K','dims':('time','hru',),'precision':2},
              'stc':{'description': 'Snow/soil temperature','units':'K','dims':('time','hru',),'precision':2},
              'tv':{'description': 'Canopy temperature','units':'K','dims':('time','hru',),'precision':2},

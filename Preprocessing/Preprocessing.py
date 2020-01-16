@@ -223,8 +223,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  dem = covariates['dem']
  #Remove pits in dem
  print("Removing pits in dem",flush=True)
- #demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
- demns = dem
+ demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
+ #demns = dem
  covariates['demns'] = demns
  #area_all = covariates['acc']
   
@@ -406,6 +406,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Calculate the subbasin properties
  print("Assembling the subbasin properties",flush=True)
+ #print(eares,np.unique(basins))
  hp_in = terrain_tools.calculate_basin_properties_updated(basins,eares,covariates,hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates'])
 
  #Clustering the basins
@@ -414,28 +415,29 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  cvs = {}
  for var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:
   tmp = np.copy(hp_in[var])
-  if var == 'shreve_order':
-   print(tmp)
-   argsort = np.argsort(tmp)
-   print(argsort)
-   tmp[argsort] = np.linspace(0,1,tmp.size)
-   print(tmp)
+  #print(var,hp_in[var].size,np.mean(hp_in[var]))
+  #if var == 'shreve_order':
+  # #print(tmp)
+  # argsort = np.argsort(tmp)
+  # #print(argsort)
+  # tmp[argsort] = np.linspace(0,1,tmp.size)
+  # #print(tmp)
   cvs[var] = {'min':np.min(tmp),
               'max':np.max(tmp),
               't':-9999,
               'd':tmp}
  
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
- import matplotlib.pyplot as plt
- tmp = np.ma.masked_array(basins,basins==-9999)
- print(np.unique(tmp))
- plt.subplot(121)
- plt.imshow(tmp)
- plt.subplot(122)
- tmp = np.ma.masked_array(basin_clusters,basin_clusters==-9999)
- plt.imshow(tmp)
- plt.show()
- exit()
+ #import matplotlib.pyplot as plt
+ #tmp = np.ma.masked_array(basins,basins==-9999)
+ #print(np.unique(tmp))
+ #plt.subplot(121)
+ #plt.imshow(tmp)
+ #plt.subplot(122)
+ #tmp = np.ma.masked_array(basin_clusters,basin_clusters==-9999)
+ #plt.imshow(tmp)
+ #plt.show()
+ #exit()
   
  # remove tiny basins clusters
  ubcs = np.unique(basin_clusters)
@@ -466,6 +468,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Calculate the hrus (kmeans on each tile of each basin)
  cvs = {}
+ #print(intraband_clust_vars)
+ #print(covariates.keys())
+ #exit()
  for var in intraband_clust_vars:
   cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
               'max':np.max(covariates[var][covariates[var]!=-9999]),
@@ -535,7 +540,10 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   for var in ['BB','DRYSMC','F11','MAXSMC','SATPSI','SATDK','SATDW','QTZ','clay','sand','silt']:
    #print(var,np.unique(covariates[var][idx]))
    if var in ['SATDK','SATDW']:
-    OUTPUT['hru'][var][hru] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
+    try:
+     OUTPUT['hru'][var][hru] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
+    except:
+     OUTPUT['hru'][var][hru] = 1.41E-4
    else:
     OUTPUT['hru'][var][hru] = np.mean(covariates[var][idx])
   OUTPUT['hru']['WLTSMC'][hru] = OUTPUT['hru']['MAXSMC'][hru]*(OUTPUT['hru']['SATPSI'][hru]/150)**(1/OUTPUT['hru']['BB'][hru])
