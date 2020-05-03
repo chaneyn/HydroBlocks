@@ -52,7 +52,6 @@ class HydroBlocks:
   #Initialize routing module
   print("Initializing the routing module",flush=True)
   self.initialize_routing()
-  exit()
 
   #Other metrics
   self.dE = 0.0
@@ -125,13 +124,27 @@ class HydroBlocks:
   self.noahmp.smcwtd[:] = fp['smcwtd'][:]
   self.noahmp.deeprech[:] = fp['deeprech'][:]
   self.noahmp.rech[:] = fp['rech'][:]
+  #routing
+  self.routing.Q0[:] = fp['Q0'][:]
+  self.routing.u0[:] = fp['u0'][:]
+  self.routing.A0[:] = fp['A0'][:]
+  self.routing.Q1[:] = fp['Q1'][:]
+  self.routing.A1[:] = fp['A1'][:]
+  self.routing.dA[:] = fp['dA'][:]
+  self.routing.bcs[:] = fp['bcs'][:]
+  self.routing.qin[:] = fp['qin'][:]
+  self.routing.qout[:] = fp['qout'][:]
   fp.close()
 
   return
  
  def general_information(self,info):
 
+  #Parallel information
+  self.MPI  = info['MPI']
+
   #Define the metadata
+  self.cid = info['cid']
   self.dt = info['dt']
   self.dtt = self.dt#info['dtt']
   self.nsoil = len(info['dz'])#['nsoil']
@@ -145,8 +158,8 @@ class HydroBlocks:
   self.nhru = len(self.input_fp.dimensions['hru'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
-  #self.routing_module = info['routing_module']
-  #self.hwu_flag = info['water_management']['hwu_flag']
+  self.routing_module = info['routing_module']
+  self.hwu_flag = info['water_management']['hwu_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
@@ -365,6 +378,31 @@ class HydroBlocks:
 
  def initialize_routing(self,):
 
+  #Determine what rank has which cid
+  self.comm = self.MPI.COMM_WORLD
+  self.size = self.comm.Get_size()
+  self.rank = self.comm.Get_rank()
+  if self.rank != 0:
+   dest = 0
+   db_ex = {self.cid:self.rank}
+   self.comm.send(db_ex,dest=dest,tag=11)
+  elif self.rank == 0:
+   db = {}
+   db[self.cid] = 0
+   for i in range(1,self.size):
+    db_ex = self.comm.recv(source=i,tag=11)
+    db[list(db_ex.keys())[0]] = db_ex[list(db_ex.keys())[0]]
+  #Wait until completed
+  self.comm.Barrier()
+  #Send the list to all the cores now
+  if self.rank == 0:
+   for i in range(1,self.size):
+    self.comm.send(db,dest=i,tag=11)
+  if self.rank != 0:
+   db = self.comm.recv(source=0,tag=11)
+  #Memorize links
+  self.cid_rank_mapping = db
+
   if self.routing_module == 'kinematic':self.initialize_kinematic()
 
   return
@@ -373,6 +411,26 @@ class HydroBlocks:
 
   from pyRouting import routing
 
+  #Initialize kinematic wave routing
+  self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt)
+
+  return
+
+ def update_routing(self,):
+
+  if self.routing_module == 'kinematic':
+
+   runoff = self.noahmp.runsf+self.noahmp.runsb
+   #Calculate runoff per reach
+   self.routing.qin[:] = self.routing.reach2hru.dot(runoff/1000.0)/self.routing.c_length #m2/s
+   self.routing.qin[self.routing.qin < 0] = 0.0
+
+   #Update routing module
+   self.routing.update(self.dt)
+
+   #Update input variables to noahmp
+   #self.noahmp.hdiv[:] = self.richards.hdiv[:]
+   
   return
 
  def initialize_subsurface(self,):
@@ -566,7 +624,7 @@ class HydroBlocks:
   #self.hwu.Human_Water_Irrigation(self,date)
 
   # Update routing
-  #self.update_routing()
+  self.update_routing()
   
   # Update subsurface
   self.update_subsurface()
@@ -801,6 +859,31 @@ class HydroBlocks:
    for var in self.metadata['output']['vars']:
     grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
 
+  #Output routing variables
+  grp = self.output_fp.groups['data_routing']
+  tmp = {}
+  tmp['A'] = self.routing.A1[:]
+  tmp['Q'] = self.routing.Q1[:]
+
+  sep = 100
+  if itime == 0:
+   self.output_routing = {}
+   for var in self.metadata['output']['routing_vars']:
+    shp = grp.variables[var].shape
+    self.output_routing[var] = np.zeros((sep,shp[1]))
+  #Fill the data (MISSING!)
+  val = itime % sep
+  for var in self.metadata['output']['routing_vars']:
+    self.output_routing[var][val,:] = tmp[var]
+  # self.output[itime] =
+  if (itime+1) % sep == 0:
+   for var in self.metadata['output']['routing_vars']:
+    grp.variables[var][itime-sep+1:itime+1,:] = self.output_routing[var][:]
+  if (itime+1) == self.ntime:
+   val = int(sep*np.ceil((itime - sep)/sep))
+   for var in self.metadata['output']['routing_vars']:
+    grp.variables[var][val:itime+1,:] = self.output_routing[var][0:itime-val+1,:]
+
   return
 
  def create_netcdf_file(self,):
@@ -882,7 +965,9 @@ class HydroBlocks:
              'deficit_lstock':{'description':'Livestock deficit','units':'m','dims':('time','hru',),'precision':4},
              'alloc_lstock':{'description':'Livestock water allocated','units':'m','dims':('time','hru',),'precision':4},
              'alloc_sf':{'description':'Surface water allocated','units':'m','dims':('time','hru',),'precision':4},
-             'alloc_gw':{'description':'Groundwater water allocated','units':'m','dims':('time','hru',),'precision':4}
+             'alloc_gw':{'description':'Groundwater water allocated','units':'m','dims':('time','hru',),'precision':4},
+             'Q':{'description':'Discharge','units':'m3/s','dims':('time','channel',),'precision':4},
+             'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
              }
 
   #Create the dimensions
@@ -893,6 +978,7 @@ class HydroBlocks:
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
   fp_out.createDimension('soil',self.nsoil)
+  fp_out.createDimension('channel',self.routing.nchannel)
 
   #Create the output
   print('Creating the data group',flush=True)
@@ -901,6 +987,15 @@ class HydroBlocks:
    ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
    ncvar.description = metadata[var]['description']
    ncvar.units = metadata[var]['units']
+
+  #Create the routing output
+  print('Creating the routing group',flush=True)
+  grp = fp_out.createGroup('data_routing')
+  for var in self.metadata['output']['routing_vars']:
+   ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
+   ncvar.description = metadata[var]['description']
+   ncvar.units = metadata[var]['units']
+
 
   #Create the metadata
   print('Creating the metadata group',flush=True)
@@ -979,10 +1074,23 @@ class HydroBlocks:
   fp['smcwtd'] = self.noahmp.smcwtd[:]
   fp['deeprech'] = self.noahmp.deeprech[:]
   fp['rech'] = self.noahmp.rech[:]
+  #routing
+  fp['Q0'] = self.routing.Q0[:]
+  fp['u0'] = self.routing.u0[:]
+  fp['A0'] = self.routing.A0[:]
+  fp['Q1'] = self.routing.Q1[:]
+  fp['A1'] = self.routing.A1[:]
+  fp['dA'] = self.routing.dA[:]
+  fp['bcs'] = self.routing.bcs[:]
+  fp['qin'] = self.routing.qin[:]
+  fp['qout'] = self.routing.qout[:]
   fp.close()
    
   #Close the LSM
   del self.noahmp
+ 
+  #Close the routing module
+  del self.routing
 
   #Close the files
   self.input_fp.close()
