@@ -19,9 +19,9 @@ import gc
 from scipy.interpolate import griddata
 import copy
 
-'''dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
-import management_funcs as mgmt_funcs'''
+#dir = os.path.dirname(os.path.abspath(__file__))
+#sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
+#import management_funcs as mgmt_funcs
 
 def plot_data(data):
 
@@ -92,12 +92,14 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'water30':'%s/water30_latlon.tif' % workspace,
   'tree30':'%s/tree30_latlon.tif' % workspace,
   'irrig_land':'%s/irrig_land_latlon.tif' % workspace,
-  'dbedrock':'%s/dbedrock_latlon.tif' % workspace
+  'dbedrock':'%s/dbedrock_latlon.tif' % workspace,
+  'lstmean':'%s/lstmean_latlon.tif' % workspace,
+  'lststd':'%s/lststd_latlon.tif' % workspace
   }
  if hydroblocks_info['water_management']['hwu_agric_flag']:
-   wbd['files']['irrig_land'] = '%s/irrig_land_ea.tif' % workspace
-   wbd['files']['start_growing_season'] = '%s/start_growing_season_ea.tif' % workspace
-   wbd['files']['end_growing_season']   = '%s/end_growing_season_ea.tif' % workspace
+   wbd['files']['irrig_land'] = '%s/irrig_land_latlon.tif' % workspace
+   wbd['files']['start_growing_season'] = '%s/start_growing_season_latlon.tif' % workspace
+   wbd['files']['end_growing_season']   = '%s/end_growing_season_latlon.tif' % workspace
 
  wbd['files_meteorology'] = {
   'lwdown':'%s/lwdown.nc' % workspace,
@@ -149,6 +151,20 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  file_ca = '%s/hru_mapping_latlon.tif' % workspace
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,hru_map)
+
+ #Write out the hand map
+ hand_map = np.copy(output['hand_map'])
+ hand_map[np.isnan(hand_map) == 1] = -9999.0
+ file_ca = '%s/hand_latlon.tif' % workspace
+ metadata['nodata'] = -9999.0
+ gdal_tools.write_raster(file_ca,metadata,hand_map)
+
+ #Write out the basin map
+ basin_map = np.copy(output['basin_map'])
+ basin_map[np.isnan(basin_map) == 1] = -9999.0
+ file_ca = '%s/basins_latlon.tif' % workspace
+ metadata['nodata'] = -9999.0
+ gdal_tools.write_raster(file_ca,metadata,basin_map)
 
  #Write out the channels
  channel_map = np.copy(output['channel_map'])
@@ -251,7 +267,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
  #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
- ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
+ #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
+ ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
@@ -335,10 +352,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #pickle.dump(odb,open('test4.pck','wb'))
  
  #Compute channel cross section information
- odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100))}
+ odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
+       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
+       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
+       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000))}
  for b in db_routing['reach_hand_area']:
   #Define reach length
   c_length = db_channels['length'][b-1]
@@ -349,7 +366,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   c_hand = c_hand[argsort]
   c_area = c_area[argsort]
   #Need to reduce the size of the c_hand array by binning by percentiles (only if necessary)
-  if c_hand.size > 100:
+  if c_hand.size > 1000:
    argsort = np.argsort(c_hand)
    pcts = np.copy(c_hand)
    pcts[argsort] = np.linspace(0,1,c_hand.size)
@@ -371,11 +388,13 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   #Calculate wetted perimeter at each stage
   dP = c_width[0:-1] + 2*np.diff(c_hand)
   P = np.cumsum(dP)
-  odb['P'][b-1,0:P.size] = P[:]
+  odb['P'][b-1,0] = 0.0
+  odb['P'][b-1,1:P.size+1] = P[:]
   #Calculate wetted cross sectional area at each stage
   dA = c_width[0:-1]*np.diff(c_hand)
   A = np.cumsum(dA)
-  odb['A'][b-1,0:A.size] = A[:]
+  odb['A'][b-1,0] = 0.0
+  odb['A'][b-1,1:A.size+1] = A[:]
  db_routing['reach_cross_section'] = copy.deepcopy(odb)
 
  #Calculate topographic index
@@ -498,13 +517,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  HMC_info['basins'] = basins
  HMC_info['tile_position'] = tile_position
  HMC_info['channel_map'] = channels_wob
- tmp = np.ma.masked_array(basins,basins==-9999)
+ #tmp = np.ma.masked_array(basins,basins==-9999)
  #import matplotlib.pyplot as plt
  #plt.imshow(tmp)
  #plt.show()
  #exit()
 
- return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels)
+ #return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels)
+ return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,hand,
+         basins)
 
 def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask):
 
@@ -605,11 +626,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
    OUTPUT['hru']['centroid_lats'][hru] = np.nanmean(covariates['lats'][idx])
    #print OUTPUT['hru']['centroid_lons']  
 
- '''if hydroblocks_info['water_management']['hwu_flag'] == True: 
-  for hru in np.arange(nhru):
-   #HRU distance between the centroids of the hru and all the other hrus 
-   OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
-   OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
+ #if hydroblocks_info['water_management']['hwu_flag'] == True: 
+ # for hru in np.arange(nhru):
+ #  #HRU distance between the centroids of the hru and all the other hrus 
+ #  OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
+ #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0
    
  return OUTPUT
 
@@ -835,8 +856,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs",flush=True)
- (cluster_ids,nhru,hand,HMC_info,covariates,dbc) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
- covariates['hand'] = hand
+ (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
+ covariates['hand'] = new_hand
  hydroblocks_info['nhru'] = nhru
   
  #Create the netcdf file
@@ -869,6 +890,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  #Remember the map of hrus
  OUTPUT['hru_map'] = cluster_ids
  OUTPUT['channel_map'] = HMC_info['channel_map']
+ OUTPUT['hand_map'] = hand
+ OUTPUT['basin_map'] = basins
 
  #Assign the model parameters
  print("Assigning the model parameters",flush=True)
@@ -954,7 +977,7 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   fp.close()
  
  #Downscale the variables
- flag_downscale = True
+ flag_downscale = False
  if flag_downscale == True:db_downscaled_data = Downscale_Meteorology(db_data,mapping_info)
 
  #Finalize data
@@ -963,9 +986,9 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
    pcts = mapping_info[var][hru]['pcts']
    if flag_downscale == False:
     coords = mapping_info[var][hru]['coords']
-    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
-    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
-    tmp = data[:,coords[0],coords[1]]
+    coords[0][coords[0] >= db_data[var].shape[1]] = db_data[var].shape[1] - 1
+    coords[1][coords[1] >= db_data[var].shape[2]] = db_data[var].shape[2] - 1
+    tmp = db_data[var][:,coords[0],coords[1]]
    else:
     tmp = db_downscaled_data[hru][var]
    tmp = pcts*tmp

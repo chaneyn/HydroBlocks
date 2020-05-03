@@ -46,8 +46,13 @@ class HydroBlocks:
   self.initialize_subsurface()
 
   #Initialize human water use module
-  print("Initializing Human Water Management",flush=True)
+  #print("Initializing Human Water Management",flush=True)
   #self.initialize_hwu(info)
+
+  #Initialize routing module
+  print("Initializing the routing module",flush=True)
+  self.initialize_routing()
+  exit()
 
   #Other metrics
   self.dE = 0.0
@@ -140,12 +145,13 @@ class HydroBlocks:
   self.nhru = len(self.input_fp.dimensions['hru'])
   self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
+  #self.routing_module = info['routing_module']
   #self.hwu_flag = info['water_management']['hwu_flag']
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
-  self.m =  self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
-  #self.m[:] = 0.1 #m
+  self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
+  #self.m[:] = 10.0 #m
   self.input_fp_meteo_time = self.input_fp.groups['meteorology'].variables['time']
 
   #Create a list of all the dates
@@ -204,7 +210,8 @@ class HydroBlocks:
           'shg','evg','ghv','irb','shb','evb','ghb','tr','evc','chleaf','chuc','chv2','chb2','cosz','lat',\
           'lon','fveg','fvgmax','fpice','fcev','fgev','fctr','qsnbot','ponding','ponding1','ponding2','fsr',\
           'co2pp','o2pp','foln','tbot','smcmax','smcdry','smcref','errwat','si0','si1','zwt0','minzwt','co2air',\
-          'o2air','bb0','drysmc0','f110','maxsmc0','refsmc0','satpsi0','satdk0','satdw0','wltsmc0','qtz0']
+          'o2air','bb0','drysmc0','f110','maxsmc0','refsmc0','satpsi0','satdk0','satdw0','wltsmc0','qtz0',\
+          'mozb','fvb','mozv','fvv','zpd','zpdg','tauxb','tauyb','tauxv','tauyv']
   for var in vars:
    exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.float32)' % var)
   #2d,real
@@ -234,18 +241,18 @@ class HydroBlocks:
   #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  self.noahmp.idveg = 4 # dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 1#2 canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.idveg = 3 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.iopt_crs = 2 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
   self.noahmp.iopt_run = 2#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 1#2#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_sfc = 1#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
   self.noahmp.iopt_frz = 2#1#2 # supercooled liquid water (1-> NY06; 2->Koren99)
   self.noahmp.iopt_inf = 2#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_rad = 1#3#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_rad = 1#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
   self.noahmp.iopt_alb = 2#2 snow surface albedo (1->BATS; 2->CLASS)
   self.noahmp.iopt_snf = 3#1#3 rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 1#2#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_tbot = 1#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_stc = 2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
@@ -262,7 +269,7 @@ class HydroBlocks:
   self.noahmp.ist[:] = ist[:]#1
   self.noahmp.isurban[:] = 13
   #Set soil color
-  self.noahmp.isc[:] = 4#4
+  self.noahmp.isc[:] = 4
   self.noahmp.ice[:] = 0
   #Initialize snow info
   self.noahmp.isnow[:] = 0
@@ -343,7 +350,7 @@ class HydroBlocks:
   #forcing
   self.noahmp.fveg[:] = 1.0
   self.noahmp.fvgmax[:] = 1.0
-  self.noahmp.tbot[:] = 285.0
+  self.noahmp.tbot[:] = 290.0#285.0
 
   #Define the parameters
   noah = self.noahmp
@@ -353,6 +360,18 @@ class HydroBlocks:
          noah.iopt_tbot,noah.iopt_stc,noah.idveg,noah.mptable_file,noah.bb0,\
          noah.drysmc0,noah.f110,noah.maxsmc0,\
          noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,noah.wltsmc0,noah.qtz0)
+
+  return
+
+ def initialize_routing(self,):
+
+  if self.routing_module == 'kinematic':self.initialize_kinematic()
+
+  return
+
+ def initialize_kinematic(self,):
+
+  from pyRouting import routing
 
   return
 
@@ -545,6 +564,9 @@ class HydroBlocks:
 
   # Apply irrigation
   #self.hwu.Human_Water_Irrigation(self,date)
+
+  # Update routing
+  #self.update_routing()
   
   # Update subsurface
   self.update_subsurface()
@@ -575,7 +597,9 @@ class HydroBlocks:
                         noah.foln,noah.tbot,noah.smcmax,noah.smcdry,noah.smcref,noah.errwat,noah.si0,\
                         noah.si1,noah.zwt0,noah.minzwt,noah.co2air,noah.o2air,noah.bb0,noah.drysmc0,\
                         noah.f110,noah.maxsmc0,noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,\
-                        noah.wltsmc0,noah.qtz0,noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
+                        noah.wltsmc0,noah.qtz0,noah.mozb,noah.fvb,noah.mozv,noah.fvv,\
+                        noah.zpd,noah.zpdg,noah.tauxb,noah.tauyb,noah.tauxv,noah.tauyv,\
+                        noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
                         noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv)
 
   # Calculate water demands and supplies, and allocate volumes
@@ -679,8 +703,14 @@ class HydroBlocks:
   tmp['g'] = np.copy(NOAH.ssoil) #W/m2
   tmp['sh'] = np.copy(NOAH.fsh) #W/m2
   tmp['lh'] = np.copy(NOAH.fcev + NOAH.fgev + NOAH.fctr) #W/m2
+  tmp['lwnet'] = np.copy(NOAH.fira) #W/m2
+  tmp['swnet'] = np.copy(NOAH.sav + NOAH.sag) #W/m2
   tmp['shb'] = np.copy(NOAH.shb) #W/m2
+  tmp['shc'] = np.copy(NOAH.shc) #W/m2
+  tmp['shg'] = np.copy(NOAH.shg) #W/m2
   tmp['evb'] = np.copy(NOAH.evb) #W/m2
+  tmp['evc'] = np.copy(NOAH.evc) #W/m2
+  tmp['evg'] = np.copy(NOAH.evg) #W/m2
   tmp['swdn'] = np.copy(NOAH.swdn) #W/m2
   tmp['t2mv'] = np.copy(NOAH.t2mv) #W/m2
   tmp['t2mb'] = np.copy(NOAH.t2mb) #W/m2
@@ -696,6 +726,20 @@ class HydroBlocks:
   tmp['swe'] = np.copy(NOAH.swe) #m
   tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
+  tmp['mozb'] = np.copy(NOAH.mozb)
+  tmp['mozv'] = np.copy(NOAH.mozv)
+  tmp['fvb'] = np.copy(NOAH.fvb)
+  tmp['fvv'] = np.copy(NOAH.fvv)
+  tmp['fveg'] = np.copy(NOAH.fvegmp)
+  tmp['zpd'] = np.copy(NOAH.zpd)
+  tmp['zpdg'] = np.copy(NOAH.zpdg)
+  tmp['tauxb'] = np.copy(NOAH.tauxb)
+  tmp['tauyb'] = np.copy(NOAH.tauyb)
+  tmp['tauxv'] = np.copy(NOAH.tauxv)
+  tmp['tauyv'] = np.copy(NOAH.tauyv)
+  tmp['cm'] = np.copy(NOAH.cm)
+  tmp['ch'] = np.copy(NOAH.ch)
+
 
   # root zone
   cs = np.cumsum(NOAH.sldpth[0,:])
@@ -775,12 +819,29 @@ class HydroBlocks:
              'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
-             #'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
-             #'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              "t2mv":{'description':'Vegetated air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
 	     "t2mb":{'description':'Bare air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
+	     "fveg":{'description':'Vegetated fraction','units':'','dims':('time','hru',),'precision':4},
+	     "mozb":{'description':'Bare stability parameter','units':'','dims':('time','hru',),'precision':4},
+	     "mozv":{'description':'Vegetated stability parameter','units':'','dims':('time','hru',),'precision':4},
+	     "zpd":{'description':'Vegetated zero plane displacement','units':'','dims':('time','hru',),'precision':4},
+	     "zpdg":{'description':'Ground zero plane displacement','units':'','dims':('time','hru',),'precision':4},
+             "cm":{'description':'Momentum drag coefficient','units':'','dims':('time','hru',),'precision':4},
+             "ch":{'description':'Sensible heat exchange coefficient','units':'','dims':('time','hru',),'precision':4},
+	     "tauxb":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
+	     "tauyb":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
+	     "tauxv":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
+	     "tauyv":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
+	     "fvb":{'description':'Bare friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
+	     "fvv":{'description':'Vegetated friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
              "shb":{'description':'Bare sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "shc":{'description':'Vegetated canopy sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "shg":{'description':'Vegetated ground sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "evb":{'description':'Bare latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "evc":{'description':'Vegetated canopy latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
+             "evg":{'description':'Vegetated ground latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "swdn":{'description':'Shortwave down','units':'W/m2','dims':('time','hru',),'precision':4},
              'trad':{'description':'Land surface skin temperature','units':'K','dims':('time','hru',),'precision':2},
              'stc':{'description': 'Snow/soil temperature','units':'K','dims':('time','hru',),'precision':2},

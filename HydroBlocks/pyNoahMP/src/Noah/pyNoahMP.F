@@ -234,6 +234,7 @@
                       chb2,cosz,lat,lon,fveg,fvgmax,fpice,fcev,fgev,fctr,qsnbot,ponding,ponding1,ponding2,fsr,& !1D,real
                       co2pp,o2pp,foln,tbot,smcmax,smcdry,smcref,errwat,si0,si1,zwt0,minzwt,co2air,o2air,bb0,& !1D,real
                       drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0,satdw0,wltsmc0,qtz0,& !1D,real
+                      mozb,fvb,mozv,fvv,zpd,zpdg,tauxb,tauyb,tauxv,tauyv, & !1D,real
                       stc,sh2o,smc,smceq,zsnso,snice,snliq,ficeold,zsoil,sldpth,hdiv,&!2D,real
                       ncells,nsoil,nsnow)
 
@@ -253,6 +254,7 @@
                                           chb2,cosz,lat,lon,fveg,fvgmax,fpice,fcev,fgev,fctr,qsnbot,ponding,ponding1,ponding2,fsr,&
                                           co2pp,o2pp,foln,tbot,smcmax,smcdry,smcref,errwat,si0,si1,zwt0,minzwt,co2air,o2air,bb0,&
                                           drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0,satdw0,wltsmc0,qtz0 
+  real,dimension(ncells),intent(inout) :: MOZB,FVB,MOZV,FVV,ZPD,ZPDG,TAUXB,TAUYB,TAUXV,TAUYV
   real,intent(inout),dimension(ncells,-nsnow+1:nsoil) :: zsnso,stc
   real,intent(inout),dimension(ncells,-nsnow+1:0) :: snice,snliq,ficeold
   real,dimension(ncells,nsoil),intent(inout) :: sh2o,smc,smceq,zsoil,sldpth,hdiv
@@ -291,7 +293,9 @@
             GHB(i)     , IRG(i)     , IRC(i)     , IRB(i)     , TR(i)      , EVC(i)     , & ! OUT :
             CHLEAF(i)  , CHUC(i)    , CHV2(i)    , CHB2(i)    , FPICE(i), &
             SOILTYP(i), SLOPETYP(i),LON(i),NOWDATE,ITIME,SLDPTH(i,:),DZWT(i),ERRWAT(i),si0(i),si1(i), &
-            zwt0(i),minzwt(i),ROOT_DEPTH(i)) ! OTHER
+            zwt0(i),minzwt(i),ROOT_DEPTH(i),&
+            MOZB(i),FVB(i),MOZV(i),FVV(i),ZPD(i),ZPDG(i),&
+            tauxb(i),tauyb(i),tauxv(i),tauyv(i))
   enddo
   !$OMP END DO
   !$OMP END PARALLEL
@@ -328,7 +332,9 @@ subroutine run_model_cell(&
             SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 	    GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
 	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE, &
-            SOILTYP, SLOPETYP,LON,NOWDATE,ITIME,SLDPTH,DZWT,ERRWAT,si0,si1,zwt0,minzwt,ROOT_DEPTH) ! OTHER
+            SOILTYP, SLOPETYP,LON,NOWDATE,ITIME,SLDPTH,DZWT,ERRWAT,si0,si1,zwt0,minzwt,ROOT_DEPTH, &
+            MOZB    , FVB     , MOZV    , FVV     , ZPD,ZPDG,&
+            tauxb,tauyb,tauxv,tauyv)
 
   USE module_sf_noahmplsm
   USE module_sf_noahmp_glacier
@@ -458,6 +464,11 @@ subroutine run_model_cell(&
     REAL                                :: CHUC         ! under canopy exchange coefficient 
     REAL                                :: CHV2         ! veg 2m exchange coefficient 
     REAL                                :: CHB2         ! bare 2m exchange coefficient 
+    REAL                                :: MOZB
+    REAL                                :: FVB
+    REAL                                :: MOZV
+    REAL                                :: FVV
+    REAL :: ZPD, ZPDG,tauxb,tauyb,tauxv,tauyv
 
 ! Intermediate terms
 
@@ -548,7 +559,9 @@ subroutine run_model_cell(&
             BGAP    , WGAP    , CHV     , CHB     , EMISSI  ,           & ! OUT : 
             SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 	    GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
-	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE)
+	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE, & ! OUT
+            MOZB    , FVB     , MOZV    , FVV     , ZPD,    ZPDG, &
+            tauxb,tauyb,tauxv,tauyv)
 
      !Add in QSPRING
      runsb = runsb+1000*qspring/dt! (Dynamic TOPMODEL ONLY)

@@ -548,7 +548,9 @@ contains
                    BGAP    , WGAP    , CHV     , CHB     , EMISSI  ,           & ! OUT :
 		   SHG     , SHC     , SHB     , EVG     , EVB     , GHV     , & ! OUT :
 		   GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
-                   CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE               &
+                   CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE             ,  &
+                   MOZB    , FVB     , MOZV    , FVV     , ZPD     , ZPDG    ,  &
+                   TAUXB   , TAUYB   , TAUXV   , TAUYV                          &
 #ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
 #endif
@@ -777,6 +779,12 @@ contains
   REAL                                 :: LATHEAG !latent heat vap./sublimation (j/kg)
   LOGICAL                             :: FROZEN_GROUND ! used to define latent heat pathway
   LOGICAL                             :: FROZEN_CANOPY ! used to define latent heat pathway
+  REAL,INTENT(OUT) :: MOZB
+  REAL,INTENT(OUT) :: FVB
+  REAL,INTENT(OUT) :: MOZV
+  REAL,INTENT(OUT) :: FVV
+  REAL,INTENT(OUT) :: ZPD
+  REAL,INTENT(OUT) :: ZPDG,TAUXB,TAUYB,TAUXV,TAUYV
 
   ! INTENT (OUT) variables need to be assigned a value.  These normally get assigned values
   ! only if DVEG == 2.
@@ -880,8 +888,9 @@ contains
                  T2MV   ,T2MB  ,FSRV   , &
                  FSRG   ,RSSUN   ,RSSHA ,BGAP   ,WGAP, TGV,TGB,&
                  Q1     ,Q2V    ,Q2B    ,Q2E    ,CHV   ,CHB     , & !out
-                 EMISSI,&
-		     SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2 )                                            !out
+                 EMISSI,SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC, &
+                 CHLEAF,CHUC,CHV2,CHB2,MOZB,FVB,MOZV,FVV,ZPD,ZPDG,&
+                 TAUXB,TAUYB,TAUXV,TAUYV)
 !jref:end
 
     SICE(:) = MAX(0.0, SMC(:) - SH2O(:))   
@@ -1261,7 +1270,9 @@ contains
                      T2MV   ,T2MB   ,FSRV   , &
                      FSRG   ,RSSUN  ,RSSHA  ,BGAP   ,WGAP,TGV,TGB,&
                      Q1     ,Q2V    ,Q2B    ,Q2E    ,CHV  ,CHB, EMISSI,&
-		     SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2 )   !out 
+		     SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2,&
+                     MOZB   ,FVB    ,MOZV   ,FVV, ZPD, ZPDG,&
+                     TAUXB,TAUYB,TAUXV,TAUYV)   !out 
 !jref:end                            
 
 ! --------------------------------------------------------------------------------------------------
@@ -1512,6 +1523,10 @@ contains
 !jref:start  
   REAL,INTENT(OUT)                                  :: CHV2    !sensible heat conductance, canopy air to ZLVL air (m/s)
   REAL,INTENT(OUT)                                  :: CHB2    !sensible heat conductance, canopy air to ZLVL air (m/s)
+  REAL,INTENT(OUT)                                   :: MOZB
+  REAL,INTENT(OUT)                                   :: FVB
+  REAL,INTENT(OUT)                                   :: MOZV
+  REAL,INTENT(OUT)                                   :: FVV
   REAL                                  :: noahmpres
 
 !jref:end  
@@ -1576,7 +1591,7 @@ contains
 ! roughness length and displacement height
 
      ZPDG  = SNOWH
-     IF(VEG) THEN
+     IF((VEG) .or. (VEGTYP == ISURBAN)) THEN
         Z0M  = Z0MVT(VEGTYP)
         ZPD  = 0.65 * HTOP
         IF(SNOWH.GT.ZPD) ZPD  = SNOWH
@@ -1585,9 +1600,17 @@ contains
         ZPD  = ZPDG
      END IF
 
+! roughness length and displacement height for urban areas
+  
+    IF (VEGTYP == ISURBAN) THEN
+     Z0MG = Z0MVT(VEGTYP)
+     ZPDG = 0.65*HTOP
+    ENDIF
+
      ZLVL = MAX(ZPD,HTOP) + ZREF
      IF(ZPDG >= ZLVL) ZLVL = ZPDG + ZREF
 !     UR   = UR*LOG(ZLVL/Z0M)/LOG(10./Z0M)       !input UR is at 10m
+
 
 ! canopy wind absorption coeffcient
 
@@ -1730,10 +1753,10 @@ contains
                     T2MV    ,PSNSUN  ,PSNSHA  ,                   & !out
 !jref:start
                     QC      ,PBLH    ,QSFC    ,PSFC    ,ISURBAN , & !in
-                    IZ0TLND ,Q2V     ,CHV2, CHLEAF, CHUC)               !inout 
+                    IZ0TLND ,Q2V     ,CHV2, CHLEAF, CHUC, &               !inout 
+                    MOZV    ,FVV) !out
 !jref:end                            
     END IF
-
     TGB = TG
     CMB = CM
     CHB = CH
@@ -1748,14 +1771,16 @@ contains
                     GHB     ,T2MB    ,DX      ,DZ8W    ,VEGTYP  , & !out
 !jref:start
                     QC      ,PBLH    ,QSFC    ,PSFC    ,ISURBAN , & !in
-                    IZ0TLND ,SFCPRS  ,Q2B,   CHB2)                          !in 
+                    IZ0TLND ,SFCPRS  ,Q2B,   CHB2, &                 !in 
+                    MOZB    , FVB)                                   !out 
 !jref:end                            
 
 !energy balance at vege canopy: SAV          =(IRC+SHC+EVC+TR)     *FVEG  at   FVEG 
 !energy balance at vege ground: SAG*    FVEG =(IRG+SHG+EVG+GHV)    *FVEG  at   FVEG
 !energy balance at bare ground: SAG*(1.-FVEG)=(IRB+SHB+EVB+GHB)*(1.-FVEG) at 1-FVEG
 
-    IF (VEG .AND. FVEG > 0) THEN 
+    !IF (VEG .AND. FVEG > 0) THEN 
+    IF (VEG .AND. FVEG > 0) THEN
         TAUX  = FVEG * TAUXV     + (1.0 - FVEG) * TAUXB
         TAUY  = FVEG * TAUYV     + (1.0 - FVEG) * TAUYB
         FIRA  = FVEG * IRG       + (1.0 - FVEG) * IRB       + IRC
@@ -1918,13 +1943,18 @@ contains
        HCPCT(IZ) = SH2O(IZ)*CWAT + (1.0-SMCMAX)*CSOIL &
                 + (SMCMAX-SMC(IZ))*CPAIR + SICE(IZ)*CICE
        CALL TDFCND (DF(IZ), SMC(IZ), SH2O(IZ))
+       if (VEGTYP == ISURBAN) THEN
+        CALL TDFCND (DF(IZ), 0.01, 0.01)
+        !DF(IZ) = 10**(-4.0)
+       endif
     END DO
        
-    IF ( VEGTYP == ISURBAN ) THEN
-       DO IZ = 1,NSOIL
-         DF(IZ) = 3.24
-       END DO
-    ENDIF
+    !IF ( VEGTYP == ISURBAN ) THEN
+    !   DO IZ = 1,NSOIL
+    !     DF(IZ) = 10**(-4.0)
+    !     !3.24
+    !   END DO
+    !ENDIF
 
 ! heat flux reduction effect from the overlying green canopy, adapted from 
 ! section 2.1.2 of Peters-Lidard et al. (1997, JGR, VOL 102(D4)).
@@ -3045,7 +3075,8 @@ contains
                        SHC     ,EVG     ,EVC     ,TR      ,GH      , & !out
                        T2MV    ,PSNSUN  ,PSNSHA  ,                   & !out
                        QC      ,PBLH    ,QSFC    ,PSFC    ,ISURBAN , & !in
-                       IZ0TLND ,Q2V     ,CAH2,CHLEAF,CHUC)              !inout 
+                       IZ0TLND ,Q2V     ,CAH2,CHLEAF,CHUC, &           !inout 
+                       MOZ    ,FV)
 
 ! --------------------------------------------------------------------------------------------------
 ! use newton-raphson iteration to solve for vegetation (tv) and
@@ -3163,7 +3194,7 @@ contains
 
 ! ------------------------ local variables ----------------------------------------------------
   REAL :: CW           !water vapor exchange coefficient
-  REAL :: FV           !friction velocity (m/s)
+  REAL,INTENT(OUT) :: FV          !friction velocity (m/s)
   REAL :: WSTAR        !friction velocity n vertical direction (m/s) (only for SFCDIF2)
   REAL :: Z0H          !roughness length, sensible heat (m)
   REAL :: Z0HG         !roughness length, sensible heat (m)
@@ -3216,7 +3247,7 @@ contains
   REAL :: KH           !turbulent transfer coefficient, sensible heat, (m2/s)
   REAL :: H            !temporary sensible heat flux (w/m2)
   REAL :: HG           !temporary sensible heat flux (w/m2)
-  REAL :: MOZ          !Monin-Obukhov stability parameter
+  REAL,INTENT(OUT) :: MOZ          !Monin-Obukhov stability parameter
   REAL :: MOZG         !Monin-Obukhov stability parameter
   REAL :: MOZOLD       !Monin-Obukhov stability parameter from prior iteration
   REAL :: FM2          !Monin-Obukhov momentum adjustment at 2m
@@ -3258,6 +3289,8 @@ contains
   character(len=80) ::  message
 
   TDC(T)   = MIN( 50., MAX(-50.,(T-TFRZ)) )
+  MOZ = -9999.0
+  FV = -9999.0
 ! ---------------------------------------------------------------------------------------------
 
         MPE = 1E-6
@@ -3611,7 +3644,8 @@ contains
                         TAUXB   ,TAUYB   ,IRB     ,SHB     ,EVB     , & !out
                         GHB     ,T2MB    ,DX      ,DZ8W    ,IVGTYP  , & !out
                         QC      ,PBLH    ,QSFC    ,PSFC    ,ISURBAN , & !in
-                        IZ0TLND ,SFCPRS  ,Q2B     ,EHB2)      !in 
+                        IZ0TLND ,SFCPRS  ,Q2B     ,EHB2, &              !in
+                        MOZ     ,FV)      !out
 
 ! --------------------------------------------------------------------------------------------------
 ! use newton-raphson iteration to solve ground (tg) temperature
@@ -3705,7 +3739,7 @@ contains
   REAL :: TAH        !"surface" temperature at height z0h+zpd (k)
 
   REAL :: CW         !water vapor exchange coefficient
-  REAL :: FV         !friction velocity (m/s)
+  REAL,INTENT(OUT) :: FV         !friction velocity (m/s)
   REAL :: WSTAR      !friction velocity n vertical direction (m/s) (only for SFCDIF2)
   REAL :: Z0H        !roughness length, sensible heat, ground (m)
   REAL :: RB         !bulk leaf boundary layer resistance (s/m)
@@ -3745,7 +3779,7 @@ contains
   REAL :: A          !temporary calculation
   REAL :: B          !temporary calculation
   REAL :: H          !temporary sensible heat flux (w/m2)
-  REAL :: MOZ        !Monin-Obukhov stability parameter
+  REAL,INTENT(OUT) :: MOZ   !Monin-Obukhov stability parameter
   REAL :: MOZOLD     !Monin-Obukhov stability parameter from prior iteration
   REAL :: FM         !momentum stability correction, weighted by prior iters
   REAL :: FH         !sen heat stability correction, weighted by prior iters
@@ -3763,6 +3797,8 @@ contains
   SAVE NITERB
   REAL :: T, TDC     !Kelvin to degree Celsius with limit -50 to +50
   TDC(T)   = MIN( 50., MAX(-50.,(T-TFRZ)) )
+  MOZ = -9999.0
+  FV = -9999.0
 
 ! -----------------------------------------------------------------
 ! initialization variables that do not depend on stability iteration
@@ -8669,7 +8705,6 @@ END  SUBROUTINE SHALLOWWATERTABLE
   REAL    :: WSTRES    !water stress coeficient [-]  (1. for wilting )
   REAL    :: LAPM      !leaf area per unit mass [m2/g]
 ! ------------------------------------------------------------------------------------------
-
    IF ( ( VEGTYP == ISWATER ) .OR. ( VEGTYP == ISBARREN ) .OR. ( VEGTYP == ISSNOW ) .or. (VEGTYP == ISURBAN) ) THEN
       XLAI   = 0.
       XSAI   = 0.
