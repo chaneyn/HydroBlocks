@@ -17,6 +17,7 @@ def Read_Metadata_File(file):
 #Read in the metadata file
 metadata_file = sys.argv[1]
 metadata = Read_Metadata_File(metadata_file)
+metadata["covariates"] = {"ti":"n","lc":"n","lats":"n","lons":"n"}
 info = metadata
 info['idate'] = datetime.datetime(metadata['startdate']['year'],
                            metadata['startdate']['month'],

@@ -551,9 +551,7 @@ contains
                    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE             ,  &
                    MOZB    , FVB     , MOZV    , FVV     , ZPD     , ZPDG    ,  &
                    TAUXB   , TAUYB   , TAUXV   , TAUYV                          &
-#ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
-#endif
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -606,10 +604,7 @@ contains
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
   REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV
 !jref:end
-
-#ifdef WRF_HYDRO
   REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
 
 ! input/output : need arbitary intial values
   REAL                           , INTENT(INOUT) :: QSNOW  !snowfall [mm/s]
@@ -915,9 +910,7 @@ contains
                  CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                  QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                  ISURBAN,QSNBOT,FPICE                             &
-#ifdef WRF_HYDRO
                         ,sfcheadrt                     &
-#endif
                  )  !out
 
 !     write(*,'(a20,10F15.5)') 'SFLX:RUNOFF=',RUNSRF*DT,RUNSUB*DT,EDIR*DT
@@ -1224,7 +1217,8 @@ contains
 
 #ifndef WRF_HYDRO
         !IF(ABS(ERRWAT) > 0.1) THEN 
-        IF(ABS(ERRWAT) > 100.0) THEN
+        !IF(ABS(ERRWAT) > 100.0) THEN
+        IF(ABS(ERRWAT) > 100000.0) THEN
            if (ERRWAT > 0) then
               call wrf_message ('The model is gaining water (ERRWAT is positive)')
            else
@@ -6299,9 +6293,7 @@ contains
                     CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                     QIN    ,QDIS   ,QSNOW  ,PONDING1       ,PONDING2,&
                     ISURBAN,QSNBOT,FPICE                             &
-#ifdef WRF_HYDRO
                         ,sfcheadrt                     &
-#endif
                     )  !out
 ! ----------------------------------------------------------------------  
 ! Code history:
@@ -6400,9 +6392,7 @@ contains
 
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
-#ifdef WRF_HYDRO
   REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
 
 ! ----------------------------------------------------------------------
 ! initialize
@@ -6471,9 +6461,9 @@ contains
        ETRANI(IZ) = ETRAN * BTRANI(IZ) * 0.001
     ENDDO
 
-#ifdef WRF_HYDRO
        QINSUR = QINSUR+sfcheadrt/DT*0.001  !sfcheadrt units (m)
-#endif
+
+! add reinfiltration here
 
 ! lake/soil water balances
 
@@ -6656,7 +6646,8 @@ contains
 ! fractional area that receives precipitation (see, Niu et al. 2005)
    
     IF(QPRECC + QPRECL > 0.) & 
-       FP = (QPRECC + QPRECL) / (10.*QPRECC + QPRECL)
+       !FP = (QPRECC + QPRECL) / (10.*QPRECC + QPRECL)
+       FP = 1.0!(QPRECC + QPRECL) / (10.*QPRECC + QPRECL) NWC
 
 ! --------------------------- liquid water ------------------------------
 ! maximum canopy water
@@ -7729,7 +7720,8 @@ contains
        FFF   = 2.0
        FSAT   = FSATMX*EXP(-0.5*FFF*ZWT)
        IF(QINSUR > 0.) THEN
-         RUNSRF = QINSUR * ( (1.0-FCR(1))*FSAT + FCR(1) )
+         !RUNSRF = QINSUR * ( (1.0-FCR(1))*FSAT + FCR(1) )
+         RUNSRF = 0.0
          PDDUM  = QINSUR - RUNSRF                          ! m/s 
        END IF
     END IF

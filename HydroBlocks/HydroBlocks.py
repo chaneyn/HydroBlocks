@@ -160,6 +160,7 @@ class HydroBlocks:
   self.subsurface_module = info['subsurface_module']
   self.routing_module = info['routing_module']
   self.hwu_flag = info['water_management']['hwu_flag']
+  self.area = self.input_fp.groups['parameters'].variables['area'][:]
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
@@ -224,7 +225,7 @@ class HydroBlocks:
           'lon','fveg','fvgmax','fpice','fcev','fgev','fctr','qsnbot','ponding','ponding1','ponding2','fsr',\
           'co2pp','o2pp','foln','tbot','smcmax','smcdry','smcref','errwat','si0','si1','zwt0','minzwt','co2air',\
           'o2air','bb0','drysmc0','f110','maxsmc0','refsmc0','satpsi0','satdk0','satdw0','wltsmc0','qtz0',\
-          'mozb','fvb','mozv','fvv','zpd','zpdg','tauxb','tauyb','tauxv','tauyv']
+          'mozb','fvb','mozv','fvv','zpd','zpdg','tauxb','tauyb','tauxv','tauyv','sfcheadrt']
   for var in vars:
    exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.float32)' % var)
   #2d,real
@@ -265,7 +266,8 @@ class HydroBlocks:
   self.noahmp.iopt_rad = 1#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
   self.noahmp.iopt_alb = 2#2 snow surface albedo (1->BATS; 2->CLASS)
   self.noahmp.iopt_snf = 3#1#3 rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 1#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  #self.noahmp.iopt_tbot = 1#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_tbot = 2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_stc = 2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
   self.noahmp.iz0tlnd = 0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
@@ -324,6 +326,9 @@ class HydroBlocks:
   self.noahmp.albold[:] = 0.5
   #Define the data
   self.noahmp.vegtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
+  hand = self.input_fp.groups['parameters'].variables['hand'][:]
+  #mask = hand == 0
+  #self.noahmp.vegtyp[mask] = 17#16
   self.noahmp.soiltyp[:] = np.arange(1,self.noahmp.ncells+1)
   self.noahmp.clay_pct  = self.input_fp.groups['parameters'].variables['clay'][:] # Noemi
   self.noahmp.smcmax[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
@@ -412,7 +417,8 @@ class HydroBlocks:
   from pyRouting import routing
 
   #Initialize kinematic wave routing
-  self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt)
+  self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
+                                   self.nhru,self.area)
 
   return
 
@@ -511,7 +517,7 @@ class HydroBlocks:
    #print('update model',time.time() - tic0,flush=True)
    
    #Return precip to original value
-   self.noahmp.prcp[:] = precip[:] 
+   #self.noahmp.prcp[:] = precip[:] 
 
    #Calculate final water balance
    self.finalize_water_balance()
@@ -623,8 +629,37 @@ class HydroBlocks:
   # Apply irrigation
   #self.hwu.Human_Water_Irrigation(self,date)
 
-  # Update routing
-  self.update_routing()
+  #Determine inputs and outputs from routing
+  tmp1 = np.sum(self.routing.c_length*self.routing.A0)
+  #tmp2 = np.sum((self.routing.hru_inundation-self.routing.hru_inundation_available)*self.area)
+  tmp2 = np.sum((self.routing.hru_inundation)*self.area)
+  tmp3 = np.sum(self.routing.reach2hru.dot(self.routing.hru_inundation))
+  #area1 = np.sum(self.routing.reach2hru,axis=0)
+  #area2 = self.area
+  #print(tmp1,tmp2,flush=True)
+  #Add inundation to precipitation
+  fct = 0.99
+  iabs = fct*self.routing.hru_inundation
+  irem = (1-fct)*self.routing.hru_inundation
+  #iabs = self.routing.hru_inundation_available
+  #irem = self.routing.hru_inundation - self.routing.hru_inundation_available
+  tshd = 1.0#0.01 #m
+  m = iabs > tshd#threshold
+  diff = iabs[m] - tshd
+  iabs[m] = tshd
+  irem[m] = irem[m] + diff
+  tmp4 = np.sum(self.routing.reach2hru.dot(irem+iabs))
+  #print(tmp1,tmp2,tmp3,tmp4,flush=True)
+  #print(self.routing.hru_inundation)
+  #self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 ##mm
+  self.noahmp.sfcheadrt[:] = iabs*1000 #mm
+  #Update the water in each reach
+  #self.routing.A1[:] = self.routing.reach2hru.dot(irem)/self.routing.c_length
+  #self.routing.A0[:] = self.routing.reach2hru.dot(irem)/self.routing.c_length
+  self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
+  #NEed to scale qout to A1?
+  #self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
+  #exit()
   
   # Update subsurface
   self.update_subsurface()
@@ -658,13 +693,17 @@ class HydroBlocks:
                         noah.wltsmc0,noah.qtz0,noah.mozb,noah.fvb,noah.mozv,noah.fvv,\
                         noah.zpd,noah.zpdg,noah.tauxb,noah.tauyb,noah.tauxv,noah.tauyv,\
                         noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
-                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv)
+                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv,
+                        noah.sfcheadrt)
 
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 
   # Abstract Surface Water and Groundwater
   #self.hwu.Water_Supply_Abstraction(self,date)
+
+  # Update routing
+  self.update_routing()
 
   return
 
@@ -719,6 +758,8 @@ class HydroBlocks:
   else:
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb))
+  if self.routing_module == 'kinematic':
+   tmp = tmp - np.copy(NOAH.sfcheadrt)
   self.errwat += np.sum(self.pct*tmp)
   self.q = self.q + dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
   self.et = self.et + dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
@@ -797,6 +838,9 @@ class HydroBlocks:
   tmp['tauyv'] = np.copy(NOAH.tauyv)
   tmp['cm'] = np.copy(NOAH.cm)
   tmp['ch'] = np.copy(NOAH.ch)
+  #routing
+  tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
+  tmp['inundation'] = np.copy(self.routing.hru_inundation)
 
 
   # root zone
@@ -968,6 +1012,7 @@ class HydroBlocks:
              'alloc_gw':{'description':'Groundwater water allocated','units':'m','dims':('time','hru',),'precision':4},
              'Q':{'description':'Discharge','units':'m3/s','dims':('time','channel',),'precision':4},
              'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
+             'inundation':{'description':'Inundation height','units':'m','dims':('time','hru',),'precision':4},
              }
 
   #Create the dimensions
