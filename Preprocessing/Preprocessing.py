@@ -242,7 +242,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #Remove pits in dem
  print("Removing pits in dem",flush=True)
  demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
- #demns = dem
  covariates['demns'] = demns
  area_all = covariates['acc']
   
@@ -264,15 +263,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #m2[:] = 1
  print("Calculating accumulated area",flush=True)
  (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
- #area_all = area[:] #This could be defined for entire domain instead
+ #(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mall,eares)
+ area_all = area[:] #This could be defined for entire domain instead
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
  #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
- ipoints = ((C > 10) & (area > 10**4)).astype(np.int32)
- print(np.sum(ipoints),ipoints.size)
+ ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
  #ipoints = (C > 100).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
@@ -284,8 +283,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  ac_all = np.ma.masked_array(ac_all,ac_all<=0)
 
  #Compute the channels
+ print(np.unique(mask_all[mask]))
  print("Defining channels",flush=True)
+ #(channels,channels_wob,channel_topology,tmp1) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdir,mask)
  (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**4,10**4,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
+ #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
  (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
@@ -307,7 +309,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
 
  #Determine inlets/outlets
  os.system('mkdir -p routing')
+ #print(np.unique(mask))
+ #print(np.unique(area))
+ #print(np.unique(mask_all))
+ #print(np.unique(channels_wob))
  db_routing = {}
+ #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
@@ -481,6 +488,20 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
+
+ #Calculate histogram of travel distances per hru
+ t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
+ uhrus = np.unique(hrus)
+ uhrus = uhrus[uhrus != -9999]
+ bins = np.linspace(0,100,101)
+ uhs = []
+ for hru in uhrus:
+   m = hrus == hru
+   hist = np.histogram(t2c[m]/0.1/3600.0,bins=bins,density=True)[0]
+   #hist = hist/np.sum(hist)
+   uhs.append(hist)
+ uhs = {'data':np.array(uhs),'bins':bins[:]}
+ db_routing['uh_per_hru'] = uhs
 
  #Calculate averaged hand per hru per basin
  hand_tmp = {}
@@ -864,6 +885,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  #Set everything outside of the mask to -9999
  for var in covariates:
   if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
+  if var == 'dem':continue 
   covariates[var][mask <= 0] = -9999.0
 
  #Add the mask_all to the covariates

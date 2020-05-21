@@ -30,9 +30,13 @@ class kinematic:
   self.hru_area = hru_area
   self.dt = dt
   self.cid = cid
+  self.uhs = self.db['uhs'][:] #unit hydrographs
+  self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hru (travel time is bug)
   self.c_length = self.db['c_length'][:]
   self.c_n = 0.05#0.1#self.db['c_n'][:]
   self.c_slope = self.db['c_slope'][:]
+  self.c_width = self.db['c_width'][:]
+  self.c_bankfull = self.db['c_bankfull'][:]
   self.nchannel = self.c_length.size
   self.A0 = 10**-5*np.ones(self.c_length.size)
   self.u0 = 10**-5*np.ones(self.c_length.size)
@@ -69,7 +73,7 @@ class kinematic:
   #print(np.unique(self.A0_org),flush=True)
   #print(np.max(self.A0*self.u0))
 
-  max_niter = 3
+  max_niter = 1
   #Update solution
   for itr in range(max_niter):
    #Exchange boundary conditions
@@ -180,12 +184,13 @@ class kinematic:
   Q0 = self.Q0
   u0 = self.u0
   dA = self.dA
-  maxu = 10#0.1
-  minu = 10**-4#0.1
+  maxu = 2.0
+  minu = 10**-6#0.1
   dt = self.dt
 
   #Determine hydraulic radius
-  rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+  rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+  #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
   #Determine velocity
   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
   #Constrain velocity
@@ -209,11 +214,13 @@ class kinematic:
   #A0[A0 < 0] = 0.0
   A1[A1 < 0] = 0.0
   dif1 = np.mean(np.abs(A0 - A1))
+  #if it == 0:print(dif1)
   if (dif1 < 10**-10) | (it == max_niter-1):
    #Reset A0
    A0[:] = A1[:]
    #Determine hydraulic radius
-   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
    u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
@@ -229,7 +236,8 @@ class kinematic:
    A0[:] = A1[:]
    dif0 = dif1
    #Determine hydraulic radius
-   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
    u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
@@ -252,6 +260,22 @@ class kinematic:
   self.qout[:] = qout[:]
 
   return
+
+def calculate_hydraulic_radius_rect(c_bankfull,c_width,A):
+
+ Arh = np.copy(A)
+ #Calculate stage
+ h = Arh/c_width
+ #Calculate wetted perimeter
+ P = 2*h + c_width
+ #Restrict to bankfull under flooding conditions
+ m = h > c_bankfull
+ Arh[m] = c_bankfull[m]*c_width[m]
+ P[m] = 2*c_bankfull[m] + c_width[m]
+ #Calculate hydraulic radius
+ Rh = Arh/P
+
+ return Rh
 
 @numba.jit(nopython=True,cache=True)
 def calculate_hydraulic_radius(A,P,W,A1):

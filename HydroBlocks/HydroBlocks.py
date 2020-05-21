@@ -420,6 +420,39 @@ class HydroBlocks:
   self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
                                    self.nhru,self.area)
 
+  #Initialize hru to reach IRF
+  import scipy.stats
+  import scipy.interpolate
+  ntmax = 100
+  self.routing.IRF = {}
+  #This will need to be sparse matrix eventually
+  #self.routing.IRF['uh'] = np.zeros((self.nhru,ntmax))
+  #Setup each uh
+  #for ihru in range(self.routing.IRF['uh'].shape[0]):
+  # #uh = scipy.stats.gamma.pdf(np.linspace(0,ntmax,ntmax),5,loc=0,scale=1)
+  # #uh = scipy.stats.gamma.pdf(np.linspace(0,ntmax,ntmax),20,loc=0,scale=1)
+  # uh = uh/np.sum(uh)
+  # self.routing.IRF['uh'][ihru,:] = uh[:]
+  #Correct uhs for assumed travel velocity
+  '''u = 0.1 #m/s
+  x = (self.routing.uh_travel_distance[0:-1] + self.routing.uh_travel_distance[1:])/2/u/3600.0 #hours
+  xnew = np.linspace(0,ntmax,ntmax)
+  uhs = []
+  for i in range(self.routing.uhs.shape[0]):
+   print('x',x)
+   print('xnew',xnew)
+   print('uh',self.routing.uhs[i,:])
+   f = scipy.interpolate.interp1d(x,self.routing.uhs[i,:],fill_value=(0,0),bounds_error=False)
+uuu	u   print(uh_new)
+   print(uh_new)
+   exit()
+   #uhs.append(f('''
+  uhs = self.routing.uhs[:]
+  uhs = uhs/np.sum(uhs,axis=1)[:,np.newaxis]
+  self.routing.IRF['uh'] = uhs[:]
+  #Setup qfuture
+  self.routing.IRF['qfuture'] = np.zeros((self.nhru,ntmax-1))
+
   return
 
  def update_routing(self,):
@@ -428,14 +461,31 @@ class HydroBlocks:
 
    runoff = self.noahmp.runsf+self.noahmp.runsb
    #Calculate runoff per reach
-   self.routing.qin[:] = self.routing.reach2hru.dot(runoff/1000.0)/self.routing.c_length #m2/s
+   #self.routing.qin[:] = self.routing.reach2hru.dot(runoff/1000.0)/self.routing.c_length #m2/s
+   #self.routing.qin[self.routing.qin < 0] = 0.0
+
+   #Apply convolution to the runoff of each HRU 
+   qr = runoff[:,np.newaxis]*self.routing.IRF['uh']
+   #QC to ensure we are conserving mass
+   m = np.sum(qr,axis=1) > 0
+   if np.sum(m) > 0:
+    qr[m,:] = runoff[m,np.newaxis]*qr[m,:]/np.sum(qr[m,:],axis=1)[:,np.newaxis]
+   #Add corresponding qfuture to this time step
+   crunoff = self.routing.IRF['qfuture'][:,0]
+   #Update qfuture
+   self.routing.IRF['qfuture'][:,0:-1] = self.routing.IRF['qfuture'][:,1:]
+   self.routing.IRF['qfuture'][:,-1] = 0.0
+   #Add current time step
+   crunoff = crunoff + qr[:,0]
+   #Add the rest to qfuture
+   self.routing.IRF['qfuture'] = self.routing.IRF['qfuture'] + qr[:,1:]
+
+   #Aggregate the HRU runoff at the reaches
+   self.routing.qin[:] = self.routing.reach2hru.dot(crunoff/1000.0)/self.routing.c_length #m2/s
    self.routing.qin[self.routing.qin < 0] = 0.0
 
    #Update routing module
    self.routing.update(self.dt)
-
-   #Update input variables to noahmp
-   #self.noahmp.hdiv[:] = self.richards.hdiv[:]
    
   return
 
@@ -499,7 +549,7 @@ class HydroBlocks:
   self.noahmp.dzwt[:] = 0.0
 
   while date < self.fdate:
-
+ 
    #Update input data
    tic0 = time.time()
    self.update_input(date)
@@ -630,15 +680,15 @@ class HydroBlocks:
   #self.hwu.Human_Water_Irrigation(self,date)
 
   #Determine inputs and outputs from routing
-  tmp1 = np.sum(self.routing.c_length*self.routing.A0)
+  #tmp1 = np.sum(self.routing.c_length*self.routing.A0)
   #tmp2 = np.sum((self.routing.hru_inundation-self.routing.hru_inundation_available)*self.area)
-  tmp2 = np.sum((self.routing.hru_inundation)*self.area)
-  tmp3 = np.sum(self.routing.reach2hru.dot(self.routing.hru_inundation))
+  #tmp2 = np.sum((self.routing.hru_inundation)*self.area)
+  #tmp3 = np.sum(self.routing.reach2hru.dot(self.routing.hru_inundation))
   #area1 = np.sum(self.routing.reach2hru,axis=0)
   #area2 = self.area
   #print(tmp1,tmp2,flush=True)
   #Add inundation to precipitation
-  fct = 0.99
+  fct = 1.0#0.99
   iabs = fct*self.routing.hru_inundation
   irem = (1-fct)*self.routing.hru_inundation
   #iabs = self.routing.hru_inundation_available
