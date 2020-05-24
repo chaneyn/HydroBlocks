@@ -327,7 +327,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
        lst_crds.append(shapely.geometry.LineString(np.fliplr(crds_i)))
    else:
        lst_crds.append(shapely.geometry.Point(np.flipud(crds_i[0,:])))
-   #lst_crds.append(crds_i)
  db_routing['crds'] = lst_crds
 
  #Compute the basins
@@ -337,13 +336,22 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  
  #Compute channel properties
  db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,basins_wob,shreve_order)
- #print('b:',np.unique(db_channels['bankfull']))
- #print('w:',np.unique(db_channels['width']))
- #print('a:',np.unique(db_channels['acc']))
+
+ #Burn bankfull depth into DEM (the values are adjusted to ensure it works with the DEM res)
+ demns_adj = np.copy(demns)
+ for i in range(channels_wob.shape[0]):
+    for j in range(channels_wob.shape[1]):
+        if channels_wob[i,j] > 0:
+            ic = channels_wob[i,j]
+            cwidth = db_channels['width'][ic-1]
+            cbankfull = db_channels['bankfull'][ic-1]
+            cA = cwidth*cbankfull
+            #Determine bankfull to burn in to ensure that A holds
+            demns_adj[i,j]=demns[i,j]-cA/eares
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
- hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)
+ hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns_adj)
 
  '''#Compute the areal coverage of each hand value within the basin
  db_routing['reach_hand_area'] = {}
@@ -525,9 +533,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    if hru < 0:continue
    new_hand2[i,j] = hand_tmp[basin][hru]['sum']/hand_tmp[basin][hru]['count'] 
    
+ #THIS WILL PROBABLY CAUSE PROBLEMS WITH INTRABAND CLUSTERING
  #Compute the areal coverage of each hand value within the basin
  db_routing['reach_hand_area'] = {}
  db_routing['reach_hand_hru'] = {}
+ db_routing['reach_hru_area'] = {}
  for i in range(basins_wob.shape[0]):
   for j in range(basins_wob.shape[1]):
    basin = basins_wob[i,j]
@@ -559,28 +569,34 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   c_hru = c_hru[argsort]
   odb['hru'][b-1,0:c_hru.size] = c_hru[:]
   #Burn in a channel depth
-  #c_hand[c_hand != 0] = c_hand[c_hand != 0] + 2.0 #m
-  c_hand[c_hand != 0] = c_hand[c_hand != 0] + db_channels['bankfull'][b-1] #m
+  if c_hand.size > 1:
+   #1.first remove existing difference between channel and adjacent hand value
+   c_hand[1:] = c_hand[1:] - (c_hand[1] - c_hand[0])
+   #2.then burn in the channel bankfull depth
+   c_hand[1:] = c_hand[1:] + db_channels['bankfull'][b-1] #m
   c_area = c_area[argsort]
-  #Need to reduce the size of the c_hand array by binning by percentiles (only if necessary)
-  '''if c_hand.size > 1000:
-   argsort = np.argsort(c_hand)
-   pcts = np.copy(c_hand)
-   pcts[argsort] = np.linspace(0,1,c_hand.size)
-   (hist, bin_edges) = np.histogram(pcts,bins=100)
-   #Update c_hand and c_area
-   tmp_hand = []
-   tmp_area = []
-   for ib in range(bin_edges.size-1):
-    if ib == 0:m = (pcts >= bin_edges[ib]) & (pcts <= bin_edges[ib+1])
-    else:m = (pcts > bin_edges[ib]) & (pcts <= bin_edges[ib+1])
-    tmp_hand.append(np.mean(c_hand[m])) #Compute the mean hand for within the bins
-    tmp_area.append(np.sum(c_area[m])) #Compute the area sum for within the bins
-   c_hand = np.array(tmp_hand)
-   c_area = np.array(tmp_area)'''
+  #Update values in dictionary (due to correcting for channel info)
+  db_routing['reach_hand_area'][b] = collections.OrderedDict()
+  db_routing['reach_hand_hru'][b] = collections.OrderedDict()
+  db_routing['reach_hru_area'][b] = collections.OrderedDict()
+  for ih in range(c_hand.size):
+    db_routing['reach_hand_area'][b][c_hand[ih]] = c_area[ih]
+    db_routing['reach_hand_hru'][b][c_hand[ih]] = c_hru[ih]
+    db_routing['reach_hru_area'][b][c_hru[ih]] = c_area[ih] #CAUTION: THIS IS PROBLEMATIC FOR INTRABAND CLUSTERING
+  #Calculate widths of each HRU/height band
+  c_width = c_area/c_length
+  if c_width.size > 1:
+   #Correct channel width using provided estimates
+   c_width_diff = db_channels['width'][b-1] - c_width[0]
+   c_width[0] = c_width[0] + c_width_diff 
+   #Add the difference to the adjacent HRU
+   c_width[1] = c_width[1] - c_width_diff
+  #Adjust the areal coverage of all the HRUs/bands
+  c_area = c_length*c_width
+  #Update the channel depth
   odb['hand'][b-1,0:c_hand.size] = c_hand[:]
   #Calculate width
-  c_width = c_area/c_length
+  #c_width = c_area/c_length
   odb['W'][b-1,0:c_width.size] = c_width[:]
   #Calculate wetted perimeter at each stage
   dP = c_width[0:-1] + 2*np.diff(c_hand)
@@ -595,15 +611,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   #Calculate inundation height at each stage
  db_routing['reach_cross_section'] = copy.deepcopy(odb)
 
- #Compute areal coverage of each HRU per basin (or hillslope) (THIS NEEDS TO BE FORMALLY MERGED)
- db_routing['reach_hru_area'] = {}
- for i in range(basins_wob.shape[0]):
+ #Compute areal coverage of each HRU per basin (or hillslope) (THIS WILL PROBABLE BE WRONG )
+ #db_routing['reach_hru_area'] = {}
+ '''for i in range(basins_wob.shape[0]):
   for j in range(basins_wob.shape[1]):
    basin = basins_wob[i,j]
    if basin <= 0:continue
    if basin not in db_routing['reach_hru_area']:db_routing['reach_hru_area'][basin] = {}
    if hrus[i,j] not in db_routing['reach_hru_area'][basin]: db_routing['reach_hru_area'][basin][hrus[i,j]] = 0.0
-   db_routing['reach_hru_area'][basin][hrus[i,j]] += eares**2 #EARES
+   db_routing['reach_hru_area'][basin][hrus[i,j]] += eares**2 #EARES'''
  pickle.dump(db_routing,open('routing_info.pck','wb'))
  pickle.dump(db_routing['i/o'],open('routing_io.pck','wb'))
 

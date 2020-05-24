@@ -678,6 +678,13 @@ uuu	u   print(uh_new)
 
   # Apply irrigation
   #self.hwu.Human_Water_Irrigation(self,date)
+  #1. Per reach, determine effective A (Ac + Af)
+  #2. Determine inundation height per HRU per reach
+  #3. Compute average inundation height per HRU
+  #4. Update Noah-MP
+  #5. Scale HRU changes to individual HRUs per reach
+  #6. Balance HRU inundation eight per reach
+  #7. Extract Ac (and use to compute qin - qout)
 
   #Determine inputs and outputs from routing
   #tmp1 = np.sum(self.routing.c_length*self.routing.A0)

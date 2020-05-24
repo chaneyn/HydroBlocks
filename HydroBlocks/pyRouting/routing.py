@@ -35,7 +35,6 @@ class kinematic:
   self.c_length = self.db['c_length'][:]
   self.c_n = 0.05#0.1#self.db['c_n'][:]
   self.c_slope = self.db['c_slope'][:]
-  self.c_width = self.db['c_width'][:]
   self.c_bankfull = self.db['c_bankfull'][:]
   self.nchannel = self.c_length.size
   self.A0 = 10**-5*np.ones(self.c_length.size)
@@ -54,6 +53,7 @@ class kinematic:
   self.rcids_hdw = self.db['rcids_hdw']
   self.hdw = self.db['hdw']
   self.hdb = self.db['hdb']
+  self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
   self.LHS = self.db['LHS']
   self.A0_org = self.A0[:]
   self.u0_org = self.u0[:]
@@ -184,8 +184,8 @@ class kinematic:
   Q0 = self.Q0
   u0 = self.u0
   dA = self.dA
-  maxu = 2.0
-  minu = 10**-6#0.1
+  maxu = 1.0#2.0
+  minu = 1.0#0.01#10**-6#0.1
   dt = self.dt
 
   #Determine hydraulic radius
