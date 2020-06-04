@@ -17,6 +17,7 @@ class kinematic:
 
  def __init__(self,MPI,cid,cid_rank_mapping,dt,nhru,hru_area):
 
+  self.itime = 0
   self.comm = MPI.COMM_WORLD
   self.size = self.comm.Get_size()
   self.rank = self.comm.Get_rank()
@@ -41,8 +42,9 @@ class kinematic:
   self.u0 = 10**-5*np.ones(self.c_length.size)
   self.A1 = np.zeros(self.c_length.size)
   self.bcs = np.zeros(self.c_length.size)
-  self.qin = np.zeros(self.c_length.size)
-  self.qout = np.zeros(self.c_length.size)
+  #self.qin = np.zeros(self.c_length.size)
+  #self.qout = np.zeros(self.c_length.size)
+  self.qss = np.zeros(self.c_length.size)
   self.dA = np.zeros(self.c_length.size)
   self.Q0 = np.zeros(self.c_length.size)
   self.Q1 = np.zeros(self.c_length.size)
@@ -57,8 +59,19 @@ class kinematic:
   self.LHS = self.db['LHS']
   self.A0_org = self.A0[:]
   self.u0_org = self.u0[:]
+  self.Ac0 = np.zeros(self.c_length.size)
+  self.Ac1 = np.zeros(self.c_length.size)
+  self.dAc0 = np.zeros(self.c_length.size)
+  self.dAc1 = np.zeros(self.c_length.size)
+  self.Af = np.zeros(self.c_length.size)
   self.hru_inundation = np.zeros(nhru)
+  self.hru_inundation1 = np.zeros(nhru)
   self.hru_inundation_available = np.zeros(nhru)
+
+  #Define channel hrus per reach
+  self.hru_channel = np.zeros(self.c_length.size).astype(np.int32)
+  m = (self.hdb['hand'] == 0) & (self.hdb['W'] > 0)
+  self.hru_channel[:] = self.hdb['hru'][m]
 
   #Pause until all cores have all their data
   self.comm.Barrier()
@@ -67,11 +80,14 @@ class kinematic:
 
  def update(self,dt):
 
+  #5. Scale HRU changes from NoahMP to individual HRUs per reach
+  #6. Balance HRU inundation height per reach
+  #7. Extract Ac (and use to compute qin - qout)
+  #Determine Ac and Af (compute from inundation per reach)
+
   #Update data
   self.A0_org[:] = self.A0[:]
   self.u0_org[:] = self.u0[:]
-  #print(np.unique(self.A0_org),flush=True)
-  #print(np.max(self.A0*self.u0))
 
   max_niter = 1
   #Update solution
@@ -81,55 +97,45 @@ class kinematic:
    #Update solution
    self.update_solution(itr,max_niter)
 
+  #Zero out qss
+  self.qss[:] = 0.0
+
   #Calculate area-weighted average inundation height per hru 
   A = self.hdb['A']
-  A1 = self.A0
+  #Add channel and flood cross sectional area
+  #A1 = self.A0
+  A1 = self.A0[:] + self.Af[:]
   W = self.hdb['W']
   hand = self.hdb['hand']
   hru = self.hdb['hru'].astype(np.int64)
-  self.hru_inundation[:] = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
-  #self.reach2hru_inundation[:] = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation)
-  #Determine water that can be accessed by noahmp
-  #print(self.reach2hru.shape,self.reach2hru_inundation.shape)
-  #tmp = 0.1*self.reach2hru_inundation
-  #tmp[tmp > 0.1] = 0.1
-  #tmp2 = tmp/np.sum(self.reach2hru_inundation,axis=0)
-  #ratio = np.zeros(self.reach2hru_inundation.shape)
-  #tmp_sum = np.sum(self.reach2hru_inundation,axis=0)
-  #m = tmp_sum > 0
-  #ratio[:,m] = tmp[:,m]/tmp_sum[m]
-  #print(tmp_sum.shape)
-  #print(ratio.shape)
-  #print(np.sum(ratio,axis=0))
-  #exit()
-  #m2 = np.sum(self.reach2hru_inundation,axis=0) > 0
-  #print(m2.shape,np.sum(m2))
-  #ratio[m2] = tmp[m2,:]/np.sum(self.reach2hru_inundation,axis=0)[m2]
-  #ratio = tmp/np.sum(self.reach2hru_inundation,axis=0)
-  #print(ratio.shape)
-  #print(np.unique(ratio))
-  #print(np.sum(ratio,axis=1))
-  #self.qout[:] = np.multiply(self.reach2hru,tmp).sum(axis=1)/self.c_length/self.dt
-  #areas = np.sum(self.reach2hru,axis=0)
-  #print(areas-self.hru_area)
-  #areas = self.hru_area
-  #print(self.hru_area)
-  #exit()
-  #print(areas.shape)
-  #m = areas > 0
-  #self.hru_inundation[m] = np.multiply(self.reach2hru,tmp).sum(axis=0)[m]/areas[m]
-  #self.hru_inundation[:] = 0.0
-  #self.hru_inundation_available[:] = 0.0
-  #self.hru_inundation[m] = np.multiply(self.reach2hru,self.reach2hru_inundation[:]).sum(axis=0)[m]/areas[m] 
-  #self.hru_inundation_available[m] = np.multiply(self.reach2hru,tmp).sum(axis=0)[m]/areas[m] 
-  #if np.sum(np.isnan(self.hru_inundation)) > 0:
-  # print(self.hru_inundation[:])
-  # exit()
-  #tmp = self.reach2hru.dot(self.reach2hru_inundation)/self.c_length/self.dt
-  #print(tmp.shape)
-  #self.qout[:] = 0.0
-  #self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
-  #print(np.unique(self.reach2hru_inundation[:]))
+  #self.hru_inundation[:] = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
+  (self.hru_inundation[:],self.reach2hru_inundation[:]) = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
+
+  #if (self.rank == 2) & (self.hru_inundation[2] > self.hru_inundation[1]):
+  '''if (self.itime == 40) & (self.rank == 2):
+   #print(self.c_bankfull)
+   #print(self.c_bankfull-self.hru_inundation[self.hru_channel])
+   tmp = []
+   for ic in range(self.hru_channel.size):
+    tmp = self.c_bankfull[ic]-self.reach2hru_inundation[ic,self.hru_channel[ic]]
+    if tmp < 0:
+     print(self.reach2hru_inundation[ic,self.hru_channel[ic]],self.c_bankfull[ic],self.c_width[ic],A1[ic])
+     print(self.hru_channel[ic],self.hru_channel[ic]+2)
+     print(self.hru_inundation[self.hru_channel[ic]:self.hru_channel[ic]+3])
+     print(self.reach2hru_inundation[ic,self.hru_channel[ic]:self.hru_channel[ic]+3])
+     print(hru[ic,:])
+  if (self.itime == 40):exit()'''
+
+  #Define change in Ac after inundation
+  Ac0 = []
+  for ic in range(self.hru_channel.size):
+   tmp = self.reach2hru[ic,self.hru_channel[ic]]*self.reach2hru_inundation[ic,self.hru_channel[ic]]/self.c_length[ic]
+   Ac0.append(tmp)
+  self.Ac0[:] = np.array(Ac0)
+  self.dAc0[:] = Ac0 - self.A0
+
+  #Add change to source/sink term for next time step
+  self.qss[:] += self.dAc0[:]/self.dt
 
   return
 
@@ -172,25 +178,26 @@ class kinematic:
   hdb = self.hdb
   A0 = self.A0
   c_slope = self.c_slope
-  c_slope[c_slope < 10**-4] = 10**-4
+  c_slope[c_slope < 10**-3] = 10**-3
   c_n = self.c_n
   LHS = self.LHS
   c_length = self.c_length
   A0_org = self.A0_org
   u0_org = self.u0_org
-  qin = self.qin
-  qout = self.qout
+  #qin = self.qin
+  #qout = self.qout
+  qss = self.qss
   bcs = self.bcs
   Q0 = self.Q0
   u0 = self.u0
   dA = self.dA
-  maxu = 1.0#2.0
-  minu = 1.0#0.01#10**-6#0.1
+  maxu = 2.0
+  minu = 0.01#10**-6#0.1
   dt = self.dt
 
   #Determine hydraulic radius
-  rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-  #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+  #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+  rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
   #Determine velocity
   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
   #Constrain velocity
@@ -204,7 +211,8 @@ class kinematic:
   LHS.setdiag(tmp)
   #Set right hand side
   RHS0 = c_length*A0_org
-  RHS1 = dt*qin*c_length - dt*qout*c_length
+  #RHS1 = dt*qin*c_length - dt*qout*c_length
+  RHS1 = dt*qss*c_length
   RHS2 = np.zeros(A0.size)
   RHS2[:] = dt*bcs[:]
   RHS = (RHS0 + RHS1 + RHS2)#/(c_length + dt*u1)
@@ -219,8 +227,8 @@ class kinematic:
    #Reset A0
    A0[:] = A1[:]
    #Determine hydraulic radius
-   rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
    u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
@@ -236,8 +244,8 @@ class kinematic:
    A0[:] = A1[:]
    dif0 = dif1
    #Determine hydraulic radius
-   rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
    #Determine velocity
    u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
@@ -256,8 +264,9 @@ class kinematic:
   self.A1[:] = A1[:]
   #self.dA[:] = dA[:]
   self.bcs[:] = bcs[:]
-  self.qin[:] = qin[:]
-  self.qout[:] = qout[:]
+  #self.qin[:] = qin[:]
+  #self.qout[:] = qout[:]
+  self.qss[:] = qss[:]
 
   return
 
@@ -269,9 +278,9 @@ def calculate_hydraulic_radius_rect(c_bankfull,c_width,A):
  #Calculate wetted perimeter
  P = 2*h + c_width
  #Restrict to bankfull under flooding conditions
- m = h > c_bankfull
- Arh[m] = c_bankfull[m]*c_width[m]
- P[m] = 2*c_bankfull[m] + c_width[m]
+ #m = h > c_bankfull
+ #Arh[m] = c_bankfull[m]*c_width[m]
+ #P[m] = 2*c_bankfull[m] + c_width[m]
  #Calculate hydraulic radius
  Rh = Arh/P
 
@@ -302,13 +311,14 @@ def calculate_hydraulic_radius(A,P,W,A1):
 @numba.jit(nopython=True,cache=True)
 def calculate_inundation_height_per_hru(A,A1,W,hand,hru,reach2hru_inundation,reach2hru):
 
- hru_sum = np.zeros(reach2hru.shape[1])
- hru_sum[:] = 0.0
+ #hru_sum = np.zeros(reach2hru.shape[1])
+ #hru_sum[:] = 0.0
+ #Zero out reach2hru_inundation
+ reach2hru_inundation[:] = 0.0
  #Determine the inundation height per hand value per basin
  for i in range(A.shape[0]):
   A0 = 0.0
   for j in range(1,A.shape[1]):
-   #W1 = W[i,j]
    if A[i,j] > A1[i]:break
    if A[i,j+1] == 0.0:break
    A0 = A[i,j]
@@ -321,18 +331,18 @@ def calculate_inundation_height_per_hru(A,A1,W,hand,hru,reach2hru_inundation,rea
   idxs = hru[i,0:j]
   #Place the inundation level
   for k in range(idxs.size):
-   # idx = idxs[k]
-   # reach2hru_inundation[i,idx] = h[k]
    idx = idxs[k]
-   a = hru_sum[idx]
-   b = reach2hru[i,idx]*h[k]
-   c = a + b
-   hru_sum[idx] = c
+   reach2hru_inundation[i,idx] = h[k]
+   #a = hru_sum[idx]
+   #b = reach2hru[i,idx]*h[k]
+   #c = a + b
+   #hru_sum[idx] = c
  areas = np.sum(reach2hru,axis=0)
  hru_inundation = np.zeros(areas.size)	
- for k in range(hru_inundation.size):
-  if areas[k] > 0:hru_inundation[k] = hru_sum[k]/areas[k] #meters
+ #for k in range(hru_inundation.size):
+ # if areas[k] > 0:hru_inundation[k] = hru_sum[k]/areas[k] #meters
+ hru_inundation[:] = np.sum(reach2hru*reach2hru_inundation,axis=0)/np.sum(reach2hru,axis=0)
 
- return hru_inundation
- #return reach2hru_inundation#hru_inundation
+ #return hru_inundation
+ return (hru_inundation,reach2hru_inundation)
 
