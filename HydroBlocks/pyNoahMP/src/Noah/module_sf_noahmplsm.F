@@ -1218,7 +1218,7 @@ contains
 #ifndef WRF_HYDRO
         !IF(ABS(ERRWAT) > 0.1) THEN 
         !IF(ABS(ERRWAT) > 100.0) THEN
-        IF(ABS(ERRWAT) > 100000.0) THEN
+        IF(ABS(ERRWAT) > 10**10) THEN
            if (ERRWAT > 0) then
               call wrf_message ('The model is gaining water (ERRWAT is positive)')
            else

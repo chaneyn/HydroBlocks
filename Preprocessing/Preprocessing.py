@@ -587,9 +587,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    db_routing['reach_hand_hru'][basin][h] = hru
  
  #Compute channel cross section information
- odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+ odb = {'Ac':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'Pc':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'Af':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'Pf':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
        'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
+       'M':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
        'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
        'hru':-9999*np.ones((len(db_routing['reach_hand_area'].keys()),100)).astype(np.int32)}
  for b in db_routing['reach_hand_area']:
@@ -618,6 +621,20 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    c_width[0] = c_width[0] + c_width_diff 
    #Add the difference to the adjacent HRU
    c_width[1] = c_width[1] - c_width_diff
+  #Calculate slope
+  c_slope = np.zeros(c_width.size)
+  if c_slope.size > 1:
+   c_slope[1:-1] = (c_hand[2:] - c_hand[1:-1])/(c_width[1:-1]/2)
+   c_slope[-1] = c_slope[-2]
+  #Add the channel depth
+  odb['M'][b-1,0:c_slope.size] = c_slope[:]
+  #Calculate height bottom and top of each segment
+  #if c_hand.size > 1:
+  # c_hand_btm = []
+  # for i in range(c_hand.size):
+  #  if i == 0:c_hand_btm.append(0.0)
+  #  else:c_hand_btm.append((c_hand[i]-c_hand[i-1])/2)
+    
   #Adjust the areal coverage of all the HRUs/bands
   c_area = c_length*c_width
   #Update values in dictionary (due to correcting for channel info)
@@ -634,15 +651,67 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
   #c_width = c_area/c_length
   odb['W'][b-1,0:c_width.size] = c_width[:]
   #Calculate wetted perimeter at each stage
-  dP = c_width[0:-1] + 2*np.diff(c_hand)
-  P = np.cumsum(dP)
-  odb['P'][b-1,0] = 0.0
-  odb['P'][b-1,1:P.size+1] = P[:]
+  dPc = []
+  dPf = []
+  for iseg in range(c_width.size-1):
+   if iseg == 0:
+    dPc.append(c_width[0] + 2*(c_hand[iseg+1]-c_hand[iseg]))
+    dPf.append(0.0)
+   else:
+    dPc.append(0.0)
+    dPf.append(c_width[iseg-1] + 2*(c_width[iseg]/2**2 + (c_hand[iseg+1]-c_hand[iseg])**2)**0.5)
+  #dP = c_width[0:-1] + 2*np.diff(c_hand)
+  #Compute perimieters for channel and floodplain
+  dPc = np.array(dPc)
+  dPf = np.array(dPf)
+  Pc = np.cumsum(dPc)
+  Pf = np.cumsum(dPf)
+  odb['Pc'][b-1,0] = 0.0
+  odb['Pc'][b-1,1:Pc.size+1] = Pc[:]
+  odb['Pf'][b-1,0] = 0.0
+  odb['Pf'][b-1,1:Pf.size+1] = Pf[:]
   #Calculate wetted cross sectional area at each stage
-  dA = np.cumsum(c_width[0:-1])*np.diff(c_hand)
-  A = np.cumsum(dA)
-  odb['A'][b-1,0] = 0.0
-  odb['A'][b-1,1:A.size+1] = A[:]
+  dAc = []
+  dAf = []
+  dA = []
+  for iseg in range(c_width.size-1):
+   if iseg == 0:
+    dAc.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
+    dAf.append(0.0)
+    dA.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
+   else:
+    dAc.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
+    pt1 = np.sum(c_width[1:iseg]*(c_hand[iseg+1]-c_hand[iseg]))
+    pt2 = 2*c_width[iseg]/2*(c_hand[iseg+1]-c_hand[iseg])/2
+    tmp = pt1+pt2
+    dAf.append(tmp)
+    #pt1 = np.sum(c_width[0:iseg]*(c_hand[iseg+1]-c_hand[iseg]))
+    #pt2 = 2*c_width[iseg]/2*(c_hand[iseg+1]-c_hand[iseg])/2
+    #tmp = pt1 + pt2
+    #dA.append(tmp)
+  #Compute cross sectional areas for channel and floodplain
+  dAc = np.array(dAc)
+  dAf = np.array(dAf)
+  #dA = np.array(dA)
+  Ac = np.cumsum(dAc)
+  Af = np.cumsum(dAf)
+  #A = np.cumsum(dA)
+  #print('Ac:',Ac)
+  #print('Af:',Af)
+  #print('A:',A)
+  #print('Ac + Af',Af+Ac)
+  #dA = np.cumsum(c_width[0:-1])*np.diff(c_hand)
+  #A = np.cumsum(dA)
+  #print('old A:',A)
+  #exit()
+  odb['Ac'][b-1,0] = 0.0
+  odb['Ac'][b-1,1:Ac.size+1] = Ac[:]
+  odb['Af'][b-1,0] = 0.0
+  odb['Af'][b-1,1:Af.size+1] = Af[:]
+  #dA = np.cumsum(c_width[0:-1])*np.diff(c_hand)
+  #A = np.cumsum(dA)
+  #odb['A'][b-1,0] = 0.0
+  #odb['A'][b-1,1:A.size+1] = A[:]
   #Calculate inundation height at each stage
  db_routing['reach_cross_section'] = copy.deepcopy(odb)
 

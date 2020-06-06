@@ -34,7 +34,10 @@ class kinematic:
   self.uhs = self.db['uhs'][:] #unit hydrographs
   self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hru (travel time is bug)
   self.c_length = self.db['c_length'][:]
-  self.c_n = 0.05#0.1#self.db['c_n'][:]
+  self.c_n = self.db['c_n'][:]
+  self.fp_n = self.db['fp_n'][:]
+  self.c_n[:] = 0.035#0.05#1#0.05#0.03
+  self.fp_n[:] = 0.15#0.15#25#0.15#0.15
   self.c_slope = self.db['c_slope'][:]
   self.c_bankfull = self.db['c_bankfull'][:]
   self.nchannel = self.c_length.size
@@ -55,6 +58,7 @@ class kinematic:
   self.rcids_hdw = self.db['rcids_hdw']
   self.hdw = self.db['hdw']
   self.hdb = self.db['hdb']
+  self.hdb['M'][self.hdb['M'] == 0] = 10**-5
   self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
   self.LHS = self.db['LHS']
   self.A0_org = self.A0[:]
@@ -63,7 +67,10 @@ class kinematic:
   self.Ac1 = np.zeros(self.c_length.size)
   self.dAc0 = np.zeros(self.c_length.size)
   self.dAc1 = np.zeros(self.c_length.size)
-  self.Af = np.zeros(self.c_length.size)
+  self.Af0 = np.zeros(self.c_length.size)
+  self.Af1 = np.zeros(self.c_length.size)
+  self.dAf0 = np.zeros(self.c_length.size)
+  self.dAf1 = np.zeros(self.c_length.size)
   self.hru_inundation = np.zeros(nhru)
   self.hru_inundation1 = np.zeros(nhru)
   self.hru_inundation_available = np.zeros(nhru)
@@ -101,15 +108,22 @@ class kinematic:
   self.qss[:] = 0.0
 
   #Calculate area-weighted average inundation height per hru 
-  A = self.hdb['A']
+  A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
   #A1 = self.A0
-  A1 = self.A0[:] + self.Af[:]
+  A1 = self.A0[:]# + self.Af[:]
   W = self.hdb['W']
+  M = self.hdb['M']
   hand = self.hdb['hand']
   hru = self.hdb['hru'].astype(np.int64)
   #self.hru_inundation[:] = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
-  (self.hru_inundation[:],self.reach2hru_inundation[:]) = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
+  (self.hru_inundation[:],self.reach2hru_inundation[:]) = calculate_inundation_height_per_hru(A,A1,W,M,hand,hru,self.reach2hru_inundation,self.reach2hru)
+  tmp = np.sum(self.reach2hru*self.reach2hru_inundation,axis=1)/self.c_length
+  tmp1 = np.max(np.abs(A1-tmp))
+  if tmp1 > 10**-3:
+   argmax = np.argmax(np.abs(A1-tmp))
+   print(self.itime,np.abs(A1-tmp)[argmax],A1[argmax],tmp[argmax],flush=True)
+  #if self.itime == 89:exit()
 
   #if (self.rank == 2) & (self.hru_inundation[2] > self.hru_inundation[1]):
   '''if (self.itime == 40) & (self.rank == 2):
@@ -127,15 +141,18 @@ class kinematic:
   if (self.itime == 40):exit()'''
 
   #Define change in Ac after inundation
-  Ac0 = []
-  for ic in range(self.hru_channel.size):
-   tmp = self.reach2hru[ic,self.hru_channel[ic]]*self.reach2hru_inundation[ic,self.hru_channel[ic]]/self.c_length[ic]
-   Ac0.append(tmp)
-  self.Ac0[:] = np.array(Ac0)
-  self.dAc0[:] = Ac0 - self.A0
+  #Ac0 = []
+  #for ic in range(self.hru_channel.size):
+  # tmp = self.reach2hru[ic,self.hru_channel[ic]]*self.reach2hru_inundation[ic,self.hru_channel[ic]]/self.c_length[ic]
+  # Ac0.append(tmp)
+  #Ac0 = np.array(Ac0)
+  #Af = A1 - Ac0
+  #self.Ac0[:] = Ac0[:]
+  #self.dAc0[:] = Ac0 - self.A0
+  #self.
 
   #Add change to source/sink term for next time step
-  self.qss[:] += self.dAc0[:]/self.dt
+  #self.qss[:] += self.dAc0[:]/self.dt
 
   return
 
@@ -191,15 +208,26 @@ class kinematic:
   Q0 = self.Q0
   u0 = self.u0
   dA = self.dA
-  maxu = 2.0
-  minu = 0.01#10**-6#0.1
+  maxu = 2.0#10.0#0.1#0.1#1.0#0.1#1.0#2.0
+  minu = 0.1#10.0#1.0#2.0#1.0#0.1#10**-6#0.1
   dt = self.dt
 
   #Determine hydraulic radius
   #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-  rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+  #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
+  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
   #Determine velocity
-  u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+  u1 = np.zeros(Kvn.size)
+  u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+  #u1 = Kvn*c_slope**0.5/A0
+  #if np.sum(np.isnan(Kvn)) != 0:
+  # print('problem!',flush=True)
+  # #m = np.isnan(Kvn) == 1
+  # #print(u1[m])
+  # #print('Kvn',Kvn[m])
+  # #print(A0[m])
+  # exit()
+  #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
   #Constrain velocity
   u1[u1 > maxu] = maxu
   u1[u1 < minu] = minu
@@ -221,16 +249,22 @@ class kinematic:
   #QC
   #A0[A0 < 0] = 0.0
   A1[A1 < 0] = 0.0
+  #A1[A1 <= 0] = 10**-5
   dif1 = np.mean(np.abs(A0 - A1))
   #if it == 0:print(dif1)
+  #print(it,dif1)
   if (dif1 < 10**-10) | (it == max_niter-1):
    #Reset A0
    A0[:] = A1[:]
    #Determine hydraulic radius
    #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
+   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
    #Determine velocity
-   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+   u1 = np.zeros(Kvn.size)
+   u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+   #u1 = Kvn*c_slope**0.5/A0
+   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
    u1[u1 < minu] = minu
    #Calculate Q1
@@ -245,9 +279,15 @@ class kinematic:
    dif0 = dif1
    #Determine hydraulic radius
    #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['P'],hdb['W'],A0)
+   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
+   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
    #Determine velocity
-   u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+   u1 = np.zeros(Kvn.size)
+   u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+   #u1 = Kvn*c_slope**0.5/A0
+   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
    u1[u1 > maxu] = maxu
    u1[u1 < minu] = minu
    #Calculate Q1
@@ -309,7 +349,52 @@ def calculate_hydraulic_radius(A,P,W,A1):
  return Rh
 
 @numba.jit(nopython=True,cache=True)
-def calculate_inundation_height_per_hru(A,A1,W,hand,hru,reach2hru_inundation,reach2hru):
+def calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A1,cn,fpn):
+ 
+ Kvn = np.zeros(Ac.shape[0])
+ #Determine the level for which we need to back out info
+ for i in range(Ac.shape[0]):
+  for j in range(Ac.shape[1]):
+   if (Af[i,j+1]+Ac[i,j+1]) > A1[i]:break
+   if (Af[i,j+1]+Ac[i,j+1]) == 0.0:break
+  if j == 0:
+   A0 = Ac[i,j]
+   P0 = Pc[i,j]
+   #Calculate the height above the segment
+   h = (A1[i] - A0)/W[i,0]
+   #Calculate the wetted perimeter
+   P1 = P0 + 2*h + W[i,0]
+   #Calculate compound conveyance
+   Kvn[i] = A1[i]**(5.0/3.0)/P1**(2.0/3.0)/cn[i]
+  else:
+   #Calculate the height above the segment (quadratic equation)
+   c = -(A1[i] - (Af[i,j] + Ac[i,j]))
+   b = np.sum(W[i,0:j])
+   a = 1.0/M[i,j]
+   h = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) 
+   #h2 = (-b - (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) 
+   #print('inside1:',h1,h2,A1[i],(Af[i,j] + Ac[i,j]),a,b,c,M[i,j])
+   #Calculate channel cross sectional area
+   Ac1 = Ac[i,1] + W[i,0]*h
+   #Calculate floodplain cross sectional area
+   Af1 = Af[i,1] + np.sum(W[i,1:j])*h + h*h/M[i,j]
+   #Calculate channel wetted perimeter
+   Pc1 = Pc[i,1]
+   #Calculate floodplain wetted perimieter
+   Pf1 = Pf[i,j] + 2*(h**2 + (h/M[i,j])**2)**0.5
+   #print(h,M[i,j],Pc1,Pf1,cn[i],fpn[i])
+   #Calculate conveyances
+   Kvnc = (1.0/cn[i])*(Ac1**(5.0/3.0)/Pc1**(2.0/3.0))
+   Kvnf = (1.0/fpn[i])*(Af1**(5.0/3.0)/Pf1**(2.0/3.0))
+   #Calculate compound conveyance
+   Kvn[i] = Kvnc + Kvnf
+   if np.isnan(Kvn[i]) == 1:
+    print('inside',A1[i],Kvn[i],a,b,c,h,Ac1,Af1,Pc1,Pf1,Kvnc,Kvnf)
+
+ return Kvn
+
+@numba.jit(nopython=True,cache=True)
+def calculate_inundation_height_per_hru(A,A1,W,M,hand,hru,reach2hru_inundation,reach2hru):
 
  #hru_sum = np.zeros(reach2hru.shape[1])
  #hru_sum[:] = 0.0
@@ -323,10 +408,29 @@ def calculate_inundation_height_per_hru(A,A1,W,hand,hru,reach2hru_inundation,rea
    if A[i,j+1] == 0.0:break
    A0 = A[i,j]
   #Calculate the height above the segment
-  htop = (A1[i] - A0)/np.sum(W[i,0:j])
-  #Based on htop calculate the water heights
-  h0 = hand[i,j-1] - hand[i,:j]
-  h = htop + h0 #m
+  #htop = (A1[i] - A0)/np.sum(W[i,0:j]) (rectangular)
+  #print(A1[i],A0,W[i,0])
+  if j == 1:htop = (A1[i] - A0)/W[i,0]
+  else:
+   c = -(A1[i] - A0)
+   b = np.sum(W[i,0:j-1])
+   a = 1.0/M[i,j-1]
+   htop = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) #trapezoidal
+  #Based on htop calculate the water heights (Wrong)
+  h = np.zeros(j)
+  h[0] = hand[i,j-1] + htop
+  if j > 1:h[j-1] = htop*htop/M[i,j-1]/W[i,j-1]
+  # print(j,A[i,:])
+  # print(j,A0,A1[i],htop,h[0]*W[i,0],h[j-1]*W[i,j-1])
+  if j > 2:
+   #print(j)
+   #print(hand[i,j-1],hand[i,1:j-1],(hand[i,2:j]+hand[i,1:j-1])/2,htop)
+   h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] - (hand[i,2:j]-hand[i,1:j-1])/2 + htop
+   #h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] + htop
+   #h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] - (hand[i,2:j]+hand[i,1:j-1])/2 + htop
+   #print(h)
+  #h0 = hand[i,j-1] - hand[i,:j]
+  #h = htop + h0 #m
   #Add to hru sum (times area)
   idxs = hru[i,0:j]
   #Place the inundation level

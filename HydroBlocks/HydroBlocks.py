@@ -425,8 +425,8 @@ class HydroBlocks:
   self.routing.calculate_inundation_height_per_hru = routing.calculate_inundation_height_per_hru
 
   #Initialize hru to reach IRF
-  import scipy.stats
-  import scipy.interpolate
+  #import scipy.stats
+  #import scipy.interpolate
   ntmax = 100
   self.routing.IRF = {}
   #This will need to be sparse matrix eventually
@@ -468,7 +468,7 @@ uuu	u   print(uh_new)
    #Zero out hru_inundation1
    self.routing.hru_inundation1[:] = 0.0
 
-   #Over inundated HRUs set runoff to be inundation and zero out corresponding runoff
+   #Over inundated HRUs set runoff to be inundation and zero out corresponding runoff HERE
    m = self.routing.hru_inundation > 0
    self.routing.hru_inundation1[m] = self.dt*runoff[m]/1000.0
    runoff[m] = 0.0
@@ -479,10 +479,11 @@ uuu	u   print(uh_new)
 
    #Recompute inundation after updates
    A = np.sum(self.routing.reach2hru*self.routing.reach2hru_inundation,axis=1)/self.routing.c_length
-   (self.routing.hru_inundation[:],self.routing.reach2hru_inundation[:]) = self.routing.calculate_inundation_height_per_hru(self.routing.hdb['A'],A,self.routing.hdb['W'],self.routing.hdb['hand'],self.routing.hdb['hru'].astype(np.int64),self.routing.reach2hru_inundation,self.routing.reach2hru)
+   Adb = self.routing.hdb['Ac'] + self.routing.hdb['Af']
+   (self.routing.hru_inundation[:],self.routing.reach2hru_inundation[:]) = self.routing.calculate_inundation_height_per_hru(Adb,A,self.routing.hdb['W'],self.routing.hdb['M'],self.routing.hdb['hand'],self.routing.hdb['hru'].astype(np.int64),self.routing.reach2hru_inundation,self.routing.reach2hru)
 
    #Determine the updated Ac and Af per reach
-   Ac = []
+   '''Ac = []
    for ic in range(self.routing.hru_channel.size):
     tmp = self.routing.reach2hru[ic,self.routing.hru_channel[ic]]*self.routing.reach2hru_inundation[ic,self.routing.hru_channel[ic]]/self.routing.c_length[ic]
     Ac.append(tmp)
@@ -491,6 +492,7 @@ uuu	u   print(uh_new)
    self.routing.Ac1[:] = Ac[:]
    self.routing.dAc1[:] = Ac - self.routing.Ac0[:]
    self.routing.Af[:] = Af[:]
+   self.routing.dAf1[:] = Af - self.routing.Af0[:]'''
 
    #Calculate runoff per reach
    #self.routing.qin[:] = self.routing.reach2hru.dot(runoff/1000.0)/self.routing.c_length #m2/s
@@ -513,12 +515,15 @@ uuu	u   print(uh_new)
    self.routing.IRF['qfuture'] = self.routing.IRF['qfuture'] + qr[:,1:]
 
    #Aggregate the HRU runoff at the reaches
-   #self.routing.qin[:] = self.routing.reach2hru.dot(crunoff/1000.0)/self.routing.c_length #m2/s
-   #self.routing.qin[self.routing.qin < 0] = 0.0
    self.routing.qss[:] += self.routing.reach2hru.dot(crunoff/1000.0)/self.routing.c_length #m2/s
  
    #Add changes between Ac1 and Ac0 to qss term
-   self.routing.qss[:] += self.routing.dAc1/self.dt
+   self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
+
+   #if self.itime == 0:
+   # self.routing.qss[:] = 1.0
+   #if self.itime == 10*24:
+   # self.routing.qss[:] = 0.5
 
    #Update routing module
    self.routing.itime = self.itime
@@ -627,6 +632,8 @@ uuu	u   print(uh_new)
    #Update time step
    date = date + self.dt_timedelta
    self.itime = self.itime + 1
+   #print(date,flush=True)
+   #exit()
 
    #Output some statistics
    if (date.hour == 0) and (date.day == 1):
@@ -749,8 +756,9 @@ uuu	u   print(uh_new)
   ###self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
   #NEed to scale qout to A1?
   #self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
-  self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 #mm
   #self.routing.qout[:] = self.routing.reach2hru.dot(self.noahmp.sfcheadrt[:])/self.routing.c_length/self.dt
+  self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 #mm HERE
+  #self.noahmp.sfcheadrt[:] = 0.0
   
   # Update subsurface
   self.update_subsurface()
