@@ -51,7 +51,8 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  workspace = hydroblocks_info['workspace']
 
  #Define the model input data directory
- input_dir = workspace
+ input_dir = hydroblocks_info['input_dir']
+ os.system('mkdir -p %s' % input_dir)
 
  #Create the dictionary to hold all of the data
  output = {}
@@ -150,42 +151,42 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  #Write out the mapping
  hru_map = np.copy(output['hru_map'])
  hru_map[np.isnan(hru_map) == 1] = -9999.0
- file_ca = '%s/hru_mapping_latlon.tif' % workspace
+ file_ca = '%s/hru_mapping_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,hru_map)
 
  #Write out the hand map
  hand_map = np.copy(output['hand_map'])
  hand_map[np.isnan(hand_map) == 1] = -9999.0
- file_ca = '%s/hand_latlon.tif' % workspace
+ file_ca = '%s/hand_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,hand_map)
 
  #Write out the basin map
  basin_map = np.copy(output['basin_map'])
  basin_map[np.isnan(basin_map) == 1] = -9999.0
- file_ca = '%s/basins_latlon.tif' % workspace
+ file_ca = '%s/basins_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,basin_map)
 
  #Write out the basin cluster map
  basin_clusters_map = np.copy(output['basin_clusters_map'])
  basin_clusters_map[np.isnan(basin_clusters_map) == 1] = -9999.0
- file_ca = '%s/basin_clusters_latlon.tif' % workspace
+ file_ca = '%s/basin_clusters_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,basin_clusters_map)
 
  #Write out the hand org map
  hand_org_map = np.copy(output['hand_org_map'])
  hand_org_map[np.isnan(hand_org_map) == 1] = -9999.0
- file_ca = '%s/hand_org_latlon.tif' % workspace
+ file_ca = '%s/hand_org_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,hand_org_map)
 
  #Write out the channels
  channel_map = np.copy(output['channel_map'])
  channel_map[np.isnan(channel_map) == 1] = -9999.0
- file_ca = '%s/channel_mapping_latlon.tif' % workspace
+ file_ca = '%s/channel_mapping_latlon.tif' % input_dir
  metadata['nodata'] = -9999.0
  gdal_tools.write_raster(file_ca,metadata,channel_map)
 
@@ -241,7 +242,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
 
  return output
 
-def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares):
+def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,input_dir):
 
  #Define the parameters for the hierarchical multivariate clustering
  ncatchments = hydroblocks_info['hmc_parameters']['number_of_characteristic_subbasins']
@@ -285,7 +286,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
  #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
- ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
+ ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
+ #ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
  #ipoints = (C > 100).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
@@ -724,8 +726,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares)
    if basin not in db_routing['reach_hru_area']:db_routing['reach_hru_area'][basin] = {}
    if hrus[i,j] not in db_routing['reach_hru_area'][basin]: db_routing['reach_hru_area'][basin][hrus[i,j]] = 0.0
    db_routing['reach_hru_area'][basin][hrus[i,j]] += eares**2 #EARES'''
- pickle.dump(db_routing,open('routing_info.pck','wb'))
- pickle.dump(db_routing['i/o'],open('routing_io.pck','wb'))
+ pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
+ pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
 
  #Construct HMC info for creating connections matrix
  HMC_info = {}
@@ -1067,13 +1069,13 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs",flush=True)
- (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx)
+ (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx,input_dir)
 
  covariates['hand'] = new_hand
  hydroblocks_info['nhru'] = nhru
   
  #Create the netcdf file
- file_netcdf = hydroblocks_info['input_file']
+ file_netcdf = '%s/input_file.nc' % hydroblocks_info['input_dir']#hydroblocks_info['input_file']
  hydroblocks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions (netcdf)
@@ -1327,7 +1329,7 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
    else:
     hrus_lc[idx]=0.0
   
-  wuse_lc_ea_file = '%s/%s_lc_ea.tif' % (workspace,data_var)
+  wuse_lc_ea_file = '%s/%s_lc_ea.tif' % (input_dir,data_var)
   gdal_tools.write_raster(wuse_lc_ea_file,md,hrus_lc)
   fine_size = hrus_lc.shape
   #fine_res = abs(md['resx']) #NEED TO UPDATE
@@ -1342,7 +1344,7 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
   res  = abs(md['resx'])
   lproj = md['proj4']+' +datum=WGS84'
   file_in = wuse_lc_ea_file
-  file_out = '%s/%s_area_latlon_coarse.tif' % (workspace,data_var)
+  file_out = '%s/%s_area_latlon_coarse.tif' % (input_dir,data_var)
   os.system('gdalwarp -overwrite -t_srs \'%s\' -ot Float32 -dstnodata -9999 -tr %f %f -te %f %f %f %f -r average -q %s %s ' % (lproj,res,res,minx,miny,maxx,maxy,file_in,file_out))
 
   # Calculate the equivalent area of each grid
@@ -1412,7 +1414,7 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
   fp.close()
   
   # convert water use volume from m3 to m3/m2
-  file_out = '%s/%s_area_latlon_coarse.tif' % (workspace,data_var)
+  file_out = '%s/%s_area_latlon_coarse.tif' % (input_dir,data_var)
   wuse_area = gdal_tools.read_raster(file_out)
   m = ( wuse_area == 0.0 )
   data[:,m] = 0.0

@@ -25,7 +25,8 @@ class kinematic:
   self.cid_rank_mapping = cid_rank_mapping
 
   #Read in all the relevant data (this should be moved to the preprocessor)
-  self.db = pickle.load(open('/stor/soteria/hydro/private/nc153/projects/Octopy/parallel/tmp/%d.pck' % cid,'rb'))
+  #self.db = pickle.load(open('/stor/soteria/hydro/private/nc153/projects/Octopy/parallel/tmp/%d.pck' ,'rb'))
+  self.db = pickle.load(open('octopy.pck' ,'rb'))
 
   #Define the variables
   self.hru_area = hru_area

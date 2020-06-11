@@ -125,18 +125,17 @@ class HydroBlocks:
   self.noahmp.deeprech[:] = fp['deeprech'][:]
   self.noahmp.rech[:] = fp['rech'][:]
   #routing
-  self.routing.Q0[:] = fp['Q0'][:]
-  self.routing.u0[:] = fp['u0'][:]
-  self.routing.A0[:] = fp['A0'][:]
-  self.routing.Q1[:] = fp['Q1'][:]
-  self.routing.A1[:] = fp['A1'][:]
-  self.routing.dA[:] = fp['dA'][:]
-  self.routing.bcs[:] = fp['bcs'][:]
-  #self.routing.qin[:] = fp['qin'][:]
-  #self.routing.qout[:] = fp['qout'][:]
-  self.routing.qss[:] = fp['qss'][:]
-  self.routing.hru_inundation[:] = fp['hru_inundation'][:]
-  self.routing.reach2hru_inundation[:] = fp['reach2hru_inundation'][:]
+  if self.routing_module == 'kinematic':
+   self.routing.Q0[:] = fp['Q0'][:]
+   self.routing.u0[:] = fp['u0'][:]
+   self.routing.A0[:] = fp['A0'][:]
+   self.routing.Q1[:] = fp['Q1'][:]
+   self.routing.A1[:] = fp['A1'][:]
+   self.routing.dA[:] = fp['dA'][:]
+   self.routing.bcs[:] = fp['bcs'][:]
+   self.routing.qss[:] = fp['qss'][:]
+   self.routing.hru_inundation[:] = fp['hru_inundation'][:]
+   self.routing.reach2hru_inundation[:] = fp['reach2hru_inundation'][:]
   fp.close()
 
   return
@@ -159,16 +158,16 @@ class HydroBlocks:
   self.input_fp = nc.Dataset(info['input_file'])
   self.dx = self.input_fp.groups['metadata'].dx
   self.nhru = len(self.input_fp.dimensions['hru'])
-  self.surface_flow_flag = info['surface_flow_flag']
   self.subsurface_module = info['subsurface_module']
-  self.routing_module = info['routing_module']
+  self.routing_module = info['routing_module']['type']
+  self.routing_surface_coupling = info['routing_module']['surface_coupling']
   self.hwu_flag = info['water_management']['hwu_flag']
   self.area = self.input_fp.groups['parameters'].variables['area'][:]
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
-  #self.m[:] = 10.0 #m
+  self.m[:] = 10.0 #m
   self.input_fp_meteo_time = self.input_fp.groups['meteorology'].variables['time']
 
   #Create a list of all the dates
@@ -262,7 +261,7 @@ class HydroBlocks:
   self.noahmp.iopt_crs = 2 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
-  self.noahmp.iopt_run = 2#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_run = 2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
   self.noahmp.iopt_sfc = 1#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
   self.noahmp.iopt_frz = 2#1#2 # supercooled liquid water (1-> NY06; 2->Koren99)
   self.noahmp.iopt_inf = 2#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
@@ -465,19 +464,20 @@ uuu	u   print(uh_new)
 
    runoff = self.noahmp.runsf+self.noahmp.runsb
 
-   #Zero out hru_inundation1
-   self.routing.hru_inundation1[:] = 0.0
+   if self.routing_surface_coupling == True:
+    #Zero out hru_inundation1
+    self.routing.hru_inundation1[:] = 0.0
 
-   #Over inundated HRUs set runoff to be inundation and zero out corresponding runoff HERE
-   m = self.routing.hru_inundation > 0
-   self.routing.hru_inundation1[m] = self.dt*runoff[m]/1000.0
-   runoff[m] = 0.0
+    #Over inundated HRUs set runoff to be inundation and zero out corresponding runoff HERE
+    m = self.routing.hru_inundation > 0
+    self.routing.hru_inundation1[m] = self.dt*runoff[m]/1000.0
+    runoff[m] = 0.0
 
-   #Determine the change per HRU per reach
-   scaling = self.routing.hru_inundation1[m]/self.routing.hru_inundation[m]
-   self.routing.reach2hru_inundation[:,m] = scaling*self.routing.reach2hru_inundation[:,m]
+    #Determine the change per HRU per reach
+    scaling = self.routing.hru_inundation1[m]/self.routing.hru_inundation[m]
+    self.routing.reach2hru_inundation[:,m] = scaling*self.routing.reach2hru_inundation[:,m]
 
-   #Recompute inundation after updates
+   #Recompute cross sectional area
    A = np.sum(self.routing.reach2hru*self.routing.reach2hru_inundation,axis=1)/self.routing.c_length
    Adb = self.routing.hdb['Ac'] + self.routing.hdb['Af']
    (self.routing.hru_inundation[:],self.routing.reach2hru_inundation[:]) = self.routing.calculate_inundation_height_per_hru(Adb,A,self.routing.hdb['W'],self.routing.hdb['M'],self.routing.hdb['hand'],self.routing.hdb['hru'].astype(np.int64),self.routing.reach2hru_inundation,self.routing.reach2hru)
@@ -517,8 +517,9 @@ uuu	u   print(uh_new)
    #Aggregate the HRU runoff at the reaches
    self.routing.qss[:] += self.routing.reach2hru.dot(crunoff/1000.0)/self.routing.c_length #m2/s
  
-   #Add changes between Ac1 and Ac0 to qss term
-   self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
+   if self.routing_surface_coupling == True:
+    #Add changes between Ac1 and Ac0 to qss term
+    self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
 
    #if self.itime == 0:
    # self.routing.qss[:] = 1.0
@@ -757,8 +758,10 @@ uuu	u   print(uh_new)
   #NEed to scale qout to A1?
   #self.routing.qout[:] = self.routing.reach2hru.dot(iabs)/self.routing.c_length/self.dt
   #self.routing.qout[:] = self.routing.reach2hru.dot(self.noahmp.sfcheadrt[:])/self.routing.c_length/self.dt
-  self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 #mm HERE
-  #self.noahmp.sfcheadrt[:] = 0.0
+  if self.routing_surface_coupling == True:
+   self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 #mm HERE
+  else:
+   self.noahmp.sfcheadrt[:] = 0.0
   
   # Update subsurface
   self.update_subsurface()
@@ -938,8 +941,9 @@ uuu	u   print(uh_new)
   tmp['cm'] = np.copy(NOAH.cm)
   tmp['ch'] = np.copy(NOAH.ch)
   #routing
-  tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
-  tmp['inundation'] = np.copy(self.routing.hru_inundation)
+  if self.routing_module == 'kinematic':
+   tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
+   tmp['inundation'] = np.copy(self.routing.hru_inundation)
 
 
   # root zone
@@ -1003,29 +1007,29 @@ uuu	u   print(uh_new)
     grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
 
   #Output routing variables
-  grp = self.output_fp.groups['data_routing']
-  tmp = {}
-  tmp['A'] = self.routing.A1[:]
-  tmp['Q'] = self.routing.Q1[:]
-
-  sep = 100
-  if itime == 0:
-   self.output_routing = {}
+  if self.routing_module == 'kinematic':
+   grp = self.output_fp.groups['data_routing']
+   tmp = {}
+   tmp['A'] = self.routing.A1[:]
+   tmp['Q'] = self.routing.Q1[:]
+   sep = 100
+   if itime == 0:
+    self.output_routing = {}
+    for var in self.metadata['output']['routing_vars']:
+     shp = grp.variables[var].shape
+     self.output_routing[var] = np.zeros((sep,shp[1]))
+   #Fill the data (MISSING!)
+   val = itime % sep
    for var in self.metadata['output']['routing_vars']:
-    shp = grp.variables[var].shape
-    self.output_routing[var] = np.zeros((sep,shp[1]))
-  #Fill the data (MISSING!)
-  val = itime % sep
-  for var in self.metadata['output']['routing_vars']:
-    self.output_routing[var][val,:] = tmp[var]
-  # self.output[itime] =
-  if (itime+1) % sep == 0:
-   for var in self.metadata['output']['routing_vars']:
-    grp.variables[var][itime-sep+1:itime+1,:] = self.output_routing[var][:]
-  if (itime+1) == self.ntime:
-   val = int(sep*np.ceil((itime - sep)/sep))
-   for var in self.metadata['output']['routing_vars']:
-    grp.variables[var][val:itime+1,:] = self.output_routing[var][0:itime-val+1,:]
+     self.output_routing[var][val,:] = tmp[var]
+   # self.output[itime] =
+   if (itime+1) % sep == 0:
+    for var in self.metadata['output']['routing_vars']:
+     grp.variables[var][itime-sep+1:itime+1,:] = self.output_routing[var][:]
+   if (itime+1) == self.ntime:
+    val = int(sep*np.ceil((itime - sep)/sep))
+    for var in self.metadata['output']['routing_vars']:
+     grp.variables[var][val:itime+1,:] = self.output_routing[var][0:itime-val+1,:]
 
   return
 
@@ -1122,7 +1126,8 @@ uuu	u   print(uh_new)
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
   fp_out.createDimension('soil',self.nsoil)
-  fp_out.createDimension('channel',self.routing.nchannel)
+  if self.routing_module == 'kinematic':
+   fp_out.createDimension('channel',self.routing.nchannel)
 
   #Create the output
   print('Creating the data group',flush=True)
@@ -1219,25 +1224,25 @@ uuu	u   print(uh_new)
   fp['deeprech'] = self.noahmp.deeprech[:]
   fp['rech'] = self.noahmp.rech[:]
   #routing
-  fp['Q0'] = self.routing.Q0[:]
-  fp['u0'] = self.routing.u0[:]
-  fp['A0'] = self.routing.A0[:]
-  fp['Q1'] = self.routing.Q1[:]
-  fp['A1'] = self.routing.A1[:]
-  fp['dA'] = self.routing.dA[:]
-  fp['bcs'] = self.routing.bcs[:]
-  fp['qss'] = self.routing.qss[:]
-  fp['hru_inundation'] = self.routing.hru_inundation[:]
-  fp['reach2hru_inundation'] = self.routing.reach2hru_inundation[:]
-  #fp['qin'] = self.routing.qin[:]
-  #fp['qout'] = self.routing.qout[:]
+  if self.routing_module == 'kinematic':	
+   fp['Q0'] = self.routing.Q0[:]
+   fp['u0'] = self.routing.u0[:]
+   fp['A0'] = self.routing.A0[:]
+   fp['Q1'] = self.routing.Q1[:]
+   fp['A1'] = self.routing.A1[:]
+   fp['dA'] = self.routing.dA[:]
+   fp['bcs'] = self.routing.bcs[:]
+   fp['qss'] = self.routing.qss[:]
+   fp['hru_inundation'] = self.routing.hru_inundation[:]
+   fp['reach2hru_inundation'] = self.routing.reach2hru_inundation[:]
   fp.close()
    
   #Close the LSM
   del self.noahmp
  
   #Close the routing module
-  del self.routing
+  if self.routing_module == 'kinematic':
+   del self.routing
 
   #Close the files
   self.input_fp.close()
