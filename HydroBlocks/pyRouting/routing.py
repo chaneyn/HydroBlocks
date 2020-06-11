@@ -28,6 +28,9 @@ class kinematic:
   #self.db = pickle.load(open('/stor/soteria/hydro/private/nc153/projects/Octopy/parallel/tmp/%d.pck' ,'rb'))
   self.db = pickle.load(open('octopy.pck' ,'rb'))
 
+  #Read in the discharge input data
+  self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
+
   #Define the variables
   self.hru_area = hru_area
   self.dt = dt
@@ -102,6 +105,10 @@ class kinematic:
   for itr in range(max_niter):
    #Exchange boundary conditions
    self.exchange_bcs()
+   #COMPLETE HACK FOR SGP PAPER (INPUT FROM GAUGE DATA)
+   #if self.cid == 4:self.bcs[78] = 83.95#3000.0
+   if self.cid == 4:
+    self.bcs[78] = self.Qobs['Q'][self.itime]
    #Update solution
    self.update_solution(itr,max_niter)
 
