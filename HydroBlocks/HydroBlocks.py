@@ -443,17 +443,17 @@ class HydroBlocks:
 
    runoff = self.noahmp.runsf+self.noahmp.runsb
 
+   #Calculate runoff per hband (This needs to be optimized; Numba?)
+   runoff_hband = np.zeros(self.nhband)
+   area_hband = np.zeros(self.nhband)
+   for hru in self.hrus:
+    runoff_hband[self.hbands[hru]] += self.area[hru]*runoff[hru]
+    area_hband[self.hbands[hru]] += self.area[hru]
+   runoff_hband = runoff_hband/area_hband
+
    if self.routing_surface_coupling == True:
     #Zero out hband_inundation1
     self.routing.hband_inundation1[:] = 0.0
-
-    #Calculate runoff per hband (This needs to be optimized; Numba?)
-    runoff_hband = np.zeros(self.nhband)
-    area_hband = np.zeros(self.nhband)
-    for hru in self.hrus:
-     runoff_hband[self.hbands[hru]] += self.area[hru]*runoff[hru]
-     area_hband[self.hbands[hru]] += self.area[hru]
-    runoff_hband = runoff_hband/area_hband
 
     #Over inundated hbands set runoff to be inundation and zero out corresponding runoff HERE
     m = self.routing.hband_inundation > 0

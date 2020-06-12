@@ -422,18 +422,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  nhru = np.unique(hrus[hrus!=-9999]).size
 
  #Calculate histogram of travel distances per height band
- '''t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
- uhrus = np.unique(hrus)
- uhrus = uhrus[uhrus != -9999]
- bins = np.linspace(0,100,101)
- uhs = []
- for hru in uhrus:
-   m = hrus == hru
-   hist = np.histogram(t2c[m]/0.1/3600.0,bins=bins,density=True)[0]
-   #hist = hist/np.sum(hist)
-   uhs.append(hist)
- uhs = {'data':np.array(uhs),'bins':bins[:]}
- db_routing['uh_per_hru'] = uhs'''
  t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
  uhbands = np.unique(tiles)
  uhbands = uhbands[uhbands != -9999]
@@ -571,15 +559,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   #dA = np.array(dA)
   Ac = np.cumsum(dAc)
   Af = np.cumsum(dAf)
-  #A = np.cumsum(dA)
-  #print('Ac:',Ac)
-  #print('Af:',Af)
-  #print('A:',A)
-  #print('Ac + Af',Af+Ac)
-  #dA = np.cumsum(c_width[0:-1])*np.diff(c_hand)
-  #A = np.cumsum(dA)
-  #print('old A:',A)
-  #exit()
   odb['Ac'][b-1,0] = 0.0
   odb['Ac'][b-1,1:Ac.size+1] = Ac[:]
   odb['Af'][b-1,0] = 0.0
@@ -631,7 +610,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   #Define hru
   OUTPUT['hru']['hru'][hru] = hru
   #Define height band id
-  print(hru,np.unique(hbands[idx]))
   OUTPUT['hru']['hband'][hru] = np.mean(hbands[idx])
   #Calculate area per hru
   #OUTPUT['hru']['area'][hru] = metadata['resx']**2*idx[0].size
