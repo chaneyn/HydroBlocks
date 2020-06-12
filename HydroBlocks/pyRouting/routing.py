@@ -15,7 +15,7 @@ import h5py
 
 class kinematic:
 
- def __init__(self,MPI,cid,cid_rank_mapping,dt,nhru,hru_area):
+ def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru):
 
   self.itime = 0
   self.comm = MPI.COMM_WORLD
@@ -32,11 +32,10 @@ class kinematic:
   self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
 
   #Define the variables
-  self.hru_area = hru_area
   self.dt = dt
   self.cid = cid
   self.uhs = self.db['uhs'][:] #unit hydrographs
-  self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hru (travel time is bug)
+  self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hband (travel time is bug)
   self.c_length = self.db['c_length'][:]
   self.c_n = self.db['c_n'][:]
   self.fp_n = self.db['fp_n'][:]
@@ -55,9 +54,9 @@ class kinematic:
   self.dA = np.zeros(self.c_length.size)
   self.Q0 = np.zeros(self.c_length.size)
   self.Q1 = np.zeros(self.c_length.size)
-  self.reach2hru = np.asarray(self.db['reach2hru'].todense())
-  self.reach2hru_inundation = np.copy(self.reach2hru)
-  self.reach2hru_inundation[:] = 0.0
+  self.reach2hband = np.asarray(self.db['reach2hband'].todense())
+  self.reach2hband_inundation = np.copy(self.reach2hband)
+  self.reach2hband_inundation[:] = 0.0
   self.scids_hdw = self.db['scids_hdw']
   self.rcids_hdw = self.db['rcids_hdw']
   self.hdw = self.db['hdw']
@@ -76,13 +75,13 @@ class kinematic:
   self.dAf0 = np.zeros(self.c_length.size)
   self.dAf1 = np.zeros(self.c_length.size)
   self.hru_inundation = np.zeros(nhru)
-  self.hru_inundation1 = np.zeros(nhru)
-  self.hru_inundation_available = np.zeros(nhru)
+  self.hband_inundation = np.zeros(nhband)
+  self.hband_inundation1 = np.zeros(nhband)
 
-  #Define channel hrus per reach
-  self.hru_channel = np.zeros(self.c_length.size).astype(np.int32)
+  #Define channel hbands per reach
+  self.hband_channel = np.zeros(self.c_length.size).astype(np.int32)
   m = (self.hdb['hand'] == 0) & (self.hdb['W'] > 0)
-  self.hru_channel[:] = self.hdb['hru'][m]
+  self.hband_channel[:] = self.hdb['hband'][m]
 
   #Pause until all cores have all their data
   self.comm.Barrier()
@@ -90,11 +89,6 @@ class kinematic:
   return
 
  def update(self,dt):
-
-  #5. Scale HRU changes from NoahMP to individual HRUs per reach
-  #6. Balance HRU inundation height per reach
-  #7. Extract Ac (and use to compute qin - qout)
-  #Determine Ac and Af (compute from inundation per reach)
 
   #Update data
   self.A0_org[:] = self.A0[:]
@@ -115,7 +109,7 @@ class kinematic:
   #Zero out qss
   self.qss[:] = 0.0
 
-  #Calculate area-weighted average inundation height per hru 
+  #Calculate area-weighted average inundation height per hband
   A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
   #A1 = self.A0
@@ -123,44 +117,13 @@ class kinematic:
   W = self.hdb['W']
   M = self.hdb['M']
   hand = self.hdb['hand']
-  hru = self.hdb['hru'].astype(np.int64)
-  #self.hru_inundation[:] = calculate_inundation_height_per_hru(A,A1,W,hand,hru,self.reach2hru_inundation,self.reach2hru)
-  (self.hru_inundation[:],self.reach2hru_inundation[:]) = calculate_inundation_height_per_hru(A,A1,W,M,hand,hru,self.reach2hru_inundation,self.reach2hru)
-  tmp = np.sum(self.reach2hru*self.reach2hru_inundation,axis=1)/self.c_length
+  hband = self.hdb['hband'].astype(np.int64)
+  (self.hband_inundation[:],self.reach2hband_inundation[:]) = calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,self.reach2hband_inundation,self.reach2hband)
+  tmp = np.sum(self.reach2hband*self.reach2hband_inundation,axis=1)/self.c_length
   tmp1 = np.max(np.abs(A1-tmp))
   if tmp1 > 10**-3:
    argmax = np.argmax(np.abs(A1-tmp))
    print(self.itime,np.abs(A1-tmp)[argmax],A1[argmax],tmp[argmax],flush=True)
-  #if self.itime == 89:exit()
-
-  #if (self.rank == 2) & (self.hru_inundation[2] > self.hru_inundation[1]):
-  '''if (self.itime == 40) & (self.rank == 2):
-   #print(self.c_bankfull)
-   #print(self.c_bankfull-self.hru_inundation[self.hru_channel])
-   tmp = []
-   for ic in range(self.hru_channel.size):
-    tmp = self.c_bankfull[ic]-self.reach2hru_inundation[ic,self.hru_channel[ic]]
-    if tmp < 0:
-     print(self.reach2hru_inundation[ic,self.hru_channel[ic]],self.c_bankfull[ic],self.c_width[ic],A1[ic])
-     print(self.hru_channel[ic],self.hru_channel[ic]+2)
-     print(self.hru_inundation[self.hru_channel[ic]:self.hru_channel[ic]+3])
-     print(self.reach2hru_inundation[ic,self.hru_channel[ic]:self.hru_channel[ic]+3])
-     print(hru[ic,:])
-  if (self.itime == 40):exit()'''
-
-  #Define change in Ac after inundation
-  #Ac0 = []
-  #for ic in range(self.hru_channel.size):
-  # tmp = self.reach2hru[ic,self.hru_channel[ic]]*self.reach2hru_inundation[ic,self.hru_channel[ic]]/self.c_length[ic]
-  # Ac0.append(tmp)
-  #Ac0 = np.array(Ac0)
-  #Af = A1 - Ac0
-  #self.Ac0[:] = Ac0[:]
-  #self.dAc0[:] = Ac0 - self.A0
-  #self.
-
-  #Add change to source/sink term for next time step
-  #self.qss[:] += self.dAc0[:]/self.dt
 
   return
 
@@ -402,12 +365,10 @@ def calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A1,cn,fpn):
  return Kvn
 
 @numba.jit(nopython=True,cache=True)
-def calculate_inundation_height_per_hru(A,A1,W,M,hand,hru,reach2hru_inundation,reach2hru):
+def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inundation,reach2hband):
 
- #hru_sum = np.zeros(reach2hru.shape[1])
- #hru_sum[:] = 0.0
- #Zero out reach2hru_inundation
- reach2hru_inundation[:] = 0.0
+ #Zero out reach2hband_inundation
+ reach2hband_inundation[:] = 0.0
  #Determine the inundation height per hand value per basin
  for i in range(A.shape[0]):
   A0 = 0.0
@@ -439,22 +400,15 @@ def calculate_inundation_height_per_hru(A,A1,W,M,hand,hru,reach2hru_inundation,r
    #print(h)
   #h0 = hand[i,j-1] - hand[i,:j]
   #h = htop + h0 #m
-  #Add to hru sum (times area)
-  idxs = hru[i,0:j]
+  #Add to hband sum (times area)
+  idxs = hband[i,0:j]
   #Place the inundation level
   for k in range(idxs.size):
    idx = idxs[k]
-   reach2hru_inundation[i,idx] = h[k]
-   #a = hru_sum[idx]
-   #b = reach2hru[i,idx]*h[k]
-   #c = a + b
-   #hru_sum[idx] = c
- areas = np.sum(reach2hru,axis=0)
- hru_inundation = np.zeros(areas.size)	
- #for k in range(hru_inundation.size):
- # if areas[k] > 0:hru_inundation[k] = hru_sum[k]/areas[k] #meters
- hru_inundation[:] = np.sum(reach2hru*reach2hru_inundation,axis=0)/np.sum(reach2hru,axis=0)
+   reach2hband_inundation[i,idx] = h[k]
+ areas = np.sum(reach2hband,axis=0)
+ hband_inundation = np.zeros(areas.size)	
+ hband_inundation[:] = np.sum(reach2hband*reach2hband_inundation,axis=0)/np.sum(reach2hband,axis=0)
 
- #return hru_inundation
- return (hru_inundation,reach2hru_inundation)
+ return (hband_inundation,reach2hband_inundation)
 

@@ -210,7 +210,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
         'dem','soil_texture_class','ti','carea','area',
         'BB','F11','SATPSI','SATDW','QTZ','clay',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
-        'm','hand','y_aspect','x_aspect']
+        'm','hand','y_aspect','x_aspect','hru','hband']
 
  if hydroblocks_info['water_management']['hwu_agric_flag']:
   for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -308,29 +308,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
- #Compute channel properties
- #db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all)
- #import matplotlib.pyplot as plt
- #channels_wob = np.ma.masked_array(channels_wob,channels_wob<=0)
- #plt.imshow(channels_wob)
- #shreve_order = np.ma.masked_array(shreve_order,shreve_order<=0)
- #plt.imshow(np.log(ac_all))
- #plt.imshow(channels_wob)
- #plt.imshow(shreve_order)
- #plt.show()
- #exit()
-
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
 
  #Determine inlets/outlets
  os.system('mkdir -p routing')
- #print(np.unique(mask))
- #print(np.unique(area))
- #print(np.unique(mask_all))
- #print(np.unique(channels_wob))
  db_routing = {}
- #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
@@ -353,78 +336,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Compute channel properties
  db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,basins_wob,shreve_order)
 
- #Burn bankfull depth into DEM (the values are adjusted to ensure it works with the DEM res)
- '''demns_adj = np.copy(demns)
- for i in range(channels_wob.shape[0]):
-    for j in range(channels_wob.shape[1]):
-        if channels_wob[i,j] > 0:
-            ic = channels_wob[i,j]
-            cwidth = db_channels['width'][ic-1]
-            cbankfull = db_channels['bankfull'][ic-1]
-            cA = cwidth*cbankfull
-            #Determine bankfull to burn in to ensure that A holds
-            demns_adj[i,j]=demns[i,j]-cA/eares'''
-
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
  hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)#_adj)
-
- '''#Compute the areal coverage of each hand value within the basin
- db_routing['reach_hand_area'] = {}
- for i in range(basins_wob.shape[0]):
-  for j in range(basins_wob.shape[1]):
-   basin = basins_wob[i,j]
-   h = hand[i,j]
-   if basin <= 0:continue
-   if basin not in db_routing['reach_hand_area']:db_routing['reach_hand_area'][basin] = {}
-   if h not in db_routing['reach_hand_area'][basin]: db_routing['reach_hand_area'][basin][h] = 0.0
-   db_routing['reach_hand_area'][basin][h] += eares**2
- 
- #Compute channel cross section information
- odb = {'A':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
-       'P':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
-       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000)),
-       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),1000))}
- for b in db_routing['reach_hand_area']:
-  #Define reach length
-  c_length = db_channels['length'][b-1]
-  #Sort from lowest to highest hand
-  c_hand = np.array(list(db_routing['reach_hand_area'][b].keys()))
-  c_area = np.array(list(db_routing['reach_hand_area'][b].values()))
-  argsort = np.argsort(c_hand)
-  c_hand = c_hand[argsort]
-  c_area = c_area[argsort]
-  #Need to reduce the size of the c_hand array by binning by percentiles (only if necessary)
-  if c_hand.size > 1000:
-   argsort = np.argsort(c_hand)
-   pcts = np.copy(c_hand)
-   pcts[argsort] = np.linspace(0,1,c_hand.size)
-   (hist, bin_edges) = np.histogram(pcts,bins=100)
-   #Update c_hand and c_area
-   tmp_hand = []
-   tmp_area = []
-   for ib in range(bin_edges.size-1):
-    if ib == 0:m = (pcts >= bin_edges[ib]) & (pcts <= bin_edges[ib+1])
-    else:m = (pcts > bin_edges[ib]) & (pcts <= bin_edges[ib+1])
-    tmp_hand.append(np.mean(c_hand[m])) #Compute the mean hand for within the bins
-    tmp_area.append(np.sum(c_area[m])) #Compute the area sum for within the bins
-   c_hand = np.array(tmp_hand)
-   c_area = np.array(tmp_area)
-  odb['hand'][b-1,0:c_hand.size] = c_hand[:]
-  #Calculate width
-  c_width = c_area/c_length
-  odb['W'][b-1,0:c_width.size] = c_width[:]
-  #Calculate wetted perimeter at each stage
-  dP = c_width[0:-1] + 2*np.diff(c_hand)
-  P = np.cumsum(dP)
-  odb['P'][b-1,0] = 0.0
-  odb['P'][b-1,1:P.size+1] = P[:]
-  #Calculate wetted cross sectional area at each stage
-  dA = c_width[0:-1]*np.diff(c_hand)
-  A = np.cumsum(dA)
-  odb['A'][b-1,0] = 0.0
-  odb['A'][b-1,1:A.size+1] = A[:]
- db_routing['reach_cross_section'] = copy.deepcopy(odb)'''
 
  #Calculate topographic index
  print("Computing topographic index",flush=True)
@@ -483,23 +397,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
               'd':tmp}
  
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
-  
- # remove tiny basins clusters
- '''ubcs = np.unique(basin_clusters)
- ubcs = ubcs[ubcs!=-9999]
- for ubc in ubcs:
-  m = basin_clusters == ubc
-  valid_vals = (hand[m] != -9999) 
-  #if the basin cluster has less than 50% of valid hand values
-  if np.sum(valid_vals) > 0:
-    missing_ratio = 1.0 - (np.sum(valid_vals)/float(np.sum(m)))  
-  else:
-    missing_ratio = 1.0
-  if missing_ratio > 0.9 : 
-    basin_clusters[m] = -9999
-    basins[m] = -9999
- if len(basin_clusters[basin_clusters != -9999]) < 1 : 
-  exit('Error_basin_clustering: hand_full_of_nans %s' % hydroblocks_info['cid']) '''
  
  #Divide each subbasin into height bands
  #(tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
@@ -514,9 +411,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Calculate the hrus (kmeans on each tile of each basin)
  cvs = {}
- #print(intraband_clust_vars)
- #print(covariates.keys())
- #exit()
  for var in intraband_clust_vars:
   cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
               'max':np.max(covariates[var][covariates[var]!=-9999]),
@@ -527,8 +421,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
 
- #Calculate histogram of travel distances per hru
- t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
+ #Calculate histogram of travel distances per height band
+ '''t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
  uhrus = np.unique(hrus)
  uhrus = uhrus[uhrus != -9999]
  bins = np.linspace(0,100,101)
@@ -539,54 +433,40 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
    #hist = hist/np.sum(hist)
    uhs.append(hist)
  uhs = {'data':np.array(uhs),'bins':bins[:]}
- db_routing['uh_per_hru'] = uhs
+ db_routing['uh_per_hru'] = uhs'''
+ t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
+ uhbands = np.unique(tiles)
+ uhbands = uhbands[uhbands != -9999]
+ bins = np.linspace(0,100,101)
+ uhs = []
+ for hband in uhbands:
+   m = tiles == hband
+   hist = np.histogram(t2c[m]/0.1/3600.0,bins=bins,density=True)[0]
+   uhs.append(hist)
+ uhs = {'data':np.array(uhs),'bins':bins[:]}
+ db_routing['uh_per_hband'] = uhs
 
- #Calculate average hand per hru
+ #Calculate average hand per height band
  new_hand2 = np.copy(hand)
- for hru in uhrus:
-   mhand = hrus == hru
+ for hband in uhbands:
+   mhand = tiles == hband
    new_hand2[mhand] = np.mean(new_hand[mhand])
-	
- '''#Calculate averaged hand per hru per basin
- hand_tmp = {}
- new_hand2 = np.copy(hand)
- for i in range(basins_wob.shape[0]):
-  for j in range(basins_wob.shape[1]):
-   basin = basins_wob[i,j]
-   if basin <= 0:continue
-   if basin not in hand_tmp:hand_tmp[basin] = {}
-   hru = hrus[i,j]
-   if hru < 0:continue
-   if hru not in hand_tmp[basin]:
-    hand_tmp[basin][hru] = {'sum':0.0,'count':0}
-   #hand_tmp[basin][hru]['sum'] += hand[i,j]
-   hand_tmp[basin][hru]['sum'] += new_hand[i,j]
-   hand_tmp[basin][hru]['count'] += 1
- for i in range(basins_wob.shape[0]):
-  for j in range(basins_wob.shape[1]):
-   basin = basins_wob[i,j]
-   if basin <= 0:continue
-   hru = hrus[i,j]
-   if hru < 0:continue
-   new_hand2[i,j] = hand_tmp[basin][hru]['sum']/hand_tmp[basin][hru]['count'] '''
    
- #THIS WILL PROBABLY CAUSE PROBLEMS WITH INTRABAND CLUSTERING
  #Compute the areal coverage of each hand value within the basin
  db_routing['reach_hand_area'] = {}
- db_routing['reach_hand_hru'] = {}
- db_routing['reach_hru_area'] = {}
+ db_routing['reach_hand_hband'] = {}
+ db_routing['reach_hband_area'] = {}
  for i in range(basins_wob.shape[0]):
   for j in range(basins_wob.shape[1]):
    basin = basins_wob[i,j]
-   #h = hand[i,j]
    h = new_hand2[i,j]
-   hru = hrus[i,j]
+   hband = tiles[i,j]
    if basin <= 0:continue
    if basin not in db_routing['reach_hand_area']:db_routing['reach_hand_area'][basin] = collections.OrderedDict()
    if h not in db_routing['reach_hand_area'][basin]: db_routing['reach_hand_area'][basin][h] = 0.0
-   if basin not in db_routing['reach_hand_hru']:db_routing['reach_hand_hru'][basin] = collections.OrderedDict()
+   if basin not in db_routing['reach_hand_hband']:db_routing['reach_hand_hband'][basin] = collections.OrderedDict()
    db_routing['reach_hand_area'][basin][h] += eares**2
-   db_routing['reach_hand_hru'][basin][h] = hru
+   db_routing['reach_hand_hband'][basin][h] = hband
  
  #Compute channel cross section information
  odb = {'Ac':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
@@ -596,18 +476,18 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
        'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
        'M':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
        'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'hru':-9999*np.ones((len(db_routing['reach_hand_area'].keys()),100)).astype(np.int32)}
+       'hband':-9999*np.ones((len(db_routing['reach_hand_area'].keys()),100)).astype(np.int32)}
  for b in db_routing['reach_hand_area']:
   #Define reach length
   c_length = db_channels['length'][b-1]
   #Sort from lowest to highest hand
   c_hand = np.array(list(db_routing['reach_hand_area'][b].keys()))
   c_area = np.array(list(db_routing['reach_hand_area'][b].values()))
-  c_hru = np.array(list(db_routing['reach_hand_hru'][b].values()))
+  c_hband = np.array(list(db_routing['reach_hand_hband'][b].values()))
   argsort = np.argsort(c_hand)
   c_hand = c_hand[argsort]
-  c_hru = c_hru[argsort]
-  odb['hru'][b-1,0:c_hru.size] = c_hru[:]
+  c_hband = c_hband[argsort]
+  odb['hband'][b-1,0:c_hband.size] = c_hband[:]
   #Burn in a channel depth
   if c_hand.size > 1:
    #1.first remove existing difference between channel and adjacent hand value
@@ -630,23 +510,17 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
    c_slope[-1] = c_slope[-2]
   #Add the channel depth
   odb['M'][b-1,0:c_slope.size] = c_slope[:]
-  #Calculate height bottom and top of each segment
-  #if c_hand.size > 1:
-  # c_hand_btm = []
-  # for i in range(c_hand.size):
-  #  if i == 0:c_hand_btm.append(0.0)
-  #  else:c_hand_btm.append((c_hand[i]-c_hand[i-1])/2)
     
   #Adjust the areal coverage of all the HRUs/bands
   c_area = c_length*c_width
   #Update values in dictionary (due to correcting for channel info)
   db_routing['reach_hand_area'][b] = collections.OrderedDict()
-  db_routing['reach_hand_hru'][b] = collections.OrderedDict()
-  db_routing['reach_hru_area'][b] = collections.OrderedDict()
+  db_routing['reach_hand_hband'][b] = collections.OrderedDict()
+  db_routing['reach_hband_area'][b] = collections.OrderedDict()
   for ih in range(c_hand.size):
     db_routing['reach_hand_area'][b][c_hand[ih]] = c_area[ih]
-    db_routing['reach_hand_hru'][b][c_hand[ih]] = c_hru[ih]
-    db_routing['reach_hru_area'][b][c_hru[ih]] = c_area[ih] #CAUTION: THIS IS PROBLEMATIC FOR INTRABAND CLUSTERING
+    db_routing['reach_hand_hband'][b][c_hand[ih]] = c_hband[ih]
+    db_routing['reach_hband_area'][b][c_hband[ih]] = c_area[ih]
   #Update the channel depth
   odb['hand'][b-1,0:c_hand.size] = c_hand[:]
   #Calculate width
@@ -717,15 +591,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   #Calculate inundation height at each stage
  db_routing['reach_cross_section'] = copy.deepcopy(odb)
 
- #Compute areal coverage of each HRU per basin (or hillslope) (THIS WILL PROBABLE BE WRONG )
- #db_routing['reach_hru_area'] = {}
- '''for i in range(basins_wob.shape[0]):
-  for j in range(basins_wob.shape[1]):
-   basin = basins_wob[i,j]
-   if basin <= 0:continue
-   if basin not in db_routing['reach_hru_area']:db_routing['reach_hru_area'][basin] = {}
-   if hrus[i,j] not in db_routing['reach_hru_area'][basin]: db_routing['reach_hru_area'][basin][hrus[i,j]] = 0.0
-   db_routing['reach_hru_area'][basin][hrus[i,j]] += eares**2 #EARES'''
+ #Save the channel info
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
  pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
 
@@ -737,16 +603,16 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,hand,
  return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,new_hand2,
-         basins,basin_clusters,hand)
+         basins,basin_clusters,hand,tiles)
 
-def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask):
+def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands):
 
  nhru = hydroblocks_info['nhru']
  #Initialize the arrays
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
          'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
          'land_cover','soil_texture_class','clay','sand','silt',
-         'm','hand','x_aspect','y_aspect']
+         'm','hand','x_aspect','y_aspect','hru','hband']
 
  if hydroblocks_info['water_management']['hwu_agric_flag']:
   for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -762,6 +628,11 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  for hru in np.arange(nhru):
   #Set indices
   idx = np.where(cluster_ids == hru)
+  #Define hru
+  OUTPUT['hru']['hru'][hru] = hru
+  #Define height band id
+  print(hru,np.unique(hbands[idx]))
+  OUTPUT['hru']['hband'][hru] = np.mean(hbands[idx])
   #Calculate area per hru
   #OUTPUT['hru']['area'][hru] = metadata['resx']**2*idx[0].size
   OUTPUT['hru']['area'][hru] = 26.0**2*idx[0].size #NEED TO FIX WITH DEM
@@ -1069,7 +940,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs",flush=True)
- (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx,input_dir)
+ (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org,hbands) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx,input_dir)
 
  covariates['hand'] = new_hand
  hydroblocks_info['nhru'] = nhru
@@ -1111,7 +982,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
 
  #Assign the model parameters
  print("Assigning the model parameters",flush=True)
- OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask)
+ OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands)
 
  #Add the new number of clusters
  OUTPUT['nhru'] = nhru
