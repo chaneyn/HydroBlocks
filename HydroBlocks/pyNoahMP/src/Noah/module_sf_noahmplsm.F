@@ -7690,6 +7690,9 @@ contains
         RSBMX = 4.0
         CALL ZWTEQ (NSOIL  ,NSNOW  ,ZSOIL  ,DZSNSO ,SH2O   ,ZWT)
         RUNSUB = (1.0-FCRMAX) * RSBMX * EXP(-TIMEAN) * EXP(-FFF*ZWT)   ! mm/s
+        !NWC: Set lower threshold of subsurface runoff
+        IF (RUNSUB .lt. 10**(-6.0))RUNSUB = 0.0
+        !IF (RUNSUB .lt. 10**-1)RUNSUB = 0.0
     END IF
 
 !surface runoff and infiltration rate using different schemes

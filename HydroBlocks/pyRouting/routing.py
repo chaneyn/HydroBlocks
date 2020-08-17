@@ -30,6 +30,7 @@ class kinematic:
 
   #Read in the discharge input data
   self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
+  self.Qobs2 = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/chikaskia/chikaskia_2015-2017.pck','rb'))
 
   #Define the variables
   self.dt = dt
@@ -39,8 +40,10 @@ class kinematic:
   self.c_length = self.db['c_length'][:]
   self.c_n = self.db['c_n'][:]
   self.fp_n = self.db['fp_n'][:]
-  self.c_n[:] = 0.035#0.05#1#0.05#0.03
-  self.fp_n[:] = 0.15#0.15#25#0.15#0.15
+  #self.c_n[:] = 0.035#0.05#1#0.05#0.03
+  #self.fp_n[:] = 0.15#0.15#25#0.15#0.15
+  m =  self.fp_n < self.c_n
+  self.fp_n[m] = self.c_n[m]
   self.c_slope = self.db['c_slope'][:]
   self.c_bankfull = self.db['c_bankfull'][:]
   self.nchannel = self.c_length.size
@@ -51,6 +54,7 @@ class kinematic:
   #self.qin = np.zeros(self.c_length.size)
   #self.qout = np.zeros(self.c_length.size)
   self.qss = np.zeros(self.c_length.size)
+  self.qss_remainder = np.zeros(self.c_length.size)
   self.dA = np.zeros(self.c_length.size)
   self.Q0 = np.zeros(self.c_length.size)
   self.Q1 = np.zeros(self.c_length.size)
@@ -64,8 +68,8 @@ class kinematic:
   self.hdb['M'][self.hdb['M'] == 0] = 10**-5
   self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
   self.LHS = self.db['LHS']
-  self.A0_org = self.A0[:]
-  self.u0_org = self.u0[:]
+  self.A0_org = np.copy(self.A0)
+  self.u0_org = np.copy(self.u0)
   self.Ac0 = np.zeros(self.c_length.size)
   self.Ac1 = np.zeros(self.c_length.size)
   self.dAc0 = np.zeros(self.c_length.size)
@@ -75,8 +79,10 @@ class kinematic:
   self.dAf0 = np.zeros(self.c_length.size)
   self.dAf1 = np.zeros(self.c_length.size)
   self.hru_inundation = np.zeros(nhru)
+  self.hru_runoff_inundation = np.zeros(nhru)
   self.hband_inundation = np.zeros(nhband)
   self.hband_inundation1 = np.zeros(nhband)
+  self.fct_infiltrate = 0.1
 
   #Define channel hbands per reach
   self.hband_channel = np.zeros(self.c_length.size).astype(np.int32)
@@ -91,20 +97,34 @@ class kinematic:
  def update(self,dt):
 
   #Update data
-  self.A0_org[:] = self.A0[:]
-  self.u0_org[:] = self.u0[:]
+  self.A0_org[:] = np.copy(self.A0)
+  self.u0_org[:] = np.copy(self.u0)
 
-  max_niter = 1
+  dif0 = -9999
+  max_niter = 25
+  min_niter = 2
+  flag_end = False
   #Update solution
   for itr in range(max_niter):
    #Exchange boundary conditions
    self.exchange_bcs()
    #COMPLETE HACK FOR SGP PAPER (INPUT FROM GAUGE DATA)
-   #if self.cid == 4:self.bcs[78] = 83.95#3000.0
-   if self.cid == 4:
-    self.bcs[78] = self.Qobs['Q'][self.itime]
+   #South fork
+   if self.cid == 9:
+    self.bcs[198] = self.Qobs['Q'][self.itime]
+   #Chikaskia river
+   if self.cid == 14:
+    self.bcs[196] = self.Qobs2['Q'][self.itime]
    #Update solution
-   self.update_solution(itr,max_niter)
+   self.update_solution()
+   #Determine if we are done
+   if self.rank == 0:dif1 = dif0
+   dif0 = self.comm.gather(self.dif0,root=0)
+   dif0 = self.comm.bcast(np.max(dif0),root=0)
+   #if(self.rank == 0):print(itr,dif0,dif1,flush=True)
+   if (dif0 < 0.01) & (itr >= min_niter-1):break #tolerance is 0.01 m3/s
+  #if self.rank == 0:
+  # print(itr,dif0,dif1,flush=True)
 
   #Zero out qss
   self.qss[:] = 0.0
@@ -160,45 +180,31 @@ class kinematic:
 
   return
 
- def update_solution(self,it,max_niter):
+ def update_solution(self,):
 
   #Extract info
   hdb = self.hdb
-  A0 = self.A0
+  A0 = self.A0[:]
   c_slope = self.c_slope
   c_slope[c_slope < 10**-3] = 10**-3
   c_n = self.c_n
   LHS = self.LHS
   c_length = self.c_length
-  A0_org = self.A0_org
-  u0_org = self.u0_org
-  #qin = self.qin
-  #qout = self.qout
+  A0_org = self.A0_org[:]
   qss = self.qss
   bcs = self.bcs
-  Q0 = self.Q0
-  u0 = self.u0
-  dA = self.dA
-  maxu = 2.0#10.0#0.1#0.1#1.0#0.1#1.0#2.0
+  maxu = 10.0#10.0#0.1#0.1#1.0#0.1#1.0#2.0
   minu = 0.1#10.0#1.0#2.0#1.0#0.1#10**-6#0.1
   dt = self.dt
 
-  #Determine hydraulic radius
-  #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-  #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
-  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
   #Determine velocity
+  #Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
+  #u1 = np.zeros(Kvn.size)
+  #u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+  #This effectively linearizes the sub-grid network solver by setting the velocity with the previous time step A (Another way to do this, is converge first locally every change in BCs)
+  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
   u1 = np.zeros(Kvn.size)
-  u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
-  #u1 = Kvn*c_slope**0.5/A0
-  #if np.sum(np.isnan(Kvn)) != 0:
-  # print('problem!',flush=True)
-  # #m = np.isnan(Kvn) == 1
-  # #print(u1[m])
-  # #print('Kvn',Kvn[m])
-  # #print(A0[m])
-  # exit()
-  #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+  u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
   #Constrain velocity
   u1[u1 > maxu] = maxu
   u1[u1 < minu] = minu
@@ -210,41 +216,44 @@ class kinematic:
   LHS.setdiag(tmp)
   #Set right hand side
   RHS0 = c_length*A0_org
-  #RHS1 = dt*qin*c_length - dt*qout*c_length
-  RHS1 = dt*qss*c_length
   RHS2 = np.zeros(A0.size)
-  RHS2[:] = dt*bcs[:]
+  RHS2[:] = dt*bcs
+  #Iterate qss values to ensure A1 is above 0
+  RHS1 = dt*qss*c_length
   RHS = (RHS0 + RHS1 + RHS2)#/(c_length + dt*u1)
-  #Ax = b
   A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=False)
-  #QC
-  #A0[A0 < 0] = 0.0
+  #Curate A1 (issues with conservation of mass)
+  #if np.sum(A1<0) > 0:print(np.sum(A1<0))
   A1[A1 < 0] = 0.0
-  #A1[A1 <= 0] = 10**-5
-  dif1 = np.mean(np.abs(A0 - A1))
+  #Calculate difference with previous iteration
+  dif1 = np.max(np.abs(A0 - A1))
+  #if (self.rank == 8):print(dif1,flush=True)#RHS[0])
+  #dif1 = np.percentile(np.abs(u1*A0 - u1*A1),95)
   #if it == 0:print(dif1)
   #print(it,dif1)
-  if (dif1 < 10**-10) | (it == max_niter-1):
-   #Reset A0
-   A0[:] = A1[:]
-   #Determine hydraulic radius
-   #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
-   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
-   #Determine velocity
-   u1 = np.zeros(Kvn.size)
-   u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
-   #u1 = Kvn*c_slope**0.5/A0
-   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
-   u1[u1 > maxu] = maxu
-   u1[u1 < minu] = minu
-   #Calculate Q1
-   Q1 = A0*u1
-   dif0 = -9999
-   #Reset Q0
-   Q0[:] = Q1[:]
-   u0[:] = u1[:]
-  else:
+  #if (flag_end == True):
+  #if (dif1 < 10**-10) | (it == max_niter-1):
+  #Reset A0
+  A0[:] = A1[:]
+  #if (self.rank == 0):print('p1.75',A0[0],A0_org[0])#RHS[0])
+  #Determine hydraulic radius
+  #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
+  #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
+  '''Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
+  #Determine velocity
+  u1 = np.zeros(Kvn.size)
+  u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+  #u1 = Kvn*c_slope**0.5/A0
+  #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
+  #u1[u1 > maxu] = maxu
+  #u1[u1 < minu] = minu'''
+  #Calculate Q1
+  Q1 = A0*u1
+  #dif0 = -9999
+  #Reset Q0
+  self.Q0[:] = Q1[:]
+  self.u0[:] = u1[:]
+  '''else:
    #Reset A0
    A0[:] = A1[:]
    dif0 = dif1
@@ -265,19 +274,13 @@ class kinematic:
    Q1 = A0*u1
    #Reset Q0,u0
    Q0[:] = Q1[:]
-   u0[:] = u1[:]
+   u0[:] = u1[:]'''
  
   #Update data in db
-  self.Q0[:] = Q0[:]
-  self.u0[:] = u0[:]
   self.A0[:] = A0[:]
   self.Q1[:] = Q1[:]
   self.A1[:] = A1[:]
-  #self.dA[:] = dA[:]
-  self.bcs[:] = bcs[:]
-  #self.qin[:] = qin[:]
-  #self.qout[:] = qout[:]
-  self.qss[:] = qss[:]
+  self.dif0 = dif1
 
   return
 
@@ -380,11 +383,14 @@ def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inunda
   #htop = (A1[i] - A0)/np.sum(W[i,0:j]) (rectangular)
   #print(A1[i],A0,W[i,0])
   if j == 1:htop = (A1[i] - A0)/W[i,0]
+  #if j != 1:print('here!')
   else:
    c = -(A1[i] - A0)
    b = np.sum(W[i,0:j-1])
    a = 1.0/M[i,j-1]
    htop = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) #trapezoidal
+   #print('h',(-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a))
+   #print('l',(-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a))
   #Based on htop calculate the water heights (Wrong)
   h = np.zeros(j)
   h[0] = hand[i,j-1] + htop

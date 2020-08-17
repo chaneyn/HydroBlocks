@@ -166,7 +166,8 @@ class richards:
   satpsi = self.satpsi
   m = self.m
   ksat = self.ksat
-  hand = self.dem
+  #hand = self.dem
+  hand = self.dem1
   w = self.w
   dx = self.dx
   area = self.area

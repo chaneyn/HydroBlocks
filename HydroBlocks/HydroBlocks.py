@@ -441,7 +441,23 @@ class HydroBlocks:
 
   if self.routing_module == 'kinematic':
 
+   #Clean up runoff
+   self.noahmp.runsf[self.noahmp.runsf < 0] = 0.0
+   self.noahmp.runsb[self.noahmp.runsb < 0] = 0.0
+
+   #Compute total runoff for the HRU
    runoff = self.noahmp.runsf+self.noahmp.runsb
+
+   #Back out the actual runoff for this time step
+   runoff_true = runoff - self.routing.hru_inundation*1000/self.dt #mm/s
+   runoff_true[runoff_true < 0] = 0.0
+   r = np.copy(runoff_true)
+   r[:] = 1.0
+   r[runoff > 0] = runoff_true[runoff > 0]/runoff[runoff > 0]
+   self.noahmp.runsf[:] = r*self.noahmp.runsf[:]
+   self.noahmp.runsb[:] = r*self.noahmp.runsb[:]
+   self.routing.hru_runoff_inundation[:] = runoff - self.noahmp.runsf - self.noahmp.runsb
+   self.routing.hru_runoff_inundation[self.routing.hru_runoff_inundation<0] = 0.0
 
    #Calculate runoff per hband (This needs to be optimized; Numba?)
    runoff_hband = np.zeros(self.nhband)
@@ -461,8 +477,32 @@ class HydroBlocks:
     runoff_hband[m] = 0.0
 
     #Determine the change per hband per reach
-    scaling = self.routing.hband_inundation1[m]/self.routing.hband_inundation[m]
-    self.routing.reach2hband_inundation[:,m] = scaling*self.routing.reach2hband_inundation[:,m]
+    scaling = self.routing.hband_inundation1[m]/(self.routing.fct_infiltrate*self.routing.hband_inundation[m])
+    self.routing.reach2hband_inundation[:,m] = (1-self.routing.fct_infiltrate)*self.routing.reach2hband_inundation[:,m] + scaling*self.routing.fct_infiltrate*self.routing.reach2hband_inundation[:,m]
+    #self.routing.reach2hband_inundation[:,m] = scaling*self.routing.reach2hband_inundation[:,m]
+
+    #Determine the change per hband per reach (option 2)
+    '''for ihband in range(self.routing.reach2hband_inundation.shape[1]):
+     #Calculate total volume of water that was removed from the height band
+     m = self.routing.reach2hband[:,ihband] > 0
+     clength_hband = self.routing.c_length[m]
+     Vloss = np.sum(clength_hband*(self.routing.hband_inundation1[ihband] - self.routing.hband_inundation[ihband]))
+     #Split up the total volume of water among the reaches
+     for ireach in range(self.routing.reach2hband_inundation.shape[0]):
+      if m[ireach] == False:continue
+      self.routing.reach2hband_inundation[ireach,ihband] = self.routing.reach2hband_inundation[ireach,ihband] - self.routing.c_length[ireach]/np.sum(clength_hband)*Vloss
+      #Vloss += 
+     print(ihband,np.sum(m),Vloss)'''
+
+    #dif = self.routing.hband_inundation1[m] - self.routing.fct_infiltrate*self.routing.hband_inundation[m]
+    #self.routing.reach2hband_inundation[:,m] = 0.5*self.routing.reach2hband_inundation[:,m]
+    #self.routing.reach2hband_inundation[:,m] = self.routing.reach2hband_inundation[:,m] + dif
+    #self.routing.reach2hband_inundation[(self.routing.reach2hband > 0) & (self.routing.reach2hband_inundation < 0.0)] = 0.0
+    #tmp = self.routing.reach2hband_inundation[range(self.routing.reach2hband_inundation.shape[0]),self.routing.hband_channel]
+    #tmp[tmp < 0.1] = 0.1
+    #self.routing.reach2hband_inundation[range(self.routing.reach2hband_inundation.shape[0]),self.routing.hband_channel] = tmp[:]
+    #print(np.unique(self.routing.reach2hband_inundation))
+    
 
    #Recompute cross sectional area
    A = np.sum(self.routing.reach2hband*self.routing.reach2hband_inundation,axis=1)/self.routing.c_length
@@ -491,6 +531,7 @@ class HydroBlocks:
    if self.routing_surface_coupling == True:
     #Add changes between Ac1 and Ac0 to qss term
     self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
+    #self.routing.A0[:] = A[:]
 
    #Update routing module
    self.routing.itime = self.itime
@@ -498,6 +539,7 @@ class HydroBlocks:
 
    #Update the hru inundation values
    for hru in self.hrus:
+    #Only allow fct of the inundated height to infiltrate
     self.routing.hru_inundation[hru] = self.routing.hband_inundation[self.hbands[hru]]
    
   return
@@ -578,6 +620,7 @@ class HydroBlocks:
    tic0 = time.time()
    self.update(date)
    #print('update model',time.time() - tic0,flush=True)
+   #exit()
    
    #Return precip to original value
    #self.noahmp.prcp[:] = precip[:] 
@@ -692,7 +735,7 @@ class HydroBlocks:
  def update(self,date):
 
   if self.routing_surface_coupling == True:
-   self.noahmp.sfcheadrt[:] = self.routing.hru_inundation[:]*1000 #mm
+   self.noahmp.sfcheadrt[:] = self.routing.fct_infiltrate*self.routing.hru_inundation[:]*1000 #mm
   else:
    self.noahmp.sfcheadrt[:] = 0.0
   
@@ -758,6 +801,14 @@ class HydroBlocks:
    self.richards.dz[:] = self.noahmp.sldpth[:]
 
    #Update subsurface module
+   #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
+   if self.routing_module == 'kinematic':
+     self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
+     m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
+     self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
+   else:
+     self.richards.dem1 = self.richards.dem
+
    #self.richards.update()
    self.richards.update_numba()
 
@@ -794,7 +845,7 @@ class HydroBlocks:
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.esoil-NOAH.runsf-NOAH.runsb))
   if self.routing_module == 'kinematic':
-   tmp = tmp - np.copy(NOAH.sfcheadrt)
+   tmp = tmp - np.copy(NOAH.sfcheadrt) + np.copy(self.routing.hru_runoff_inundation)*dt
   self.errwat += np.sum(self.pct*tmp)
   self.q = self.q + dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
   self.et = self.et + dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.esoil))
@@ -1071,12 +1122,13 @@ class HydroBlocks:
    ncvar.units = metadata[var]['units']
 
   #Create the routing output
-  print('Creating the routing group',flush=True)
-  grp = fp_out.createGroup('data_routing')
-  for var in self.metadata['output']['routing_vars']:
-   ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
-   ncvar.description = metadata[var]['description']
-   ncvar.units = metadata[var]['units']
+  if self.routing_module == 'kinematic':
+   print('Creating the routing group',flush=True)
+   grp = fp_out.createGroup('data_routing')
+   for var in self.metadata['output']['routing_vars']:
+    ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
+    ncvar.description = metadata[var]['description']
+    ncvar.units = metadata[var]['units']
 
 
   #Create the metadata
@@ -1166,7 +1218,8 @@ class HydroBlocks:
    fp['dA'] = self.routing.dA[:]
    fp['bcs'] = self.routing.bcs[:]
    fp['qss'] = self.routing.qss[:]
-   fp['hru_inundation'] = self.routing.hru_inundation[:]
+   #fp['hru_inundation'] = self.routing.hru_inundation[:]
+   fp['hband_inundation'] = self.routing.hband_inundation[:]
    fp['reach2hband_inundation'] = self.routing.reach2hband_inundation[:]
   fp.close()
    
