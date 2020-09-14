@@ -341,7 +341,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
  
  #Compute channel properties
- db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,shreve_order)
+ db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,shreve_order,hydroblocks_info['parameter_scaling'])
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)

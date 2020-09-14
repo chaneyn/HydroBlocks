@@ -78,6 +78,10 @@ class kinematic:
   self.Af1 = np.zeros(self.c_length.size)
   self.dAf0 = np.zeros(self.c_length.size)
   self.dAf1 = np.zeros(self.c_length.size)
+  self.Ac = np.zeros(self.c_length.size)
+  self.Af = np.zeros(self.c_length.size)
+  self.Qc = np.zeros(self.c_length.size)
+  self.Qf = np.zeros(self.c_length.size)
   self.hru_inundation = np.zeros(nhru)
   self.hru_runoff_inundation = np.zeros(nhru)
   self.hband_inundation = np.zeros(nhband)
@@ -102,7 +106,7 @@ class kinematic:
 
   dif0 = -9999
   max_niter = 25
-  min_niter = 2
+  min_niter = 1
   flag_end = False
   #Update solution
   for itr in range(max_niter):
@@ -144,6 +148,16 @@ class kinematic:
   if tmp1 > 10**-3:
    argmax = np.argmax(np.abs(A1-tmp))
    print(self.itime,np.abs(A1-tmp)[argmax],A1[argmax],tmp[argmax],flush=True)
+
+  #Calculate Qc and Qf
+  self.Ac[:] = self.reach2hband[range(self.nchannel),self.hband_channel]*self.reach2hband_inundation[range(self.nchannel),self.hband_channel]/self.c_length
+  self.Af[:] = self.A0 - self.Ac
+  self.Qc[:] = self.u0*self.Ac
+  self.Qf[:] = self.u0*self.Af
+  self.Qc[self.Qc < 0.0] = 0.0
+  self.Qf[self.Qf < 0.0] = 0.0
+  #print(self.Qc[0],self.Qf[0],self.Q1[0],self.Qc[0]+self.Qf[0])
+  #exit()
 
   return
 
@@ -205,6 +219,7 @@ class kinematic:
   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
   u1 = np.zeros(Kvn.size)
   u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
+  #u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
   #Constrain velocity
   u1[u1 > maxu] = maxu
   u1[u1 < minu] = minu
@@ -227,54 +242,13 @@ class kinematic:
   A1[A1 < 0] = 0.0
   #Calculate difference with previous iteration
   dif1 = np.max(np.abs(A0 - A1))
-  #if (self.rank == 8):print(dif1,flush=True)#RHS[0])
-  #dif1 = np.percentile(np.abs(u1*A0 - u1*A1),95)
-  #if it == 0:print(dif1)
-  #print(it,dif1)
-  #if (flag_end == True):
-  #if (dif1 < 10**-10) | (it == max_niter-1):
   #Reset A0
   A0[:] = A1[:]
-  #if (self.rank == 0):print('p1.75',A0[0],A0_org[0])#RHS[0])
-  #Determine hydraulic radius
-  #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-  #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
-  '''Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
-  #Determine velocity
-  u1 = np.zeros(Kvn.size)
-  u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
-  #u1 = Kvn*c_slope**0.5/A0
-  #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
-  #u1[u1 > maxu] = maxu
-  #u1[u1 < minu] = minu'''
   #Calculate Q1
   Q1 = A0*u1
-  #dif0 = -9999
   #Reset Q0
   self.Q0[:] = Q1[:]
   self.u0[:] = u1[:]
-  '''else:
-   #Reset A0
-   A0[:] = A1[:]
-   dif0 = dif1
-   #Determine hydraulic radius
-   #rh = calculate_hydraulic_radius_rect(self.c_bankfull,self.c_width,A0)
-   #rh = calculate_hydraulic_radius(hdb['A'],hdb['P'],hdb['W'],A0)
-   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['P'],hdb['W'],A0)
-   #rh = calculate_hydraulic_radius(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],A0)
-   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
-   #Determine velocity
-   u1 = np.zeros(Kvn.size)
-   u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
-   #u1 = Kvn*c_slope**0.5/A0
-   #u1 = rh**(2.0/3.0)*c_slope**0.5/c_n
-   u1[u1 > maxu] = maxu
-   u1[u1 < minu] = minu
-   #Calculate Q1
-   Q1 = A0*u1
-   #Reset Q0,u0
-   Q0[:] = Q1[:]
-   u0[:] = u1[:]'''
  
   #Update data in db
   self.A0[:] = A0[:]

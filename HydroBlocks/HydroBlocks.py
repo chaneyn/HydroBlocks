@@ -996,6 +996,9 @@ class HydroBlocks:
    tmp = {}
    tmp['A'] = self.routing.A1[:]
    tmp['Q'] = self.routing.Q1[:]
+   tmp['Qc'] = self.routing.Qc[:]
+   tmp['Qf'] = self.routing.Qf[:]
+   tmp['reach_inundation'] = self.routing.reach2hband_inundation[:]
    sep = 100
    if itime == 0:
     self.output_routing = {}
@@ -1098,6 +1101,9 @@ class HydroBlocks:
              'alloc_sf':{'description':'Surface water allocated','units':'m','dims':('time','hru',),'precision':4},
              'alloc_gw':{'description':'Groundwater water allocated','units':'m','dims':('time','hru',),'precision':4},
              'Q':{'description':'Discharge','units':'m3/s','dims':('time','channel',),'precision':4},
+             'Qc':{'description':'Discharge (channel)','units':'m3/s','dims':('time','channel',),'precision':4},
+             'Qf':{'description':'Discharge (floodplain)','units':'m3/s','dims':('time','channel',),'precision':4},
+             'reach_inundation':{'description':'Inundation height (reach level)','units':'m','dims':('time','channel','hband'),'precision':3},
              'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
              'inundation':{'description':'Inundation height','units':'m','dims':('time','hru',),'precision':4},
              }
@@ -1110,6 +1116,7 @@ class HydroBlocks:
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
   fp_out.createDimension('soil',self.nsoil)
+  fp_out.createDimension('hband',self.nhband)
   if self.routing_module == 'kinematic':
    fp_out.createDimension('channel',self.routing.nchannel)
 
