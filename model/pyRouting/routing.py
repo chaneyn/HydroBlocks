@@ -15,7 +15,7 @@ import h5py
 
 class kinematic:
 
- def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru):
+ def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file):
 
   self.itime = 0
   self.comm = MPI.COMM_WORLD
@@ -26,11 +26,12 @@ class kinematic:
 
   #Read in all the relevant data (this should be moved to the preprocessor)
   #self.db = pickle.load(open('/stor/soteria/hydro/private/nc153/projects/Octopy/parallel/tmp/%d.pck' ,'rb'))
-  self.db = pickle.load(open('octopy.pck' ,'rb'))
+  self.db = pickle.load(open('%s/octopy.pck' % cdir ,'rb'))
 
   #Read in the discharge input data
-  self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
-  self.Qobs2 = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/chikaskia/chikaskia_2015-2017.pck','rb'))
+  self.Qobs = pickle.load(open(Qobs_file,'rb'))
+  #self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
+  #self.Qobs2 = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/chikaskia/chikaskia_2015-2017.pck','rb'))
 
   #Define the variables
   self.dt = dt
@@ -112,13 +113,16 @@ class kinematic:
   for itr in range(max_niter):
    #Exchange boundary conditions
    self.exchange_bcs()
-   #COMPLETE HACK FOR SGP PAPER (INPUT FROM GAUGE DATA)
-   #South fork
-   if self.cid == 9:
-    self.bcs[198] = self.Qobs['Q'][self.itime]
+   #Define streamflow BCs
+   for gauge in self.Qobs:
+    rid = gauge['rid']
+    cid = gauge['cid'] 
+    self.bcs[rid] = gauge['Q'][self.itime]
+   #if self.cid == 9:
+   # self.bcs[198] = self.Qobs['Q'][self.itime]
    #Chikaskia river
-   if self.cid == 14:
-    self.bcs[196] = self.Qobs2['Q'][self.itime]
+   #if self.cid == 14:
+   # self.bcs[196] = self.Qobs2['Q'][self.itime]
    #Update solution
    self.update_solution()
    #Determine if we are done

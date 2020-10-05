@@ -154,6 +154,8 @@ class HydroBlocks:
   self.idate = info['idate']
   self.fdate = info['fdate']
   self.mkl_flag = info['mkl_flag']
+  self.cdir = info['cdir']
+  self.Qobs_file = info['Qobs_file']
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
   self.dx = self.input_fp.groups['metadata'].dx
@@ -423,7 +425,7 @@ class HydroBlocks:
 
   #Initialize kinematic wave routing
   self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
-                                   self.nhband,self.nhru)
+                                   self.nhband,self.nhru,self.cdir,self.Qobs_file)
   self.routing.calculate_inundation_height_per_hband = routing.calculate_inundation_height_per_hband
 
   #Initialize hru to reach IRF

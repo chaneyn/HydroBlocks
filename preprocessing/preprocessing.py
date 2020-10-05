@@ -1,14 +1,17 @@
 import warnings
 warnings.filterwarnings('ignore')
 import sys
-sys.path.append('Tools')
+#import geopandas
+import fiona
+#sys.path.append('Tools')
 import pickle
 import datetime
 import numpy as np
 import scipy.sparse as sparse
 import scipy.stats as stats
-import model_tools as mt
+#import model_tools as mt
 import os
+import h5py
 import netCDF4 as nc
 import time
 import glob
@@ -319,7 +322,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  channels[dem == -9999] = -9999
 
  #Determine inlets/outlets
- os.system('mkdir -p routing')
+ #os.system('mkdir -p routing')
  db_routing = {}
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
@@ -1371,10 +1374,542 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
 
  return
 
+def driver(comm,edir):
+
+ size = comm.Get_size()
+ rank = comm.Get_rank()
+ #Read in the metadata
+ metadata_file = '%s/metadata.json' % edir
+ metadata = Read_Metadata_File(metadata_file)
+ info = metadata
+ info['covariates'] = {'lats':'n','ti':'n','lons':'n','lc':'n'}
+ info['idate'] = datetime.datetime(metadata['startdate']['year'],
+                           metadata['startdate']['month'],
+                           metadata['startdate']['day'],0)
+ info['fdate'] = datetime.datetime(metadata['enddate']['year'],
+                           metadata['enddate']['month'],
+                           metadata['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=info['dt'])
+ #Split up the processing across cores
+ rdir = "/".join(edir.split('/')[0:-2])
+ dfile = '%s/input_data/shp/domain.shp' % rdir
+ fp = fiona.open(dfile,'r')
+ cids = np.array(range(1,len(list(fp))+1))
+ fp.close()
+ for cid in cids[rank::size]:
+  print(rank,size,cid)
+  metadata['cid'] = cid
+  metadata['input_dir'] = "%s/%d" % (edir,cid)
+  metadata['workspace'] = "%s/input_data/domain/%d/workspace" % (rdir,cid)
+  #Prepare model data
+  tic = time.time()
+  Prepare_Model_Input_Data(metadata)
+  print("Elapsed time: ",time.time() - tic)
+ comm.Barrier()
+
+ #Create enhanced input data file
+ Connect_Cell_Networks(rank,size,cids,edir)
+ comm.Barrier()
+
+ #Wait until they are all done
+ workspace = '%s/workspace' % (edir)
+ os.system('mkdir -p %s' % workspace)
+ Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
+ comm.Barrier()
+
+ #Postprocess the model input 
+ if rank == 0:Postprocess_Input(rdir,edir,cids)
+
+ return
+
+def Postprocess_Input(rdir,edir,cids):
+
+ sdir = '%s/postprocess' % (edir)
+ ddir = '%s/input_data/domain' % rdir
+ os.system('rm -rf %s' % sdir)
+ #Create cid, hru, and channel maps
+ vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters']
+ for var in vars:
+  os.system('mkdir -p %s/postprocess/%s' % (edir,var))
+ for cid in cids:
+  print(cid)
+  dir = '%s/%s' % (edir,cid)
+  #hru
+  ifile = '%s/hru_mapping_latlon.tif' % dir
+  ofile = '%s/hrus/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #channels
+  ifile = '%s/channel_mapping_latlon.tif' % dir
+  ofile = '%s/channels/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #cid
+  ifile = '%s/%d/workspace/mask_latlon.tif' % (ddir,cid)
+  ofile = '%s/cids/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #cid
+  ifile = '%s/%d/workspace/mask_org_latlon.tif' % (ddir,cid)
+  ofile = '%s/cids_org/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #dem
+  ifile = '%s/%d/workspace/dem_latlon.tif' % (ddir,cid)
+  ofile = '%s/dem/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #hand
+  ifile = '%s/hand_latlon.tif' % dir
+  ofile = '%s/hand/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #basins
+  ifile = '%s/basins_latlon.tif' % dir
+  ofile = '%s/basins/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+  #basin clusters
+  ifile = '%s/basin_clusters_latlon.tif' % dir
+  ofile = '%s/basin_clusters/%d.tif' % (sdir,cid)
+  os.system('cp %s %s' % (ifile,ofile))
+
+ #Create vrts
+ for var in vars:
+  os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
+
+ #Create shapefiles
+ os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
+ os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basin_clusters.vrt %s/basin_clusters_shp' % (sdir,sdir))
+ os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/cids.vrt %s/cids_shp' % (sdir,sdir))
+
+ return
+
 def Read_Metadata_File(file):
 
  import json
- metadata = json.load(open(file))
+ metadata = json.load(open(file))['Preprocessing']
 
  return metadata
 
+def Connect_Cell_Networks(rank,size,cids,edir):
+
+ maxc = 1#100000.0#1.0
+ max_nchannel = 0#0#20
+ maxt = 0
+ #Iterate per catchment
+ for cid in cids[rank::size]:
+
+  #Change to integer
+  cid1 = int(cid)
+
+  #Create new topology database
+  hdw = {'inlet':[],'outlet':[]} #headwaters link for boundary conditions
+  topology_new = []
+  cid_new = []
+  channel_new = []
+  topology = nc.Dataset('%s/%s/input_file.nc' % (edir,cid1))['stream_network']['topology'][:]
+  clength = nc.Dataset('%s/%s/input_file.nc' % (edir,cid1))['stream_network']['length'][:]
+  cacc = nc.Dataset('%s/%s/input_file.nc' % (edir,cid1))['stream_network']['acc'][:]
+  rarea = nc.Dataset('%s/%s/input_file.nc' % (edir,cid1))['stream_network']['area'][:]
+  travel_length = 0.0
+  nchannel = 0 #number of channels that flow into an inlet of a given grid cell
+  #Iterate per outlet
+  outlets = np.where(topology == -1)[0]
+  #Initiate container to hold db per cid
+  dbs = {}
+  for ic in np.flipud(outlets[np.argsort(cacc[outlets])]):
+   m = (np.array(channel_new) == int(ic)) & (np.array(cid_new) == int(cid1))
+   if np.sum(m) > 0:continue
+   #Reset accumulation area
+   accarea = 0.0
+   #Add the outlet channel
+   topology_new.append(-1)
+   cid_new.append(np.int64(cid1))
+   channel_new.append(np.int64(ic))
+   #Move upstream
+   (topology_new,cid_new,channel_new,hdw,dbs,nchannel,accarea) = go_upstream(ic,cid1,topology,topology_new,cid1,travel_length,maxc,clength,maxt,cid_new,channel_new,hdw,dbs,nchannel,accarea,rarea,edir,max_nchannel)
+  #Convert to arrays
+  for var in hdw:
+   hdw[var] = np.array(hdw[var])
+  topology_new = np.array(topology_new)
+  channel_new = np.array(channel_new)
+  cid_new = np.array(cid_new)
+  mapping = np.zeros(np.sum(cid_new==int(cid1))).astype(np.int64)
+  print(cid1,'old: %d' % len(topology),'new: %d' % len(topology_new),flush=True)
+ 
+  #Create the enhanced stream network database
+  os.system('cp %s/%s/input_file.nc %s/%s/input_file_routing.nc' % (edir,cid1,edir,cid1))
+  fp = h5py.File('%s/%s/input_file_routing.nc' % (edir,cid1),'a')
+  del fp['stream_network']['topology']
+  fp['stream_network']['topology'] = topology_new[:]
+  fp['stream_network']['channelid'] = channel_new[:]
+  fp['stream_network']['cid'] = cid_new[:]
+  fp['stream_network']['headwaters_inlet'] = hdw['inlet'][:]
+  fp['stream_network']['headwaters_outlet'] = hdw['outlet'][:]
+ 
+  #Construct mapping of other catchment network to that of the current network
+  mapping_ucid = {}
+  for ucid in np.unique(cid_new):
+    #Open file
+    fp1 = nc.Dataset('%s/%s/input_file.nc' % (edir,ucid))
+    channelid_org = np.arange(fp1['stream_network']['topology'].size)
+    mapping_ucid[ucid] = {'new':[],'old':[]}
+    for ic in np.arange(channelid_org.size):
+     m = (cid_new == ucid) & (channel_new == channelid_org[ic])
+     if(np.sum(m) == 0):continue
+     mapping_ucid[ucid]['new'].append(np.where(m)[0][0])
+     mapping_ucid[ucid]['old'].append(ic)
+    #Convert to arrays
+    for var in mapping_ucid[ucid]:
+     mapping_ucid[ucid][var] = np.array(mapping_ucid[ucid][var])
+ 
+  #Fill in the rest with info from other databases
+  #print(mapping_ucid[ucid]['new']-mapping_ucid[ucid]['old'])
+  ucids = np.unique(cid_new)
+  for var in ['slope','length','manning_channel','manning_floodplain','width','bankfull','shreve_order']:
+   tmp = np.zeros(cid_new.size)
+   for ucid in ucids[:]:
+    #Open file
+    fp1 = nc.Dataset('%s/%s/input_file.nc' % (edir,ucid))
+    #Assign new data
+    tmp[mapping_ucid[ucid]['new']] = fp1['stream_network'][var][mapping_ucid[ucid]['old']]
+    fp1.close()
+   del fp['stream_network'][var]
+   fp['stream_network'][var] = tmp[:]
+ 
+  #Finalize new database
+  fp.close()
+ return
+
+def go_upstream(c1_org,cid1,topology,topology_new,cid1_org,travel_length,celerity,
+                clength,maxt,cid_new,channel_new,hdw,dbs,nchannel,accarea,rarea,edir,max_nchannel):
+
+ m = topology == int(c1_org)
+ c1_upd = len(topology_new)-1
+ #Determine if it is an inlet
+ if cid1 in dbs:
+  db1 = dbs[cid1]['routing_io']
+ else:
+  db1 = pickle.load(open('%s/%s/routing_io.pck' % (edir,cid1),'rb'))
+  dbs[cid1] = {'routing_io':db1}
+ m1 = db1['inlet']['dst'][:,3] == c1_org
+ if np.sum(m1) > 0:
+  #Iterate through all the channels that flow into this one
+  for ic in np.where(m1)[0]:
+   cid2 = np.int64(db1['inlet']['org'][ic,0])
+   lat2 = db1['inlet']['org'][ic,1]
+   lon2 = db1['inlet']['org'][ic,2]
+   #Determine the correct channel
+   if cid2 in dbs:
+    db2 = dbs[cid2]['routing_io']
+   else:
+    db2 = pickle.load(open('%s/%s/routing_io.pck' % (edir,cid2),'rb'))
+    dbs[cid2] = {'routing_io':db2}
+   m2 = db2['outlet']['dst'][:,0] == np.float64(cid1)
+   dst = ((db2['outlet']['org'][m2,1] - lat2)**2 + (db2['outlet']['org'][m2,2] - lon2)**2)**0.5
+   if (len(dst) == 0):continue
+   if np.min(dst) > 10**-10:
+     #print('problem at %d: %f' % (cid1,np.min(dst)))
+     continue
+   c2_org = db2['outlet']['org'][m2,:][np.argmin(dst),3]
+   m3 = (np.array(channel_new) == int(c2_org)) & (np.array(cid_new) == int(cid2))
+   if np.sum(m3) > 0:continue
+   del db2
+   #Update data
+   if 'topology' in dbs[cid2]:
+    topology2 = dbs[cid2]['topology']
+    clength2 = dbs[cid2]['clength']
+    rarea2 = dbs[cid2]['rarea']
+   else:
+    topology2 = nc.Dataset('%s/%s/input_file.nc' % (edir,cid2))['stream_network']['topology'][:]
+    clength2 = nc.Dataset('%s/%s/input_file.nc' % (edir,cid2))['stream_network']['length'][:]
+    rarea2 = nc.Dataset('%s/%s/input_file.nc' % (edir,cid2))['stream_network']['area'][:]
+    dbs[cid2]['topology'] = topology2[:]
+    dbs[cid2]['clength'] = clength2[:]
+    dbs[cid2]['rarea'] = rarea2[:]
+   if int(cid2) != int(cid1_org):
+    #Calculate travel time
+    travel_time = (travel_length + clength2[int(c2_org)])/celerity
+    #Update travel length
+    travel_length2 = travel_length + clength2[int(c2_org)]
+    #Update nchannel
+    nchannel += 1
+    if (nchannel >= max_nchannel) & (travel_time >= maxt):
+     hdw['outlet'].append([int(cid2),int(c2_org)])
+     hdw['inlet'].append([int(cid1),int(c1_org)])
+     continue
+   #If it is the same then reset travel time
+   if int(cid2) == int(cid1_org):
+    travel_length2 = 0.0
+    nchannel = 0
+   #Add outlet
+   topology_new.append(c1_upd)
+   cid_new.append(np.int64(cid2))
+   channel_new.append(int(c2_org))
+   #Add to accarea
+   accarea += rarea2[int(c2_org)]
+   #Move upstream on the new channel
+   (topology_new,cid_new,channel_new,hdw,dbs,nchannel,accarea) = go_upstream(c2_org,cid2,topology2,topology_new,cid1_org,travel_length2,celerity,clength2,maxt,cid_new,channel_new,hdw,dbs,nchannel,accarea,rarea2,edir,max_nchannel)
+  del db1
+ if np.sum(m) != 0:
+  for c2_org in np.where(m)[0]:
+   if int(cid1) != int(cid1_org):
+    #Calculate travel time
+    travel_time = (travel_length + clength[int(c2_org)])/celerity
+    #Update travel length
+    travel_length2 = travel_length + clength[int(c2_org)]
+    #Update nchannel
+    nchannel += 1
+    if (nchannel >= max_nchannel) & (travel_time >= maxt):
+     hdw['outlet'].append([int(cid1),int(c2_org)])
+     hdw['inlet'].append([int(cid1),int(c1_org)])
+     continue
+   #if int(cid1) == int(cid1_org):
+   if int(cid1) == int(cid1_org):
+    #Reset travel length
+    travel_length2 = 0.0
+    #Reset number of channels
+    nchannel = 0
+   #Add info
+   topology_new.append(c1_upd)
+   cid_new.append(np.int64(cid1))
+   channel_new.append(int(c2_org))
+   #Add to accarea
+   accarea += rarea[int(c2_org)]
+   (topology_new,cid_new,channel_new,hdw,dbs,nchannel,accarea) = go_upstream(c2_org,cid1,topology,topology_new,cid1_org,travel_length2,celerity,clength,maxt,cid_new,channel_new,hdw,dbs,nchannel,accarea,rarea,edir,max_nchannel)
+
+ return (topology_new,cid_new,channel_new,hdw,dbs,nchannel,accarea)
+
+def Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size):
+
+ core_cids = np.array(cids)[rank::size]
+ debug_level = 0
+
+ #Every catchment initializes its file with lists of catchments it needs to send to
+ #Create directory for other processes to place their output in
+ for cid in core_cids:
+  os.system('rm -rf %s/%d' % (workspace,cid))
+  os.system('mkdir -p %s/%d' % (workspace,cid))
+ comm.Barrier()
+
+ #Each catchment writes out the catchments that it relies on by writing its cid to the senders cid
+ for cid in core_cids:
+  file = '%s/%d/input_file_routing.nc' % (edir,cid)
+  fp = nc.Dataset(file)
+  grp = fp['stream_network']
+  if (len(grp['headwaters_outlet']) != 0):
+   ucids = np.unique(grp['headwaters_outlet'][:,0])
+   fp.close()
+   ucids = list(ucids)
+   for ucid in ucids:
+    fp = open("%s/%d/%d.txt" % (workspace,ucid,cid), "a")
+    fp.write("1,%d\n" % cid)
+    fp.close()
+   #else:os.system('rm -rf %s/%d' % (workspace,cid))
+ comm.Barrier()
+
+ #Join all files
+ for cid in core_cids:
+  #if os.path.exists('%s/%d' % (workspace,cid)):
+  os.system('cat %s/%d/*.txt > %s/%d.txt' % (workspace,cid,workspace,cid))
+  #Clean up
+  os.system('rm -rf %s/%d' % (workspace,cid))
+ comm.Barrier()
+
+ for cid in core_cids:
+
+  #Read in the stream network information
+  file = '%s/%d/input_file_routing.nc' % (edir,cid)
+  fp = nc.Dataset(file)
+  grp = fp['stream_network']
+  dbc = {}
+  for var in grp.variables:
+   dbc[var] = grp[var][:]
+  if len(dbc['headwaters_outlet']) > 0:
+   ucids0 = np.unique(dbc['cid'])
+   ucids1 = np.unique(dbc['headwaters_outlet'][:,0])
+   ucids = np.unique(np.concatenate((ucids0,ucids1)))
+  else:
+   ucids = np.unique(dbc['cid'])
+  fp.close()
+
+  #Read in the other info
+  odbc = {}
+  for ucid in ucids:
+   file = '%s//%d/input_file_routing.nc' % (edir,ucid)
+   fp = nc.Dataset(file)
+   grp = fp['stream_network']
+   odbc[ucid] = {}
+   for var in ['channelid','cid','headwaters_inlet','headwaters_outlet']:
+    odbc[ucid][var] = grp[var][:]
+   fp.close()
+
+  #Construct mapping of other catchment network inlet/outlet to that of the current network
+  mapping_hdw = {}
+  for i in range(dbc['headwaters_inlet'].shape[0]):
+   #Determine the position of the outlet points in their home
+   cid0 = dbc['headwaters_outlet'][i,0]
+   if cid0 not in mapping_hdw:mapping_hdw[cid0] = {'inlet':[],'outlet':[]}
+   channelid = dbc['headwaters_outlet'][i,1]
+   idx = np.where((odbc[cid0]['cid'] == cid0) & (odbc[cid0]['channelid'] == channelid))[0][0]
+   mapping_hdw[cid0]['outlet'].append(idx)
+   #Determine the position of these points in the inlet structure
+   cid1 = dbc['headwaters_inlet'][i,0]
+   channelid = dbc['headwaters_inlet'][i,1]
+   idx = np.where((dbc['cid'] == cid1) & (dbc['channelid'] == channelid))[0][0]
+   mapping_hdw[cid0]['inlet'].append(idx)
+  for cid0 in mapping_hdw:
+   for var in mapping_hdw[cid0]:
+    mapping_hdw[cid0][var] = np.array(mapping_hdw[cid0][var])
+  os.system('mkdir -p %s/shared' % (edir,))
+  pickle.dump(mapping_hdw,open('%s//shared/hdw_%s.pck' % (edir,cid),'wb'))
+
+ #Prepare data for cids
+ comm.Barrier()
+ for cid in core_cids:
+  if debug_level >= 0:print(cid,"Assembling the input/output",flush=True)
+  db = prepare_data(rank,cid,edir,debug_level,workspace,odbc,cids)
+  cdir = '%s/%d' % (edir,cid)
+  pickle.dump(db,open('%s/octopy.pck' % (cdir,),'wb'),pickle.HIGHEST_PROTOCOL)
+
+def prepare_send_receive_links(cid,dbc,workspace):
+
+ #Cells to which to send data
+ scids = []
+ #fp = open('workspace/%d.txt' % cid)
+ fp = open('%s/%d.txt' % (workspace,cid))
+ for line in fp:
+  tmp = line.split(',')
+  if int(tmp[0]) == 1:scids.append(int(tmp[1][0:-1]))
+
+ #Cells from which to receive data
+ if len(dbc['headwaters_outlet']) > 0:
+  rcids = np.unique(dbc['headwaters_outlet'][:,0])
+ else:
+  rcids = []
+
+ fp.close()
+
+ return (scids,rcids)
+
+def prepare_data(rank,cid,edir,debug_level,workspace,odbc,cids):
+
+ #Read in the stream network information
+ if debug_level >= 1:print(rank,cid,"Reading in the stream network information",flush=True)
+ #file = '%s/input_data/domain/%d/input_file_routing.nc' % (rdir,cid)
+ file = '%s/%d/input_file_routing.nc' % (edir,cid)
+ fp = nc.Dataset(file)
+ #nhru = fp['parameters']['hand'][:].size
+ nhband = np.unique(fp['parameters']['hband'][:]).size
+ grp = fp['stream_network']
+ dbc = {}
+ for var in grp.variables:
+  dbc[var] = grp[var][:]
+ ucids = np.unique(dbc['cid'])
+ fp.close()
+
+ #Determine ids from which to send and receive
+ if debug_level >= 1:print(rank,cid,"Determining cells where information needs to be sent and received from",flush=True)
+ (scids,rcids) = prepare_send_receive_links(cid,dbc,workspace)
+
+ #Read in runoff data
+ #if debug_level >= 1:print(rank,cid,"Reading in the runoff output from HydroBlocks",flush=True)
+ #runoff = prepare_runoff_data(rank,cid,rdir)
+
+ #Read in reach/height band area
+ if debug_level >= 1:print(rank,cid,"Reading in reach/height band relationship",flush=True)
+ file = '%s/%d/routing_info.pck' % (edir,cid)
+ db = pickle.load(open(file,'rb'))['reach_hband_area']
+
+ #Read in the reach/hand database
+ if debug_level >= 1:print(rank,cid,"Read reach/hand database for current cell",flush=True)
+ file = '%s/%d/routing_info.pck' % (edir,cid)
+ #file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,cid)
+ hdb = pickle.load(open(file,'rb'))['reach_cross_section']
+
+ #Read in the unit hydrograph per height band database
+ if debug_level >= 1:print(rank,cid,"Read unit hydrograph per height band database",flush=True)
+ file = '%s/%d/routing_info.pck' % (edir,cid)
+ #file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,cid)
+ uhs = pickle.load(open(file,'rb'))['uh_per_hband']
+
+ #Create a reach2hband matrix that describes their relationship
+ if debug_level >= 1:print(rank,cid,"Creating reach/hband matrix",flush=True)
+ #HERE -> Need a nhband parameter
+ #Compute hru average per height band -> Feed into routing (Need the mapping of hru to hband)
+ #Apply hband inundation to all hru
+ reach2hband = np.zeros((np.sum(odbc[cid]['cid']==cid),nhband))
+ for reach in db:
+  for hband in db[reach]:
+   tmp = db[reach][hband]
+   if tmp == 0:print(reach,hband,db[reach][hband])
+   reach2hband[reach-1,hband] = db[reach][hband]
+ reach2hband = sparse.csr_matrix(reach2hband)
+
+ #Bring in the headwaters mapping
+ if debug_level >= 1:print(rank,cid,"Reading in all the headwaters mapping",flush=True)
+ hdw = {}
+ for ucid in cids:
+  file = '%s/shared/hdw_%s.pck' % (edir,ucid)
+  #hdw[ucid] = pickle.load(open('input/hdw_%s.pck' % ucid,'rb'))
+  hdw[ucid] = pickle.load(open(file,'rb'))
+
+ #Assemble the connectivity array (Best to define this reordering in the database creation)
+ if debug_level >= 1:print(rank,cid,"Assembling the connectivity array",flush=True)
+ corg = np.arange(dbc['topology'].size)
+ cdst = dbc['topology'][:]
+ m = cdst != -1
+ nchannel = cdst.size
+ cmatrix = sparse.coo_matrix((np.ones(cdst[m].size),(corg[m],cdst[m])),shape=(nchannel,nchannel),dtype=np.float32)
+ cmatrix = cmatrix.tocsr().T.tocsr()
+ #Initialize LHS
+ LHS = cmatrix.tocoo()
+ LHS.setdiag(1.0)
+ LHS = LHS.tocsr()
+
+ #Initialize arrays
+ c_length = dbc['length'][:]
+ c_slope = dbc['slope'][:]
+ c_width = dbc['width'][:]
+ c_bankfull = dbc['bankfull'][:]
+ c_n = dbc['manning_channel'][:]
+ fp_n = dbc['manning_floodplain'][:]
+ Ainit = np.zeros(c_length.size)
+ Ainit[:] = 10**-5#0.1
+ A0 = np.copy(Ainit)
+ A1 = np.copy(Ainit)
+ u0 = np.zeros(Ainit.size)
+ bcs = np.zeros(c_length.size)
+ Qinit = np.zeros(nchannel)
+ Q0 = Qinit[:]
+ qin = np.zeros(c_length.size)
+ qout = np.zeros(c_length.size)
+ dA = np.zeros(c_length.size)
+
+ #Initialize diagnostics
+ tsolve = 0.0
+ tcount = 0.0
+
+ #Assemble database for simulation stage
+ db = {
+       'u0':copy.deepcopy(u0),
+       'A0':copy.deepcopy(A0),
+       'qin':copy.deepcopy(qin),
+       'qout':copy.deepcopy(qout),
+       'bcs':copy.deepcopy(bcs),
+       'hdb':copy.deepcopy(hdb),
+       'c_slope':copy.deepcopy(c_slope),
+       'c_n':copy.deepcopy(c_n),
+       'fp_n':copy.deepcopy(fp_n),
+       'LHS':copy.deepcopy(LHS),
+       'c_length':copy.deepcopy(c_length),
+       'c_width':copy.deepcopy(c_width),
+       'c_bankfull':copy.deepcopy(c_bankfull),
+       'tsolve':tsolve,'tcount':tcount,
+       'Q0':copy.deepcopy(Q0),
+       'u0':copy.deepcopy(u0),
+       'dA':copy.deepcopy(dA),
+       'cdst':copy.deepcopy(cdst),
+       'scids_hdw':copy.deepcopy(scids),
+       'rcids_hdw':copy.deepcopy(rcids),
+       'hdw':copy.deepcopy(hdw),
+       'uhs':copy.deepcopy(uhs['data']),
+       'uh_travel_time':copy.deepcopy(uhs['bins']),
+       #'runoff':copy.deepcopy(runoff),
+       'reach2hband':copy.deepcopy(reach2hband)
+      }
+
+ return db

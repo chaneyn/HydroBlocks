@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+import sys
+import getopt
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+#size = comm.Get_size()
+#rank = comm.Get_rank()
+#name = MPI.Get_processor_name()
+
+def main(argv):
+   edir = ''
+   try:
+      opts, args = getopt.getopt(argv,"he:t:",["edir=","mtype="])
+   except getopt.GetoptError:
+      print('HB -e <edir> -t <mtype>')
+      sys.exit(2)
+   for opt, arg in opts:
+      if opt == '-h':
+         print('HB -e <edir> -t <mtype>')
+         sys.exit()
+      elif opt in ("-e", "--edir"):
+         edir = arg
+      elif opt in ("-t", "--mtype"):
+         mtype = arg
+
+   if mtype == 'preprocess':
+        print("HydroBlocks: Preprocess")
+        import preprocessing.preprocessing
+        preprocessing.preprocessing.driver(comm,edir)
+        #preprocessing.driver(comm,edir)
+   elif mtype == 'model':
+        print("HydroBlocks: Model")
+        import model.model
+        model.model.run(comm,edir)
+   else:
+        print("The mtype provided is not an option")
+
+   
+
+if __name__ == "__main__":
+   main(sys.argv[1:])
