@@ -153,7 +153,6 @@ class HydroBlocks:
   self.ncores = info['ncores']
   self.idate = info['idate']
   self.fdate = info['fdate']
-  self.mkl_flag = info['mkl_flag']
   self.cdir = info['cdir']
   self.Qobs_file = info['Qobs_file']
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
@@ -163,7 +162,7 @@ class HydroBlocks:
   self.subsurface_module = info['subsurface_module']
   self.routing_module = info['routing_module']['type']
   self.routing_surface_coupling = info['routing_module']['surface_coupling']
-  self.hwu_flag = info['water_management']['hwu_flag']
+  #self.hwu_flag = info['water_management']['hwu_flag']
   self.area = self.input_fp.groups['parameters'].variables['area'][:]
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)

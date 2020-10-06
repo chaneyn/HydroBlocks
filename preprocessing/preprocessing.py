@@ -102,10 +102,10 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'lstmean':'%s/lstmean_latlon.tif' % workspace,
   'lststd':'%s/lststd_latlon.tif' % workspace
   }
- if hydroblocks_info['water_management']['hwu_agric_flag']:
-   wbd['files']['irrig_land'] = '%s/irrig_land_latlon.tif' % workspace
-   wbd['files']['start_growing_season'] = '%s/start_growing_season_latlon.tif' % workspace
-   wbd['files']['end_growing_season']   = '%s/end_growing_season_latlon.tif' % workspace
+ #if hydroblocks_info['water_management']['hwu_agric_flag']:
+ #  wbd['files']['irrig_land'] = '%s/irrig_land_latlon.tif' % workspace
+ #  wbd['files']['start_growing_season'] = '%s/start_growing_season_latlon.tif' % workspace
+ #  wbd['files']['end_growing_season']   = '%s/end_growing_season_latlon.tif' % workspace
 
  wbd['files_meteorology'] = {
   'lwdown':'%s/lwdown.nc' % workspace,
@@ -117,14 +117,14 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'spfh':'%s/spfh.nc' % workspace,
   }
 
- if hydroblocks_info['water_management']['hwu_flag'] == True:
-  wbd['files_water_use'] = {}
-  if hydroblocks_info['water_management']['hwu_domest_flag']:
-   wbd['files_water_use']['domestic']   = '%s/domestic.nc' % workspace
-  if hydroblocks_info['water_management']['hwu_indust_flag']:
-   wbd['files_water_use']['industrial'] = '%s/industrial.nc' % workspace
-  if hydroblocks_info['water_management']['hwu_lstock_flag']:
-   wbd['files_water_use']['livestock']  = '%s/livestock.nc' % workspace
+ #if hydroblocks_info['water_management']['hwu_flag'] == True:
+ # wbd['files_water_use'] = {}
+ # if hydroblocks_info['water_management']['hwu_domest_flag']:
+ #  wbd['files_water_use']['domestic']   = '%s/domestic.nc' % workspace
+ # if hydroblocks_info['water_management']['hwu_indust_flag']:
+ #  wbd['files_water_use']['industrial'] = '%s/industrial.nc' % workspace
+ # if hydroblocks_info['water_management']['hwu_lstock_flag']:
+ #  wbd['files_water_use']['livestock']  = '%s/livestock.nc' % workspace
 
  #Create the clusters and their connections
  (output,covariates) = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info)
@@ -134,9 +134,9 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info,covariates)
 
  #Extract the water use demands
- print("Preparing the water use",flush=True)
- if hydroblocks_info['water_management']['hwu_flag'] == True:
-  Prepare_Water_Use_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info) 
+ #print("Preparing the water use",flush=True)
+ #if hydroblocks_info['water_management']['hwu_flag'] == True:
+ # Prepare_Water_Use_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info) 
 
  #Write out the files to the netcdf file
  fp = hydroblocks_info['input_fp']
@@ -222,17 +222,17 @@ def Prepare_Model_Input_Data(hydroblocks_info):
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
         'm','hand','y_aspect','x_aspect','hru','hband']
 
- if hydroblocks_info['water_management']['hwu_agric_flag']:
-  for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
-    vars.append(var)
+ #if hydroblocks_info['water_management']['hwu_agric_flag']:
+ # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
+ #   vars.append(var)
 
  for var in vars:
   grp.createVariable(var,'f4',('hru',))#,zlib=True)
   grp.variables[var][:] = data['hru'][var]
 
- if hydroblocks_info['water_management']['hwu_flag']:
-  grp.createVariable('hru_min_dist','f4',('hru','hru'))#,zlib=True)
-  grp.variables['hru_min_dist'][:] = data['hru']['hru_min_dist']
+ #if hydroblocks_info['water_management']['hwu_flag']:
+ # grp.createVariable('hru_min_dist','f4',('hru','hru'))#,zlib=True)
+ # grp.variables['hru_min_dist'][:] = data['hru']['hru_min_dist']
 
  #Write out the stream network info
  grp = fp.createGroup('stream_network')
@@ -655,12 +655,12 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
          'land_cover','soil_texture_class','clay','sand','silt',
          'm','hand','x_aspect','y_aspect','hru','hband']
 
- if hydroblocks_info['water_management']['hwu_agric_flag']:
-  for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
-    vars.append(var)
+ #if hydroblocks_info['water_management']['hwu_agric_flag']:
+ # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
+ #   vars.append(var)
 
  OUTPUT['hru'] = {}
- if hydroblocks_info['water_management']['hwu_flag']: OUTPUT['hru']['hru_min_dist'] = np.zeros((nhru,nhru))
+ #if hydroblocks_info['water_management']['hwu_flag']: OUTPUT['hru']['hru_min_dist'] = np.zeros((nhru,nhru))
  for var in vars:
    OUTPUT['hru'][var] = np.zeros(nhru)
 
@@ -727,7 +727,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   OUTPUT['hru']['m'][hru] = np.nanmean(covariates['dbedrock'][idx]) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
 
   # Water Management Variables
-  if hydroblocks_info['water_management']['hwu_agric_flag'] == True:
+  '''if hydroblocks_info['water_management']['hwu_agric_flag'] == True:
    # Irrigation: 1 Irrigated, 2 paddy crop
    irrig_vec = np.copy(covariates['irrig_land'][idx].flatten())
    nii = np.nansum( irrig_vec == 1 )
@@ -755,7 +755,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  # for hru in np.arange(nhru):
  #  #HRU distance between the centroids of the hru and all the other hrus 
  #  OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
- #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0
+ #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
    
  return OUTPUT
 
@@ -1353,11 +1353,11 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
     water_use[data_var][:,hru] = 0.0
 
   #Write the water use the netcdf file (single chunk for now...)
-  grp = hydroblocks_info['input_fp'].groups['water_use']
+  '''grp = hydroblocks_info['input_fp'].groups['water_use']
   grp.createVariable(var,'f4',('time','hru'))#,zlib=True)
-  grp.variables[data_var][:] = water_use[data_var][:]
+  grp.variables[data_var][:] = water_use[data_var][:]'''
 
- if hydroblocks_info['water_management']['hwu_flag']:
+ '''if hydroblocks_info['water_management']['hwu_flag']:
   if len(wbd['files_water_use']) > 1 :
    #Add time information
    dates = []
@@ -1370,16 +1370,16 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
    var.units = 'hours since %4d-01-01' % idate.year
    var.calendar = 'standard'
    dates = nc.date2num(dates,units=var.units,calendar=var.calendar)
-   var[:] = dates[:]
+   var[:] = dates[:]'''
 
  return
 
-def driver(comm,edir):
+def driver(comm,metadata_file):
 
  size = comm.Get_size()
  rank = comm.Get_rank()
  #Read in the metadata
- metadata_file = '%s/metadata.json' % edir
+ #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
  info = metadata
  info['covariates'] = {'lats':'n','ti':'n','lons':'n','lc':'n'}
@@ -1389,9 +1389,10 @@ def driver(comm,edir):
  info['fdate'] = datetime.datetime(metadata['enddate']['year'],
                            metadata['enddate']['month'],
                            metadata['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=info['dt'])
+ rdir = metadata['rdir']
+ edir = '%s/experiments/simulations/%s' % (rdir,metadata['experiment'])
  #Split up the processing across cores
- rdir = "/".join(edir.split('/')[0:-2])
- dfile = '%s/input_data/shp/domain.shp' % rdir
+ dfile = '%s/data/shp/domain.shp' % rdir
  fp = fiona.open(dfile,'r')
  cids = np.array(range(1,len(list(fp))+1))
  fp.close()
@@ -1399,10 +1400,10 @@ def driver(comm,edir):
   print(rank,size,cid)
   metadata['cid'] = cid
   metadata['input_dir'] = "%s/%d" % (edir,cid)
-  metadata['workspace'] = "%s/input_data/domain/%d/workspace" % (rdir,cid)
+  metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
   #Prepare model data
   tic = time.time()
-  Prepare_Model_Input_Data(metadata)
+  #Prepare_Model_Input_Data(metadata)
   print("Elapsed time: ",time.time() - tic)
  comm.Barrier()
 
@@ -1424,7 +1425,7 @@ def driver(comm,edir):
 def Postprocess_Input(rdir,edir,cids):
 
  sdir = '%s/postprocess' % (edir)
- ddir = '%s/input_data/domain' % rdir
+ ddir = '%s/data/cids' % rdir
  os.system('rm -rf %s' % sdir)
  #Create cid, hru, and channel maps
  vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters']
@@ -1442,15 +1443,15 @@ def Postprocess_Input(rdir,edir,cids):
   ofile = '%s/channels/%d.tif' % (sdir,cid)
   os.system('cp %s %s' % (ifile,ofile))
   #cid
-  ifile = '%s/%d/workspace/mask_latlon.tif' % (ddir,cid)
+  ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
   ofile = '%s/cids/%d.tif' % (sdir,cid)
   os.system('cp %s %s' % (ifile,ofile))
   #cid
-  ifile = '%s/%d/workspace/mask_org_latlon.tif' % (ddir,cid)
+  ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
   ofile = '%s/cids_org/%d.tif' % (sdir,cid)
   os.system('cp %s %s' % (ifile,ofile))
   #dem
-  ifile = '%s/%d/workspace/dem_latlon.tif' % (ddir,cid)
+  ifile = '%s/%d/dem_latlon.tif' % (ddir,cid)
   ofile = '%s/dem/%d.tif' % (sdir,cid)
   os.system('cp %s %s' % (ifile,ofile))
   #hand
@@ -1480,7 +1481,7 @@ def Postprocess_Input(rdir,edir,cids):
 def Read_Metadata_File(file):
 
  import json
- metadata = json.load(open(file))['Preprocessing']
+ metadata = json.load(open(file))
 
  return metadata
 

@@ -116,8 +116,8 @@ class kinematic:
    #Define streamflow BCs
    for gauge in self.Qobs:
     rid = gauge['rid']
-    cid = gauge['cid'] 
-    self.bcs[rid] = gauge['Q'][self.itime]
+    if self.cid == gauge['cid']:    
+     self.bcs[rid] = gauge['Q'][self.itime]
    #if self.cid == 9:
    # self.bcs[198] = self.Qobs['Q'][self.itime]
    #Chikaskia river

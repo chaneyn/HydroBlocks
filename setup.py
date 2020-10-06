@@ -1,6 +1,6 @@
 import os
-#HydroBlocks:Noah-MP
+#model:Noah-MP
 cwd = os.getcwd()
-os.chdir('HydroBlocks/pyNoahMP')
+os.chdir('model/pyNoahMP')
 os.system('python make.py')
 os.chdir(cwd)

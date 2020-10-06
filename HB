@@ -10,28 +10,28 @@ comm = MPI.COMM_WORLD
 def main(argv):
    edir = ''
    try:
-      opts, args = getopt.getopt(argv,"he:t:",["edir=","mtype="])
+      opts, args = getopt.getopt(argv,"hm:t:",["mfile=","mtype="])
    except getopt.GetoptError:
-      print('HB -e <edir> -t <mtype>')
+      print('HB -m <mfile> -t <mtype>')
       sys.exit(2)
    for opt, arg in opts:
       if opt == '-h':
-         print('HB -e <edir> -t <mtype>')
+         print('HB -m <mfile> -t <mtype>')
          sys.exit()
-      elif opt in ("-e", "--edir"):
-         edir = arg
+      elif opt in ("-m", "--mfile"):
+         mfile = arg
       elif opt in ("-t", "--mtype"):
          mtype = arg
 
    if mtype == 'preprocess':
         print("HydroBlocks: Preprocess")
         import preprocessing.preprocessing
-        preprocessing.preprocessing.driver(comm,edir)
+        preprocessing.preprocessing.driver(comm,mfile)
         #preprocessing.driver(comm,edir)
    elif mtype == 'model':
         print("HydroBlocks: Model")
         import model.model
-        model.model.run(comm,edir)
+        model.model.run(comm,mfile)
    else:
         print("The mtype provided is not an option")
 
