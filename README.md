@@ -3,20 +3,19 @@ HydroBlocks
 
 HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html). Here are the steps to install the model.
 
+1. Create a conda environment named HB from the yml file. Note that the only current yml file in the repository is for a linux64 machine. 
+```
+conda update conda
+conda env create -f yml/HB_linux64.yml
+source activate HB
+```
 
-1. Clone and install the dev_nate branch of HydroBlocks
+2. Clone and install the dev_nate branch of HydroBlocks
 ```
 git clone --single-branch --branch dev_nate https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
 python setup.py 
 cd ..
-```
-
-2. Create a conda environment named HB from the yml file. Note that the only current yml file in the repository is for a linux64 machine. 
-```
-conda update conda
-conda env create -f yml/HB_linux64.yml
-source activate HB
 ```
 
 To run the model on a test dataset:
