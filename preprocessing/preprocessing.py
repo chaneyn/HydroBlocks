@@ -1403,7 +1403,7 @@ def driver(comm,metadata_file):
   metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
   #Prepare model data
   tic = time.time()
-  #Prepare_Model_Input_Data(metadata)
+  Prepare_Model_Input_Data(metadata)
   print("Elapsed time: ",time.time() - tic)
  comm.Barrier()
 

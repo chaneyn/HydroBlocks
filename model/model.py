@@ -12,13 +12,14 @@ def Read_Metadata_File(file):
 
  return metadata
 
-def Run_HydroBlocks(metadata,edir,cid,rdir):#,hb):
+def Run_HydroBlocks(metadata,edir,cid,rdir):
 
  import datetime
  from dateutil.relativedelta import relativedelta
- import sys
- sys.path.append("model")# % hb)
- import HydroBlocks
+ #import sys
+ #print("%s/model" % hb)
+ #sys.path.append("%s/model" % hb)
+ import model.HydroBlocks as HydroBlocks
 
  #Read in the metadata file
  info = metadata

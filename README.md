@@ -1,36 +1,22 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) and the intel repository to install all the packages. Here are the steps to install the model.
+HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html). Here are the steps to install the model.
 
 
-Create a conda environment for HydroBlocks:
+1. Clone and install the dev_nate branch of HydroBlocks
 ```
-conda update conda
-conda create -n HydroBlocks -c intel python=3.6 anaconda
-source activate HydroBlocks
-```
-
-Install HydroBlocks dependencies from intel channel:
-```
-conda install -c intel gdal netcdf4 geos xerces-c jpeg scikit-image scikit-learn numpy pandas h5py kealib gcc libgcc python=3.6 mpi4py 
-conda install conda-forge::gdal=2.2.4 --force --update-dependencies
-```
-
-Install HydroBlocks:
-```
-git clone https://github.com/chaneyn/HydroBlocks.git
+git clone --single-branch --branch dev_nate https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
 python setup.py 
 cd ..
 ```
 
-Install geospatial tools:
+2. Create a conda environment named HB from the yml file. Note that the only current yml file in the repository is for a linux64 machine. 
 ```
-git clone https://github.com/chaneyn/geospatialtools.git
-cd geospatialtools
-python setup.py install
-cd ..
+conda update conda
+conda env create -f yml/HB_linux64.yml
+source activate HB
 ```
 
 To run the model on a test dataset:

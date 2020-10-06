@@ -203,8 +203,9 @@ class HydroBlocks:
  def initialize_noahmp(self,):
 
   #Initialize noahmp
-  import pyNoahMP.NoahMP
-  self.noahmp = pyNoahMP.NoahMP
+  from model.pyNoahMP import NoahMP
+  #self.noahmp = pyNoahMP.NoahMP
+  self.noahmp = NoahMP
 
   #Initialize parameters
   self.noahmp.ncells = self.nhru
@@ -420,7 +421,7 @@ class HydroBlocks:
 
  def initialize_kinematic(self,):
 
-  from pyRouting import routing
+  from model.pyRouting import routing
 
   #Initialize kinematic wave routing
   self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
@@ -553,7 +554,7 @@ class HydroBlocks:
 
  def initialize_richards(self,):
    
-  from pyRichards import richards
+  from model.pyRichards import richards
   
   #Initialize richards
   self.richards = richards.richards(self.nhru,self.nsoil)
