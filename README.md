@@ -3,10 +3,10 @@ HydroBlocks
 
 The following steps walk through how to install HydroBlocks and run it over the SGP site in Oklahoma
 
-**1. Clone the the dev_nate branch of HydroBlocks.**
+**1. Clone the the HBrouting branch of HydroBlocks.**
 
 ```
-git clone --single-branch --branch dev_nate https://github.com/chaneyn/HydroBlocks.git
+git clone --single-branch --branch HBrouting https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
 ```
 
@@ -18,7 +18,7 @@ conda env create -f yml/HB_linux64.yml
 source activate HB
 ```
 
-**3. Install the dev_nate branch of HydroBlocks.**
+**3. Install the HBrouting branch of HydroBlocks.**
 
 ```
 python setup.py 
