@@ -18,16 +18,12 @@ python setup.py
 cd ..
 ```
 
-To run the model on a test dataset:
+3. Run the model on the SGP site
 ```
 wget https://www.dropbox.com/s/k7su7af5dk1l2vf/HB_sample.tar.gz?dl=0
 tar -xvzf HB_sample.tar.gz
 cd HB_sample
 python ../HydroBlocks/Preprocessing/Driver.py metadata.json
 python ../HydroBlocks/HydroBlocks/Driver.py metadata.json 
-```
-
-```
-source deactivate 
 ```
 
