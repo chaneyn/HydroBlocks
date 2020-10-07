@@ -1,7 +1,7 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html). Here are the steps to install the model.
+HydroBlocks relies on a number python libraries. Below we provide steps to install the model.
 
 1. Create a conda environment named HB from the yml file. Note that the only current yml file in the repository is for a linux64 machine. 
 ```
