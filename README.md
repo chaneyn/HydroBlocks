@@ -13,7 +13,7 @@ cd HydroBlocks
 **2. Create a conda environment named HB from the yml file. Note that the only current yml file in the repository is for a linux64 machine.** 
 
 ```
-conda update conda
+conda install conda==4.8.5
 conda env create -f yml/HB_linux64.yml
 source activate HB
 ```
