@@ -273,13 +273,13 @@ class HydroBlocks:
   #self.noahmp.iopt_tbot = 1#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_tbot = 2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_stc = 2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
-  self.noahmp.iz0tlnd = 0
+  self.noahmp.iz0tlnd = -16497279 #0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
+  
   self.noahmp.z_ml[:] = 10.0
   self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
   self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
-  
   #Set all to land (can include lake in the future...)
   lc = self.input_fp.groups['parameters'].variables['land_cover'][:]
   ist = np.copy(lc).astype(np.int32)
@@ -297,19 +297,19 @@ class HydroBlocks:
   self.noahmp.ice[:] = 0
   self.noahmp.foln[:] = 1.0
   self.noahmp.ficeold[:] = 0.0
-  self.noahmp.albold[:] = 0.65
-  self.noahmp.sneqvo[:] = 0.0
-  self.noahmp.ch[:] = 0.0001
-  self.noahmp.cm[:] = 0.0001
-  self.noahmp.canliq[:] =  0.0
+  self.noahmp.albold[:] = 0.189999998 #0.65
+  self.noahmp.sneqvo[:] = 2.09569975E-04 #0.0
+  self.noahmp.ch[:] = 0.108068228
+  self.noahmp.cm[:] = 1.81936752E-02
+  self.noahmp.canliq[:] =  3.93530267E-04
   self.noahmp.canice[:] = 0.0
-  self.noahmp.sndpth[:] = 0.0
-  self.noahmp.swe[:] = 0.0
+  self.noahmp.sndpth[:] = 1.06005312E-03
+  self.noahmp.swe[:] = 2.09569975E-04
   self.noahmp.snice[:] = 0.0
   self.noahmp.snliq[:] = 0.0
-  self.noahmp.wa[:] = 0.0
+  self.noahmp.wa[:] = 4900
   self.noahmp.wt[:] = self.noahmp.wa[:]
-  self.noahmp.zwt[:] = 0.0
+  self.noahmp.zwt[:] = 1.55999994
   self.noahmp.wslake[:] = 0.0
   self.noahmp.lfmass[:] = 9.0
   self.noahmp.rtmass[:] = 500.0
@@ -322,12 +322,13 @@ class HydroBlocks:
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,1]
   self.noahmp.deeprech[:] = 0.0
   self.noahmp.rech[:] = 0.0
-  self.noahmp.eah[:] = 1000.0
+  self.noahmp.eah[:] = 373.016357
   self.noahmp.fwet[:] = 0.0
   self.noahmp.psai[:] = 0.1
-  self.noahmp.stc[:] = 285.0
+  #self.noahmp.stc[:] = 285.0
+  self.noahmp.stc[:]=np.array([[0,0,0,273.160004,273.880310,276.886475,279.909302],[0,0,0,273.160004,273.880310,276.886475,279.909302]])
   self.noahmp.slopetyp[:] = 3
-  self.noahmp.albold[:] = 0.5
+  #self.noahmp.albold[:] = 0.5
   #Define the data
   self.noahmp.vegtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
   hand = self.input_fp.groups['parameters'].variables['hand'][:]
@@ -344,7 +345,9 @@ class HydroBlocks:
   for ilayer in range(self.noahmp.sh2o.shape[1]):
    self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
    #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
+  self.noahmp.sh2o[:,:]=np.array([[0.256443590,0.294025391,0.271311402,0.307094812],[0.256443590,0.294025391,0.271311402,0.307094812]])
   self.noahmp.smc[:] = self.noahmp.sh2o[:]
+  self.noahmp.smc[:,0]=0.298159689 #Laura
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
   self.noahmp.bb0[:] = self.input_fp.groups['parameters'].variables['BB'][:]
@@ -363,19 +366,19 @@ class HydroBlocks:
   self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
 
   #Initialize output
-  self.noahmp.tg[:] = 285.0
-  self.noahmp.tv[:] = 285.0
-  for ilayer in range(self.noahmp.nsnow,self.noahmp.stc.shape[1]):
-   self.noahmp.stc[:,ilayer] = 285.0
+  self.noahmp.tg[:] = 263.690887
+  self.noahmp.tv[:] = 263.690887
+  #for ilayer in range(self.noahmp.nsnow,self.noahmp.stc.shape[1]):
+   #self.noahmp.stc[:,ilayer] = 285.0
   self.noahmp.tah[:] = 285.0
-  self.noahmp.t2mv[:] = 285.0
-  self.noahmp.t2mb[:] = 285.0
+  self.noahmp.t2mv[:] = 0 #285
+  self.noahmp.t2mb[:] = 0 #285
   self.noahmp.runsf[:] = 0.0
   self.noahmp.runsb[:] = 0.0
   #forcing
-  self.noahmp.fveg[:] = 1.0
-  self.noahmp.fvgmax[:] = 1.0
-  self.noahmp.tbot[:] = 290.0#285.0
+  self.noahmp.fveg[:] = 0.98
+  self.noahmp.fvgmax[:] = 0.98
+  self.noahmp.tbot[:] = 285.0
 
   #Define the parameters
   noah = self.noahmp
@@ -775,7 +778,7 @@ class HydroBlocks:
                         noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
                         noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv,
                         noah.sfcheadrt)
-
+  #print(noah.cosz)
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 

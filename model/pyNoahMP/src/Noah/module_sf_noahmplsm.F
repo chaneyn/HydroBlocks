@@ -182,7 +182,7 @@ REAL ::  FXEXP_DATA,CSOIL_DATA,REFDK_DATA ,         &
 
 ! adjustable parameters for snow processes
 
-  REAL, PARAMETER :: M      = 2.50   !melting factor (-) 
+  REAL, PARAMETER :: M      = 2.50   !melting factor (-) Laura
   REAL, PARAMETER :: Z0SNO  = 0.002  !snow surface roughness length (m) (0.002)
   REAL, PARAMETER :: SSI    = 0.03   !liquid water holding capacity for snowpack (m3/m3) (0.03)
   REAL, PARAMETER :: SWEMX  = 1.00   !new snow mass to fully cover old snow (mm)

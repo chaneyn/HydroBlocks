@@ -29,7 +29,7 @@ class kinematic:
   self.db = pickle.load(open('%s/octopy.pck' % cdir ,'rb'))
 
   #Read in the discharge input data
-  self.Qobs = pickle.load(open(Qobs_file,'rb'))
+  #self.Qobs = pickle.load(open(Qobs_file,'rb'))
   #self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
   #self.Qobs2 = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/chikaskia/chikaskia_2015-2017.pck','rb'))
 
@@ -114,10 +114,10 @@ class kinematic:
    #Exchange boundary conditions
    self.exchange_bcs()
    #Define streamflow BCs
-   for gauge in self.Qobs:
-    rid = gauge['rid']
-    if self.cid == gauge['cid']:    
-     self.bcs[rid] = gauge['Q'][self.itime]
+   #for gauge in self.Qobs:
+    #rid = gauge['rid']
+    #if self.cid == gauge['cid']:    
+     #self.bcs[rid] = gauge['Q'][self.itime]
    #if self.cid == 9:
    # self.bcs[198] = self.Qobs['Q'][self.itime]
    #Chikaskia river
