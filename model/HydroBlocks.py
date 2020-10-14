@@ -40,7 +40,7 @@ class HydroBlocks:
   #Initialize Noah-MP
   print("Initializing Noah-MP",flush=True)
   self.initialize_noahmp()
-
+  self.tsno=np.zeros((self.noahmp.ncells,self.noahmp.nsnow),order='F').astype(np.float32) #Initial condition TSNO Laura
   #Initialize subsurface module
   print("Initializing subsurface module",flush=True)
   self.initialize_subsurface()
@@ -52,7 +52,6 @@ class HydroBlocks:
   #Initialize routing module
   print("Initializing the routing module",flush=True)
   self.initialize_routing()
-
   #Other metrics
   self.dE = 0.0
   self.r = 0.0
@@ -259,7 +258,7 @@ class HydroBlocks:
   #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  self.noahmp.idveg = 3 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.idveg = 22# dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 2 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
@@ -387,7 +386,9 @@ class HydroBlocks:
          noah.iopt_frz,noah.iopt_inf,noah.iopt_rad,noah.iopt_alb,noah.iopt_snf,\
          noah.iopt_tbot,noah.iopt_stc,noah.idveg,noah.mptable_file,noah.bb0,\
          noah.drysmc0,noah.f110,noah.maxsmc0,\
-         noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,noah.wltsmc0,noah.qtz0)
+         noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,noah.wltsmc0,noah.qtz0)#,\
+         #noah.nsnow,noah.nsoil,noah.zsoil,noah.swe,noah.tg,noah.sndpth,noah.zsnso,\
+         #noah.snice,noah.snliq,noah.isnow)
 
   return
 
@@ -607,14 +608,20 @@ class HydroBlocks:
   date = self.idate
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
+  i=0
+  #print(i)
+  #print(self.noahmp.tah[1])
+  #print(self.noahmp.eah[1])
+  #print(self.noahmp.swe[1])
+  #print(self.noahmp.stc[1])
 
   while date < self.fdate:
- 
+   i=i+1 
    #Update input data
    tic0 = time.time()
+   self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
    self.update_input(date)
    #print('update input',time.time() - tic0,flush=True)
-
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
 
@@ -624,6 +631,15 @@ class HydroBlocks:
    #Update model
    tic0 = time.time()
    self.update(date)
+   #print(i)
+   #print(self.noahmp.tah[1])
+   #print(self.noahmp.eah[1])
+   #print(self.noahmp.swe[1])
+   #print(self.noahmp.stc[1])
+   #print(self.tsno[1])
+   #if i>10:
+    #break
+
    #print('update model',time.time() - tic0,flush=True)
    #exit()
    
@@ -720,6 +736,9 @@ class HydroBlocks:
   self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
   self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
+  for ilayer in range(self.noahmp.nsnow):
+   self.noahmp.ficeold[:,ilayer]=self.noahmp.snice[:,ilayer]/(self.noahmp.snice[:,ilayer]+self.noahmp.snliq[:,ilayer])
+
   # Update water demands
   '''if self.hwu.hwu_flag == True:
    if (date.hour*3600)%self.hwu.dta == 0:
@@ -732,7 +751,7 @@ class HydroBlocks:
      self.hwu.deficit_domest[:] = np.copy(self.hwu.demand_domest[:])
     if self.hwu.hwu_lstock_flag == True:
      self.hwu.demand_lstock[:]  = water_use.variables['livestock'][i,:] #m/s
-     self.hwu.deficit_lstock[:] = np.copy(self.hwu.demand_lstock[:])'''
+     self.i    hwu.deficit_lstock[:] = np.copy(self.hwu.demand_lstock[:])'''
 
 
   return
@@ -778,7 +797,7 @@ class HydroBlocks:
                         noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
                         noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv,
                         noah.sfcheadrt)
-  #print(noah.cosz)
+  self.tsno=self.noahmp.stc[:,0:self.noahmp.nsnow] #Laura
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 

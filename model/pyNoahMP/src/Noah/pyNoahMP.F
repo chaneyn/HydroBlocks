@@ -197,15 +197,15 @@
  subroutine initialize_parameters(llanduse,lsoil,vegparm_file,genparm_file,&
          IOPT_CRS,IOPT_BTR,IOPT_RUN,IOPT_SFC,IOPT_FRZ,IOPT_INF,IOPT_RAD,IOPT_ALB,&
          IOPT_SNF,IOPT_TBOT,IOPT_STC,IDVEG,&
-         mptable_file,BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0,ncells)
+         mptable_file,BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0,ncells)!,&
+         !nsnow,nsoil,zsoil,swe,tg,sndpth,zsnso,snice,snliq,isnow,ncells)
 
-  USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options
+  USE module_sf_noahmplsm,only : read_mp_veg_parameters,noahmp_options,noahmp_sflx
   implicit none
-  integer :: i
   integer,intent(in) :: ncells,IOPT_CRS,IOPT_BTR,IOPT_RUN,IOPT_SFC,IOPT_FRZ,IOPT_INF,IOPT_RAD,IOPT_ALB
   integer,intent(in) :: IOPT_SNF,IOPT_TBOT,IOPT_STC,IDVEG
-  character(len=256),intent(in) :: llanduse,lsoil,vegparm_file,genparm_file,mptable_file
-  real,dimension(ncells),intent(in) :: BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0
+  character(len=256),intent(inout) :: llanduse,lsoil,vegparm_file,genparm_file,mptable_file
+  real,dimension(ncells),intent(inout) :: BB0,DRYSMC0,F110,MAXSMC0,REFSMC0,SATPSI0,SATDK0,SATDW0,WLTSMC0,QTZ0
   character(len=256) :: soilparm_file
 
   ! Read our lookup tables and parameter tables:  VEGPARM.TBL, SOILPARM.TBL, GENPARM.TBL
@@ -218,7 +218,7 @@
   ! Define the NOAH-MP options
   CALL NOAHMP_OPTIONS(IDVEG  ,IOPT_CRS  ,IOPT_BTR  ,IOPT_RUN,IOPT_SFC,IOPT_FRZ , &
                      IOPT_INF  ,IOPT_RAD  ,IOPT_ALB  ,IOPT_SNF,IOPT_TBOT,IOPT_STC )
-
+  
  end subroutine
 
  subroutine run_model(ncores,yearlen,idveg,ioptcrs,iopt_btr,iopt_run,iopt_sfc,iopt_frz,iopt_inf,iopt_rad,iopt_alb,& !0D,integer
@@ -260,6 +260,7 @@
   real,intent(inout),dimension(ncells,-nsnow+1:nsoil) :: zsnso,stc
   real,intent(inout),dimension(ncells,-nsnow+1:0) :: snice,snliq,ficeold
   real,dimension(ncells,nsoil),intent(inout) :: sh2o,smc,smceq,zsoil,sldpth,hdiv
+
   call OMP_SET_NUM_THREADS(ncores)
   !$OMP PARALLEL
   !$OMP DO
@@ -1323,3 +1324,86 @@ ENDIF
          !print*,'final',1000*(wb1 - wb0 - totwater0 + qspring),1000*totwater0,1000*totwater,-wtd
   
 END SUBROUTINE UPDATEWTD
+
+! Subroutine SNOW_INIT grabbed from NOAH-MP-WRF
+SUBROUTINE SNOW_INIT (NSNOW, NSOIL, ZSOIL, SWE, tgxy, SNODEP, ZSNSOXY, SNICEXY, SNLIQXY, ISNOWXY, TSNOXY, ncells)
+
+! ------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+! ------------------------------------------------------------------------------------------
+  INTEGER,intent(in) :: ncells
+  INTEGER, INTENT(IN) :: NSNOW,NSOIL
+  real,dimension(ncells),intent(inout) :: SWE
+  real,dimension(ncells),intent(inout) :: SNODEP
+  real,dimension(ncells),intent(inout) :: tgxy
+  REAL,    INTENT(IN), DIMENSION(ncells,1:NSOIL) :: ZSOIL
+
+  INTEGER, INTENT(OUT), DIMENSION(ncells) :: ISNOWXY
+  REAL,    INTENT(OUT), DIMENSION(ncells, -NSNOW+1:NSOIL) :: ZSNSOXY
+  REAL, DIMENSION(ncells, -NSNOW+1:    0) :: TSNOXY
+  REAL,    INTENT(OUT), DIMENSION(ncells, -NSNOW+1:    0) :: SNICEXY
+  REAL,    INTENT(OUT), DIMENSION(ncells, -NSNOW+1:    0) :: SNLIQXY
+
+!local
+  INTEGER :: IZ,i
+  REAL,                 DIMENSION(ncells, -NSNOW+1:    0) :: DZSNOXY
+  REAL,                 DIMENSION(ncells, -NSNOW+1:NSOIL) :: DZSNSOXY
+! ------------------------------------------------------------------------------------------
+
+
+  DO i = 1,ncells
+   IF (SNODEP(i) < 0.025) THEN
+    ISNOWXY(i) = 0
+    DZSNOXY(i,-NSNOW+1:0) = 0.
+   ELSE
+    IF ((SNODEP(i) >= 0.025) .AND. (SNODEP(i) <= 0.05)) THEN
+     ISNOWXY(i)    = -1
+     DZSNOXY(i,0)  = SNODEP(i)
+    ELSE IF ((SNODEP(i) > 0.05) .AND. (SNODEP(i) <= 0.10)) THEN
+     ISNOWXY(i)    = -2
+     DZSNOXY(i,-1) = SNODEP(i)/2.
+     DZSNOXY(i, 0) = SNODEP(i)/2.
+    ELSE IF ((SNODEP(i) > 0.10) .AND. (SNODEP(i) <= 0.25)) THEN
+     ISNOWXY(i)    = -2
+     DZSNOXY(i,-1) = 0.05
+     DZSNOXY(i, 0) = SNODEP(i) - DZSNOXY(i,-1)
+    ELSE IF ((SNODEP(i) > 0.25) .AND. (SNODEP(i) <= 0.35)) THEN
+     ISNOWXY(i)    = -3
+     DZSNOXY(i,-2) = 0.05
+     DZSNOXY(i,-1) = 0.5*(SNODEP(i)-DZSNOXY(i,-2))
+     DZSNOXY(i, 0) = 0.5*(SNODEP(i)-DZSNOXY(i,-2))
+    ELSE IF (SNODEP(i) > 0.35) THEN
+     ISNOWXY(i)     = -3
+     DZSNOXY(i,-2) = 0.05
+     DZSNOXY(i,-1) = 0.10
+     DZSNOXY(i, 0) = SNODEP(i) - DZSNOXY(i,-1) - DZSNOXY(i,-2)
+    END IF
+   END IF
+  ENDDO
+
+  DO i = 1,ncells
+    TSNOXY( i,-NSNOW+1:0) = 0.
+    SNICEXY(i,-NSNOW+1:0) = 0.
+    SNLIQXY(i,-NSNOW+1:0) = 0.
+    DO IZ = ISNOWXY(i)+1, 0
+      TSNOXY(i,IZ)  = tgxy(i)  ! [k]
+      SNLIQXY(i,IZ) = 0.00
+      SNICEXY(i,IZ) = 1.00 * DZSNOXY(i,IZ) * (SWE(i)/SNODEP(i))  ![kg/m3]
+    END DO
+
+    DO IZ = ISNOWXY(i)+1, 0
+     DZSNSOXY(i,IZ) = -DZSNOXY(i,IZ)
+    END DO
+
+    DZSNSOXY(i,1) = ZSOIL(i,1)
+    DO IZ = 2,NSOIL
+     DZSNSOXY(i,IZ) = (ZSOIL(i,IZ) - ZSOIL(i,IZ-1))
+    END DO
+
+    ZSNSOXY(i,ISNOWXY(i)+1) = DZSNSOXY(i,ISNOWXY(i)+1)
+    DO IZ = ISNOWXY(i)+2 ,NSOIL
+     ZSNSOXY(i,IZ) = ZSNSOXY(i,IZ-1) + DZSNSOXY(i,IZ)
+    ENDDO
+  END DO
+END SUBROUTINE SNOW_INIT
+
