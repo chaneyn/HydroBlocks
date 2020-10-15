@@ -258,8 +258,8 @@ class HydroBlocks:
   #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  self.noahmp.idveg = 22# dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 2 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.idveg = 2 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.iopt_crs = 1 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
   self.noahmp.iopt_run = 2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
@@ -321,11 +321,11 @@ class HydroBlocks:
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,1]
   self.noahmp.deeprech[:] = 0.0
   self.noahmp.rech[:] = 0.0
-  self.noahmp.eah[:] = 373.016357
+  self.noahmp.eah[:] = 373.016357 #It doesn't really matter. It's recomputed afterwards. Laura
   self.noahmp.fwet[:] = 0.0
   self.noahmp.psai[:] = 0.1
   #self.noahmp.stc[:] = 285.0
-  self.noahmp.stc[:]=np.array([[0,0,0,273.160004,273.880310,276.886475,279.909302],[0,0,0,273.160004,273.880310,276.886475,279.909302]])
+  self.noahmp.stc[:]=np.array([[0,0,0,266.099487,274.044495,276.895386,279.915192],[0,0,0,266.099487,274.044495,276.895386,279.915192]]) #Laura, need to generalize for more layers
   self.noahmp.slopetyp[:] = 3
   #self.noahmp.albold[:] = 0.5
   #Define the data
@@ -344,7 +344,7 @@ class HydroBlocks:
   for ilayer in range(self.noahmp.sh2o.shape[1]):
    self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
    #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
-  self.noahmp.sh2o[:,:]=np.array([[0.256443590,0.294025391,0.271311402,0.307094812],[0.256443590,0.294025391,0.271311402,0.307094812]])
+  self.noahmp.sh2o[:,:]=np.array([[0.298159689,0.294025391,0.271311402,0.307094812],[0.298159689,0.294025391,0.271311402,0.307094812]]) #Laura need to generalize for more layers
   self.noahmp.smc[:] = self.noahmp.sh2o[:]
   self.noahmp.smc[:,0]=0.298159689 #Laura
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
@@ -621,6 +621,9 @@ class HydroBlocks:
    tic0 = time.time()
    self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
    self.update_input(date)
+   if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
+    self.noahmp.tah=self.noahmp.t_ml
+    self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
    #print('update input',time.time() - tic0,flush=True)
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
