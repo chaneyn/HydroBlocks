@@ -324,8 +324,16 @@ class HydroBlocks:
   self.noahmp.eah[:] = 373.016357 #It doesn't really matter. It's recomputed afterwards. Laura
   self.noahmp.fwet[:] = 0.0
   self.noahmp.psai[:] = 0.1
+  stc_array=np.array([0,0,0,266.0995,274.0445,276.8954,279.9152])
+  smc_array=np.array([0.2981597,0.2940254,0.2713114,0.3070948])
   #self.noahmp.stc[:] = 285.0
-  self.noahmp.stc[:]=np.array([[0,0,0,266.099487,274.044495,276.895386,279.915192],[0,0,0,266.099487,274.044495,276.895386,279.915192]]) #Laura, need to generalize for more layers
+  self.noahmp.stc[:,0:7]=stc_array
+  self.noahmp.smc[:,0:4]=smc_array
+  if self.noahmp.nsoil>4:
+   self.noahmp.stc[:,7:]=279.9152
+   self.noahmp.smc[:,4:]=0.3070948
+  self.noahmp.sh2o=self.noahmp.smc
+  #self.noahmp.stc[:]=np.array([[0,0,0,266.099487,274.044495,276.895386,279.915192],[0,0,0,266.099487,274.044495,276.895386,279.915192]]) #Laura, need to generalize for more layers
   self.noahmp.slopetyp[:] = 3
   #self.noahmp.albold[:] = 0.5
   #Define the data
@@ -341,12 +349,12 @@ class HydroBlocks:
   self.noahmp.smcmax[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
   self.noahmp.smcref[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
   self.noahmp.smcdry[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-  for ilayer in range(self.noahmp.sh2o.shape[1]):
-   self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
+  #for ilayer in range(self.noahmp.sh2o.shape[1]):
+   #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
    #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
-  self.noahmp.sh2o[:,:]=np.array([[0.298159689,0.294025391,0.271311402,0.307094812],[0.298159689,0.294025391,0.271311402,0.307094812]]) #Laura need to generalize for more layers
-  self.noahmp.smc[:] = self.noahmp.sh2o[:]
-  self.noahmp.smc[:,0]=0.298159689 #Laura
+  #self.noahmp.sh2o[:,:]=np.array([[0.298159689,0.294025391,0.271311402,0.307094812],[0.298159689,0.294025391,0.271311402,0.307094812]]) #Laura need to generalize for more layers
+  #self.noahmp.smc[:] = self.noahmp.sh2o[:]
+  #self.noahmp.smc[:,0]=0.298159689 #Laura
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
   self.noahmp.bb0[:] = self.input_fp.groups['parameters'].variables['BB'][:]
