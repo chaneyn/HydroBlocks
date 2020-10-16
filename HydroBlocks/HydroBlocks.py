@@ -41,6 +41,8 @@ class HydroBlocks:
   print("Initializing Noah-MP")
   self.initialize_noahmp()
 
+  self.tsno=np.zeros((self.noahmp.ncells,self.noahmp.nsnow),order='F').astype(np.float32) #Initial condition TSNO Laura
+
   #Initialize subsurface module
   print("Initializing subsurface module")
   self.initialize_subsurface()
@@ -218,19 +220,19 @@ class HydroBlocks:
   self.noahmp.ice[:] = 0
   self.noahmp.foln[:] = 1.0
   self.noahmp.ficeold[:] = 0.0
-  self.noahmp.albold[:] = 0.65
-  self.noahmp.sneqvo[:] = 0.0
-  self.noahmp.ch[:] = 0.0001
-  self.noahmp.cm[:] = 0.0001
-  self.noahmp.canliq[:] =  0.0
+  self.noahmp.albold[:] = 0.189999998 #0.65
+  self.noahmp.sneqvo[:] = 2.09569975E-04 #0.0
+  self.noahmp.ch[:] = 0.108068228 #0.0001
+  self.noahmp.cm[:] = 1.81936752E-02 #0.0001
+  self.noahmp.canliq[:] =  3.93530267E-04 #0.0
   self.noahmp.canice[:] = 0.0
-  self.noahmp.sndpth[:] = 0.0
-  self.noahmp.swe[:] = 0.0
+  self.noahmp.sndpth[:] = 1.06005312E-03 #0.0
+  self.noahmp.swe[:] = 2.09569975E-04 #0.0
   self.noahmp.snice[:] = 0.0
   self.noahmp.snliq[:] = 0.0
-  self.noahmp.wa[:] = 0.0
+  self.noahmp.wa[:] = 4900 #0.0
   self.noahmp.wt[:] = self.noahmp.wa[:]
-  self.noahmp.zwt[:] = 0.0
+  self.noahmp.zwt[:] = 1.55999994 #0.0
   self.noahmp.wslake[:] = 0.0
   self.noahmp.lfmass[:] = 9.0
   self.noahmp.rtmass[:] = 500.0
@@ -248,7 +250,7 @@ class HydroBlocks:
   self.noahmp.psai[:] = 0.1
   self.noahmp.stc[:] = 285.0
   self.noahmp.slopetyp[:] = 3
-  self.noahmp.albold[:] = 0.5
+  #self.noahmp.albold[:] = 0.5 #Laura
   #Define the data
   self.noahmp.vegtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
   self.noahmp.soiltyp[:] = np.arange(1,self.noahmp.ncells+1)
@@ -278,18 +280,18 @@ class HydroBlocks:
   self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
 
   #Initialize output
-  self.noahmp.tg[:] = 285.0
-  self.noahmp.tv[:] = 285.0
+  self.noahmp.tg[:] = 263.690887 #285.0
+  self.noahmp.tv[:] = 263.690887 #285.0
   for ilayer in range(self.noahmp.nsnow-1,self.noahmp.stc.shape[1]):
    self.noahmp.stc[:,ilayer] = 285.0
   self.noahmp.tah[:] = 285.0
-  self.noahmp.t2mv[:] = 285.0
-  self.noahmp.t2mb[:] = 285.0
+  self.noahmp.t2mv[:] = 0 #285.0
+  self.noahmp.t2mb[:] = 0 #285.0
   self.noahmp.runsf[:] = 0.0
   self.noahmp.runsb[:] = 0.0
   #forcing
-  self.noahmp.fveg[:] = 1.0
-  self.noahmp.fvgmax[:] = 1.0
+  self.noahmp.fveg[:] = 0.98 #1.0
+  self.noahmp.fvgmax[:] = 0.98 #1.0
   self.noahmp.tbot[:] = 285.0
 
   #Define the parameters
@@ -411,12 +413,19 @@ class HydroBlocks:
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
 
+  i=0
   if self.subsurface_module == 'dtopmodel': self.dtopmodel.ex[:] = 0.0
   while date < self.fdate:
-
+   i=i+1
+   self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
+	
    #Update input data
    self.update_input(date)
 
+   if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
+    self.noahmp.tah=self.noahmp.t_ml
+    self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
+   
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
 
@@ -500,6 +509,9 @@ class HydroBlocks:
   self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
   self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
 
+  for ilayer in range(self.noahmp.nsnow): #Laura
+   self.noahmp.ficeold[:,ilayer]=self.noahmp.snice[:,ilayer]/(self.noahmp.snice[:,ilayer]+self.noahmp.snliq[:,ilayer])
+
   # Update water demands
   if self.hwu.hwu_flag == True:
    if (date.hour*3600)%self.hwu.dta == 0:
@@ -527,6 +539,9 @@ class HydroBlocks:
 
   # Update NOAH
   self.noahmp.run_model(self.ncores)
+
+  #Update TSNO parameter
+  self.tsno=self.noahmp.stc[:,0:self.noahmp.nsnow] #Laura
 
   # Calculate water demands and supplies, and allocate volumes
   self.hwu.Calc_Human_Water_Demand_Supply(self,date)
