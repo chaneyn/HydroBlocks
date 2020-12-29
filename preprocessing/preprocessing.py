@@ -1095,11 +1095,12 @@ def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydr
   fp = nc.Dataset(file)
   
   #Determine the time steps to retrieve
-  nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
+  nc_step = int(60*float(fp.variables['t'].units.split(' ')[0].split('h')[0]))
   nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
   nc_nt = len(fp.variables['t'][:])
   dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),int(nc_idate[2]))]
-  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
+  #for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
+  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(minutes=it*nc_step))
   dates=np.array(dates)
   startdate = info['time_info']['startdate']
   enddate = info['time_info']['enddate']

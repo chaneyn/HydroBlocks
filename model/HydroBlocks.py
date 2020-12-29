@@ -258,7 +258,8 @@ class HydroBlocks:
   #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
   #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  self.noahmp.idveg = 2 # dynamic vegetation (1 -> off ; 2 -> on)
+  #self.noahmp.idveg = 2 # dynamic vegetation (1 -> off ; 2 -> on)
+  self.noahmp.idveg = 4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
   #Runoff 5 is really messed up
@@ -275,7 +276,8 @@ class HydroBlocks:
   self.noahmp.iz0tlnd = -16497279 #0
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
   
-  self.noahmp.z_ml[:] = 10.0
+  #self.noahmp.z_ml[:] = 10.0
+  self.noahmp.z_ml[:] = 6.0
   self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 0.0
   self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
@@ -295,15 +297,19 @@ class HydroBlocks:
   self.noahmp.dx = self.dx
   self.noahmp.ice[:] = 0
   self.noahmp.foln[:] = 1.0
+  #self.noahmp.foln[:] =0.0
   self.noahmp.ficeold[:] = 0.0
   self.noahmp.albold[:] = 0.189999998 #0.65
+  #self.noahmp.albold[:] = 0.0#0.189999998 #0.65
   self.noahmp.sneqvo[:] = 2.09569975E-04 #0.0
   self.noahmp.ch[:] = 0.108068228
+  #self.noahmp.ch[:] = 0.0
   self.noahmp.cm[:] = 1.81936752E-02
-  self.noahmp.canliq[:] =  3.93530267E-04
+  #self.noahmp.cm[:] = 0.0
+  self.noahmp.canliq[:] =  0.01# 3.93530267E-04
   self.noahmp.canice[:] = 0.0
-  self.noahmp.sndpth[:] = 1.06005312E-03
-  self.noahmp.swe[:] = 2.09569975E-04
+  self.noahmp.sndpth[:] = 0.01#1.06005312E-03
+  self.noahmp.swe[:] = 1.0#2.09569975E-04
   self.noahmp.snice[:] = 0.0
   self.noahmp.snliq[:] = 0.0
   self.noahmp.wa[:] = 4900
@@ -316,7 +322,7 @@ class HydroBlocks:
   self.noahmp.wood[:] = 500.0
   self.noahmp.stblcp[:] = 1000.0
   self.noahmp.fastcp[:] = 1000.0
-  self.noahmp.plai[:] = 0.5
+  self.noahmp.plai[:] = 2.0
   self.noahmp.tauss[:] = 0.0
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,1]
   self.noahmp.deeprech[:] = 0.0
@@ -324,8 +330,8 @@ class HydroBlocks:
   self.noahmp.eah[:] = 373.016357 #It doesn't really matter. It's recomputed afterwards. Laura
   self.noahmp.fwet[:] = 0.0
   self.noahmp.psai[:] = 0.1
-  stc_array=np.array([0,0,0,266.0995,274.0445,276.8954,279.9152])
-  smc_array=np.array([0.2981597,0.2940254,0.2713114,0.3070948])
+  stc_array=np.array([0,0,0,266.1,274.0,276.9,279.9])
+  smc_array=np.array([0.298,0.294,0.271,0.307])
   #self.noahmp.stc[:] = 285.0
   self.noahmp.stc[:,0:7]=stc_array
   self.noahmp.smc[:,0:4]=smc_array
@@ -378,13 +384,13 @@ class HydroBlocks:
   #for ilayer in range(self.noahmp.nsnow,self.noahmp.stc.shape[1]):
    #self.noahmp.stc[:,ilayer] = 285.0
   self.noahmp.tah[:] = 285.0
-  self.noahmp.t2mv[:] = 0 #285
-  self.noahmp.t2mb[:] = 0 #285
+  self.noahmp.t2mv[:] = 285
+  self.noahmp.t2mb[:] = 285
   self.noahmp.runsf[:] = 0.0
   self.noahmp.runsb[:] = 0.0
   #forcing
-  self.noahmp.fveg[:] = 0.98
-  self.noahmp.fvgmax[:] = 0.98
+  self.noahmp.fveg[:] = 0.96
+  self.noahmp.fvgmax[:] = 0.96
   self.noahmp.tbot[:] = 285.0
 
   #Define the parameters
@@ -919,6 +925,8 @@ class HydroBlocks:
 
   tmp = {}
   #NoahMP
+  tmp['plai'] = np.copy(NOAH.plai) #m2/m2
+  tmp['psai'] = np.copy(NOAH.psai) #m2/m2
   tmp['smc'] = np.copy(NOAH.smc) #m3/m3
   tmp['g'] = np.copy(NOAH.ssoil) #W/m2
   tmp['sh'] = np.copy(NOAH.fsh) #W/m2
@@ -931,7 +939,11 @@ class HydroBlocks:
   tmp['evb'] = np.copy(NOAH.evb) #W/m2
   tmp['evc'] = np.copy(NOAH.evc) #W/m2
   tmp['evg'] = np.copy(NOAH.evg) #W/m2
+  tmp['ecan'] = np.copy(NOAH.ecan) #W/m2
+  tmp['etran'] = np.copy(NOAH.etran) #W/m2
+  tmp['edir'] = np.copy(NOAH.esoil) #W/m2
   tmp['swdn'] = np.copy(NOAH.swdn) #W/m2
+  tmp['lwdn'] = np.copy(NOAH.lwdn) #W/m2
   tmp['t2mv'] = np.copy(NOAH.t2mv) #W/m2
   tmp['t2mb'] = np.copy(NOAH.t2mb) #W/m2
   tmp['qbase'] = NOAH.dt*np.copy(NOAH.runsb) #mm
@@ -942,7 +954,61 @@ class HydroBlocks:
   tmp['stc'] = np.copy(NOAH.stc[:,3]) #K
   tmp['tv'] = np.copy(NOAH.tv) #K
   tmp['salb'] = np.copy(NOAH.salb) 
-  tmp['wtd'] = np.copy(NOAH.zwt) #m
+  tmp['fsa'] = np.copy(NOAH.fsa) #W/m2
+  tmp['canliq'] = np.copy(NOAH.canliq) #W/m2
+  tmp['canice'] = np.copy(NOAH.canice) #W/m2
+  tmp['wa'] = np.copy(NOAH.wa) #W/m2
+  tmp['wt'] = np.copy(NOAH.wt) #W/m2
+  tmp['sav'] = np.copy(NOAH.sav) #W/m2
+  tmp['tr'] = np.copy(NOAH.tr) #W/m2
+  tmp['irc'] = np.copy(NOAH.irc) #W/m2
+  tmp['irg'] = np.copy(NOAH.irg) #W/m2
+  tmp['ghv'] = np.copy(NOAH.ghv) #W/m2
+  tmp['sag'] = np.copy(NOAH.sag) #W/m2
+  tmp['irb'] = np.copy(NOAH.irb) #W/m2
+  tmp['ghb'] = np.copy(NOAH.ghb) #W/m2
+  tmp['tg'] = np.copy(NOAH.tg) #K
+  tmp['tah'] = np.copy(NOAH.tah) #K
+  tmp['tgv'] = np.copy(NOAH.tgv) #K
+  tmp['tgb'] = np.copy(NOAH.tgb) #K
+  tmp['q2mv'] = np.copy(NOAH.q2mv) #K
+  tmp['q2mb'] = np.copy(NOAH.q2mb) #K
+  tmp['eah'] = np.copy(NOAH.eah) #K
+  tmp['fwet'] = np.copy(NOAH.fwet) #K
+  tmp['zsnso_sn'] = np.copy(NOAH.zsnso[:,0:self.noahmp.nsnow]) #m
+  tmp['snice'] = np.copy(NOAH.snice) #mm
+  tmp['snliq'] = np.copy(NOAH.snliq) #mm
+  tmp['soil_t'] = np.copy(NOAH.stc[:,self.noahmp.nsnow:]) #K
+  tmp['soil_m'] = np.copy(NOAH.smc) #m3/m3
+  tmp['soil_w'] = np.copy(NOAH.sh2o) #m3/m3
+  tmp['snow_t'] = np.copy(self.tsno) #K
+  tmp['snowh'] = np.copy(NOAH.sndpth) #mm
+  tmp['qsnow'] = np.copy(NOAH.qsnow) #mm/s
+  tmp['isnow'] = np.copy(NOAH.isnow) #count
+  tmp['fsno'] = np.copy(NOAH.fsno) #fraction
+  #tmp['acsnow'] = np.copy(NOAH.acsnow) #mm (after update)
+  tmp['chv'] = np.copy(NOAH.chv) #
+  tmp['chb'] = np.copy(NOAH.chb) #
+  tmp['chleaf'] = np.copy(NOAH.chleaf) #
+  tmp['chuc'] = np.copy(NOAH.chuc) #
+  tmp['chv2'] = np.copy(NOAH.chv2) #
+  tmp['chb2'] = np.copy(NOAH.chb2) #
+  tmp['lfmass'] = np.copy(NOAH.lfmass) #
+  tmp['rtmass'] = np.copy(NOAH.rtmass) #
+  tmp['stmass'] = np.copy(NOAH.stmass) #
+  tmp['wood'] = np.copy(NOAH.wood) #
+  #tmp['grain'] = np.copy(NOAH.wood) # (after update)
+  #tmp['gdd'] = np.copy(NOAH.wood) # (after update)
+  tmp['stblcp'] = np.copy(NOAH.stblcp) #
+  tmp['fastcp'] = np.copy(NOAH.fastcp) #
+  tmp['nee'] = np.copy(NOAH.nee) #
+  tmp['gpp'] = np.copy(NOAH.gpp) #
+  tmp['npp'] = np.copy(NOAH.npp) #
+  tmp['psn'] = np.copy(NOAH.psn) #
+  tmp['apar'] = np.copy(NOAH.apar) #
+  tmp['emissi'] = np.copy(NOAH.emissi) 
+  tmp['cosz'] = np.copy(NOAH.cosz) 
+  tmp['zwt'] = np.copy(NOAH.zwt) #m
   tmp['swe'] = np.copy(NOAH.swe) #m
   tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
@@ -1011,7 +1077,8 @@ class HydroBlocks:
    self.output = {}
    for var in self.metadata['output']['vars']:
     shp = grp.variables[var].shape
-    self.output[var] = np.zeros((sep,shp[1]))
+    if len(shp) == 2:self.output[var] = np.zeros((sep,shp[1]))
+    if len(shp) == 3:self.output[var] = np.zeros((sep,shp[1],shp[2]))
   #Fill the data (MISSING!)
   val = itime % sep
   for var in self.metadata['output']['vars']:
@@ -1068,13 +1135,19 @@ class HydroBlocks:
 
   #Define the metadata
   metadata = {
+             "ecan":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':4},
+             "ecan":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':4},
+             "etran":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':4},
+             "edir":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':4},
+             'plai':{'description':'Leaf area index','units':'m2/m2','dims':('time','hru',),'precision':4},
+             'psai':{'description':'Steam area index','units':'m2/m2','dims':('time','hru',),'precision':4},
              'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
-             "t2mv":{'description':'Vegetated air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
-	     "t2mb":{'description':'Bare air temperature','units':'W/m2','dims':('time','hru',),'precision':4},
+             "t2mv":{'description':'Vegetated air temperature','units':'K','dims':('time','hru',),'precision':4},
+	     "t2mb":{'description':'Bare air temperature','units':'K','dims':('time','hru',),'precision':4},
 	     "fveg":{'description':'Vegetated fraction','units':'','dims':('time','hru',),'precision':4},
 	     "mozb":{'description':'Bare stability parameter','units':'','dims':('time','hru',),'precision':4},
 	     "mozv":{'description':'Vegetated stability parameter','units':'','dims':('time','hru',),'precision':4},
@@ -1095,10 +1168,65 @@ class HydroBlocks:
              "evc":{'description':'Vegetated canopy latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "evg":{'description':'Vegetated ground latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "swdn":{'description':'Shortwave down','units':'W/m2','dims':('time','hru',),'precision':4},
+             "lwdn":{'description':'Longwave down','units':'W/m2','dims':('time','hru',),'precision':4},
              'trad':{'description':'Land surface skin temperature','units':'K','dims':('time','hru',),'precision':2},
              'stc':{'description': 'Snow/soil temperature','units':'K','dims':('time','hru',),'precision':2},
              'tv':{'description': 'Canopy temperature','units':'K','dims':('time','hru',),'precision':2},
              'salb':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
+             'fsa':{'description':'Total absorbed solar radiation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'canliq':{'description':'Canopy liquid water content','units':'mm','dims':('time','hru',),'precision':4},
+             'canice':{'description':'Canopy ice water content','units':'mm','dims':('time','hru',),'precision':4},
+             'wa':{'description':'Water in aquifer','units':'kg/m2','dims':('time','hru',),'precision':4},
+             'wt':{'description':'Water in aquifer and saturated soil','units':'kg/m2','dims':('time','hru',),'precision':4},
+             'sav':{'description':'Solar radiative heat flux absorbed by vegetation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'tr':{'description':'Transpiration heat','units':'W/m2','dims':('time','hru',),'precision':4},
+             'irc':{'description':'Canopy net LW rad','units':'W/m2','dims':('time','hru',),'precision':4},
+             'irg':{'description':'Ground net LW rad','units':'W/m2','dims':('time','hru',),'precision':4},
+             'ghv':{'description':'Ground heat flux + to soil vegetated','units':'W/m2','dims':('time','hru',),'precision':4},
+             'sag':{'description':'Solar radiative heat flux absorbed by ground','units':'W/m2','dims':('time','hru',),'precision':4},
+             'irb':{'description':'Net LW rad to atm bare','units':'W/m2','dims':('time','hru',),'precision':4},
+             'ghb':{'description':'Ground heat flux + to soil bare"','units':'W/m2','dims':('time','hru',),'precision':4},
+             'tg':{'description':'Ground temperature','units':'K','dims':('time','hru',),'precision':4},
+             'tah':{'description':'Canopy air temperature','units':'K','dims':('time','hru',),'precision':4},
+             'tgv':{'description':'Ground surface Temp vegetated','units':'K','dims':('time','hru',),'precision':4},
+             'tgb':{'description':'Ground surface Temp bare','units':'K','dims':('time','hru',),'precision':4},
+             'q2mv':{'description':'2m mixing ratio vegetated','units':'kg/kg','dims':('time','hru',),'precision':4},
+             'q2mb':{'description':'2m mixing ratio bare','units':'kg/kg','dims':('time','hru',),'precision':4},
+             'eah':{'description':'Canopy air vapor pressure','units':'Pa','dims':('time','hru',),'precision':4},
+             'fwet':{'description':'Wetted or snowed fraction of canopy','units':'fraction','dims':('time','hru'),'precision':4},
+             'zsnso_sn':{'description':'Snow layer depths from snow surface','units':'m','dims':('time','hru','snow'),'precision':4},
+             'snice':{'description':'Snow layer ice','units':'mm','dims':('time','hru','snow'),'precision':4},
+             'snliq':{'description':'Snow layer liquid water','units':'mm','dims':('time','hru','snow'),'precision':4},
+             'soil_t':{'description':'soil temperature','units':'K','dims':('time','hru','soil'),'precision':4},
+             'soil_m':{'description':'volumetric soil moisture','units':'m3/m3','dims':('time','hru','soil'),'precision':4},
+             'soil_w':{'description':'liquid volumetric soil moisture','units':'m3/m3','dims':('time','hru','soil'),'precision':4},
+             'snow_t':{'description':'snow temperature','units':'K','dims':('time','hru','snow'),'precision':4},
+             'snowh':{'description':'Snow depth','units':'m','dims':('time','hru',),'precision':4},
+             'qsnow':{'description':'snowfall rate','units':'mm/s','dims':('time','hru',),'precision':4},
+             'isnow':{'description':'Number of snow layers','units':'count','dims':('time','hru',),'precision':4},
+             'fsno':{'description':'Snow-cover fraction on the ground','units':'fraction','dims':('time','hru',),'precision':4},
+             'acsnow':{'description':'accumulated snow fall','units':'mm','dims':('time','hru',),'precision':4},
+             'chv':{'description':'Exchange coefficient vegetated','units':'m/s','dims':('time','hru',),'precision':4},
+             'chb':{'description':'Exchange coefficient bare','units':'m/s','dims':('time','hru',),'precision':4},
+             'chleaf':{'description':'Exchange coefficient leaf','units':'m/s','dims':('time','hru',),'precision':4},
+             'chuc':{'description':'Exchange coefficient bare','units':'m/s','dims':('time','hru',),'precision':4},
+             'chv2':{'description':'Exchange coefficient 2-meter vegetated','units':'m/s','dims':('time','hru',),'precision':4},
+             'chb2':{'description':'Exchange coefficient 2-meter bare','units':'m/s','dims':('time','hru',),'precision':4},
+             'lfmass':{'description':'Leaf mass','units':'g/m2','dims':('time','hru',),'precision':4},
+             'rtmass':{'description':'Mass of fine roots','units':'g/m2','dims':('time','hru',),'precision':4},
+             'stmass':{'description':'Stem mass','units':'g/m2','dims':('time','hru',),'precision':4},
+             'wood':{'description':'Mass of wood and woody roots','units':'g/m2','dims':('time','hru',),'precision':4},
+             'grain':{'description':'Mass of grain','units':'g/m2','dims':('time','hru',),'precision':4},
+             'gdd':{'description':'Growing degree days(10)','units':'','dims':('time','hru',),'precision':4},
+             'stblcp':{'description':'Stable carbon in deep soil','units':'g/m2','dims':('time','hru',),'precision':4},
+             'fastcp':{'description':'Short-lived carbon in shallow soil','units':'g/m2','dims':('time','hru',),'precision':4},
+             'nee':{'description':'Net ecosystem exchange','units':'g/m2/s CO2','dims':('time','hru',),'precision':4},
+             'gpp':{'description':'Net instantaneous assimilation','units':'g/m2/s C','dims':('time','hru',),'precision':4},
+             'npp':{'description':'Net primary productivity','units':'g/m2/s C','dims':('time','hru',),'precision':4},
+             'psn':{'description':'Total photosynthesis','units':'umol/m2/s','dims':('time','hru',),'precision':4},
+             'apar':{'description':'Photosynthesis active energy by canopy','units':'W/m2','dims':('time','hru',),'precision':4},
+             'emissi':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
+             'cosz':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
 
              'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',),'precision':4},
              'qsurface':{'description':'Surface runoff','units':'mm/s','dims':('time','hru',),'precision':4},
@@ -1112,7 +1240,7 @@ class HydroBlocks:
 
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',),'precision':4},
              'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',),'precision':4},
-             'wtd':{'description':'WTD','units':'m','dims':('time','hru',),'precision':2},
+             'zwt':{'description':'WTD','units':'m','dims':('time','hru',),'precision':2},
              'errwat':{'description':'errwat','units':'mm','dims':('time','hru',),'precision':4},
              'totsmc':{'description':'totsmc','units':'m3/m3','dims':('time','hru',),'precision':2},
              'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':4},
@@ -1151,6 +1279,7 @@ class HydroBlocks:
   fp_out.createDimension('hru',nhru)
   fp_out.createDimension('time',ntime)
   fp_out.createDimension('soil',self.nsoil)
+  fp_out.createDimension('snow',self.noahmp.nsnow)
   fp_out.createDimension('hband',self.nhband)
   if self.routing_module == 'kinematic':
    fp_out.createDimension('channel',self.routing.nchannel)
