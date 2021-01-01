@@ -44,7 +44,8 @@ def Run_HydroBlocks(metadata,edir,cid,rdir):
  sidate = idate
  sfdate = idate
  while sidate < fdate:
-  sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
+  #sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
+  sfdate = sidate + relativedelta(months=metadata['segment']['months_per_segment'])
   if sfdate > fdate: sfdate = fdate
   #Set the parameters
   info['idate'] = sidate

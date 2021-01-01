@@ -50,7 +50,10 @@ CONTAINS
                ids,ide,  jds,jde,  kds,kde,                    &
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
-               MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL     )
+!HB added
+               PAHXY,                                            &
+!End HB added
+               MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL)
 !----------------------------------------------------------------
     USE MODULE_SF_NOAHMPLSM
 !    USE MODULE_SF_NOAHMPLSM, only: noahmp_options, NOAHMP_SFLX, noahmp_parameters
@@ -265,6 +268,7 @@ CONTAINS
     INTEGER,  INTENT(IN   )   ::     ids,ide, jds,jde, kds,kde,  &  ! d -> domain
          &                           ims,ime, jms,jme, kms,kme,  &  ! m -> memory
          &                           its,ite, jts,jte, kts,kte      ! t -> tile
+    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(OUT  ) ::  PAHXY    ! 
 
 
 ! 1D equivalent of 2D/3D fields
@@ -1017,6 +1021,8 @@ CONTAINS
              GRAINXY  (I,J) = GRAIN !GRAIN XING
              GDDXY    (I,J) = GDD   !XING 
 	     PGSXY    (I,J) = PGS
+           
+             PAHXY    (I,J) = PAH 
 
              if(iopt_crop == 2) then   ! gecros crop model
 
@@ -1548,7 +1554,6 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
        !
        ! initialize physical snow height SNOWH
        !
-       print*,shape(SNOW)
        IF(.NOT.FNDSNOWH)THEN
           ! If no SNOWH do the following
           CALL wrf_message( 'SNOW HEIGHT NOT FOUND - VALUE DEFINED IN LSMINIT' )
