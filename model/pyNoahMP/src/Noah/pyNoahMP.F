@@ -249,9 +249,8 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   PLANTING,  HARVEST,SEASON_GDD,&
                   IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,  &
                   IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC, &
-                  IOPT_GLA, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP,            &
+                  IOPT_GLA, IOPT_RSF, IOPT_CROP,            &
                   IZ0TLND, SF_URBAN_PHYSICS,&
-                  SOILCOMP,  SOILCL1,  SOILCL2,   SOILCL3,  SOILCL4,&
                   TSK,      HFX,      QFX,        LH,   GRDFLX,    SMSTAV, &
                   SMSTOT,SFCRUNOFF, UDRUNOFF,    ALBEDO,    SNOWC,     SMOIS, &
                   SH2O,     TSLB,     SNOW,     SNOWH,   CANWAT,    ACSNOM, &
@@ -272,7 +271,9 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   SHGXY,    SHCXY,    SHBXY,     EVGXY,    EVBXY,     GHVXY, &
                   GHBXY,    IRGXY,    IRCXY,     IRBXY,     TRXY,     EVCXY, &
                   CHLEAFXY,   CHUCXY,   CHV2XY,    CHB2XY, RS, &
-                  PAHXY)
+                  PAHXY,&
+                  BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,DKSAT_3D,&
+                  DWSAT_3D,PSISAT_3D,QUARTZ_3D)
 
  USE module_sf_noahmpdrv, only: noahmplsm
 
@@ -321,16 +322,14 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
     INTEGER,                                         INTENT(IN   ) ::  IOPT_STC  ! snow/soil temperature time scheme
     INTEGER,                                         INTENT(IN   ) ::  IOPT_GLA  ! glacier option (1->phase change; 2->simple)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_RSF  ! surface resistance (1->Sakaguchi/Zeng; 2->Seller; 3->mod Sellers; 4->1+snow)
-    INTEGER,                                         INTENT(IN   ) ::  IOPT_SOIL ! soil configuration option
-    INTEGER,                                         INTENT(IN   ) ::  IOPT_PEDO ! soil pedotransfer function option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_CROP ! crop model option (0->none; 1->Liu et al.; 2->Gecros)
     INTEGER,                                         INTENT(IN   ) ::  IZ0TLND   ! option of Chen adjustment of Czil (not used)
     INTEGER,                                         INTENT(IN   ) ::  sf_urban_physics   ! urban physics option
-    REAL,    DIMENSION(nhru,8), INTENT(IN   ) ::  SOILCOMP  ! soil sand and clay percentage
-    REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL1   ! soil texture in layer 1
-    REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL2   ! soil texture in layer 2
-    REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL3   ! soil texture in layer 3
-    REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL4   ! soil texture in layer 4
+    !REAL,    DIMENSION(nhru,8), INTENT(IN   ) ::  SOILCOMP  ! soil sand and clay percentage
+    !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL1   ! soil texture in layer 1
+    !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL2   ! soil texture in layer 2
+    !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL3   ! soil texture in layer 3
+    !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SOILCL4   ! soil texture in layer 4
     !REAL,    DIMENSION(nhru,2), INTENT(IN   ) ::  T3D       ! 3D atmospheric temperature valid at mid-levels [K]
     !REAL,    DIMENSION(nhru,2), INTENT(IN   ) ::  QV3D      ! 3D water vapor mixing ratio [kg/kg_dry]
     !REAL,    DIMENSION(nhru,2), INTENT(IN   ) ::  U_PHY     ! 3D U wind component [m/s]
@@ -365,17 +364,17 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
 !    REAL,    DIMENSION(nhru), INTENT(INOUT) ::  sfcheadrt,INFXSRT,soldrain   ! for WRF-Hydro
 !#endif
 ! placeholders for 3D soil
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  BEXP_3D   ! C-H B exponent
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCDRY_3D ! Soil Moisture Limit: Dry
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCWLT_3D ! Soil Moisture Limit: Wilt
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCREF_3D ! Soil Moisture Limit: Reference
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCMAX_3D ! Soil Moisture Limit: Max
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DKSAT_3D  ! Saturated Soil Conductivity
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DWSAT_3D  ! Saturated Soil Diffusivity
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  PSISAT_3D ! Saturated Matric Potential
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  QUARTZ_3D ! Soil quartz content
-!    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFDK_2D  ! Reference Soil Conductivity
-!    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFKDT_2D ! Soil Infiltration Parameter
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  BEXP_3D   ! C-H B exponent
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  SMCDRY_3D ! Soil Moisture Limit: Dry
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  SMCWLT_3D ! Soil Moisture Limit: Wilt
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  SMCREF_3D ! Soil Moisture Limit: Reference
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  SMCMAX_3D ! Soil Moisture Limit: Max
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  DKSAT_3D  ! Saturated Soil Conductivity
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  DWSAT_3D  ! Saturated Soil Diffusivity
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  PSISAT_3D ! Saturated Matric Potential
+    REAL,    DIMENSION( nhru,nsoil ), INTENT(INOUT) ::  QUARTZ_3D ! Soil quartz content
+    !REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFDK_2D  ! Reference Soil Conductivity
+    !REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFKDT_2D ! Soil Infiltration Parameter
 
 ! INOUT (with generic LSM equivalent)
 
@@ -515,6 +514,15 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
 integer :: ids,ide, jds,jde, kds,kde, ims,ime, jms,jme, kms,kme, its,ite
 integer :: jts,jte, kts,kte
 logical :: debug_flag
+  INTEGER ::  IOPT_SOIL ! soil configuration option (Fixed for HB, parameters set outside)
+  INTEGER ::  IOPT_PEDO ! soil pedotransfer function option (Fixed for HB, parameters set outside)
+  REAL,    DIMENSION(nhru,8) ::  SOILCOMP  ! soil sand and clay percentage
+  REAL,    DIMENSION(nhru) ::  SOILCL1   ! soil texture in layer 1
+  REAL,    DIMENSION(nhru) ::  SOILCL2   ! soil texture in layer 2
+  REAL,    DIMENSION(nhru) ::  SOILCL3   ! soil texture in layer 3
+  REAL,    DIMENSION(nhru) ::  SOILCL4   ! soil texture in layer 4
+IOPT_SOIL = 1
+IOPT_PEDO = 1
 debug_flag = .False.
 ids = 1
 ide = nhru+1
@@ -582,6 +590,17 @@ kte = 2
     !  CMXY = 0.1
     !ENDIF
 
+    !print*,'BEXP_3D',BEXP_3D
+    !print*,'SMCDRY_3D',SMCDRY_3D
+    !print*,'SMCWLT_3D',SMCWLT_3D
+    !print*,'SMCREF_3D',SMCREF_3D
+    !print*,'SMCMAX_3D',SMCMAX_3D
+    !print*,'DKSAT_3D',DKSAT_3D
+    !print*,'DWSAT_3D',DWSAT_3D
+    !print*,'PSISAT_3D',PSISAT_3D
+    !print*,'QUARTZ_3D',QUARTZ_3D
+    !stop
+
   call noahmplsm(ITIMESTEP,        YR,   JULIAN,   COSZIN,XLAT,XLONG, & ! IN : Time/Space-related
                   DZ8W,       DT,       DZS,    NSOIL,       DX,            & ! IN : Model configuration 
 	        IVGTYP,   ISLTYP,    VEGFRA,   VEGMAX,      TMN,            & ! IN : Vegetation/Soil characteristics
@@ -614,8 +633,8 @@ kte = 2
 		 SHGXY,    SHCXY,    SHBXY,     EVGXY,    EVBXY,     GHVXY, & ! OUT Noah MP only
 		 GHBXY,    IRGXY,    IRCXY,     IRBXY,     TRXY,     EVCXY, & ! OUT Noah MP only
               CHLEAFXY,   CHUCXY,   CHV2XY,    CHB2XY, RS,                  & ! OUT Noah MP only
-!                 BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,          & ! placeholders to activate 3D soil
-!		 DKSAT_3D,DWSAT_3D,PSISAT_3D,QUARTZ_3D,                     &
+                 BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,          & ! placeholders to activate 3D soil
+		 DKSAT_3D,DWSAT_3D,PSISAT_3D,QUARTZ_3D,                     &
 !		 REFDK_2D,REFKDT_2D,                                        &
 !#ifdef WRF_HYDRO
 !               sfcheadrt,INFXSRT,soldrain,                                  &
@@ -664,16 +683,16 @@ if (debug_flag)then
     print*,'IOPT_STC',IOPT_STC
     print*,'IOPT_GLA',IOPT_GLA
     print*,'IOPT_RSF',IOPT_RSF
-    print*,'IOPT_SOIL',IOPT_SOIL
-    print*,'IOPT_PEDO',IOPT_PEDO
+    !print*,'IOPT_SOIL',IOPT_SOIL
+    !print*,'IOPT_PEDO',IOPT_PEDO
     print*,'IOPT_CROP',IOPT_CROP
     print*,'IZ0TLND',IZ0TLND
     print*,'sf_urban_physics',sf_urban_physics
-    print*,'SOILCOMP',SOILCOMP
-    print*,'SOILCL1',SOILCL1
-    print*,'SOILCL2',SOILCL2
-    print*,'SOILCL3',SOILCL3
-    print*,'SOILCL4',SOILCL4
+    !print*,'SOILCOMP',SOILCOMP
+    !print*,'SOILCL1',SOILCL1
+    !print*,'SOILCL2',SOILCL2
+    !print*,'SOILCL3',SOILCL3
+    !print*,'SOILCL4',SOILCL4
     print*,'T_PHY',T_PHY
     print*,'QV_CURR',QV_CURR
     print*,'U_PHY',U_PHY
@@ -788,6 +807,15 @@ if (debug_flag)then
     print*,'CHV2XY',CHV2XY
     print*,'CHB2XY',CHB2XY
     print*,'RS',RS
+    print*,'BEXP_3D',BEXP_3D
+    print*,'SMCDRY_3D',SMCDRY_3D
+    print*,'SMCWLT_3D',SMCWLT_3D
+    print*,'SMCREF_3D',SMCREF_3D
+    print*,'SMCMAX_3D',SMCMAX_3D
+    print*,'DKSAT_3D',DKSAT_3D
+    print*,'DWSAT_3D',DWSAT_3D
+    print*,'PSISAT_3D',PSISAT_3D
+    print*,'QUARTZ_3D',QUARTZ_3D
 endif
 
 end subroutine

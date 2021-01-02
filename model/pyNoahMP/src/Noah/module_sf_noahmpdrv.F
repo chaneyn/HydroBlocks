@@ -41,8 +41,8 @@ CONTAINS
 		 SHGXY,    SHCXY,    SHBXY,     EVGXY,    EVBXY,     GHVXY, & ! OUT Noah MP only
 		 GHBXY,    IRGXY,    IRCXY,     IRBXY,     TRXY,     EVCXY, & ! OUT Noah MP only
               CHLEAFXY,   CHUCXY,   CHV2XY,    CHB2XY, RS,                  & ! OUT Noah MP only
-!                 BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,          & ! placeholders to activate 3D soil
-!		 DKSAT_3D,DWSAT_3D,PSISAT_3D,QUARTZ_3D,                     &
+                 BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,          & ! placeholders to activate 3D soil
+		 DKSAT_3D,DWSAT_3D,PSISAT_3D,QUARTZ_3D,                     &
 !		 REFDK_2D,REFKDT_2D,                                        &
 #ifdef WRF_HYDRO
                sfcheadrt,INFXSRT,soldrain,                                  &
@@ -145,15 +145,15 @@ CONTAINS
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  sfcheadrt,INFXSRT,soldrain   ! for WRF-Hydro
 #endif
 ! placeholders for 3D soil
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  BEXP_3D   ! C-H B exponent
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCDRY_3D ! Soil Moisture Limit: Dry
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCWLT_3D ! Soil Moisture Limit: Wilt
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCREF_3D ! Soil Moisture Limit: Reference
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCMAX_3D ! Soil Moisture Limit: Max
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DKSAT_3D  ! Saturated Soil Conductivity
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DWSAT_3D  ! Saturated Soil Diffusivity
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  PSISAT_3D ! Saturated Matric Potential
-!    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  QUARTZ_3D ! Soil quartz content
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  BEXP_3D   ! C-H B exponent
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCDRY_3D ! Soil Moisture Limit: Dry
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCWLT_3D ! Soil Moisture Limit: Wilt
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCREF_3D ! Soil Moisture Limit: Reference
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCMAX_3D ! Soil Moisture Limit: Max
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DKSAT_3D  ! Saturated Soil Conductivity
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  DWSAT_3D  ! Saturated Soil Diffusivity
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  PSISAT_3D ! Saturated Matric Potential
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  QUARTZ_3D ! Soil quartz content
 !    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFDK_2D  ! Reference Soil Conductivity
 !    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFKDT_2D ! Soil Infiltration Parameter
 
@@ -687,15 +687,15 @@ CONTAINS
        ENDIF
 
 ! placeholders for 3D soil
-!       parameters%bexp   = BEXP_3D  (I,1:NSOIL,J) ! C-H B exponent
-!       parameters%smcdry = SMCDRY_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Dry
-!       parameters%smcwlt = SMCWLT_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Wilt
-!       parameters%smcref = SMCREF_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Reference
-!       parameters%smcmax = SMCMAX_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Max
-!       parameters%dksat  = DKSAT_3D (I,1:NSOIL,J) ! Saturated Soil Conductivity
-!       parameters%dwsat  = DWSAT_3D (I,1:NSOIL,J) ! Saturated Soil Diffusivity
-!       parameters%psisat = PSISAT_3D(I,1:NSOIL,J) ! Saturated Matric Potential
-!       parameters%quartz = QUARTZ_3D(I,1:NSOIL,J) ! Soil quartz content
+       parameters%bexp   = BEXP_3D  (I,1:NSOIL,J) ! C-H B exponent
+       parameters%smcdry = SMCDRY_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Dry
+       parameters%smcwlt = SMCWLT_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Wilt
+       parameters%smcref = SMCREF_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Reference
+       parameters%smcmax = SMCMAX_3D(I,1:NSOIL,J) ! Soil Moisture Limit: Max
+       parameters%dksat  = DKSAT_3D (I,1:NSOIL,J) ! Saturated Soil Conductivity
+       parameters%dwsat  = DWSAT_3D (I,1:NSOIL,J) ! Saturated Soil Diffusivity
+       parameters%psisat = PSISAT_3D(I,1:NSOIL,J) ! Saturated Matric Potential
+       parameters%quartz = QUARTZ_3D(I,1:NSOIL,J) ! Soil quartz content
 !       parameters%refdk  = REFDK_2D (I,J)         ! Reference Soil Conductivity
 !       parameters%refkdt = REFKDT_2D(I,J)         ! Soil Infiltration Parameter
 
@@ -1225,17 +1225,17 @@ SUBROUTINE TRANSFER_MP_PARAMETERS(VEGTYPE,SOILTYPE,SLOPETYPE,SOILCOLOR,CROPTYPE,
 !  Transfer soil parameters
 ! ----------------------------------------------------------------------
 
-    do isoil = 1, size(soiltype)
-      parameters%BEXP(isoil)   = BEXP_TABLE   (SOILTYPE(isoil))
-      parameters%DKSAT(isoil)  = DKSAT_TABLE  (SOILTYPE(isoil))
-      parameters%DWSAT(isoil)  = DWSAT_TABLE  (SOILTYPE(isoil))
-      parameters%PSISAT(isoil) = PSISAT_TABLE (SOILTYPE(isoil))
-      parameters%QUARTZ(isoil) = QUARTZ_TABLE (SOILTYPE(isoil))
-      parameters%SMCDRY(isoil) = SMCDRY_TABLE (SOILTYPE(isoil))
-      parameters%SMCMAX(isoil) = SMCMAX_TABLE (SOILTYPE(isoil))
-      parameters%SMCREF(isoil) = SMCREF_TABLE (SOILTYPE(isoil))
-      parameters%SMCWLT(isoil) = SMCWLT_TABLE (SOILTYPE(isoil))
-    end do
+    !do isoil = 1, size(soiltype)
+    !  parameters%BEXP(isoil)   = BEXP_TABLE   (SOILTYPE(isoil))
+    !  parameters%DKSAT(isoil)  = DKSAT_TABLE  (SOILTYPE(isoil))
+    !  parameters%DWSAT(isoil)  = DWSAT_TABLE  (SOILTYPE(isoil))
+    !  parameters%PSISAT(isoil) = PSISAT_TABLE (SOILTYPE(isoil))
+    !  parameters%QUARTZ(isoil) = QUARTZ_TABLE (SOILTYPE(isoil))
+    !  parameters%SMCDRY(isoil) = SMCDRY_TABLE (SOILTYPE(isoil))
+    !  parameters%SMCMAX(isoil) = SMCMAX_TABLE (SOILTYPE(isoil))
+    !  parameters%SMCREF(isoil) = SMCREF_TABLE (SOILTYPE(isoil))
+    !  parameters%SMCWLT(isoil) = SMCWLT_TABLE (SOILTYPE(isoil))
+    !end do
     
     parameters%F1     = F1_TABLE(SOILTYPE(1))
     parameters%REFDK  = REFDK_TABLE
