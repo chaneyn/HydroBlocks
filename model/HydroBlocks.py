@@ -906,6 +906,7 @@ class HydroBlocks:
   n.season_gdd[:] = 1605.0
   #n.ch[:] = 0.1
   #n.cm[:] = 0.1
+  #n.hdiv[:] = -10**-3
   #END HACK
   n.update(n.z_ml,n.dt,n.lwdn,n.swdn,n.u_ml,n.v_ml,n.q_ml,n.t_ml,n.prcp,n.psfc,\
            n.nowdate,n.xlat,n.xlon,n.cosz,n.julian,\

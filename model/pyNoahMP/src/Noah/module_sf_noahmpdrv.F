@@ -51,7 +51,7 @@ CONTAINS
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !HB added
-               PAHXY,HDIVXY                                    &
+               PAHXY,HDIVXY,                                    &
 !End HB added
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL)
 !----------------------------------------------------------------
@@ -218,6 +218,7 @@ CONTAINS
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  SMCWTDXY  ! soil moisture content in the layer to the water table when deep
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  DEEPRECHXY ! recharge to the water table when deep
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  RECHXY    ! recharge to the water table (diagnostic) 
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT  ) ::  HDIVXY    ! #HB
 
 ! OUT (with no Noah LSM equivalent)
 
@@ -268,8 +269,7 @@ CONTAINS
     INTEGER,  INTENT(IN   )   ::     ids,ide, jds,jde, kds,kde,  &  ! d -> domain
          &                           ims,ime, jms,jme, kms,kme,  &  ! m -> memory
          &                           its,ite, jts,jte, kts,kte      ! t -> tile
-    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(OUT  ) ::  PAHXY    ! 
-    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(OUT  ) ::  HDIVXY    ! 
+    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(OUT  ) ::  PAHXY    ! #HB
 
 
 ! 1D equivalent of 2D/3D fields
@@ -301,6 +301,7 @@ CONTAINS
     REAL                                :: PRCPGRPL     ! graupel entering land model [mm]           ! MB/AN : v3.7
     REAL                                :: PRCPHAIL     ! hail entering land model [mm]              ! MB/AN : v3.7
     REAL                                :: PRCPOTHR     ! other precip, e.g. fog [mm]                ! MB/AN : v3.7
+    REAL,    DIMENSION(NSOIL)           :: HDIV      ! #HB
 
 ! INOUT (with generic LSM equivalent)
 

@@ -417,7 +417,7 @@ contains
 #ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
 #endif
-                   ,HDIV                                                       &
+                   ,HDIV                                                       & !#HB
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -470,7 +470,7 @@ contains
   REAL                           , INTENT(IN)    :: DZ8W   !thickness of lowest layer
   REAL                           , INTENT(IN)    :: DX
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
-  REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV
+  REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV ! #HB
 !jref:end
 
 #ifdef WRF_HYDRO
@@ -677,8 +677,7 @@ contains
   LOGICAL                             :: crop_active ! flag to run crop model
   
   REAL :: FB
-  print*,hdiv
-  stop
+
   ! INTENT (OUT) variables need to be assigned a value.  These normally get assigned values
   ! only if DVEG == 2.
   nee = 0.0
@@ -803,6 +802,7 @@ contains
                  FICEOLD,PONDING,TG     ,IST    ,FVEG   ,iloc,jloc , SMCEQ , & !in
                  BDFALL ,FP     ,RAIN   ,SNOW   ,                 & !in  MB/AN: v3.7
 		 QSNOW  ,QRAIN  ,SNOWHIN,LATHEAV,LATHEAG,frozen_canopy,frozen_ground,  & !in  MB
+                 HDIV   , &!in #HB
                  ISNOW  ,CANLIQ ,CANICE ,TV     ,SNOWH  ,SNEQV  , & !inout
                  SNICE  ,SNLIQ  ,STC    ,ZSNSO  ,SH2O   ,SMC    , & !inout
                  SICE   ,ZWT    ,WA     ,WT     ,DZSNSO ,WSLAKE , & !inout
@@ -854,7 +854,8 @@ contains
                  ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , & !in
                  NSNOW  ,IST    ,ERRWAT ,ILOC   , JLOC  ,FVEG   , &
                  SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                 PAHV   ,PAHG   ,PAHB   )   !in ( Except ERRWAT, which is out )
+                 PAHV   ,PAHG   ,PAHB   , &   !in ( Except ERRWAT, which is out )
+                 HDIV ) ! #HB
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
@@ -1368,7 +1369,8 @@ ENDIF   ! CROPTYPE == 0
                     ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , &
                     NSNOW  ,IST    ,ERRWAT, ILOC   ,JLOC   ,FVEG   , &
                     SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                    PAHV   ,PAHG   ,PAHB   )
+                    PAHV   ,PAHG   ,PAHB   , &
+                    HDIV) ! #HB
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1410,6 +1412,7 @@ ENDIF   ! CROPTYPE == 0
   REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN) :: DZSNSO !snow/soil layer thickness [m]
   REAL                           , INTENT(IN) :: WA     !water storage in aquifer [mm]
   REAL                           , INTENT(IN) :: DT     !time step [sec]
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: HDIV   !#HB
   REAL                           , INTENT(IN) :: BEG_WB !water storage at begin of a timesetp [mm]
   REAL                           , INTENT(OUT) :: ERRWAT !error in water balance [mm/timestep]
   REAL, INTENT(IN)   :: PAH     !precipitation advected heat - total (W/m2)
@@ -1484,7 +1487,8 @@ ENDIF   ! CROPTYPE == 0
         DO IZ = 1,NSOIL
           END_WB = END_WB + SMC(IZ) * DZSNSO(IZ) * 1000.
         END DO
-        ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB)*DT
+        !ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB)*DT
+        ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB-sum(HDIV))*DT !#HB
 
 #ifndef WRF_HYDRO
         IF(ABS(ERRWAT) > 0.1) THEN
@@ -5715,6 +5719,7 @@ ENDIF   ! CROPTYPE == 0
                     FICEOLD,PONDING,TG     ,IST    ,FVEG   ,ILOC   ,JLOC ,SMCEQ , & !in
                     BDFALL ,FP     ,RAIN   ,SNOW,                    & !in  MB/AN: v3.7
 		    QSNOW  ,QRAIN  ,SNOWHIN,LATHEAV,LATHEAG,frozen_canopy,frozen_ground,    & !in  MB
+                    HDIV, & !in #HB
                     ISNOW  ,CANLIQ ,CANICE ,TV     ,SNOWH  ,SNEQV  , & !inout
                     SNICE  ,SNLIQ  ,STC    ,ZSNSO  ,SH2O   ,SMC    , & !inout
                     SICE   ,ZWT    ,WA     ,WT     ,DZSNSO ,WSLAKE , & !inout
@@ -5767,6 +5772,7 @@ ENDIF   ! CROPTYPE == 0
   REAL                           , INTENT(IN)    :: QSNOW   !snow at ground srf (mm/s) [+]
   REAL                           , INTENT(IN)    :: QRAIN   !rain at ground srf (mm) [+]
   REAL                           , INTENT(IN)    :: SNOWHIN !snow depth increasing rate (m/s)
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN)    :: HDIV   !horizontal divergence (mm/s) [+] #HB
 
 ! input/output
   INTEGER,                         INTENT(INOUT) :: ISNOW   !actual no. of snow layers
@@ -5910,6 +5916,7 @@ ENDIF   ! CROPTYPE == 0
     ELSE                                                      ! soil
        CALL      SOILWATER (parameters,NSOIL  ,NSNOW  ,DT     ,ZSOIL  ,DZSNSO , & !in
                             QINSUR ,QSEVA  ,ETRANI ,SICE   ,ILOC   , JLOC , & !in
+                            HDIV , & !in #HB
                             SH2O   ,SMC    ,ZWT    ,VEGTYP , & !inout
                            SMCWTD, DEEPRECH                       , & !inout
                             RUNSRF ,QDRAIN ,RUNSUB ,WCND   ,FCRMAX )   !out
@@ -6894,6 +6901,7 @@ ENDIF   ! CROPTYPE == 0
 
   SUBROUTINE SOILWATER (parameters,NSOIL  ,NSNOW  ,DT     ,ZSOIL  ,DZSNSO , & !in
                         QINSUR ,QSEVA  ,ETRANI ,SICE   ,ILOC   , JLOC, & !in
+                        HDIV, & !in #HB
                         SH2O   ,SMC    ,ZWT    ,VEGTYP ,& !inout
                         SMCWTD, DEEPRECH                       ,& !inout
                         RUNSRF ,QDRAIN ,RUNSUB ,WCND   ,FCRMAX )   !out
@@ -6917,6 +6925,7 @@ ENDIF   ! CROPTYPE == 0
   REAL, DIMENSION(1:NSOIL),    INTENT(IN) :: ETRANI !evapotranspiration from soil layers [mm/s]
   REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN) :: DZSNSO !snow/soil layer depth [m]
   REAL, DIMENSION(1:NSOIL), INTENT(IN)   :: SICE   !soil ice content [m3/m3]
+  REAL, DIMENSION(1:NSOIL), INTENT(IN)   :: HDIV   !#HB
 
   INTEGER,                     INTENT(IN) :: VEGTYP
 
@@ -7088,6 +7097,7 @@ ENDIF   ! CROPTYPE == 0
        CALL SRT   (parameters,NSOIL  ,ZSOIL  ,DTFINE ,PDDUM  ,ETRANI , & !in
                    QSEVA  ,SH2O   ,SMC    ,ZWT    ,FCR    , & !in
                    SICEMAX,FCRMAX ,ILOC   ,JLOC   ,SMCWTD ,         & !in
+                   HDIV, & !in #HB
                    RHSTT  ,AI     ,BI     ,CI     ,QDRAIN , & !out
                    WCND   )                                   !out
   
@@ -7321,6 +7331,7 @@ ENDIF   ! CROPTYPE == 0
   SUBROUTINE SRT (parameters,NSOIL  ,ZSOIL  ,DT     ,PDDUM  ,ETRANI , & !in
                   QSEVA  ,SH2O   ,SMC    ,ZWT    ,FCR    , & !in
                   SICEMAX,FCRMAX ,ILOC   ,JLOC   ,SMCWTD ,         & !in
+                  HDIV, & !in #HB
                   RHSTT  ,AI     ,BI     ,CI     ,QDRAIN , & !out
                   WCND   )                                   !out
 ! ----------------------------------------------------------------------
@@ -7340,6 +7351,7 @@ ENDIF   ! CROPTYPE == 0
     REAL,                     INTENT(IN)  :: DT
     REAL,                     INTENT(IN)  :: PDDUM
     REAL,                     INTENT(IN)  :: QSEVA
+    REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: HDIV !#HB
     REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: ETRANI
     REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: SH2O
     REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: SMC
@@ -7395,14 +7407,16 @@ ENDIF   ! CROPTYPE == 0
           TEMP1    = - ZSOIL (K+1)
           DDZ(K)   = 2.0 / TEMP1
           DSMDZ(K) = 2.0 * (SMX(K) - SMX(K+1)) / TEMP1
-          WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA
+          !WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA
+          WFLUX(K) = WDF(K) * DSMDZ(K) + WCND(K) - PDDUM + ETRANI(K) + QSEVA + HDIV(K)/1000. !#HB
        ELSE IF (K < NSOIL) THEN
           DENOM(k) = (ZSOIL(K-1) - ZSOIL(K))
           TEMP1    = (ZSOIL(K-1) - ZSOIL(K+1))
           DDZ(K)   = 2.0 / TEMP1
           DSMDZ(K) = 2.0 * (SMX(K) - SMX(K+1)) / TEMP1
           WFLUX(K) = WDF(K  ) * DSMDZ(K  ) + WCND(K  )         &
-                   - WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K)
+                   !- WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K)
+                   - WDF(K-1) * DSMDZ(K-1) - WCND(K-1) + ETRANI(K) + HDIV(K)/1000. !#HB
        ELSE
           DENOM(K) = (ZSOIL(K-1) - ZSOIL(K))
           IF(OPT_RUN == 1 .or. OPT_RUN == 2) THEN
@@ -7425,7 +7439,8 @@ ENDIF   ! CROPTYPE == 0
              DSMDZ(K) = 2.0 * (SMX(K) - SMXBOT) / TEMP1
              QDRAIN   = WDF(K  ) * DSMDZ(K  ) + WCND(K  )
           END IF   
-          WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN
+          !WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN
+          WFLUX(K) = -(WDF(K-1)*DSMDZ(K-1))-WCND(K-1)+ETRANI(K) + QDRAIN + HDIV(K)/1000.0 !#HB
        END IF
     END DO
 
