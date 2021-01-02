@@ -290,6 +290,7 @@ class HydroBlocks:
   self.noahmp.iz0tlnd = 0#-16497279 #0
   self.noahmp.sf_urban_physics = 0
   #Initialize the rest
+  self.noahmp.hdiv[:] = 0.0
   self.noahmp.acsnom[:] = 0.0
   self.noahmp.acsnow[:] = 0.0
   self.noahmp.sfcrunoff[:] = 0.0
