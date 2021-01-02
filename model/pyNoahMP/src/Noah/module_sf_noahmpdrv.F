@@ -51,7 +51,7 @@ CONTAINS
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !HB added
-               PAHXY,                                            &
+               PAHXY,HDIVXY                                    &
 !End HB added
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL)
 !----------------------------------------------------------------
@@ -269,6 +269,7 @@ CONTAINS
          &                           ims,ime, jms,jme, kms,kme,  &  ! m -> memory
          &                           its,ite, jts,jte, kts,kte      ! t -> tile
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(OUT  ) ::  PAHXY    ! 
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(OUT  ) ::  HDIVXY    ! 
 
 
 ! 1D equivalent of 2D/3D fields
@@ -635,6 +636,7 @@ CONTAINS
        SMCWTD                = SMCWTDXY(I,J)
        RECH                  = 0.
        DEEPRECH              = 0.  
+       HDIV                  = HDIVXY (I,:,J)
 
        if(iopt_crop == 2) then   ! gecros crop model
 
@@ -885,6 +887,7 @@ CONTAINS
 #ifdef WRF_HYDRO
             , sfcheadrt(i,j)                               &
 #endif
+            , hdiv &
             )            ! OUT :
                   
             QFX(I,J) = ECAN + ESOIL + ETRAN

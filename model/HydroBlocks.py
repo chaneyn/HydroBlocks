@@ -940,7 +940,8 @@ class HydroBlocks:
            n.chleaf,n.chuc,n.chv2,n.chb2,n.rs,\
            n.pah,\
            n.bexp,n.smcdry,n.smcwlt,n.smcref,n.smcmax,\
-           n.dksat,n.dwsat,n.psisat,n.quartz
+           n.dksat,n.dwsat,n.psisat,n.quartz,\
+           n.hdiv
           )
 
   '''self.noahmp.run_model(self.ncores,noah.yearlen,noah.idveg,noah.iopt_crs,noah.iopt_btr,\

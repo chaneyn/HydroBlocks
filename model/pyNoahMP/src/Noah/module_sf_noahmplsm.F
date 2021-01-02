@@ -417,6 +417,7 @@ contains
 #ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
 #endif
+                   ,HDIV                                                       &
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -469,6 +470,7 @@ contains
   REAL                           , INTENT(IN)    :: DZ8W   !thickness of lowest layer
   REAL                           , INTENT(IN)    :: DX
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
+  REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV
 !jref:end
 
 #ifdef WRF_HYDRO
@@ -675,7 +677,8 @@ contains
   LOGICAL                             :: crop_active ! flag to run crop model
   
   REAL :: FB
-  
+  print*,hdiv
+  stop
   ! INTENT (OUT) variables need to be assigned a value.  These normally get assigned values
   ! only if DVEG == 2.
   nee = 0.0
