@@ -9,16 +9,11 @@ import scipy.sparse as sparse
 import pickle
 
 def assign_string(nelem,pstring):
- #def assign_string(dtype,pstring):
 
- #print(str(dtype))
- #nelem = int(str(dtype)[2:])
- #nelem = len)
  tmp = np.chararray(shape=(nelem,))
  tmp[:] = ' '
  tmp2 = []
  for letter in pstring:
-  #print(letter)
   tmp2.append(letter)
  tmp[0:len(tmp2)] = tmp2
 
@@ -38,11 +33,11 @@ class HydroBlocks:
   self.general_information(info)
 
   #Initialize Noah-MP
-  print("Initializing Noah-MP",flush=True)
+  #print("Initializing Noah-MP",flush=True)
   self.initialize_noahmp()
   self.tsno=np.zeros((self.noahmp.ncells,self.noahmp.nsnow),order='F').astype(np.float32) #Initial condition TSNO Laura
   #Initialize subsurface module
-  print("Initializing subsurface module",flush=True)
+  #print("Initializing subsurface module",flush=True)
   self.initialize_subsurface()
 
   #Initialize human water use module
@@ -50,20 +45,22 @@ class HydroBlocks:
   #self.initialize_hwu(info)
 
   #Initialize routing module
-  print("Initializing the routing module",flush=True)
+  #print("Initializing the routing module",flush=True)
   self.initialize_routing()
   #Other metrics
   self.dE = 0.0
   self.r = 0.0
   self.dr = 0.0
-  self.et = 0.0
-  self.etran = 0.0
-  self.edir = 0.0
-  self.ecan = 0.0
-  self.prcp = 0.0
-  self.q = 0.0
-  self.errwat = 0.0
-  self.erreng = 0.0
+  self.acc_et = 0.0
+  self.acc_etran = 0.0
+  self.acc_edir = 0.0
+  self.acc_ecan = 0.0
+  self.acc_prcp = 0.0
+  self.acc_q = 0.0
+  self.acc_errwat = 0.0
+  self.acc_erreng = 0.0
+  self.runtime = 0.0
+  self.runtime0 = 0.0
   self.dzwt0 = np.zeros(self.nhru,dtype=np.float32)
   self.beg_wb = np.zeros(self.nhru,dtype=np.float32)
   self.end_wb = np.zeros(self.nhru,dtype=np.float32)
@@ -79,11 +76,22 @@ class HydroBlocks:
   file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d'))
   if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
-    print("Cold startup",flush=True)
+    #print("Cold startup",flush=True)
     return
 
   #Read in the restart information
   fp = h5py.File(file_restart,'r')
+  #diagnostics
+  self.acc_et = fp['acc_et'][()]
+  self.acc_etran = fp['acc_etran'][()]
+  self.acc_edir = fp['acc_edir'][()]
+  self.acc_ecan = fp['acc_ecan'][()]
+  self.acc_prcp = fp['acc_prcp'][()]
+  self.acc_q = fp['acc_q'][()]
+  self.acc_errwat = fp['acc_errwat'][()]
+  self.acc_erreng = fp['acc_erreng'][()]
+  self.runtime0 = fp['runtime'][()]
+  #noahmp
   self.noahmp.smceq[:] = fp['smceq'][:]
   self.noahmp.albold[:] = fp['albold'][:]
   self.noahmp.albedo[:] = fp['albedo'][:]
@@ -117,7 +125,7 @@ class HydroBlocks:
   self.noahmp.stblcp[:] = fp['stblcp'][:]
   self.noahmp.fastcp[:] = fp['fastcp'][:]
   self.noahmp.lai[:] = fp['lai'][:]
-  self.noahmp.xsai[:] = fp['xsai'][:]
+  self.noahmp.sai[:] = fp['sai'][:]
   self.noahmp.cm[:] = fp['cm'][:]
   self.noahmp.ch[:] = fp['ch'][:]
   self.noahmp.tauss[:] = fp['tauss'][:]
@@ -160,7 +168,6 @@ class HydroBlocks:
   self.dt = info['dt']
   self.dtt = self.dt#info['dtt']
   self.nsoil = len(info['dz'])#['nsoil']
-  self.ncores = info['ncores']
   self.idate = info['idate']
   self.fdate = info['fdate']
   self.cdir = info['cdir']
@@ -225,24 +232,22 @@ class HydroBlocks:
 
   #Allocate memory
   #1d,integer
-  vars = ['isnow','isurban','slopetyp','soiltyp','vegtyp','ice','isc','ist','root_depth',
-          'isltyp','ivgtyp','cropcat','pgs']
+  vars = ['isnow','ice','isltyp','ivgtyp','cropcat','pgs']
   for var in vars:
    exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.int32)' % var)
    exec('self.noahmp.%s[:] = -2147483647' % var)
   #1d,real
   vars = ['z_ml','lwdn','swdn','p_ml','psfc','prcp','t_ml','q_ml','u_ml','v_ml','fsh','ssoil','salb',\
-          'fsno','swe','sndpth','emissi','qsfc1d','tv','tg','canice','canliq','eah','tah','cm','ch',\
+          'fsno','swe','emissi','qsfc1d','tv','tg','canice','canliq','eah','tah','cm','ch',\
           'fwet','sneqvo','albold','qsnow','wslake','zwt','dzwt','wa','wt','smcwtd','deeprech','rech',\
-          'lfmass','rtmass','stmass','wood','stblcp','fastcp','plai','psai','tauss','t2mv','t2mb','q2mv',\
+          'lfmass','rtmass','stmass','wood','stblcp','fastcp','tauss','t2mv','t2mb','q2mv',\
           'q2mb','trad','nee','gpp','npp','fvegmp','runsf','runsb','ecan','etran','esoil','fsa','fira',\
           'apar','psn','sav','sag','rssun','rssha','bgap','wgap','tgv','tgb','chv','chb','irc','irg','shc',\
           'shg','evg','ghv','irb','shb','evb','ghb','tr','evc','chleaf','chuc','chv2','chb2','cosz','lat',\
-          'lon','fveg','fvgmax','fpice','fcev','fgev','fctr','qsnbot','ponding','ponding1','ponding2','fsr',\
-          'co2pp','o2pp','foln','tbot','smcmax','smcdry','smcref','errwat','si0','si1','zwt0','minzwt','co2air',\
-          'o2air','bb0','drysmc0','f110','maxsmc0','refsmc0','satpsi0','satdk0','satdw0','wltsmc0','qtz0',\
+          'lon','fveg','fvgmax','fpice','fcev','fgev','fctr','qsnbot',\
+          'foln','smcmax','smcdry','smcref','errwat','zwt0','minzwt',\
           'mozb','fvb','mozv','fvv','zpd','zpdg','tauxb','tauyb','tauxv','tauyv','sfcheadrt',\
-          'snow','snowh','canwat','xlat','xlon','tsk','tmn','xice','xsai','lai','grain',\
+          'snow','snowh','canwat','xlat','xlon','tsk','tmn','xice','sai','lai','grain',\
           'gdd','chstar','area','msftx','msfty','qrfs','qsprings','qslat','fdepth',\
           'ht','riverbed','eqzwt','rivercond','pexp','rechclim',\
           'planting','harvest','season_gdd',\
@@ -257,7 +262,6 @@ class HydroBlocks:
    exec('self.noahmp.%s = np.zeros(self.nhru,order=\'F\').astype(np.float32)' % var)
    exec('self.noahmp.%s[:] = 9999999999.0' % var)
   #2d,real
-  #vars = ['stc','sh2o','smc','smceq','zsnso','snice','snliq','ficeold','zsoil','sldpth','hdiv']
   vars = ['sh2o','smc','smceq','zsoil','sldpth','hdiv','smois','tslb','smoiseq',\
           'bexp','smcdry','smcwlt','smcref','smcmax','dksat','dwsat','psisat','quartz']
   for var in vars:
@@ -267,11 +271,8 @@ class HydroBlocks:
   self.noahmp.stc = np.zeros((self.nhru,self.noahmp.nsoil+self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.snice = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.snliq = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
-  self.noahmp.ficeold = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.dzs = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
   self.noahmp.croptype = np.zeros((self.nhru,5),order='F').astype(np.float32)
-  #self.noahmp.soilcomp = np.zeros((self.nhru,8),order='F').astype(np.float32)
-  #self.noahmp.soilcomp[:] = 9999999999.0
   self.noahmp.fndsoilw = False#True
   self.noahmp.fndsnowh = True
   self.noahmp.tsno = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
@@ -289,6 +290,10 @@ class HydroBlocks:
   self.noahmp.iopt_crop = 0
   self.noahmp.iz0tlnd = 0#-16497279 #0
   self.noahmp.sf_urban_physics = 0
+  self.noahmp.planting[:] = 126.0
+  self.noahmp.harvest[:] = 290.0
+  self.noahmp.season_gdd[:] = 1605.0
+  self.noahmp.fvgmax[:] = 96
   #Initialize the rest
   self.noahmp.hdiv[:] = 0.0
   self.noahmp.acsnom[:] = 0.0
@@ -313,7 +318,6 @@ class HydroBlocks:
   self.noahmp.lai[:] = 2.0
   self.noahmp.xlat[:] = self.input_fp.groups['metadata'].latitude
   self.noahmp.xlon[:] = self.input_fp.groups['metadata'].longitude
-  self.noahmp.slopetyp[:] = 2
   self.noahmp.wtddt = 30.0
   self.noahmp.stepwtd = np.max([np.round(self.noahmp.wtddt*60.0/self.noahmp.dt),1])
   self.noahmp.runsf[:] = 0.0
@@ -327,25 +331,18 @@ class HydroBlocks:
 
   #Define data
   self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
-  #assign_string(self.noahmp.llanduse.dtype,'MODIFIED_IGBP_MODIS_NOAH')
   self.noahmp.lsoil = 'CUST'
-  #self.noahmp['lsoil'] = assign_string(self.noahmp.lsoil.dtype,'CUST')
   fdir = os.path.dirname(os.path.abspath(__file__))
-  VEGPARM = '%s/pyNoahMP/data/VEGPARM.TBL' % fdir
+  SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % fdir
-  self.noahmp.vegparm_file = VEGPARM
+  self.noahmp.soilparm_file = SOILPARM
   self.noahmp.genparm_file = GENPARM
   self.noahmp.mptable_file = MPTABLE
-  #self.noahmp['vegparm_file'] = assign_string(self.noahmp.vegparm_file.dtype,VEGPARM)
-  #self.noahmp['genparm_file'] = assign_string(self.noahmp.genparm_file.dtype,GENPARM)
-  #self.noahmp['mptable_file'] = assign_string(self.noahmp.mptable_file.dtype,MPTABLE)
   #Define the options
-  #self.noahmp.idveg = 2 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.idveg = 4 # dynamic vegetation (1 -> off ; 2 -> on)
   self.noahmp.iopt_crs = 1 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
-  #Runoff 5 is really messed up
   self.noahmp.iopt_run = 3#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
   self.noahmp.iopt_sfc = 1#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
   self.noahmp.iopt_frz = 1#2#1#2 # supercooled liquid water (1-> NY06; 2->Koren99)
@@ -353,7 +350,6 @@ class HydroBlocks:
   self.noahmp.iopt_rad = 3#1#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
   self.noahmp.iopt_alb = 2#2 snow surface albedo (1->BATS; 2->CLASS)
   self.noahmp.iopt_snf = 1#3#1#3 rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  #self.noahmp.iopt_tbot = 1#2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_tbot = 2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
   self.noahmp.iopt_stc = 1#2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
@@ -363,98 +359,16 @@ class HydroBlocks:
   self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 9999999999.0
   self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
-  #Set all to land (can include lake in the future...)
-  lc = self.input_fp.groups['parameters'].variables['land_cover'][:]
-  ist = np.copy(lc).astype(np.int32)
-  #ist[:] = 1
-  #ist[lc == 17] = 2
-  #self.noahmp.ist[:] = ist[:]#1
-  #self.noahmp.isurban[:] = 13
-  #Set soil color
-  #self.noahmp.isc[:] = 4
-  #self.noahmp.ice[:] = 0
-  #Initialize snow info
-  #self.noahmp.isnow[:] = 0
-  #Others
   self.noahmp.dx = self.dx
-  #self.noahmp.ice[:] = 0
-  #self.noahmp.foln[:] = 1.0
-  #self.noahmp.foln[:] =0.0
-  #self.noahmp.ficeold[:] = 0.0
-  #self.noahmp.albold[:] = 0.189999998 #0.65
-  #self.noahmp.albold[:] = 0.0#0.189999998 #0.65
-  #self.noahmp.sneqvo[:] = 2.09569975E-04 #0.0
-  #self.noahmp.ch[:] = 0.108068228
-  #self.noahmp.ch[:] = 0.0
-  #self.noahmp.cm[:] = 1.81936752E-02
-  #self.noahmp.cm[:] = 0.0
-  #self.noahmp.canliq[:] =  0.01# 3.93530267E-04
-  #self.noahmp.canice[:] = 0.0
-  #self.noahmp.sndpth[:] = 0.01#1.06005312E-03
-  #self.noahmp.swe[:] = 1.0#2.09569975E-04
-  #self.noahmp.snice[:] = 0.0
-  #self.noahmp.snliq[:] = 0.0
-  #self.noahmp.wa[:] = 4900
-  #self.noahmp.wt[:] = self.noahmp.wa[:]
-  #self.noahmp.zwt[:] = 1.55999994
-  #self.noahmp.wslake[:] = 0.0
-  #self.noahmp.lfmass[:] = 9.0
-  #self.noahmp.rtmass[:] = 500.0
-  #self.noahmp.stmass[:] = 3.33
-  #self.noahmp.wood[:] = 500.0
-  #self.noahmp.stblcp[:] = 1000.0
-  #self.noahmp.fastcp[:] = 1000.0
-  #self.noahmp.plai[:] = 2.0
   self.noahmp.tauss[:] = 0.0
-  #self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,1]
-  #self.noahmp.deeprech[:] = 0.0
-  #self.noahmp.rech[:] = 0.0
-  #self.noahmp.eah[:] = 373.016357 #It doesn't really matter. It's recomputed afterwards. Laura
-  #self.noahmp.fwet[:] = 0.0
-  #self.noahmp.psai[:] = 0.1
-  #stc_array=np.array([0,0,0,266.1,274.0,276.9,279.9])
-  #smc_array=np.array([0.298,0.294,0.271,0.307])
-  #self.noahmp.stc[:] = 285.0
-  #self.noahmp.stc[:,0:7]=stc_array
-  #self.noahmp.smc[:,0:4]=smc_array
-  #if self.noahmp.nsoil>4:
-  # self.noahmp.stc[:,7:]=279.9152
-  # self.noahmp.smc[:,4:]=0.3070948
-  #self.noahmp.sh2o=self.noahmp.smc
-  #self.noahmp.stc[:]=np.array([[0,0,0,266.099487,274.044495,276.895386,279.915192],[0,0,0,266.099487,274.044495,276.895386,279.915192]]) #Laura, need to generalize for more layers
-  #self.noahmp.slopetyp[:] = 3
-  #self.noahmp.albold[:] = 0.5
   #Define the data
-  self.noahmp.vegtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
   hand = self.input_fp.groups['parameters'].variables['hand'][:]
   self.hrus = self.input_fp.groups['parameters'].variables['hru'][:].astype(np.int32)
   self.hbands = self.input_fp.groups['parameters'].variables['hband'][:].astype(np.int32)
   self.nhband = np.unique(self.hbands).size
-  #mask = hand == 0
-  #self.noahmp.vegtyp[mask] = 17#16
-  self.noahmp.soiltyp[:] = np.arange(1,self.noahmp.ncells+1)
   self.noahmp.clay_pct  = self.input_fp.groups['parameters'].variables['clay'][:] # Noemi
-  #self.noahmp.smcmax[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-  #self.noahmp.smcref[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-  #self.noahmp.smcdry[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-  #for ilayer in range(self.noahmp.sh2o.shape[1]):
-   #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-   #self.noahmp.sh2o[:,ilayer] = self.input_fp.groups['parameters'].variables['REFSMC'][:] #Noemi, start at REFSMC
-  #self.noahmp.sh2o[:,:]=np.array([[0.298159689,0.294025391,0.271311402,0.307094812],[0.298159689,0.294025391,0.271311402,0.307094812]]) #Laura need to generalize for more layers
-  #self.noahmp.smc[:] = self.noahmp.sh2o[:]
-  #self.noahmp.smc[:,0]=0.298159689 #Laura
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
-  #self.noahmp.bb0[:] = self.input_fp.groups['parameters'].variables['BB'][:]
-  #self.noahmp.drysmc0[:] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-  #self.noahmp.f110[:] = 0.0#self.input_fp.groups['parameters'].variables['F11'][:]
-  #self.noahmp.maxsmc0[:] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-  #self.noahmp.refsmc0[:] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-  #self.noahmp.satpsi0[:] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-  #self.noahmp.satdk0[:] = self.input_fp.groups['parameters'].variables['SATDK'][:]
-  #self.noahmp.satdw0[:] = self.input_fp.groups['parameters'].variables['SATDW'][:]
-  #self.noahmp.wltsmc0[:] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
-  #self.noahmp.qtz0[:] = self.input_fp.groups['parameters'].variables['QTZ'][:]
   for isoil in range(self.noahmp.nsoil):
    self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
    self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
@@ -465,26 +379,10 @@ class HydroBlocks:
    self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
    self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
    self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
-  #self.noahmp.f110[:] = 0.0#self.input_fp.groups['parameters'].variables['F11'][:]
 
   #Set lat/lon (declination calculation)
   self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
   self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
-
-  #Initialize output
-  #self.noahmp.tg[:] = 263.690887
-  #self.noahmp.tv[:] = 263.690887
-  #for ilayer in range(self.noahmp.nsnow,self.noahmp.stc.shape[1]):
-   #self.noahmp.stc[:,ilayer] = 285.0
-  #self.noahmp.tah[:] = 285.0
-  #self.noahmp.t2mv[:] = 285
-  #self.noahmp.t2mb[:] = 285
-  #self.noahmp.runsf[:] = 0.0
-  #self.noahmp.runsb[:] = 0.0
-  #forcing
-  #self.noahmp.fveg[:] = 0.96
-  self.noahmp.fvgmax[:] = 96
-  #self.noahmp.tbot[:] = 285.0'''
 
   #Define the parameters
   noah = self.noahmp
@@ -494,23 +392,15 @@ class HydroBlocks:
           noah.tmn,noah.xice,noah.canliq,noah.eah,noah.tah,noah.cm,noah.ch,\
           noah.fwet,noah.sneqvo,noah.albold,noah.qsnow,noah.wslake,noah.zwt,noah.wa,\
           noah.wt,noah.tsno,noah.zsnso,noah.snice,noah.snliq,noah.lfmass,noah.rtmass,\
-          noah.stmass,noah.wood,noah.stblcp,noah.fastcp,noah.xsai,noah.lai,noah.grain,\
+          noah.stmass,noah.wood,noah.stblcp,noah.fastcp,noah.sai,noah.lai,noah.grain,\
           noah.gdd,noah.croptype,noah.cropcat,noah.t2mv,noah.t2mb,noah.chstar,\
           noah.restart,noah.allowed_to_read,noah.iopt_run,noah.iopt_crop,\
           noah.sf_urban_physics,noah.smoiseq,noah.smcwtd,noah.rech,\
           noah.deeprech,noah.area,noah.dx,noah.dy,noah.msftx,noah.msfty,noah.wtddt,\
           noah.stepwtd,noah.dt,noah.qrfs,noah.qsprings,noah.qslat,noah.fdepth,\
           noah.ht,noah.riverbed,noah.eqzwt,noah.rivercond,noah.pexp,noah.rechclim,\
-          noah.gecros_state)
-
-  #self.noahmp.initialize_parameters(noah.llanduse,noah.lsoil,noah.vegparm_file,\
-  #       noah.genparm_file,noah.iopt_crs,noah.iopt_btr,noah.iopt_run,noah.iopt_sfc,\
-  #       noah.iopt_frz,noah.iopt_inf,noah.iopt_rad,noah.iopt_alb,noah.iopt_snf,\
-  #       noah.iopt_tbot,noah.iopt_stc,noah.idveg,noah.mptable_file,noah.bb0,\
-  #       noah.drysmc0,noah.f110,noah.maxsmc0,\
-  #       noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,noah.wltsmc0,noah.qtz0)#,\
-  #       #noah.nsnow,noah.nsoil,noah.zsoil,noah.swe,noah.tg,noah.sndpth,noah.zsnso,\
-  #       #noah.snice,noah.snliq,noah.isnow)
+          noah.gecros_state,\
+          noah.soilparm_file,noah.genparm_file,noah.mptable_file)
 
   return
 
@@ -688,7 +578,6 @@ class HydroBlocks:
   #Set other parameters
   self.richards.dx = self.dx
   self.richards.nhru = self.nhru
-  #print(self.nhru)
   self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
   #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
@@ -731,11 +620,6 @@ class HydroBlocks:
   tic = time.time()
   self.noahmp.dzwt[:] = 0.0
   i=0
-  #print(i)
-  #print(self.noahmp.tah[1])
-  #print(self.noahmp.eah[1])
-  #print(self.noahmp.swe[1])
-  #print(self.noahmp.stc[1])
 
   while date < self.fdate:
    i=i+1 
@@ -748,7 +632,6 @@ class HydroBlocks:
     self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
     self.noahmp.cm[:] = 0.1
     self.noahmp.ch[:] = 0.1
-   #print('update input',time.time() - tic0,flush=True)
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
 
@@ -759,19 +642,8 @@ class HydroBlocks:
    tic0 = time.time()
    self.update(date)
    #if i>1: self.update(date)
-   #print(self.noahmp.edir)
-   #if i==401:exit()
-   #print(i)
-   #print(self.noahmp.tah[1])
-   #print(self.noahmp.eah[1])
-   #print(self.noahmp.swe[1])
-   #print(self.noahmp.stc[1])
-   #print(self.tsno[1])
-   #if i>10:
-    #break
 
    #print('update model',time.time() - tic0,flush=True)
-   #exit()
    
    #Return precip to original value
    #self.noahmp.prcp[:] = precip[:] 
@@ -788,6 +660,7 @@ class HydroBlocks:
    #Update time and date
    self.date = date
    info['date'] = date
+   self.runtime = self.runtime0 + time.time()-tic
 
    #Update output
    tic0 = time.time()
@@ -797,13 +670,19 @@ class HydroBlocks:
    #Update time step
    date = date + self.dt_timedelta
    self.itime = self.itime + 1
-   #print(date,flush=True)
-   #exit()
 
    #Output some statistics
-   if (date.minute ==0) and (date.hour == 0) and (date.day == 1):
-    #print('cid: %d' % info['cid'],date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng,flush=True)
-    print(date.strftime("%Y-%m-%d"),'%10.4f'%(time.time()-tic),'et:%10.4f'%self.et,'prcp:%10.4f'%self.prcp,'q:%10.4f'%self.q,'WB ERR:%10.6f' % self.errwat,'ENG ERR:%10.6f' % self.erreng,flush=True)
+   #if (date.minute ==0):# and (date.hour == 0) and (date.day == 1):
+   string = '|%s|%s|%s|%s|%s|%s|%s|' % \
+        ('Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
+         'Runtime:%.2f(s)'%(self.runtime),\
+         'Acc_ET:%.2f(mm)'%self.acc_et,\
+         'Acc_P:%.2f(mm)'%self.acc_prcp,\
+         'Acc_Q:%.2f(mm)'%self.acc_q,\
+         'Acc_WBE:%.2f(mm)' % self.acc_errwat,\
+         'Acc_EBE:%.2f(J/m2)' % self.acc_erreng)
+   print(string,flush=True)
+   #print(' '*len(string),flush=True)
 
   return
 
@@ -812,64 +691,21 @@ class HydroBlocks:
   self.noahmp.itime = self.itime
   dt = self.dt
   self.noahmp.nowdate = assign_string(19,date.strftime('%Y-%m-%d_%H:%M:%S'))
-  #self.noahmp.nowdate = date.strftime('%Y-%m-%d_%H:%M:%S')
   self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
-  self.noahmp.yearlen = (datetime.datetime(date.year+1,1,1,0) - datetime.datetime(date.year,1,1,1,0)).days + 1
   self.noahmp.year = date.year
 
-  #Update meteorology
-  #meteorology = self.input_fp.groups['meteorology']
-  '''if date == self.idate:
-   #determine the first time step for the meteorology
-   var = meteorology.variables['time']
-   ndates = var[:]
-   #convert current date to num
-   ndate = nc.date2num(date,units=var.units,calendar=var.calendar)
-   #identify the position
-   self.minitial_itime = np.where(ndates == ndate)[0][0]
-  i = self.itime + self.minitial_itime'''
-
-  '''
-  #Update meteorology
-  meteorology = self.input_fp.groups['meteorology']
-  #convert current date to num
-  ndate = nc.date2num(date,units=self.input_fp_meteo_time.units,calendar=self.input_fp_meteo_time.calendar)
-  #identify the position
-  i = np.argmin(np.abs(self.input_fp_meteo_time[:]-ndate))
-
-  #Downscale meteorology
-  self.noahmp.lwdn[:] = meteorology.variables['lwdown'][i,:] #W/m2
-  self.noahmp.swdn[:] = meteorology.variables['swdown'][i,:] #W/m2
-  self.noahmp.psfc[:] = meteorology.variables['psurf'][i,:] #Pa
-  self.noahmp.p_ml[:] = self.noahmp.psfc[:] #Pa
-  self.noahmp.u_ml[:] = (meteorology.variables['wind'][i,:]**2/2)**0.5 #m/s
-  self.noahmp.v_ml[:] = self.noahmp.u_ml[:] #m/s
-  self.noahmp.t_ml[:] = meteorology.variables['tair'][i,:] #K
-  self.noahmp.q_ml[:] = meteorology.variables['spfh'][i,:] #Kg/Kg
-  self.noahmp.qsfc1d[:] = self.noahmp.q_ml[:] #Kg/Kg
-  self.noahmp.prcp[:] = meteorology.variables['precip'][i,:] #mm/s
-  '''
-  
   #Update meteorology
   i = int(np.floor(self.itime/self.nt_timestep))
   self.noahmp.lwdn[:] = self.meteodata['lwdown'][i,:] #W/m2
   self.noahmp.swdn[:] = self.meteodata['swdown'][i,:] #W/m2
   self.noahmp.psfc[:] = self.meteodata['psurf'][i,:] #Pa
   self.noahmp.p_ml[:] = self.noahmp.psfc[:] #Pa
-  #self.noahmp.u_ml[:] = (self.meteodata['wind'][i,:]**2/2)**0.5 #m/s
   self.noahmp.u_ml[:] = self.meteodata['wind'][i,:] #m/s
-  self.noahmp.v_ml[:] = 0.0#self.noahmp.u_ml[:] #m/s
+  self.noahmp.v_ml[:] = 0.0 #m/s
   self.noahmp.t_ml[:] = self.meteodata['tair'][i,:] #K
   self.noahmp.q_ml[:] = self.meteodata['spfh'][i,:] #Kg/Kg
   self.noahmp.qsfc1d[:] = self.noahmp.q_ml[:] #Kg/Kg
   self.noahmp.prcp[:] = self.meteodata['precip'][i,:] #mm/s
-
-  #Set the partial pressure of CO2 and O2
-  self.noahmp.co2air[:] = 355.E-6*self.noahmp.psfc[:]# ! Partial pressure of CO2 (Pa) ! From NOAH-MP-WRF
-  self.noahmp.o2air[:] = 0.209*self.noahmp.psfc[:]# ! Partial pressure of O2 (Pa)  ! From NOAH-MP-WRF
-
-  for ilayer in range(self.noahmp.nsnow):
-   self.noahmp.ficeold[:,ilayer]=self.noahmp.snice[:,ilayer]/(self.noahmp.snice[:,ilayer]+self.noahmp.snliq[:,ilayer])
 
   # Update water demands
   '''if self.hwu.hwu_flag == True:
@@ -900,15 +736,6 @@ class HydroBlocks:
 
   # Update NOAH
   n = self.noahmp
-  #HACK
-  n.planting[:] = 126.0
-  n.dx = 0.0
-  n.harvest[:] = 290.0
-  n.season_gdd[:] = 1605.0
-  #n.ch[:] = 0.1
-  #n.cm[:] = 0.1
-  #n.hdiv[:] = -10**-3
-  #END HACK
   n.update(n.z_ml,n.dt,n.lwdn,n.swdn,n.u_ml,n.v_ml,n.q_ml,n.t_ml,n.prcp,n.psfc,\
            n.nowdate,n.xlat,n.xlon,n.cosz,n.julian,\
            n.itime,n.year,\
@@ -929,7 +756,7 @@ class HydroBlocks:
            n.tah,n.cm,n.ch,n.fwet,n.sneqvo,n.albold,\
            n.qsnow,n.wslake,n.zwt,n.wa,n.wt,n.tsno,\
            n.zsnso,n.snice,n.snliq,n.lfmass,n.rtmass,n.stmass,\
-           n.wood,n.stblcp,n.fastcp,n.lai,n.xsai,n.tauss,\
+           n.wood,n.stblcp,n.fastcp,n.lai,n.sai,n.tauss,\
            n.smoiseq,n.smcwtd,n.deeprech,n.rech,n.grain,n.gdd,n.pgs,\
            n.gecros_state,\
            n.t2mv,n.t2mb,n.q2mv,n.q2mb,\
@@ -946,35 +773,6 @@ class HydroBlocks:
            n.hdiv
           )
 
-  '''self.noahmp.run_model(self.ncores,noah.yearlen,noah.idveg,noah.iopt_crs,noah.iopt_btr,\
-                        noah.iopt_run,noah.iopt_sfc,noah.iopt_frz,noah.iopt_inf,noah.iopt_rad,\
-                        noah.iopt_alb,noah.iopt_snf,noah.iopt_tbot,noah.iopt_stc,noah.itime,\
-                        noah.iz0tlnd,noah.dt,noah.dx,noah.julian,noah.isnow,noah.isurban,\
-                        noah.slopetyp,noah.soiltyp,noah.vegtyp,noah.ice,noah.isc,noah.ist,\
-                        noah.root_depth,noah.nowdate,noah.z_ml,noah.lwdn,noah.swdn,noah.p_ml,\
-                        noah.psfc,noah.prcp,noah.t_ml,noah.q_ml,noah.u_ml,noah.v_ml,noah.fsh,\
-                        noah.ssoil,noah.salb,noah.fsno,noah.swe,noah.sndpth,noah.emissi,\
-                        noah.qsfc1d,noah.tv,noah.tg,noah.canice,noah.canliq,noah.eah,\
-                        noah.tah,noah.cm,noah.ch,noah.fwet,noah.sneqvo,noah.albold,noah.qsnow,\
-                        noah.wslake,noah.zwt,noah.dzwt,noah.wa,noah.wt,noah.smcwtd,noah.deeprech,\
-                        noah.rech,noah.lfmass,noah.rtmass,noah.stmass,noah.wood,noah.stblcp,\
-                        noah.fastcp,noah.plai,noah.psai,noah.tauss,noah.t2mv,noah.t2mb,noah.q2mv,\
-                        noah.q2mb,noah.trad,noah.nee,noah.gpp,noah.npp,noah.fvegmp,noah.runsf,\
-                        noah.runsb,noah.ecan,noah.etran,noah.esoil,noah.fsa,noah.fira,noah.apar,\
-                        noah.psn,noah.sav,noah.sag,noah.rssun,noah.rssha,noah.bgap,noah.wgap,\
-                        noah.tgv,noah.tgb,noah.chv,noah.chb,noah.irc,noah.irg,noah.shc,noah.shg,\
-                        noah.evg,noah.ghv,noah.irb,noah.shb,noah.evb,noah.ghb,noah.tr,noah.evc,\
-                        noah.chleaf,noah.chuc,noah.chv2,noah.chb2,noah.cosz,noah.lat,noah.lon,\
-                        noah.fveg,noah.fvgmax,noah.fpice,noah.fcev,noah.fgev,noah.fctr,noah.qsnbot,\
-                        noah.ponding,noah.ponding1,noah.ponding2,noah.fsr,noah.co2pp,noah.o2pp,\
-                        noah.foln,noah.tbot,noah.smcmax,noah.smcdry,noah.smcref,noah.errwat,noah.si0,\
-                        noah.si1,noah.zwt0,noah.minzwt,noah.co2air,noah.o2air,noah.bb0,noah.drysmc0,\
-                        noah.f110,noah.maxsmc0,noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,\
-                        noah.wltsmc0,noah.qtz0,noah.mozb,noah.fvb,noah.mozv,noah.fvv,\
-                        noah.zpd,noah.zpdg,noah.tauxb,noah.tauyb,noah.tauxv,noah.tauyv,\
-                        noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
-                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv,
-                        noah.sfcheadrt)'''
   self.tsno=self.noahmp.stc[:,0:self.noahmp.nsnow] #Laura
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
@@ -1050,29 +848,21 @@ class HydroBlocks:
          NOAH.etran-NOAH.edir-NOAH.runsf-NOAH.runsb))
   if self.routing_module == 'kinematic':
    tmp = tmp - np.copy(NOAH.sfcheadrt) + np.copy(self.routing.hru_runoff_inundation)*dt
-  self.errwat += np.sum(self.pct*tmp)
-  self.q = self.q + dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
-  self.et = self.et + dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.edir))
-  self.etran += dt*np.sum(self.pct*NOAH.etran)
-  self.ecan += dt*np.sum(self.pct*NOAH.ecan)
-  self.edir += dt*np.sum(self.pct*NOAH.edir)
-  self.prcp = self.prcp + dt*np.sum(self.pct*NOAH.prcp)
+  self.acc_errwat += np.sum(self.pct*tmp)
+  self.acc_q += dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
+  self.acc_et += dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.edir))
+  self.acc_etran += dt*np.sum(self.pct*NOAH.etran)
+  self.acc_ecan += dt*np.sum(self.pct*NOAH.ecan)
+  self.acc_edir += dt*np.sum(self.pct*NOAH.edir)
+  self.acc_prcp += dt*np.sum(self.pct*NOAH.prcp)
 
   return
 
  def calculate_energy_balance_error(self,):
 
   NOAH = self.noahmp
-  #tmp = np.copy(NOAH.sav+NOAH.sag-NOAH.fira-NOAH.fsh-NOAH.fcev-NOAH.fgev-NOAH.fctr-NOAH.ssoil)
-  #print(NOAH.sav)
-  #print(NOAH.sag)
-  #print(NOAH.fira)
-  #print(NOAH.hfx)
-  #print(NOAH.lh)
-  #print(NOAH.grdflx)
-  #exit()
   tmp = np.copy(NOAH.sav+NOAH.sag-NOAH.fira-NOAH.hfx-NOAH.lh-NOAH.grdflx+NOAH.pah)
-  self.erreng += np.sum(self.pct*tmp)
+  self.acc_erreng += np.sum(self.dt*self.pct*tmp)
 
   return
 
@@ -1096,8 +886,8 @@ class HydroBlocks:
 
   tmp = {}
   #NoahMP
-  tmp['plai'] = np.copy(NOAH.lai) #m2/m2
-  tmp['psai'] = np.copy(NOAH.xsai) #m2/m2
+  tmp['lai'] = np.copy(NOAH.lai) #m2/m2
+  tmp['sai'] = np.copy(NOAH.sai) #m2/m2
   tmp['smc'] = np.copy(NOAH.smois) #m3/m3
   tmp['g'] = np.copy(NOAH.grdflx) #W/m2
   tmp['sh'] = np.copy(NOAH.hfx) #W/m2
@@ -1151,13 +941,10 @@ class HydroBlocks:
   tmp['zsnso_sn'] = np.copy(NOAH.zsnso[:,0:self.noahmp.nsnow]) #m
   tmp['snice'] = np.copy(NOAH.snice) #mm
   tmp['snliq'] = np.copy(NOAH.snliq) #mm
-  #tmp['soil_t'] = np.copy(NOAH.stc[:,self.noahmp.nsnow:]) #K
   tmp['soil_t'] = np.copy(NOAH.tslb) #K
-  #tmp['soil_m'] = np.copy(NOAH.smc) #m3/m3
   tmp['soil_m'] = np.copy(NOAH.smois) #m3/m3
   tmp['soil_w'] = np.copy(NOAH.sh2o) #m3/m3
   tmp['snow_t'] = np.copy(NOAH.tsno) #K
-  #tmp['snowh'] = np.copy(NOAH.sndpth) #mm
   tmp['snowh'] = np.copy(NOAH.snowh) #mm
   tmp['qsnow'] = np.copy(NOAH.qsnow) #mm/s
   tmp['isnow'] = np.copy(NOAH.isnow) #count
@@ -1186,7 +973,6 @@ class HydroBlocks:
   tmp['cosz'] = np.copy(NOAH.cosz) 
   tmp['zwt'] = np.copy(NOAH.zwt) #m
   tmp['swe'] = np.copy(NOAH.snow) #m
-  #tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smc,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smois,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
   tmp['mozb'] = np.copy(NOAH.mozb)
@@ -1212,20 +998,12 @@ class HydroBlocks:
   cs = np.cumsum(NOAH.sldpth[0,:])
   mask = cs <= 0.5
   pct = NOAH.sldpth[0,mask]/np.sum(NOAH.sldpth[0,mask])
-  #tmp['smc_root'] = np.sum(pct*NOAH.smc[:,mask],axis=1) #m3/m3
   tmp['smc_root'] = np.sum(pct*NOAH.smois[:,mask],axis=1) #m3/m3
   # top soil layer
-  #tmp['smc1'] = np.copy(NOAH.smc[:,0])
   tmp['smc1'] = np.copy(NOAH.smois[:,0])
-  #print(tmp['smc1'])
-  # total soil moisture / soil water storage -- only until depth to bedrock
-  #dl = [ np.argmin(np.abs(cs-self.m[i])) for i in range(self.nhru)]
-  #tmp['totsmc'] = [ np.sum(NOAH.sldpth[i,:dl[i]]*NOAH.smc[i,:dl[i]])/np.sum(NOAH.sldpth[i,:dl[i]])  for i in range(self.nhru)]
-  #print(tmp['totsmc'])
-  #exit()
   
   #General
-  tmp['errwat'] = np.copy(HB.errwat)
+  tmp['errwat'] = np.copy(HB.acc_errwat)
 
   # Water Management
   '''if self.hwu.hwu_agric_flag == True:
@@ -1318,8 +1096,8 @@ class HydroBlocks:
              "ecan":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':8},
              "etran":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':8},
              "edir":{'description':'Vegetated canopy latent heat flux','units':'mm/s','dims':('time','hru',),'precision':8},
-             'plai':{'description':'Leaf area index','units':'m2/m2','dims':('time','hru',),'precision':8},
-             'psai':{'description':'Steam area index','units':'m2/m2','dims':('time','hru',),'precision':8},
+             'lai':{'description':'Leaf area index','units':'m2/m2','dims':('time','hru',),'precision':8},
+             'sai':{'description':'Steam area index','units':'m2/m2','dims':('time','hru',),'precision':8},
              'g':{'description':'Ground heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'sh':{'description':'Sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              'lh':{'description':'Latent heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
@@ -1357,7 +1135,7 @@ class HydroBlocks:
              'canice':{'description':'Canopy ice water content','units':'mm','dims':('time','hru',),'precision':4},
              'wa':{'description':'Water in aquifer','units':'kg/m2','dims':('time','hru',),'precision':4},
              'wt':{'description':'Water in aquifer and saturated soil','units':'kg/m2','dims':('time','hru',),'precision':4},
-             'sav':{'description':'Solar radiative heat flux absorbed by vegetation','units':'W/m2','dims':('time','hru',),'precision':4},
+             'sav':{'description':'Solar radiative heat flux absorbed by veg','units':'W/m2','dims':('time','hru',),'precision':4},
              'tr':{'description':'Transpiration heat','units':'W/m2','dims':('time','hru',),'precision':4},
              'irc':{'description':'Canopy net LW rad','units':'W/m2','dims':('time','hru',),'precision':4},
              'irg':{'description':'Ground net LW rad','units':'W/m2','dims':('time','hru',),'precision':4},
@@ -1406,7 +1184,6 @@ class HydroBlocks:
              'apar':{'description':'Photosynthesis active energy by canopy','units':'W/m2','dims':('time','hru',),'precision':4},
              'emissi':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
              'cosz':{'description':'Land surface albedo','units':' ','dims':('time','hru',),'precision':4},
-
              'qbase':{'description':'Excess runoff','units':'mm/s','dims':('time','hru',),'precision':4},
              'udrunoff':{'description':'Accumulated baseflow','units':'mm','dims':('time','hru',),'precision':4},
              'sfcrunoff':{'description':'Accumulated surface','units':'mm','dims':('time','hru',),'precision':4},
@@ -1416,9 +1193,7 @@ class HydroBlocks:
              'smc':{'description':'Soil water content','units':'m3/m3','dims':('time','hru','soil'),'precision':3},
              'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',),'precision':4},
              'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',),'precision':4},
-             #'sndpth':{'description':'Snow depth','units':'mm','dims':('time','hru',)},
              'swe':{'description':'Snow water equivalent','units':'mm','dims':('time','hru',),'precision':4},
-
              'qout_subsurface':{'description':'Subsurface flux','units':'m2/s','dims':('time','hru',),'precision':4},
              'qout_surface':{'description':'Surface flux','units':'m2/s','dims':('time','hru',),'precision':4},
              'zwt':{'description':'WTD','units':'m','dims':('time','hru',),'precision':2},
@@ -1453,7 +1228,7 @@ class HydroBlocks:
              }
 
   #Create the dimensions
-  print('Creating the dimensions',flush=True)
+  #print('Creating the dimensions',flush=True)
   ntime = 24*3600*((self.fdate - self.idate).days)/self.dt
   self.ntime = ntime
   nhru = len(fp_in.dimensions['hru'])
@@ -1466,7 +1241,7 @@ class HydroBlocks:
    fp_out.createDimension('channel',self.routing.nchannel)
 
   #Create the output
-  print('Creating the data group',flush=True)
+  #print('Creating the data group',flush=True)
   grp = fp_out.createGroup('data')
   for var in self.metadata['output']['vars']:
    ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'],fill_value=9999999999.0)#,zlib=True)
@@ -1475,7 +1250,7 @@ class HydroBlocks:
 
   #Create the routing output
   if self.routing_module == 'kinematic':
-   print('Creating the routing group',flush=True)
+   #print('Creating the routing group',flush=True)
    grp = fp_out.createGroup('data_routing')
    for var in self.metadata['output']['routing_vars']:
     ncvar = grp.createVariable(var,'f4',metadata[var]['dims'],least_significant_digit=metadata[var]['precision'])#,zlib=True)
@@ -1484,7 +1259,7 @@ class HydroBlocks:
 
 
   #Create the metadata
-  print('Creating the metadata group',flush=True)
+  #print('Creating the metadata group',flush=True)
   grp = fp_out.createGroup('metadata')
   #Time
   grp.createVariable('time','f8',('time',))
@@ -1493,18 +1268,18 @@ class HydroBlocks:
   dates.calendar = 'standard'
 
   #HRU percentage coverage
-  print('Setting the HRU percentage coverage',flush=True)
+  #print('Setting the HRU percentage coverage',flush=True)
   pcts = grp.createVariable('pct','f4',('hru',))
   pcts[:] = fp_in.groups['parameters'].variables['area_pct'][:]
   pcts.description = 'hru percentage coverage'
   pcts.units = '%'
 
   #HRU area
-  print('Setting the HRU areal coverage',flush=True)
+  #print('Setting the HRU areal coverage',flush=True)
   area = grp.createVariable('area','f4',('hru',))
   area[:] = fp_in.groups['parameters'].variables['area'][:]
   area.units = 'meters squared'
-  print('Defining the HRU ids',flush=True)
+  #print('Defining the HRU ids',flush=True)
   hru = grp.createVariable('hru','i4',('hru',))
   hrus =[]
   for value in range(nhru):hrus.append(value)
@@ -1521,14 +1296,23 @@ class HydroBlocks:
   #Save the restart file
   file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.fdate.strftime('%Y-%m-%d'))
   fp = h5py.File(file_restart,'w')
+  #diagnostics
+  fp['acc_et'] = self.acc_et
+  fp['acc_etran'] = self.acc_etran
+  fp['acc_edir'] = self.acc_edir
+  fp['acc_ecan'] = self.acc_ecan
+  fp['acc_prcp'] = self.acc_prcp
+  fp['acc_q'] = self.acc_q
+  fp['acc_errwat'] = self.acc_errwat
+  fp['acc_erreng'] = self.acc_erreng
+  fp['runtime'] = self.runtime
+  #noahmp
   fp['smceq'] = self.noahmp.smceq[:]
   fp['albold'] = self.noahmp.albold[:]
   fp['albedo'] = self.noahmp.albedo[:]
   fp['sneqvo'] = self.noahmp.sneqvo[:]
-  #fp['stc'] = self.noahmp.stc[:]
   fp['tslb'] = self.noahmp.tslb[:]
   fp['sh2o'] = self.noahmp.sh2o[:]
-  #fp['smc'] = self.noahmp.smc[:]
   fp['smois'] = self.noahmp.smois[:]
   fp['tah'] = self.noahmp.tah[:]
   fp['eah'] = self.noahmp.eah[:]
@@ -1541,9 +1325,7 @@ class HydroBlocks:
   fp['qsnow'] = self.noahmp.qsnow[:]
   fp['isnow'] = self.noahmp.isnow[:]
   fp['zsnso'] = self.noahmp.zsnso[:]
-  #fp['sndpth'] = self.noahmp.sndpth[:]
   fp['snowh'] = self.noahmp.snowh[:]
-  #fp['swe'] = self.noahmp.swe[:]
   fp['snow'] = self.noahmp.snow[:]
   fp['snice'] = self.noahmp.snice[:]
   fp['snliq'] = self.noahmp.snliq[:]
@@ -1557,10 +1339,8 @@ class HydroBlocks:
   fp['wood'] = self.noahmp.wood[:]
   fp['stblcp'] = self.noahmp.stblcp[:]
   fp['fastcp'] = self.noahmp.fastcp[:]
-  #fp['plai'] = self.noahmp.plai[:]
   fp['lai'] = self.noahmp.lai[:]
-  #fp['psai'] = self.noahmp.psai[:]
-  fp['xsai'] = self.noahmp.xsai[:]
+  fp['sai'] = self.noahmp.sai[:]
   fp['cm'] = self.noahmp.cm[:]
   fp['ch'] = self.noahmp.ch[:]
   fp['tauss'] = self.noahmp.tauss[:]

@@ -9403,8 +9403,9 @@ MODULE NOAHMP_TABLES
 
 CONTAINS
 
-  subroutine read_mp_veg_parameters(DATASET_IDENTIFIER)
+  subroutine read_mp_veg_parameters(DATASET_IDENTIFIER,mptable_file)
     implicit none
+    character(len=256),intent(in) :: mptable_file
     character(len=*), intent(in) :: DATASET_IDENTIFIER
     integer :: ierr
     INTEGER :: IK,IM
@@ -9515,9 +9516,9 @@ CONTAINS
     HIGH_DENSITY_RESIDENTIAL_TABLE  = -99999
     HIGH_INTENSITY_INDUSTRIAL_TABLE = -99999
 
-    inquire( file='MPTABLE.TBL', exist=file_named ) 
+    inquire( file=mptable_file, exist=file_named ) 
     if ( file_named ) then
-      open(15, file="MPTABLE.TBL", status='old', form='formatted', action='read', iostat=ierr)
+      open(15, file=mptable_file, status='old', form='formatted', action='read', iostat=ierr)
     else
       open(15, status='old', form='formatted', action='read', iostat=ierr)
     end if
@@ -9633,8 +9634,9 @@ CONTAINS
 
   end subroutine read_mp_veg_parameters
 
-  subroutine read_mp_soil_parameters()
+  subroutine read_mp_soil_parameters(soilparm_file,genparm_file)
     IMPLICIT NONE
+    character(len=256),intent(in) :: soilparm_file,genparm_file
     INTEGER :: IERR
     CHARACTER*4         :: SLTYPE
     INTEGER             :: ITMP, NUM_SLOPE, LC
@@ -9664,9 +9666,9 @@ CONTAINS
 !
 !-----READ IN SOIL PROPERTIES FROM SOILPARM.TBL
 !
-    inquire( file='SOILPARM.TBL', exist=file_named ) 
+    inquire( file=soilparm_file, exist=file_named ) 
     if ( file_named ) then
-      open(21, file='SOILPARM.TBL',form='formatted',status='old',iostat=ierr)
+      open(21, file=soilparm_file,form='formatted',status='old',iostat=ierr)
     else
       open(21, form='formatted',status='old',iostat=ierr)
     end if
@@ -9694,9 +9696,9 @@ CONTAINS
 !
 !-----READ IN GENERAL PARAMETERS FROM GENPARM.TBL
 !
-    inquire( file='GENPARM.TBL', exist=file_named ) 
+    inquire( file=genparm_file, exist=file_named ) 
     if ( file_named ) then
-      open(22, file='GENPARM.TBL',form='formatted',status='old',iostat=ierr)
+      open(22, file=genparm_file,form='formatted',status='old',iostat=ierr)
     else
       open(22, form='formatted',status='old',iostat=ierr)
     end if
@@ -9741,8 +9743,9 @@ CONTAINS
 
   end subroutine read_mp_soil_parameters
 
-  subroutine read_mp_rad_parameters()
+  subroutine read_mp_rad_parameters(mptable_file)
     implicit none
+    character(len=256),intent(in) :: mptable_file
     integer :: ierr
     logical :: file_named 
 
@@ -9765,9 +9768,9 @@ CONTAINS
     BETAIS_TABLE     = -1.E36
     EG_TABLE         = -1.E36
 
-    inquire( file='MPTABLE.TBL', exist=file_named ) 
+    inquire( file=mptable_file, exist=file_named ) 
     if ( file_named ) then
-      open(15, file="MPTABLE.TBL", status='old', form='formatted', action='read', iostat=ierr)
+      open(15, file=mptable_file, status='old', form='formatted', action='read', iostat=ierr)
     else
       open(15, status='old', form='formatted', action='read', iostat=ierr)
     end if
@@ -9793,8 +9796,9 @@ CONTAINS
 
   end subroutine read_mp_rad_parameters
 
-  subroutine read_mp_global_parameters()
+  subroutine read_mp_global_parameters(mptable_file)
     implicit none
+    character(len=256),intent(in) :: mptable_file
     integer :: ierr
     logical :: file_named 
 
@@ -9831,9 +9835,9 @@ BATS_NIR_DIR_TABLE   = -1.E36
 RSURF_SNOW_TABLE     = -1.E36
  RSURF_EXP_TABLE     = -1.E36
 
-    inquire( file='MPTABLE.TBL', exist=file_named ) 
+    inquire( file=mptable_file, exist=file_named ) 
     if ( file_named ) then
-      open(15, file="MPTABLE.TBL", status='old', form='formatted', action='read', iostat=ierr)
+      open(15, file=mptable_file, status='old', form='formatted', action='read', iostat=ierr)
     else
       open(15, status='old', form='formatted', action='read', iostat=ierr)
     end if
@@ -9869,8 +9873,9 @@ RSURF_SNOW_TABLE     = RSURF_SNOW
 
   end subroutine read_mp_global_parameters
 
-  subroutine read_mp_crop_parameters()
-    implicit none
+  subroutine read_mp_crop_parameters(mptable_file)
+    implicit none  
+    character(len=256),intent(in) :: mptable_file
     integer :: ierr
     logical :: file_named 
 
@@ -9974,9 +9979,9 @@ RSURF_SNOW_TABLE     = RSURF_SNOW
       BIO2LAI_TABLE     = -1.E36
 
 
-    inquire( file='MPTABLE.TBL', exist=file_named ) 
+    inquire( file=mptable_file, exist=file_named ) 
     if ( file_named ) then
-      open(15, file="MPTABLE.TBL", status='old', form='formatted', action='read', iostat=ierr)
+      open(15, file=mptable_file, status='old', form='formatted', action='read', iostat=ierr)
     else
       open(15, status='old', form='formatted', action='read', iostat=ierr)
     end if
@@ -10094,8 +10099,9 @@ RSURF_SNOW_TABLE     = RSURF_SNOW
 
   end subroutine read_mp_crop_parameters
 
-  subroutine read_mp_optional_parameters()
+  subroutine read_mp_optional_parameters(mptable_file)
     implicit none
+    character(len=256),intent(in) :: mptable_file
     integer :: ierr
     logical :: file_named 
 
@@ -10118,9 +10124,9 @@ RSURF_SNOW_TABLE     = RSURF_SNOW
          sr2006_psi_e_a      , sr2006_psi_e_b      , sr2006_psi_e_c      , &
          sr2006_smcmax_a     , sr2006_smcmax_b
 
-    inquire( file='MPTABLE.TBL', exist=file_named ) 
+    inquire( file=mptable_file, exist=file_named ) 
     if ( file_named ) then
-      open(15, file="MPTABLE.TBL", status='old', form='formatted', action='read', iostat=ierr)
+      open(15, file=mptable_file, status='old', form='formatted', action='read', iostat=ierr)
     else
       open(15, status='old', form='formatted', action='read', iostat=ierr)
     end if

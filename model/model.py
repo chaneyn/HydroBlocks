@@ -41,11 +41,17 @@ def Run_HydroBlocks(metadata,edir,cid,rdir):
  fdate = datetime.datetime(metadata['enddate']['year'],metadata['enddate']['month'],metadata['enddate']['day'],0) + datetime.timedelta(days=1)
  
  #Run the segments for the model
+ restart_frequency = metadata['segment']['restart_frequency']
  sidate = idate
  sfdate = idate
  while sidate < fdate:
   #sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
-  sfdate = sidate + relativedelta(months=metadata['segment']['months_per_segment'])
+  if restart_frequency == 'daily':
+   sfdate = sidate + relativedelta(days=1)
+  if restart_frequency == 'monthly':
+   sfdate = sidate + relativedelta(months=1)
+  if restart_frequency == 'yearly':
+   sfdate = sidate + relativedelta(years=1)
   if sfdate > fdate: sfdate = fdate
   #Set the parameters
   info['idate'] = sidate
@@ -84,7 +90,7 @@ def run(comm,metadata_file):
 
  #Iterate per catchment
  for cid in cids[rank::size]:
-  print('cid:',cid,flush=True)
+  #print('cid:',cid,flush=True)
   #Create output directory
   os.system('mkdir -p %s/output_data/%d' % (edir,cid))
   #os.chdir('%s' % (edir,))

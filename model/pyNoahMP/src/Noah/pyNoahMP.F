@@ -13,12 +13,14 @@ subroutine initialize(MMINLU,SNOW,SNOWH,CANWAT,ISLTYP,IVGTYP,XLAT, &
        wtddt    ,stepwtd  ,dt       ,qrfsxy     ,qspringsxy  , qslatxy    ,  &
        fdepthxy ,ht     ,riverbedxy ,eqzwt     ,rivercondxy ,pexpxy       ,  &
        rechclim,                                                             &
-       gecros_state,nsoil,nhru)
+       gecros_state,nsoil,nhru, &
+       soilparm_file,genparm_file,mptable_file)
 
  USE module_sf_noahmpdrv, only: noahmp_init
 
  implicit none
 
+  character(len=256),intent(in) :: soilparm_file,genparm_file,mptable_file
     INTEGER, INTENT(INOUT)    ::     nhru
     INTEGER, INTENT(INOUT)       ::     NSOIL, iopt_run, iopt_crop
     LOGICAL      ::     restart,allowed_to_read
@@ -142,7 +144,8 @@ kte = 2
        wtddt    ,stepwtd  ,dt       ,qrfsxy     ,qspringsxy  , qslatxy    ,  &
        fdepthxy ,ht     ,riverbedxy ,eqzwt     ,rivercondxy ,pexpxy       ,  &
        rechclim,                                                             &
-       gecros_state)
+       gecros_state, &
+       soilparm_file,genparm_file,mptable_file)
 
 if (debug_flag)then
 print*,'OUT'
@@ -523,8 +526,10 @@ logical :: debug_flag
   REAL,    DIMENSION(nhru) ::  SOILCL2   ! soil texture in layer 2
   REAL,    DIMENSION(nhru) ::  SOILCL3   ! soil texture in layer 3
   REAL,    DIMENSION(nhru) ::  SOILCL4   ! soil texture in layer 4
+!Hard coded for HB (on purpose)
 IOPT_SOIL = 1
 IOPT_PEDO = 1
+
 debug_flag = .False.
 ids = 1
 ide = nhru+1

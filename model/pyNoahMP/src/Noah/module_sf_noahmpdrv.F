@@ -1411,7 +1411,8 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
        wtddt    ,stepwtd  ,dt       ,qrfsxy     ,qspringsxy  , qslatxy    ,  &      ! Optional groundwater
        fdepthxy ,ht     ,riverbedxy ,eqzwt     ,rivercondxy ,pexpxy       ,  &      ! Optional groundwater
        rechclim,                                                             &      ! Optional groundwater
-       gecros_state)                                                                ! Optional gecros crop
+       gecros_state,&                                                                ! Optional gecros crop
+       soilparm_file,genparm_file,mptable_file)
 
   USE NOAHMP_TABLES
   use module_sf_gecros, only: seednc,sla0,slnmin,ffat,flig,foac,fmin,npl,seedw,eg,fcrsh,seednc,lnci,cfv
@@ -1421,6 +1422,7 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
 
 ! Initializing Canopy air temperature to 287 K seems dangerous to me [KWM].
 
+    character(len=256),intent(in) :: soilparm_file,genparm_file,mptable_file
     INTEGER, INTENT(IN   )    ::     ids,ide, jds,jde, kds,kde,  &
          &                           ims,ime, jms,jme, kms,kme,  &
          &                           its,ite, jts,jte, kts,kte
@@ -1543,12 +1545,12 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
     character(len=*), intent(in) :: MMINLU
     MMINSL='STAS'
 
-    call read_mp_veg_parameters(trim(MMINLU))
-    call read_mp_soil_parameters()
-    call read_mp_rad_parameters()
-    call read_mp_global_parameters()
-    call read_mp_crop_parameters()
-    call read_mp_optional_parameters()
+    call read_mp_veg_parameters(trim(MMINLU),mptable_file)
+    call read_mp_soil_parameters(soilparm_file,genparm_file)
+    call read_mp_rad_parameters(mptable_file)
+    call read_mp_global_parameters(mptable_file)
+    call read_mp_crop_parameters(mptable_file)
+    call read_mp_optional_parameters(mptable_file)
 
     IF( .NOT. restart ) THEN
 
