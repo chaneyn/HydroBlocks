@@ -227,7 +227,7 @@ class HydroBlocks:
   #Initialize parameters
   self.noahmp.ncells = self.nhru
   self.noahmp.nsoil = self.nsoil
-  self.noahmp.nsnow = 3
+  self.noahmp.nsnow = self.metadata['noahmp_options']['nsnow']
   self.noahmp.dt = self.dt
 
   #Allocate memory
@@ -273,7 +273,7 @@ class HydroBlocks:
   self.noahmp.snliq = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.dzs = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
   self.noahmp.croptype = np.zeros((self.nhru,5),order='F').astype(np.float32)
-  self.noahmp.fndsoilw = False#True
+  self.noahmp.fndsoilw = False
   self.noahmp.fndsnowh = True
   self.noahmp.tsno = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.restart = False
@@ -283,13 +283,7 @@ class HydroBlocks:
   self.noahmp.wtddt = 0.0
   self.noahmp.stepwtd = 0
   self.noahmp.gecros_state = np.zeros((self.nhru,60),order='F').astype(np.float32)
-  self.noahmp.iopt_gla = 1
-  self.noahmp.iopt_rsf = 1#2
-  #self.noahmp.iopt_soil = 1
-  #self.noahmp.iopt_pedo = 1
-  self.noahmp.iopt_crop = 0
   self.noahmp.iz0tlnd = 0#-16497279 #0
-  self.noahmp.sf_urban_physics = 0
   self.noahmp.planting[:] = 126.0
   self.noahmp.harvest[:] = 290.0
   self.noahmp.season_gdd[:] = 1605.0
@@ -339,23 +333,25 @@ class HydroBlocks:
   self.noahmp.soilparm_file = SOILPARM
   self.noahmp.genparm_file = GENPARM
   self.noahmp.mptable_file = MPTABLE
-  #Define the options
-  self.noahmp.idveg = 4 # dynamic vegetation (1 -> off ; 2 -> on)
-  self.noahmp.iopt_crs = 1 #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
-  self.noahmp.iopt_btr = 1#1 # soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
-  self.noahmp.iopt_run = 3#2 # runoff and groundwater (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
-  self.noahmp.iopt_sfc = 1#1#1 # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
-  self.noahmp.iopt_frz = 1#2#1#2 # supercooled liquid water (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_inf = 2#1#2 # frozen soil permeability (1-> NY06; 2->Koren99)
-  self.noahmp.iopt_rad = 3#1#3#2 radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
-  self.noahmp.iopt_alb = 2#2 snow surface albedo (1->BATS; 2->CLASS)
-  self.noahmp.iopt_snf = 1#3#1#3 rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
-  self.noahmp.iopt_tbot = 2#1 # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
-  self.noahmp.iopt_stc = 1#2#1#1#2 snow/soil temperature time scheme (only layer 1) 1 -> semi-implicit; 2 -> full implicit (original Noah)
+  #Define the noahmp options
+  self.noahmp.idveg = self.metadata['noahmp_options']['idveg'] # dynamic vegetation [Look at noahmp .F files for opts]
+  self.noahmp.iopt_crs = self.metadata['noahmp_options']['iopt_crs'] #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
+  self.noahmp.iopt_btr = self.metadata['noahmp_options']['iopt_btr'] # sm factor for st. resistance (1-> Noah; 2-> CLM; 3-> SSiB)
+  self.noahmp.iopt_run = self.metadata['noahmp_options']['iopt_run'] # runoff and gw (1->SIMGM; 2->SIMTOP; 3->Schaake96; 4->BATS)
+  self.noahmp.iopt_sfc = self.metadata['noahmp_options']['iopt_sfc'] # surface layer drag coeff (CH & CM) (1->M-O; 2->Chen97)
+  self.noahmp.iopt_frz = self.metadata['noahmp_options']['iopt_frz'] # supercooled liquid water (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_inf = self.metadata['noahmp_options']['iopt_inf'] # frozen soil permeability (1-> NY06; 2->Koren99)
+  self.noahmp.iopt_rad = self.metadata['noahmp_options']['iopt_rad'] # radiation transfer (1->gap=F(3D,cosz); 2->gap=0; 3->gap=1-Fveg)
+  self.noahmp.iopt_alb = self.metadata['noahmp_options']['iopt_alb'] # snow surface albedo (1->BATS; 2->CLASS)
+  self.noahmp.iopt_snf = self.metadata['noahmp_options']['iopt_snf'] # rainfall & snowfall (1-Jordan91; 2->BATS; 3->Noah)]
+  self.noahmp.iopt_tbot = self.metadata['noahmp_options']['iopt_tbot'] # lower boundary of soil temperature (1->zero-flux; 2->Noah) 
+  self.noahmp.iopt_stc = self.metadata['noahmp_options']['iopt_stc'] # snow/soil temp. time scheme 1 -> semi-implicit; 2 -> implicit
+  self.noahmp.iopt_gla = self.metadata['noahmp_options']['iopt_gla']
+  self.noahmp.iopt_rsf = self.metadata['noahmp_options']['iopt_rsf']
+  self.noahmp.iopt_crop = self.metadata['noahmp_options']['iopt_crop']
+  self.noahmp.sf_urban_physics = self.metadata['noahmp_options']['sf_urban_physics']
   self.noahmp.sldpth[:] = np.array(self.metadata['dz'])
-  
-  #self.noahmp.z_ml[:] = 10.0
-  self.noahmp.z_ml[:] = 6.0
+  self.noahmp.z_ml[:] = self.metadata['noahmp_options']['z_ml']
   self.noahmp.zsoil = -np.cumsum(self.noahmp.sldpth[:],axis=1)
   self.noahmp.zsnso[:] = 9999999999.0
   self.noahmp.zsnso[:,self.noahmp.nsnow:] = self.noahmp.zsoil[:]
@@ -730,10 +726,10 @@ class HydroBlocks:
    self.noahmp.sfcheadrt[:] = self.routing.fct_infiltrate*self.routing.hru_inundation[:]*1000 #mm
   else:
    self.noahmp.sfcheadrt[:] = 0.0
-  
+
   # Update subsurface
   self.update_subsurface()
-
+  
   # Update NOAH
   n = self.noahmp
   n.update(n.z_ml,n.dt,n.lwdn,n.swdn,n.u_ml,n.v_ml,n.q_ml,n.t_ml,n.prcp,n.psfc,\
@@ -770,10 +766,12 @@ class HydroBlocks:
            n.pah,\
            n.bexp,n.smcdry,n.smcwlt,n.smcref,n.smcmax,\
            n.dksat,n.dwsat,n.psisat,n.quartz,\
-           n.hdiv
+           n.hdiv,\
+           n.sfcheadrt\
           )
 
   self.tsno=self.noahmp.stc[:,0:self.noahmp.nsnow] #Laura
+
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
 
@@ -792,12 +790,12 @@ class HydroBlocks:
   if self.subsurface_module == 'richards':
 
    #Assign noahmp variables to subsurface module
-   self.richards.theta[:] = self.noahmp.smc[:]
-   self.richards.thetar[:] = self.noahmp.drysmc0[:]
-   self.richards.thetas[:] = self.noahmp.maxsmc0[:]
-   self.richards.b[:] = self.noahmp.bb0[:]
-   self.richards.satpsi[:] = self.noahmp.satpsi0[:]
-   self.richards.ksat[:] = self.noahmp.satdk0[:]
+   self.richards.theta[:] = self.noahmp.smois[:]
+   self.richards.thetar[:] = self.noahmp.smcdry[:,0]
+   self.richards.thetas[:] = self.noahmp.smcmax[:,0]
+   self.richards.b[:] = self.noahmp.bexp[:,0]
+   self.richards.satpsi[:] = self.noahmp.psisat[:,0]
+   self.richards.ksat[:] = self.noahmp.dksat[:,0]
    self.richards.dz[:] = self.noahmp.sldpth[:]
 
    #Update subsurface module
@@ -819,7 +817,6 @@ class HydroBlocks:
 
  def initialize_water_balance(self,):
  
-  #smw = np.sum(1000*self.noahmp.sldpth*self.noahmp.smc,axis=1)
   smw = np.sum(1000*self.noahmp.sldpth*self.noahmp.smois,axis=1)
   self.beg_wb = np.copy(self.noahmp.canliq + self.noahmp.canice + self.noahmp.swe + self.noahmp.wa + smw)
   self.dzwt0 = np.copy(self.noahmp.dzwt)
@@ -829,7 +826,6 @@ class HydroBlocks:
  def finalize_water_balance(self,):
 
   NOAH = self.noahmp
-  #smw = np.sum(1000*NOAH.sldpth*NOAH.smc,axis=1) 
   smw = np.sum(1000*NOAH.sldpth*NOAH.smois,axis=1) 
   self.end_wb = np.copy(NOAH.canliq + NOAH.canice + NOAH.swe + NOAH.wa + smw)
   

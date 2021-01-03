@@ -414,9 +414,9 @@ contains
 		   GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
 		   CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE   , PAHV    , &
                    PAHG    , PAHB    , PAH     , LAISUN  , LAISHA  , RB        & ! OUT
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
-#endif
+!#endif
                    ,HDIV                                                       & !#HB
                    )
 
@@ -473,9 +473,9 @@ contains
   REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV ! #HB
 !jref:end
 
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
   REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
+!#endif
 
 ! input/output : need arbitary intial values
   REAL                           , INTENT(INOUT) :: QSNOW  !snowfall [mm/s]
@@ -810,9 +810,9 @@ contains
                  CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                  QIN    ,QDIS   ,PONDING1       ,PONDING2,&
                  QSNBOT                             &
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
                         ,sfcheadrt                     &
-#endif
+!#endif
                  )  !out
 
 !     write(*,'(a20,10F15.5)') 'SFLX:RUNOFF=',RUNSRF*DT,RUNSUB*DT,EDIR*DT
@@ -1490,24 +1490,24 @@ ENDIF   ! CROPTYPE == 0
         !ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB)*DT
         ERRWAT = END_WB-BEG_WB-(PRCP-ECAN-ETRAN-EDIR-RUNSRF-RUNSUB-sum(HDIV))*DT !#HB
 
-#ifndef WRF_HYDRO
-        IF(ABS(ERRWAT) > 0.1) THEN
-           if (ERRWAT > 0) then
-              call wrf_message ('The model is gaining water (ERRWAT is positive)')
-           else
-              call wrf_message('The model is losing water (ERRWAT is negative)')
-           endif
-           write(message, *) 'ERRWAT =',ERRWAT, "kg m{-2} timestep{-1}"
-           call wrf_message(trim(message))
-           WRITE(message, &
-           '("    I      J     END_WB     BEG_WB       PRCP       ECAN       EDIR      ETRAN      RUNSRF     RUNSUB")')
-           call wrf_message(trim(message))
-           WRITE(message,'(i6,1x,i6,1x,2f15.3,9f11.5)')ILOC,JLOC,END_WB,BEG_WB,PRCP*DT,ECAN*DT,&
-                EDIR*DT,ETRAN*DT,RUNSRF*DT,RUNSUB*DT,ZWT
-           call wrf_message(trim(message))
-           call wrf_error_fatal("Water budget problem in NOAHMP LSM")
-        END IF
-#endif
+!#ifndef WRF_HYDRO
+!        IF(ABS(ERRWAT) > 0.1) THEN
+!           if (ERRWAT > 0) then
+!              call wrf_message ('The model is gaining water (ERRWAT is positive)')
+!           else
+!              call wrf_message('The model is losing water (ERRWAT is negative)')
+!           endif
+!           write(message, *) 'ERRWAT =',ERRWAT, "kg m{-2} timestep{-1}"
+!           call wrf_message(trim(message))
+!           WRITE(message, &
+!           '("    I      J     END_WB     BEG_WB       PRCP       ECAN       EDIR      ETRAN      RUNSRF     RUNSUB")')
+!           call wrf_message(trim(message))
+!           WRITE(message,'(i6,1x,i6,1x,2f15.3,9f11.5)')ILOC,JLOC,END_WB,BEG_WB,PRCP*DT,ECAN*DT,&
+!                EDIR*DT,ETRAN*DT,RUNSRF*DT,RUNSUB*DT,ZWT
+!           call wrf_message(trim(message))
+!           call wrf_error_fatal("Water budget problem in NOAHMP LSM")
+!        END IF
+!#endif
    ELSE                 !KWM
       ERRWAT = 0.0      !KWM
    ENDIF
@@ -5727,9 +5727,9 @@ ENDIF   ! CROPTYPE == 0
                     CMC    ,ECAN   ,ETRAN  ,FWET   ,RUNSRF ,RUNSUB , & !out
                     QIN    ,QDIS   ,PONDING1       ,PONDING2,        &
                     QSNBOT                                           &
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
                         ,sfcheadrt                     &
-#endif
+!#endif
                     )  !out
 ! ----------------------------------------------------------------------  
 ! Code history:
@@ -5832,9 +5832,9 @@ ENDIF   ! CROPTYPE == 0
 
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
   REAL                           , INTENT(INOUT)    :: sfcheadrt
-#endif
+!#endif
 
 ! ----------------------------------------------------------------------
 ! initialize
@@ -5903,9 +5903,9 @@ ENDIF   ! CROPTYPE == 0
        ETRANI(IZ) = ETRAN * BTRANI(IZ) * 0.001
     ENDDO
 
-#ifdef WRF_HYDRO
+!#ifdef WRF_HYDRO
        QINSUR = QINSUR+sfcheadrt/DT*0.001  !sfcheadrt units (m)
-#endif
+!#endif
 
 ! lake/soil water balances
 

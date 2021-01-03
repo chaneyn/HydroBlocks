@@ -277,7 +277,8 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   PAHXY,&
                   BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,DKSAT_3D,&
                   DWSAT_3D,PSISAT_3D,QUARTZ_3D,&
-                  HDIVXY)
+                  HDIVXY,&
+                  SFCHEADRTXY)
 
  USE module_sf_noahmpdrv, only: noahmplsm
 
@@ -491,6 +492,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
  !Added
     REAL,    DIMENSION(nhru) :: PAHXY
     REAL,    DIMENSION(nhru,1:nsoil), INTENT(INOUT) ::  HDIVXY     ! divergence
+    REAL,    DIMENSION(nhru) :: SFCHEADRTXY
  !Local
   integer :: i
   REAL, DIMENSION(nhru,2,1)  ::  DZ8W      ! thickness of atmo layers [m]
@@ -650,7 +652,7 @@ kte = 2
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !               MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL     )
-               PAHXY,HDIVXY)
+               PAHXY,HDIVXY,SFCHEADRTXY)
 
 if (debug_flag)then
     print*,'NOAHMPLSM OUT'

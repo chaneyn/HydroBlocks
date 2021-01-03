@@ -51,7 +51,7 @@ CONTAINS
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !HB added
-               PAHXY,HDIVXY,                                    &
+               PAHXY,HDIVXY,SFCHEADRTXY,                        &
 !End HB added
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL)
 !----------------------------------------------------------------
@@ -141,9 +141,10 @@ CONTAINS
 ! gecros model
     REAL,    DIMENSION( ims:ime,       60,jms:jme ), INTENT(INOUT) :: gecros_state !  gecros crop
 
-#ifdef WRF_HYDRO
-    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  sfcheadrt,INFXSRT,soldrain   ! for WRF-Hydro
-#endif
+!#ifdef WRF_HYDRO
+    !REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  sfcheadrt,INFXSRT,soldrain   ! for WRF-Hydro
+    !REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  sfcheadrt   ! for WRF-Hydro
+!#endif
 ! placeholders for 3D soil
     REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  BEXP_3D   ! C-H B exponent
     REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  SMCDRY_3D ! Soil Moisture Limit: Dry
@@ -219,6 +220,7 @@ CONTAINS
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  DEEPRECHXY ! recharge to the water table when deep
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  RECHXY    ! recharge to the water table (diagnostic) 
     REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT  ) ::  HDIVXY    ! #HB
+    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT  ) ::  SFCHEADRTXY  ! #HB
 
 ! OUT (with no Noah LSM equivalent)
 
@@ -302,6 +304,7 @@ CONTAINS
     REAL                                :: PRCPHAIL     ! hail entering land model [mm]              ! MB/AN : v3.7
     REAL                                :: PRCPOTHR     ! other precip, e.g. fog [mm]                ! MB/AN : v3.7
     REAL,    DIMENSION(NSOIL)           :: HDIV      ! #HB
+    REAL                                :: SFCHEADRT ! #HB
 
 ! INOUT (with generic LSM equivalent)
 
@@ -638,6 +641,7 @@ CONTAINS
        RECH                  = 0.
        DEEPRECH              = 0.  
        HDIV                  = HDIVXY (I,:,J)
+       SFCHEADRT             = SFCHEADRTXY (I,J)
 
        if(iopt_crop == 2) then   ! gecros crop model
 
@@ -885,9 +889,9 @@ CONTAINS
 	    GHB     , IRG     , IRC     , IRB     , TR      , EVC     , & ! OUT :
 	    CHLEAF  , CHUC    , CHV2    , CHB2    , FPICE   , PAHV    , & 
             PAHG    , PAHB    , PAH     , LAISUN  , LAISHA  , RB        &
-#ifdef WRF_HYDRO
-            , sfcheadrt(i,j)                               &
-#endif
+!#ifdef WRF_HYDRO
+            , sfcheadrt                               &
+!#endif
             , hdiv &
             )            ! OUT :
                   
