@@ -466,6 +466,18 @@ CONTAINS
     
     type(noahmp_parameters) :: parameters
 
+    !Allocate soil parameters
+    allocate(parameters%bexp(nsoil))
+    allocate(parameters%smcdry(nsoil))
+    allocate(parameters%smcwlt(nsoil))
+    allocate(parameters%smcref(nsoil))
+    allocate(parameters%smcmax(nsoil))
+    allocate(parameters%dksat(nsoil))
+    allocate(parameters%dwsat(nsoil))
+    allocate(parameters%psisat(nsoil))
+    allocate(parameters%quartz(nsoil))
+
+
 
 ! ----------------------------------------------------------------------
 
@@ -1050,6 +1062,17 @@ CONTAINS
 
       ENDDO ILOOP                                                       ! of I loop
    ENDDO JLOOP                                                          ! of J loop
+
+ !Deallocate arrays in parameters derived data type
+ deallocate(parameters%bexp)
+ deallocate(parameters%smcdry)
+ deallocate(parameters%smcwlt)
+ deallocate(parameters%smcref)
+ deallocate(parameters%smcmax)
+ deallocate(parameters%dksat)
+ deallocate(parameters%dwsat)
+ deallocate(parameters%psisat)
+ deallocate(parameters%quartz)
 
 !------------------------------------------------------
   END SUBROUTINE noahmplsm

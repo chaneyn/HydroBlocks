@@ -592,6 +592,179 @@ kte = 2
       !ENDIF
     enddo
 
+if (debug_flag)then
+    print*,'NOAHMPLSM IN'
+    print*,'ITIMESTEP',ITIMESTEP
+    print*,'YR',YR
+    print*,'JULIAN',JULIAN
+    print*,'COSZEN',COSZIN
+    print*,'XLAT',XLAT
+    print*,'XLONG',XLONG
+    print*,'DZ8W',DZ8W
+    print*,'DTBL',DT
+    print*,'DZS',DZS
+    print*,'NSOIL',NSOIL
+    print*,'DX',DX
+    print*,'IVGTYP',IVGTYP
+    print*,'ISLTYP',ISLTYP
+    print*,'VEGFRA',VEGFRA
+    print*,'GVFMAX',VEGMAX
+    print*,'TMN',TMN
+    print*,'XLAND',XLAND
+    print*,'XICE',XICE
+    !print*,'XICE_THRESHOLD',XICE_THRESHOLD
+    print*,'CROPCAT',CROPCAT
+    print*,'PLANTING',PLANTING
+    print*,'HARVEST',HARVEST
+    print*,'SEASON_GDD',SEASON_GDD
+    print*,'IDVEG',IDVEG
+    print*,'IOPT_CRS',IOPT_CRS
+    print*,'IOPT_BTR',IOPT_RUN
+    print*,'IOPT_SFC',IOPT_SFC
+    print*,'IOPT_FRZ',IOPT_FRZ
+    print*,'IOPT_INF',IOPT_INF
+    print*,'IOPT_RAD',IOPT_RAD
+    print*,'IOPT_ALB',IOPT_ALB
+    print*,'IOPT_SNF',IOPT_SNF
+    print*,'IOPT_TBOT',IOPT_TBOT
+    print*,'IOPT_STC',IOPT_STC
+    print*,'IOPT_GLA',IOPT_GLA
+    print*,'IOPT_RSF',IOPT_RSF
+    !print*,'IOPT_SOIL',IOPT_SOIL
+    !print*,'IOPT_PEDO',IOPT_PEDO
+    print*,'IOPT_CROP',IOPT_CROP
+    print*,'IZ0TLND',IZ0TLND
+    print*,'sf_urban_physics',sf_urban_physics
+    !print*,'SOILCOMP',SOILCOMP
+    !print*,'SOILCL1',SOILCL1
+    !print*,'SOILCL2',SOILCL2
+    !print*,'SOILCL3',SOILCL3
+    !print*,'SOILCL4',SOILCL4
+    print*,'T_PHY',T_PHY
+    print*,'QV_CURR',QV_CURR
+    print*,'U_PHY',U_PHY
+    print*,'V_PHY',V_PHY
+    print*,'SWDOWN',SWDOWN
+    print*,'GLW',GLW
+    print*,'P8W',P8W
+    print*,'RAINBL',RAINBL
+    print*,'SR',SR
+    print*,'TSK',TSK
+    print*,'HFX',HFX
+    print*,'QFX',QFX
+    print*,'LH',LH
+    print*,'GRDFLX',GRDFLX
+    print*,'SMSTAV',SMSTAV
+    print*,'SMSTOT',SMSTOT
+    print*,'SFCRUNOFF',SFCRUNOFF
+    print*,'UDRUNOFF',UDRUNOFF
+    print*,'ALBEDO',ALBEDO
+    print*,'SNOWC',SNOWC
+    print*,'SMOIS',SMOIS
+    print*,'SH2O',SH2O
+    print*,'TSLB',TSLB
+    print*,'SNOW',SNOW
+    print*,'SNOWH',SNOWH
+    print*,'CANWAT',CANWAT
+    print*,'ACSNOM',ACSNOM
+    print*,'ACSNOW',ACSNOW
+    print*,'EMISS',EMISS
+    print*,'QSFC',QSFC
+    print*,'Z0',Z0
+    print*,'ZNT',ZNT
+    print*,'ISNOWXY',ISNOWXY
+    print*,'TVXY',TVXY
+    print*,'TGXY',TGXY
+    print*,'CANICEXY',CANICEXY
+    print*,'CANLIQXY',CANLIQXY
+    print*,'EAHXY',EAHXY
+    print*,'TAHXY',TAHXY
+    print*,'CMXY',CMXY
+    print*,'CHXY',CHXY
+    print*,'FWETXY',FWETXY
+    print*,'SNEQVOXY',SNEQVOXY
+    print*,'ALBOLDXY',ALBOLDXY
+    print*,'QSNOWXY',QSNOWXY
+    print*,'WSLAKEXY',WSLAKEXY
+    print*,'WAXY',WAXY
+    print*,'WTXY',WTXY
+    print*,'TSNOXY',TSNOXY
+    print*,'ZSNSOXY',ZSNSOXY
+    print*,'SNICEXY',SNICEXY
+    print*,'SNLIQXY',SNLIQXY
+    print*,'LFMASSXY',LFMASSXY
+    print*,'RTMASSXY',RTMASSXY
+    print*,'STMASSXY',STMASSXY
+    print*,'WOODXY',WOODXY
+    print*,'STBLCPXY',STBLCPXY
+    print*,'FASTCPXY',FASTCPXY
+    print*,'XLAIXY',XLAIXY
+    print*,'XSAIXY',XSAIXY
+    print*,'TAUSSXY',TAUSSXY
+    print*,'SMOISEQ',SMOISEQ
+    print*,'SMCWTDXY',SMCWTDXY
+    print*,'DEEPRECHXY',DEEPRECHXY
+    print*,'RECHXY',RECHXY
+    print*,'GRAINXY',GRAINXY
+    print*,'GDDXY',GDDXY
+    print*,'PGSXY',PGSXY
+    print*,'GECROS_STATE',GECROS_STATE
+    print*,'T2MVXY',T2MVXY
+    print*,'T2MBXY',T2MBXY
+    print*,'Q2MVXY',Q2MVXY
+    print*,'Q2MBXY',Q2MBXY
+    print*,'TRADXY',TRADXY
+    print*,'NEEXY',NEEXY
+    print*,'GPPXY',GPPXY
+    print*,'NPPXY',NPPXY
+    print*,'FVEGXY',FVEGXY
+    print*,'RUNSFXY',RUNSFXY
+    print*,'RUNSBXY',RUNSBXY
+    print*,'ECANXY',ECANXY
+    print*,'EDIRXY',EDIRXY
+    print*,'ETRANXY',ETRANXY
+    print*,'FSAXY',FSAXY
+    print*,'FIRAXY',FIRAXY
+    print*,'APARXY',APARXY
+    print*,'PSNXY',PSNXY
+    print*,'SAVXY',SAVXY
+    print*,'SAGXY',SAGXY
+    print*,'RSSUNXY',RSSUNXY
+    print*,'RSSHAXY',RSSHAXY
+    print*,'BGAPXY',BGAPXY
+    print*,'WGAPXY',WGAPXY
+    print*,'TGVXY',TGVXY
+    print*,'TGBXY',TGBXY
+    print*,'CHVXY',CHVXY
+    print*,'CHBXY',CHBXY
+    print*,'SHGXY',SHGXY
+    print*,'SHCXY',SHCXY
+    print*,'SHBXY',SHBXY
+    print*,'EVGXY',EVGXY
+    print*,'EVBXY',EVBXY
+    print*,'GHVXY',GHVXY
+    print*,'GHBXY',GHBXY
+    print*,'IRGXY',IRGXY
+    print*,'IRCXY',IRCXY
+    print*,'IRBXY',IRBXY
+    print*,'TRXY',TRXY
+    print*,'EVCXY',EVCXY
+    print*,'CHLEAFXY',CHLEAFXY
+    print*,'CHUCXY',CHUCXY
+    print*,'CHV2XY',CHV2XY
+    print*,'CHB2XY',CHB2XY
+    print*,'RS',RS
+    print*,'BEXP_3D',BEXP_3D
+    print*,'SMCDRY_3D',SMCDRY_3D
+    print*,'SMCWLT_3D',SMCWLT_3D
+    print*,'SMCREF_3D',SMCREF_3D
+    print*,'SMCMAX_3D',SMCMAX_3D
+    print*,'DKSAT_3D',DKSAT_3D
+    print*,'DWSAT_3D',DWSAT_3D
+    print*,'PSISAT_3D',PSISAT_3D
+    print*,'QUARTZ_3D',QUARTZ_3D
+    stop
+endif
     !IF (ITIME == 1 .AND. .NOT. RESTART_FLAG ) THEN
     !  EAHXY = (P8W(:,1,:)*QV_CURR(:,1,:))/(0.622+QV_CURR(:,1,:)) ! Initial guess only.
     !  TAHXY = T_PHY(:,1,:)                                       ! Initial guess only.
@@ -599,7 +772,7 @@ kte = 2
     !  CMXY = 0.1
     !ENDIF
 
-    !print*,'BEXP_3D',BEXP_3D
+    !print*,'BEXP_3D',shape(BEXP_3D)
     !print*,'SMCDRY_3D',SMCDRY_3D
     !print*,'SMCWLT_3D',SMCWLT_3D
     !print*,'SMCREF_3D',SMCREF_3D
@@ -608,7 +781,6 @@ kte = 2
     !print*,'DWSAT_3D',DWSAT_3D
     !print*,'PSISAT_3D',PSISAT_3D
     !print*,'QUARTZ_3D',QUARTZ_3D
-    !stop
 
   call noahmplsm(ITIMESTEP,        YR,   JULIAN,   COSZIN,XLAT,XLONG, & ! IN : Time/Space-related
                   DZ8W,       DT,       DZS,    NSOIL,       DX,            & ! IN : Model configuration 
@@ -825,6 +997,7 @@ if (debug_flag)then
     print*,'DWSAT_3D',DWSAT_3D
     print*,'PSISAT_3D',PSISAT_3D
     print*,'QUARTZ_3D',QUARTZ_3D
+    stop
 endif
 
 end subroutine

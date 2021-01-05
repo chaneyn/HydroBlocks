@@ -299,15 +299,17 @@ class HydroBlocks:
   self.noahmp.rechclim[:] = 0.0
   #Define new ics
   self.noahmp.xice[:] = 0.0
-  self.noahmp.snow[:] = 1.0
-  self.noahmp.snowh[:] = 0.01
+  self.noahmp.snow[:] = self.metadata['noahmp_ics']['swe']
+  self.noahmp.snowh[:] = self.metadata['noahmp_ics']['snowh']
   self.noahmp.isltyp[:] = self.input_fp.groups['parameters'].variables['soil_texture_class'][:]
   self.noahmp.ivgtyp[:] = self.input_fp.groups['parameters'].variables['land_cover'][:]
-  self.noahmp.tslb[:] = np.array([266.1,274.0,276.9,279.9])
-  self.noahmp.smois[:] = np.array([0.298,0.294,0.271,0.307])
+  #self.noahmp.tslb[:] = np.array([266.1,274.0,276.9,279.9])
+  #self.noahmp.smois[:] = np.array([0.298,0.294,0.271,0.307])
+  self.noahmp.tslb[:] = np.array(self.metadata['noahmp_ics']['Tsoil'])#np.linspace(266.0,280.0,self.noahmp.tslb.shape[1])
+  self.noahmp.smois[:] = np.array(self.metadata['noahmp_ics']['soilM'])#np.linspace(0.298,0.307,self.noahmp.smois.shape[1])
   self.noahmp.dzs[:] = np.array(self.metadata['dz'])
-  self.noahmp.tsk[:] = 263.70
-  self.noahmp.tmn[:] = 285.0
+  self.noahmp.tsk[:] = self.metadata['noahmp_ics']['Tskin']#263.70
+  self.noahmp.tmn[:] = self.metadata['noahmp_ics']['Tbot']#285.0
   self.noahmp.ht[:] = 218.0
   self.noahmp.lai[:] = 2.0
   self.noahmp.xlat[:] = self.input_fp.groups['metadata'].latitude
@@ -325,7 +327,7 @@ class HydroBlocks:
 
   #Define data
   self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
-  self.noahmp.lsoil = 'CUST'
+  #self.noahmp.lsoil = 'CUST'
   fdir = os.path.dirname(os.path.abspath(__file__))
   SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
@@ -624,8 +626,8 @@ class HydroBlocks:
    self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
    self.update_input(date)
    if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
-    self.noahmp.tah=self.noahmp.t_ml
-    self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
+    #self.noahmp.tah=self.noahmp.t_ml
+    #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
     self.noahmp.cm[:] = 0.1
     self.noahmp.ch[:] = 0.1
    #Save the original precip
