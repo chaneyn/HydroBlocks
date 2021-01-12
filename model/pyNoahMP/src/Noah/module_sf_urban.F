@@ -609,7 +609,6 @@ MODULE module_sf_urban
 !end BEP
                    BOUNDR,BOUNDB,BOUNDG,CH_SCHEME,TS_SCHEME,      &
                    AKANDA_URBAN,ALH)
-
 ! Glotfelty, 2012/07/05, NUDAPT Modification
 
  if(mh_urb.gt.0.0)THEN 
@@ -770,6 +769,7 @@ MODULE module_sf_urban
    if(alhoption==1) ALH = ALH*alhdiuprf(tloc2)*alhseason(Kalh)
 
    IF( ZDC+Z0C+2. >= ZA) THEN
+    print*,ZDC,Z0C,ZA
     CALL wrf_error_fatal ("ZDC + Z0C + 2m is larger than the 1st WRF level "// &
                            "Stop in subroutine urban - change ZDC and Z0C" ) 
    END IF
@@ -1934,12 +1934,13 @@ ENDIF
 !
 !===============================================================================
    SUBROUTINE urban_param_init(DZR,DZB,DZG,num_soil_layers, &
-                               sf_urban_physics)
+                               sf_urban_physics,urbtable_file)
 !                              num_roof_layers,num_wall_layers,num_road_layers)
 
    IMPLICIT NONE
 
    INTEGER, INTENT(IN) :: num_soil_layers
+   character(len=256),intent(in) :: urbtable_file
 
 !   REAL, DIMENSION(1:num_roof_layers), INTENT(INOUT) :: DZR
 !   REAL, DIMENSION(1:num_wall_layers), INTENT(INOUT) :: DZB
@@ -1951,9 +1952,9 @@ ENDIF
 
    INTEGER :: LC, K
    INTEGER :: IOSTATUS, ALLOCATE_STATUS
-   INTEGER :: num_roof_layers
-   INTEGER :: num_wall_layers
-   INTEGER :: num_road_layers
+   INTEGER :: num_roof_layers = 4
+   INTEGER :: num_wall_layers = 4
+   INTEGER :: num_road_layers = 4
    INTEGER :: dummy 
    REAL    :: DHGT, HGT, VFWS, VFGS
 
@@ -1978,15 +1979,14 @@ ENDIF
    real :: dummy_pct
    real :: pctsum
 !end BEP
-   num_roof_layers = num_soil_layers
-   num_wall_layers = num_soil_layers
-   num_road_layers = num_soil_layers
+   !num_roof_layers = num_soil_layers
+   !num_wall_layers = num_soil_layers
+   !num_road_layers = num_soil_layers
 
 
    ICATE=0
-
    OPEN (UNIT=11,                &
-         FILE='URBPARM.TBL', &
+         FILE=trim(urbtable_file), &
          ACCESS='SEQUENTIAL',    &
          STATUS='OLD',           &
          ACTION='READ',          &

@@ -142,6 +142,36 @@ class HydroBlocks:
   self.noahmp.qsfc[:] = fp['qsfc'][:]
   self.noahmp.sfcrunoff[:] = fp['sfcrunoff'][:]
   self.noahmp.udrunoff[:] = fp['udrunoff'][:]
+  #urban canopy model 
+  self.noahmp.cmr_sfcdif[:] = fp['cmr_sfcdif'][:]
+  self.noahmp.chr_sfcdif[:] = fp['chr_sfcdif'][:]
+  self.noahmp.cmc_sfcdif[:] = fp['cmc_sfcdif'][:]
+  self.noahmp.chc_sfcdif[:] = fp['chc_sfcdif'][:]
+  self.noahmp.cmgr_sfcdif[:] = fp['cmgr_sfcdif'][:]
+  self.noahmp.chgr_sfcdif[:] = fp['chgr_sfcdif'][:]
+  self.noahmp.tr_urb2d[:] = fp['tr_urb2d'][:]
+  self.noahmp.tb_urb2d[:] = fp['tb_urb2d'][:]
+  self.noahmp.tg_urb2d[:] = fp['tg_urb2d'][:]
+  self.noahmp.tc_urb2d[:] = fp['tc_urb2d'][:]
+  self.noahmp.qc_urb2d[:] = fp['qc_urb2d'][:]
+  self.noahmp.uc_urb2d[:] = fp['uc_urb2d'][:]
+  self.noahmp.xxxr_urb2d[:] = fp['xxxr_urb2d'][:]
+  self.noahmp.xxxb_urb2d[:] = fp['xxxb_urb2d'][:]
+  self.noahmp.xxxg_urb2d[:] = fp['xxxg_urb2d'][:]
+  self.noahmp.xxxc_urb2d[:] = fp['xxxc_urb2d'][:]
+  self.noahmp.trl_urb3d[:] = fp['trl_urb3d'][:]
+  self.noahmp.tbl_urb3d[:] = fp['tbl_urb3d'][:]
+  self.noahmp.tgl_urb3d[:] = fp['tgl_urb3d'][:]
+  self.noahmp.cmcr_urb2d[:] = fp['cmcr_urb2d'][:]
+  self.noahmp.tgr_urb2d[:] = fp['tgr_urb2d'][:]
+  self.noahmp.tgrl_urb3d[:] = fp['tgrl_urb3d'][:]
+  self.noahmp.smr_urb3d[:] = fp['smr_urb3d'][:]
+  self.noahmp.drelr_urb2d[:] = fp['drelr_urb2d'][:]
+  self.noahmp.drelb_urb2d[:] = fp['drelb_urb2d'][:]
+  self.noahmp.drelg_urb2d[:] = fp['drelg_urb2d'][:]
+  self.noahmp.flxhumr_urb2d[:] = fp['flxhumr_urb2d'][:]
+  self.noahmp.flxhumb_urb2d[:] = fp['flxhumb_urb2d'][:]
+  self.noahmp.flxhumg_urb2d[:] = fp['flxhumg_urb2d'][:]
   #routing
   if self.routing_module == 'kinematic':
    self.routing.Q0[:] = fp['Q0'][:]
@@ -273,6 +303,90 @@ class HydroBlocks:
   self.noahmp.snliq = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
   self.noahmp.dzs = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
   self.noahmp.croptype = np.zeros((self.nhru,5),order='F').astype(np.float32)
+  #begin urban canopy model
+  #Scalar, integer
+  vars = ['low_density_residential','high_density_residential','high_intensity_industrial','isurban',\
+          'num_urban_ndm','urban_map_zrd','urban_map_zwd','urban_map_gd','urban_map_zd','urban_map_zdf',\
+          'urban_map_bd','urban_map_wd','urban_map_gbd','urban_map_fbd','num_urban_hi']
+  for var in vars:
+   exec('self.noahmp.%s = 0' % var)
+  self.noahmp.isurban = 13
+  self.noahmp.low_density_residential = 31
+  self.noahmp.high_density_residential = 32
+  self.noahmp.high_intensity_industrial = 33
+  self.noahmp.num_urban_ndm = 1
+  self.noahmp.num_urban_ng = 1
+  self.noahmp.num_urban_nwr = 1
+  self.noahmp.num_urban_ngb = 1
+  self.noahmp.num_urban_nf = 1
+  self.noahmp.num_urban_nz = 1
+  self.noahmp.num_urban_nbui = 1
+  self.noahmp.num_urban_hi = 15
+  self.noahmp.urban_map_zrd = self.noahmp.num_urban_ndm*self.noahmp.num_urban_nwr*self.noahmp.num_urban_nz
+  self.noahmp.urban_map_zwd = self.noahmp.num_urban_ndm*self.noahmp.num_urban_nwr*\
+                              self.noahmp.num_urban_nz*self.noahmp.num_urban_nbui
+  self.noahmp.urban_map_gd  = self.noahmp.num_urban_ndm*self.noahmp.num_urban_ng
+  self.noahmp.urban_map_zd  = self.noahmp.num_urban_ndm*self.noahmp.num_urban_nz*self.noahmp.num_urban_nbui
+  self.noahmp.urban_map_zdf = self.noahmp.num_urban_ndm*self.noahmp.num_urban_nz
+  self.noahmp.urban_map_bd  = self.noahmp.num_urban_nz*self.noahmp.num_urban_nbui
+  self.noahmp.urban_map_wd  = self.noahmp.num_urban_ndm*self.noahmp.num_urban_nz*self.noahmp.num_urban_nbui
+  self.noahmp.urban_map_gbd = self.noahmp.num_urban_ndm*self.noahmp.num_urban_ngb*self.noahmp.num_urban_nbui
+  self.noahmp.urban_map_fbd = self.noahmp.num_urban_ndm*(self.noahmp.num_urban_nz - 1)*\
+                              self.noahmp.num_urban_nf*self.noahmp.num_urban_nbui
+  #1d,real (init to 99999999999...)
+  vars = ['tsurface0_urb','tdeep0_urb','tdeep0_urb','tr_urb2d','tb_urb2d','tg_urb2d','tc_urb2d','qc_urb2d',\
+          'xxxr_urb2d','xxxb_urb2d','xxxg_urb2d','xxxc_urb2d','drelr_urb2d','drelb_urb2d',\
+          'drelg_urb2d','flxhumr_urb2d','flxhumb_urb2d','flxhumg_urb2d','cmcr_urb2d','tgr_urb2d',\
+          'sh_urb2d','lh_urb2d','g_urb2d','rn_urb2d','ts_urb2d','lf_ac_urb3d','sf_ac_urb3d',\
+          'cm_ac_urb3d','sfvent_urb3d','lfvent_urb3d',\
+          'a_u_bep','a_v_bep','a_t_bep','a_q_bep','a_e_bep','b_u_bep',\
+          'b_v_bep','b_t_bep','b_q_bep','b_e_bep','vl_bep','dlg_bep','sf_bep','dl_u_bep',\
+          'frc_urb2d']
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros(self.nhru,order=\'F\').astype(np.float32)' % var)
+   exec('self.noahmp.%s[:] = 9999999999.0' % var)
+  #1d,real (init to 0.0)
+  vars = ['uc_urb2d','psim_urb2d','psih_urb2d','u10_urb2d','v10_urb2d','gz1oz0_urb2d',\
+          'akms_urb2d','th2_urb2d','q2_urb2d','ust_urb2d','cmr_sfcdif','chr_sfcdif','cmc_sfcdif',\
+          'chc_sfcdif','cmgr_sfcdif','chgr_sfcdif','chs','chs2','cqs2','lp_urb2d','lb_urb2d','hgt_urb2d',\
+          'mh_urb2d','stdh_urb2d']
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros(self.nhru,order=\'F\').astype(np.float32)' % var)
+   exec('self.noahmp.%s[:] = 0.0' % var)
+  #1d,integer
+  vars = ['utype_urb2d',]
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros(self.nhru).astype(np.int32)' % var)
+   exec('self.noahmp.%s[:] = -2147483647' % var)
+  #2d,real
+  vars = ['tlayer0_urb','trl_urb3d','tbl_urb3d','tgl_urb3d','tgrl_urb3d','smr_urb3d',\
+           ]
+  for var in vars:
+   exec('self.noahmp.%s = np.zeros((self.nhru,self.nsoil),order=\'F\').astype(np.float32)' % var)
+   exec('self.noahmp.%s[:] = 9999999999.0' % var)
+  #others
+  self.noahmp.dzb = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
+  self.noahmp.dzg = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
+  self.noahmp.dzr = np.zeros((self.noahmp.nsoil),order='F').astype(np.float32)
+  self.noahmp.trb_urb4d = np.zeros((self.nhru,self.noahmp.urban_map_zrd),order='F').astype(np.float32)
+  self.noahmp.tw1_urb4d = np.zeros((self.nhru,self.noahmp.urban_map_zwd),order='F').astype(np.float32)
+  self.noahmp.tw2_urb4d = np.zeros((self.nhru,self.noahmp.urban_map_zwd),order='F').astype(np.float32)
+  self.noahmp.tgb_urb4d = np.zeros((self.nhru,self.noahmp.urban_map_gd),order='F').astype(np.float32)
+  self.noahmp.tlev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_bd),order='F').astype(np.float32)
+  self.noahmp.qlev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_bd),order='F').astype(np.float32)
+  self.noahmp.tw1lev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_wd),order='F').astype(np.float32)
+  self.noahmp.tw2lev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_wd),order='F').astype(np.float32)
+  self.noahmp.tglev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_gbd),order='F').astype(np.float32)
+  self.noahmp.tflev_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_fbd),order='F').astype(np.float32)
+  self.noahmp.sfwin1_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_wd),order='F').astype(np.float32)
+  self.noahmp.sfwin2_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_wd),order='F').astype(np.float32)
+  self.noahmp.sfw1_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_zd),order='F').astype(np.float32)
+  self.noahmp.sfw2_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_zd),order='F').astype(np.float32)
+  self.noahmp.sfr_urb3d = np.zeros((self.nhru,self.noahmp.urban_map_zdf),order='F').astype(np.float32)
+  self.noahmp.sfg_urb3d = np.zeros((self.nhru,self.noahmp.num_urban_ndm),order='F').astype(np.float32)
+  self.noahmp.hi_urb2d = np.zeros((self.nhru,self.noahmp.num_urban_hi),order='F').astype(np.float32)
+  self.noahmp.lf_urb2d = np.zeros((self.nhru,4),order='F').astype(np.float32)
+  #end urban canopy model
   self.noahmp.fndsoilw = False
   self.noahmp.fndsnowh = True
   self.noahmp.tsno = np.zeros((self.nhru,self.noahmp.nsnow),order='F').astype(np.float32)
@@ -332,9 +446,11 @@ class HydroBlocks:
   SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % fdir
+  URBTABLE = '%s/pyNoahMP/data/URBPARM.TBL' % fdir
   self.noahmp.soilparm_file = SOILPARM
   self.noahmp.genparm_file = GENPARM
   self.noahmp.mptable_file = MPTABLE
+  self.noahmp.urbtable_file = URBTABLE
   #Define the noahmp options
   self.noahmp.idveg = self.metadata['noahmp_options']['idveg'] # dynamic vegetation [Look at noahmp .F files for opts]
   self.noahmp.iopt_crs = self.metadata['noahmp_options']['iopt_crs'] #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
@@ -398,7 +514,30 @@ class HydroBlocks:
           noah.stepwtd,noah.dt,noah.qrfs,noah.qsprings,noah.qslat,noah.fdepth,\
           noah.ht,noah.riverbed,noah.eqzwt,noah.rivercond,noah.pexp,noah.rechclim,\
           noah.gecros_state,\
-          noah.soilparm_file,noah.genparm_file,noah.mptable_file)
+          noah.soilparm_file,noah.genparm_file,noah.mptable_file,\
+          #Urban canopy model (Start)
+          noah.dzb,noah.dzg,noah.dzr,noah.isurban,noah.low_density_residential,noah.high_density_residential,\
+          noah.high_intensity_industrial,noah.tsurface0_urb,noah.tlayer0_urb,\
+          noah.tdeep0_urb,noah.tr_urb2d,noah.tb_urb2d,noah.tg_urb2d,noah.tc_urb2d,noah.qc_urb2d,\
+          noah.xxxr_urb2d,noah.xxxb_urb2d,\
+          noah.xxxg_urb2d,noah.xxxc_urb2d,noah.drelr_urb2d,noah.drelb_urb2d,noah.drelg_urb2d,\
+          noah.flxhumr_urb2d,noah.flxhumb_urb2d,noah.flxhumg_urb2d,noah.cmcr_urb2d,noah.tgr_urb2d,\
+          noah.trl_urb3d,noah.tbl_urb3d,\
+          noah.tgl_urb3d,noah.tgrl_urb3d,noah.smr_urb3d,noah.sh_urb2d,noah.lh_urb2d,noah.g_urb2d,\
+          noah.rn_urb2d,noah.ts_urb2d,\
+          noah.trb_urb4d,noah.tw1_urb4d,noah.tw2_urb4d,noah.tgb_urb4d,noah.tlev_urb3d,noah.qlev_urb3d,\
+          noah.tw1lev_urb3d,\
+          noah.tw2lev_urb3d,noah.tglev_urb3d,noah.tflev_urb3d,noah.lf_ac_urb3d,noah.sf_ac_urb3d,noah.cm_ac_urb3d,\
+          noah.sfvent_urb3d,noah.lfvent_urb3d,noah.sfwin1_urb3d,noah.sfwin2_urb3d,noah.sfw1_urb3d,noah.sfw2_urb3d,\
+          noah.sfr_urb3d,noah.sfg_urb3d,noah.hi_urb2d,noah.lp_urb2d,noah.lb_urb2d,noah.hgt_urb2d,\
+          noah.mh_urb2d,noah.stdh_urb2d,\
+          noah.lf_urb2d,noah.a_u_bep,noah.a_v_bep,noah.a_t_bep,noah.a_q_bep,noah.a_e_bep,noah.b_u_bep,\
+          noah.b_v_bep,noah.b_t_bep,\
+          noah.b_q_bep,noah.b_e_bep,noah.vl_bep,noah.dlg_bep,noah.sf_bep,noah.dl_u_bep,noah.frc_urb2d,\
+          noah.utype_urb2d,noah.urbtable_file\
+          #Urban canopy model (End)
+          )
+
 
   return
 
@@ -769,7 +908,34 @@ class HydroBlocks:
            n.bexp,n.smcdry,n.smcwlt,n.smcref,n.smcmax,\
            n.dksat,n.dwsat,n.psisat,n.quartz,\
            n.hdiv,\
-           n.sfcheadrt\
+           n.sfcheadrt,\
+           #Urban canopy model(start)
+           n.dzb,n.dzg,n.dzr,n.isurban,\
+           n.tr_urb2d,n.tb_urb2d,n.tg_urb2d,n.tc_urb2d,\
+           n.qc_urb2d,n.uc_urb2d,n.xxxr_urb2d,n.xxxb_urb2d,\
+           n.xxxg_urb2d,n.xxxc_urb2d,n.drelr_urb2d,n.drelb_urb2d,\
+           n.drelg_urb2d,n.flxhumr_urb2d,\
+           n.flxhumb_urb2d,n.flxhumg_urb2d,n.cmcr_urb2d,\
+           n.tgr_urb2d,n.trl_urb3d,n.tbl_urb3d,\
+           n.tgl_urb3d,n.tgrl_urb3d,n.smr_urb3d,n.sh_urb2d,\
+           n.lh_urb2d,n.g_urb2d,n.rn_urb2d,n.ts_urb2d,\
+           n.trb_urb4d,n.tw1_urb4d,n.tw2_urb4d,n.tgb_urb4d,\
+           n.tlev_urb3d,n.qlev_urb3d,n.tw1lev_urb3d,\
+           n.tw2lev_urb3d,n.tglev_urb3d,n.tflev_urb3d,\
+           n.lf_ac_urb3d,n.sf_ac_urb3d,n.cm_ac_urb3d,\
+           n.sfvent_urb3d,n.lfvent_urb3d,n.sfwin1_urb3d,\
+           n.sfwin2_urb3d,n.sfw1_urb3d,n.sfw2_urb3d,\
+           n.sfr_urb3d,n.sfg_urb3d,n.hi_urb2d,n.lp_urb2d,\
+           n.lb_urb2d,n.hgt_urb2d,n.mh_urb2d,n.stdh_urb2d,\
+           n.lf_urb2d,n.a_u_bep,n.a_v_bep,n.a_t_bep,n.a_q_bep,\
+           n.a_e_bep,n.b_u_bep,n.b_v_bep,n.b_t_bep,\
+           n.b_q_bep,n.b_e_bep,n.vl_bep,n.dlg_bep,n.sf_bep,\
+           n.dl_u_bep,n.frc_urb2d,n.utype_urb2d,\
+           n.psim_urb2d,n.psih_urb2d,n.u10_urb2d,n.v10_urb2d,n.gz1oz0_urb2d,\
+           n.akms_urb2d,n.th2_urb2d,n.q2_urb2d,n.ust_urb2d,\
+           n.cmr_sfcdif,n.chr_sfcdif,n.cmc_sfcdif,n.chc_sfcdif,\
+           n.cmgr_sfcdif,n.chgr_sfcdif,n.chs,n.chs2,n.cqs2
+           #Urban canopy model(end)
           )
 
   self.tsno=self.noahmp.stc[:,0:self.noahmp.nsnow] #Laura
@@ -1355,6 +1521,36 @@ class HydroBlocks:
   fp['qsfc'] = self.noahmp.qsfc[:]
   fp['sfcrunoff'] = self.noahmp.sfcrunoff[:]
   fp['udrunoff'] = self.noahmp.udrunoff[:]
+ #urban canopy model
+  fp['cmr_sfcdif'] = self.noahmp.cmr_sfcdif[:]
+  fp['chr_sfcdif'] = self.noahmp.chr_sfcdif[:]
+  fp['cmc_sfcdif'] = self.noahmp.cmc_sfcdif[:]
+  fp['chc_sfcdif'] = self.noahmp.chc_sfcdif[:]
+  fp['cmgr_sfcdif'] = self.noahmp.cmgr_sfcdif[:]
+  fp['chgr_sfcdif'] = self.noahmp.chgr_sfcdif[:]
+  fp['tr_urb2d'] = self.noahmp.tr_urb2d[:]
+  fp['tb_urb2d'] = self.noahmp.tb_urb2d[:]
+  fp['tg_urb2d'] = self.noahmp.tg_urb2d[:]
+  fp['tc_urb2d'] = self.noahmp.tc_urb2d[:]
+  fp['qc_urb2d'] = self.noahmp.qc_urb2d[:]
+  fp['uc_urb2d'] = self.noahmp.uc_urb2d[:]
+  fp['xxxr_urb2d'] = self.noahmp.xxxr_urb2d[:]
+  fp['xxxb_urb2d'] = self.noahmp.xxxb_urb2d[:]
+  fp['xxxg_urb2d'] = self.noahmp.xxxg_urb2d[:]
+  fp['xxxc_urb2d'] = self.noahmp.xxxc_urb2d[:]
+  fp['trl_urb3d'] = self.noahmp.trl_urb3d[:]
+  fp['tbl_urb3d'] = self.noahmp.tbl_urb3d[:]
+  fp['tgl_urb3d'] = self.noahmp.tgl_urb3d[:]
+  fp['cmcr_urb2d'] = self.noahmp.cmcr_urb2d[:]
+  fp['tgr_urb2d'] = self.noahmp.tgr_urb2d[:]
+  fp['tgrl_urb3d'] = self.noahmp.tgrl_urb3d[:]
+  fp['smr_urb3d'] = self.noahmp.smr_urb3d[:]
+  fp['drelr_urb2d'] = self.noahmp.drelr_urb2d[:]
+  fp['drelb_urb2d'] = self.noahmp.drelb_urb2d[:]
+  fp['drelg_urb2d'] = self.noahmp.drelg_urb2d[:]
+  fp['flxhumr_urb2d'] = self.noahmp.flxhumr_urb2d[:]
+  fp['flxhumb_urb2d'] = self.noahmp.flxhumb_urb2d[:]
+  fp['flxhumg_urb2d'] = self.noahmp.flxhumg_urb2d[:]
   #routing
   if self.routing_module == 'kinematic':	
    fp['Q0'] = self.routing.Q0[:]

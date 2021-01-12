@@ -14,13 +14,30 @@ subroutine initialize(MMINLU,SNOW,SNOWH,CANWAT,ISLTYP,IVGTYP,XLAT, &
        fdepthxy ,ht     ,riverbedxy ,eqzwt     ,rivercondxy ,pexpxy       ,  &
        rechclim,                                                             &
        gecros_state,nsoil,nhru, &
-       soilparm_file,genparm_file,mptable_file)
+       soilparm_file,genparm_file,mptable_file,&
+       dzb,dzg,dzr,isurban,low_density_residential_table,high_density_residential_table,&
+       high_intensity_industrial_table,num_urban_ndm,urban_map_zrd,urban_map_zwd,&
+       urban_map_gd,urban_map_zd,urban_map_zdf,urban_map_bd,urban_map_wd,&
+       urban_map_gbd,urban_map_fbd,num_urban_hi,tsurface0_urb,tlayer0_urb,&
+       tdeep0_urb,tr_urb2d,tb_urb2d,tg_urb2d,tc_urb2d,qc_urb2d,xxxr_urb2d,xxxb_urb2d,&
+       xxxg_urb2d,xxxc_urb2d,drelr_urb2d,drelb_urb2d,drelg_urb2d,flxhumr_urb2d,&
+       flxhumb_urb2d,flxhumg_urb2d,cmcr_urb2d,tgr_urb2d,trl_urb3d,tbl_urb3d,&
+       tgl_urb3d,tgrl_urb3d,smr_urb3d,sh_urb2d,lh_urb2d,g_urb2d,rn_urb2d,ts_urb2d,& 
+       trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,tlev_urb3d,qlev_urb3d,tw1lev_urb3d,&
+       tw2lev_urb3d,tglev_urb3d,tflev_urb3d,lf_ac_urb3d,sf_ac_urb3d,cm_ac_urb3d,&
+       sfvent_urb3d,lfvent_urb3d,sfwin1_urb3d,sfwin2_urb3d,sfw1_urb3d,sfw2_urb3d,&
+       sfr_urb3d,sfg_urb3d,hi_urb2d,lp_urb2d,lb_urb2d,hgt_urb2d,mh_urb2d,stdh_urb2d,&
+       lf_urb2d,a_u_bep,a_v_bep,a_t_bep,a_q_bep,a_e_bep,b_u_bep,b_v_bep,b_t_bep,&
+       b_q_bep,b_e_bep,vl_bep,dlg_bep,sf_bep,dl_u_bep,frc_urb2d,utype_urb2d,&
+       urbtable_file&
+       )
 
  USE module_sf_noahmpdrv, only: noahmp_init
+ USE module_sf_urban, only: urban_param_init,urban_var_init
 
  implicit none
 
-  character(len=256),intent(in) :: soilparm_file,genparm_file,mptable_file
+  character(len=256),intent(in) :: soilparm_file,genparm_file,mptable_file,urbtable_file
     INTEGER, INTENT(INOUT)    ::     nhru
     INTEGER, INTENT(INOUT)       ::     NSOIL, iopt_run, iopt_crop
     LOGICAL      ::     restart,allowed_to_read
@@ -99,6 +116,102 @@ subroutine initialize(MMINLU,SNOW,SNOWH,CANWAT,ISLTYP,IVGTYP,XLAT, &
     REAL, DIMENSION(nhru), INTENT(INOUT) :: t2mbxy        !2m temperature bare ground part (k)
     REAL, DIMENSION(nhru), INTENT(INOUT) :: chstarxy        !dummy
 !jref:end
+! Urban canopy model
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZR
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZB
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZG
+   INTEGER, INTENT(INOUT) :: ISURBAN
+   INTEGER, INTENT(INOUT) :: LOW_DENSITY_RESIDENTIAL_TABLE,&
+                             HIGH_DENSITY_RESIDENTIAL_TABLE, &
+                             HIGH_INTENSITY_INDUSTRIAL_TABLE
+   INTEGER, INTENT(INOUT) :: num_urban_ndm
+   INTEGER, INTENT(INOUT) :: urban_map_zrd
+   INTEGER, INTENT(INOUT) :: urban_map_zwd
+   INTEGER, INTENT(INOUT) :: urban_map_gd
+   INTEGER, INTENT(INOUT) :: urban_map_zd
+   INTEGER, INTENT(INOUT) :: urban_map_zdf
+   INTEGER, INTENT(INOUT) :: urban_map_bd
+   INTEGER, INTENT(INOUT) :: urban_map_wd
+   INTEGER, INTENT(INOUT) :: urban_map_gbd
+   INTEGER, INTENT(INOUT) :: urban_map_fbd
+   INTEGER, INTENT(INOUT) :: num_urban_hi                                !multi-layer urban
+   REAL, DIMENSION(nhru), INTENT(INOUT)                    :: TSURFACE0_URB
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TLAYER0_URB
+   REAL, DIMENSION(nhru), INTENT(INOUT)                    :: TDEEP0_URB
+   !INTEGER, DIMENSION(nhru), INTENT(INOUT)                 :: IVGTYP
+   !LOGICAL , INTENT(INOUT) :: restart
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: QC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CMCR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TGR_URB2D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TRL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TBL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TGL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TGRL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: SMR_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: G_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: RN_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TS_URB2D
+! multi-layer UCM variables
+   REAL, DIMENSION(nhru,1:urban_map_zrd), INTENT(INOUT) :: TRB_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_zwd), INTENT(INOUT) :: TW1_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_zwd), INTENT(INOUT) :: TW2_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_gd), INTENT(INOUT) :: TGB_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_bd), INTENT(INOUT) :: TLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_bd), INTENT(INOUT) :: QLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: TW1LEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: TW2LEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_gbd), INTENT(INOUT) :: TGLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_fbd), INTENT(INOUT) :: TFLEV_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LF_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SF_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CM_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SFVENT_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LFVENT_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: SFWIN1_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: SFWIN2_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zd), INTENT(INOUT) :: SFW1_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zd), INTENT(INOUT) :: SFW2_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zdf), INTENT(INOUT) :: SFR_URB3D
+   REAL, DIMENSION(nhru,1:num_urban_ndm), INTENT(INOUT) :: SFG_URB3D
+   REAL, DIMENSION(nhru,1:num_urban_hi), INTENT(INOUT) :: HI_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LP_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: HGT_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: MH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: STDH_URB2D
+   REAL, DIMENSION(nhru,4), INTENT(INOUT) :: LF_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_V_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_T_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_Q_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_E_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_V_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_T_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_Q_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_E_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: VL_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DLG_BEP
+   REAL, DIMENSION(nhru),INTENT(INOUT) :: SF_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DL_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FRC_URB2D
+   INTEGER, DIMENSION(nhru), INTENT(INOUT) :: UTYPE_URB2D
 
 integer :: ids,ide, jds,jde, kds,kde, ims,ime, jms,jme, kms,kme, its,ite
 integer :: jts,jte, kts,kte
@@ -146,6 +259,139 @@ kte = 2
        rechclim,                                                             &
        gecros_state, &
        soilparm_file,genparm_file,mptable_file)
+
+         IF(SF_URBAN_PHYSICS > 0 ) THEN  !urban
+
+                 CALL urban_param_init(DZR,DZB,DZG,nsoil,sf_urban_physics,urbtable_file)
+                 CALL urban_var_init(ISURBAN,TSK,TSLB,TMN,IVGTYP,                        & !urban
+                      ims,ime,jms,jme,kms,kme,nsoil,                          & !urban
+                      LOW_DENSITY_RESIDENTIAL_TABLE,                                    &
+		      HIGH_DENSITY_RESIDENTIAL_TABLE,                                   &
+		      HIGH_INTENSITY_INDUSTRIAL_TABLE,                                  &
+                      .false.,sf_urban_physics,                                          & !urban
+                      XXXR_URB2D,    XXXB_URB2D,    XXXG_URB2D,XXXC_URB2D,              & !urban
+                        TR_URB2D,      TB_URB2D,      TG_URB2D,  TC_URB2D, QC_URB2D,    & !urban
+                       TRL_URB3D,     TBL_URB3D,     TGL_URB3D,                         & !urban
+                        SH_URB2D,      LH_URB2D,       G_URB2D,  RN_URB2D, TS_URB2D,    & !urban
+                   num_urban_ndm,  urban_map_zrd,  urban_map_zwd, urban_map_gd,          & !I multi-layer urban
+                    urban_map_zd,  urban_map_zdf,   urban_map_bd, urban_map_wd,          & !I multi-layer urban
+                   urban_map_gbd,  urban_map_fbd,                                        & !I multi-layer urban
+                    num_urban_hi,                                                       & !urban
+                       TRB_URB4D,     TW1_URB4D,     TW2_URB4D, TGB_URB4D,              & !urban
+                      TLEV_URB3D,    QLEV_URB3D,                                        & !urban
+                    TW1LEV_URB3D,  TW2LEV_URB3D,                                        & !urban
+                     TGLEV_URB3D,   TFLEV_URB3D,                                        & !urban
+                     SF_AC_URB3D,   LF_AC_URB3D,   CM_AC_URB3D,                         & !urban
+                    SFVENT_URB3D,  LFVENT_URB3D,                                        & !urban
+                    SFWIN1_URB3D,  SFWIN2_URB3D,                                        & !urban
+                      SFW1_URB3D,    SFW2_URB3D,     SFR_URB3D, SFG_URB3D,              & !urban
+                        LP_URB2D,      HI_URB2D,      LB_URB2D,                         & !urban
+                       HGT_URB2D,      MH_URB2D,    STDH_URB2D,                         & !urban
+                        LF_URB2D,                                                       & !urban
+                      CMCR_URB2D,     TGR_URB2D,    TGRL_URB3D, SMR_URB3D,              & !urban
+                     DRELR_URB2D,   DRELB_URB2D,   DRELG_URB2D,                         & !urban
+                   FLXHUMR_URB2D, FLXHUMB_URB2D, FLXHUMG_URB2D,                         & !urban
+                         A_U_BEP,       A_V_BEP,       A_T_BEP,   A_Q_BEP,              & !multi-layer urban
+                         A_E_BEP,       B_U_BEP,       B_V_BEP,                         & !multi-layer urban
+                         B_T_BEP,       B_Q_BEP,       B_E_BEP,   DLG_BEP,              & !multi-layer urban
+                        DL_U_BEP,        SF_BEP,        VL_BEP,                         & !multi-layer urban
+                       FRC_URB2D,   UTYPE_URB2D)                                          !urban
+          if (debug_flag)then
+          print*,'DZR',DZR
+          print*,'DZB',DZB
+          print*,'DZG',DZG
+          print*,'ISURBAN',ISURBAN
+          print*,'TSK',TSK
+          print*,'TSLB',TSLB
+          print*,'TMN',TMN
+          print*,'IVGTYP',IVGTYP
+          print*,'LOW_DENSITY_RESIDENTIAL_TABLE',LOW_DENSITY_RESIDENTIAL_TABLE
+          print*,'HIGH_DENSITY_RESIDENTIAL_TABLE',HIGH_DENSITY_RESIDENTIAL_TABLE
+          print*,'HIGH_INTENSITY_INDUSTRIAL_TABLE',HIGH_INTENSITY_INDUSTRIAL_TABLE
+          print*,'XXXR_URB2D',XXXR_URB2D
+          print*,'XXXB_URB2D',XXXB_URB2D
+          print*,'XXXG_URB2D',XXXG_URB2D
+          print*,'XXXC_URB2D',XXXC_URB2D
+          print*,'TR_URB2D',TR_URB2D
+          print*,'TB_URB2D',TB_URB2D
+          print*,'TG_URB2D',TG_URB2D
+          print*,'TC_URB2D',TC_URB2D
+          print*,'QC_URB2D',QC_URB2D
+          print*,'TRL_URB3D',TRL_URB3D
+          print*,'TBL_URB3D',TBL_URB3D
+          print*,'TGL_URB3D',TGL_URB3D
+          print*,'SH_URB2D',SH_URB2D
+          print*,'LH_URB2D',LH_URB2D
+          print*,'G_URB2D',G_URB2D
+          print*,'RN_URB2D',RN_URB2D
+          print*,'TS_URB2D',TS_URB2D
+          print*,'num_urban_ndm',num_urban_ndm
+          print*,'urban_map_zrd',urban_map_zrd
+          print*,'urban_map_zwd',urban_map_zwd
+          print*,'urban_map_gd',urban_map_gd
+          print*,'urban_map_zd',urban_map_zd
+          print*,'urban_map_zdf',urban_map_zdf
+          print*,'urban_map_bd',urban_map_bd
+          print*,'urban_map_wd',urban_map_wd
+          print*,'urban_map_gbd',urban_map_gbd
+          print*,'urban_map_fbd',urban_map_fbd
+          print*,'num_urban_hi',num_urban_hi
+          print*,'TRB_URB4D',TRB_URB4D
+          print*,'TW1_URB4D',TW1_URB4D
+          print*,'TW2_URB4D',TW2_URB4D
+          print*,'TGB_URB4D',TGB_URB4D
+          print*,'TLEV_URB3D',TLEV_URB3D
+          print*,'QLEV_URB3D',QLEV_URB3D
+          print*,'TW1LEV_URB3D',TW1LEV_URB3D
+          print*,'TW2LEV_URB3D',TW2LEV_URB3D
+          print*,'TGLEV_URB3D',TGLEV_URB3D
+          print*,'TFLEV_URB3D',TFLEV_URB3D
+          print*,'SF_AC_URB3D',SF_AC_URB3D
+          print*,'LF_AC_URB3D',LF_AC_URB3D
+          print*,'CM_AC_URB3D',CM_AC_URB3D
+          print*,'SFVENT_URB3D',SFVENT_URB3D
+          print*,'LFVENT_URB3D',LFVENT_URB3D
+          print*,'SFWIN1_URB3D',SFWIN1_URB3D
+          print*,'SFWIN2_URB3D',SFWIN2_URB3D
+          print*,'SFW1_URB3D',SFW1_URB3D
+          print*,'SFW2_URB3D',SFW2_URB3D
+          print*,'SFR_URB3D',SFR_URB3D
+          print*,'SFG_URB3D',SFG_URB3D
+          print*,'LP_URB2D',LP_URB2D
+          print*,'HI_URB2D',HI_URB2D      
+          print*,'LB_URB2D',LB_URB2D
+          print*,'HGT_URB2D',HGT_URB2D
+          print*,'MH_URB2D',MH_URB2D
+          print*,'STDH_URB2D',STDH_URB2D
+          print*,'LF_URB2D',LF_URB2D
+          print*,'CMCR_URB2D',CMCR_URB2D
+          print*,'TGR_URB2D',TGR_URB2D
+          print*,'TGRL_URB3D',TGRL_URB3D
+          print*,'SMR_URB3D',SMR_URB3D
+          print*,'DRELR_URB2D',DRELR_URB2D
+          print*,'DRELB_URB2D',DRELB_URB2D
+          print*,'DRELG_URB2D',DRELG_URB2D
+          print*,'FLXHUMR_URB2D',FLXHUMR_URB2D
+          print*,'FLXHUMB_URB2D',FLXHUMB_URB2D
+          print*,'FLXHUMG_URB2D',FLXHUMG_URB2D
+          print*,'A_U_BEP',A_U_BEP
+          print*,'A_V_BEP',A_V_BEP
+          print*,'A_T_BEP',A_T_BEP
+          print*,'A_Q_BEP',A_Q_BEP
+          print*,'A_E_BEP',A_E_BEP
+          print*,'B_U_BEP',B_U_BEP
+          print*,'B_V_BEP',B_V_BEP
+          print*,'B_T_BEP',B_T_BEP
+          print*,'B_Q_BEP',B_Q_BEP
+          print*,'B_E_BEP',B_E_BEP
+          print*,'DLG_BEP',DLG_BEP
+          print*,'DL_U_BEP',DL_U_BEP  
+          print*,'SF_BEP',SF_BEP
+          print*,'VL_BEP',VL_BEP
+          print*,'FRC_URB2D',FRC_URB2D
+          print*,'UTYPE_URB2D',UTYPE_URB2D
+          endif
+          ENDIF
 
 if (debug_flag)then
 print*,'OUT'
@@ -278,9 +524,28 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,DKSAT_3D,&
                   DWSAT_3D,PSISAT_3D,QUARTZ_3D,&
                   HDIVXY,&
-                  SFCHEADRTXY)
+                  SFCHEADRTXY,&
+                  dzb,dzg,dzr,isurban,&
+                  num_urban_ndm,urban_map_zrd,urban_map_zwd,&
+                  urban_map_gd,urban_map_zd,urban_map_zdf,urban_map_bd,urban_map_wd,&
+                  urban_map_gbd,urban_map_fbd,num_urban_hi,&
+                  tr_urb2d,tb_urb2d,tg_urb2d,tc_urb2d,qc_urb2d,uc_urb2d,xxxr_urb2d,xxxb_urb2d,&
+                  xxxg_urb2d,xxxc_urb2d,drelr_urb2d,drelb_urb2d,drelg_urb2d,flxhumr_urb2d,&
+                  flxhumb_urb2d,flxhumg_urb2d,cmcr_urb2d,tgr_urb2d,trl_urb3d,tbl_urb3d,&
+                  tgl_urb3d,tgrl_urb3d,smr_urb3d,sh_urb2d,lh_urb2d,g_urb2d,rn_urb2d,ts_urb2d,& 
+                  trb_urb4d,tw1_urb4d,tw2_urb4d,tgb_urb4d,tlev_urb3d,qlev_urb3d,tw1lev_urb3d,&
+                  tw2lev_urb3d,tglev_urb3d,tflev_urb3d,lf_ac_urb3d,sf_ac_urb3d,cm_ac_urb3d,&
+                  sfvent_urb3d,lfvent_urb3d,sfwin1_urb3d,sfwin2_urb3d,sfw1_urb3d,sfw2_urb3d,&
+                  sfr_urb3d,sfg_urb3d,hi_urb2d,lp_urb2d,lb_urb2d,hgt_urb2d,mh_urb2d,stdh_urb2d,&
+                  lf_urb2d,a_u_bep,a_v_bep,a_t_bep,a_q_bep,a_e_bep,b_u_bep,b_v_bep,b_t_bep,&
+                  b_q_bep,b_e_bep,vl_bep,dlg_bep,sf_bep,dl_u_bep,frc_urb2d,utype_urb2d,&
+                  psim_urb2d,psih_urb2d,u10_urb2d,v10_urb2d,gz1oz0_urb2d,&
+                  akms_urb2d,th2_urb2d,q2_urb2d,ust_urb2d,&
+                  cmr_sfcdif,chr_sfcdif,cmc_sfcdif,chc_sfcdif,cmgr_sfcdif,chgr_sfcdif,&
+                  chs,chs2,cqs2&
+                 )
 
- USE module_sf_noahmpdrv, only: noahmplsm
+ USE module_sf_noahmpdrv, only: noahmplsm,noahmp_urban
 
  implicit none
 
@@ -493,6 +758,114 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
     REAL,    DIMENSION(nhru) :: PAHXY
     REAL,    DIMENSION(nhru,1:nsoil), INTENT(INOUT) ::  HDIVXY     ! divergence
     REAL,    DIMENSION(nhru) :: SFCHEADRTXY
+! Urban canopy model
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZR
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZB
+    REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZG
+   INTEGER, INTENT(INOUT) :: ISURBAN
+   INTEGER, INTENT(INOUT) :: num_urban_ndm
+   INTEGER, INTENT(INOUT) :: urban_map_zrd
+   INTEGER, INTENT(INOUT) :: urban_map_zwd
+   INTEGER, INTENT(INOUT) :: urban_map_gd
+   INTEGER, INTENT(INOUT) :: urban_map_zd
+   INTEGER, INTENT(INOUT) :: urban_map_zdf
+   INTEGER, INTENT(INOUT) :: urban_map_bd
+   INTEGER, INTENT(INOUT) :: urban_map_wd
+   INTEGER, INTENT(INOUT) :: urban_map_gbd
+   INTEGER, INTENT(INOUT) :: urban_map_fbd
+   INTEGER, INTENT(INOUT) :: num_urban_hi                                !multi-layer urban
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: QC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: UC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: XXXC_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DRELG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FLXHUMG_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CMCR_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TGR_URB2D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TRL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TBL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TGL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: TGRL_URB3D
+   REAL, DIMENSION(nhru,1:nsoil), INTENT(INOUT) :: SMR_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: G_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: RN_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TS_URB2D
+! Unknown location UCM variables
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: PSIM_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: PSIH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: U10_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: V10_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: GZ1OZ0_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: AKMS_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: TH2_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: Q2_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: UST_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CMR_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CHR_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CMC_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CHC_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CMGR_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CHGR_SFCDIF
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CHS
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CHS2
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CQS2
+! multi-layer UCM variables
+   REAL, DIMENSION(nhru,1:urban_map_zrd), INTENT(INOUT) :: TRB_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_zwd), INTENT(INOUT) :: TW1_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_zwd), INTENT(INOUT) :: TW2_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_gd), INTENT(INOUT) :: TGB_URB4D
+   REAL, DIMENSION(nhru,1:urban_map_bd), INTENT(INOUT) :: TLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_bd), INTENT(INOUT) :: QLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: TW1LEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: TW2LEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_gbd), INTENT(INOUT) :: TGLEV_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_fbd), INTENT(INOUT) :: TFLEV_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LF_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SF_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: CM_AC_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: SFVENT_URB3D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LFVENT_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: SFWIN1_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_wd), INTENT(INOUT) :: SFWIN2_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zd), INTENT(INOUT) :: SFW1_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zd), INTENT(INOUT) :: SFW2_URB3D
+   REAL, DIMENSION(nhru,1:urban_map_zdf), INTENT(INOUT) :: SFR_URB3D
+   REAL, DIMENSION(nhru,1:num_urban_ndm), INTENT(INOUT) :: SFG_URB3D
+   REAL, DIMENSION(nhru,1:num_urban_hi), INTENT(INOUT) :: HI_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LP_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: LB_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: HGT_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: MH_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: STDH_URB2D
+   REAL, DIMENSION(nhru,4), INTENT(INOUT) :: LF_URB2D
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_V_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_T_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_Q_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: A_E_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_V_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_T_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_Q_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: B_E_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: VL_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DLG_BEP
+   REAL, DIMENSION(nhru),INTENT(INOUT) :: SF_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: DL_U_BEP
+   REAL, DIMENSION(nhru), INTENT(INOUT) :: FRC_URB2D
+   INTEGER, DIMENSION(nhru), INTENT(INOUT) :: UTYPE_URB2D
  !Local
   integer :: i
   REAL, DIMENSION(nhru,2,1)  ::  DZ8W      ! thickness of atmo layers [m]
@@ -514,7 +887,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
   REAL, DIMENSION(nhru,1)    ::  HAILNCV   ! non-convective hail forcing (subset of rainncv) [mm]
   REAL, DIMENSION(nhru) :: HRANG
   REAL :: DECLIN,GMT
-  INTEGER, DIMENSION(nhru) :: JULDAY
+  INTEGER :: JULDAY
   REAL,    DIMENSION(nhru) ::  XLAND     ! =2 ocean; =1 land/seaice
   REAL,    DIMENSION(nhru) ::  XICE      ! fraction of grid that is seaice
   REAL ::XICE_THRES! fraction of grid determining seaice
@@ -528,6 +901,11 @@ logical :: debug_flag
   REAL,    DIMENSION(nhru) ::  SOILCL2   ! soil texture in layer 2
   REAL,    DIMENSION(nhru) ::  SOILCL3   ! soil texture in layer 3
   REAL,    DIMENSION(nhru) ::  SOILCL4   ! soil texture in layer 4
+  !UCM variables
+   INTEGER ::  num_roof_layers = 4
+   INTEGER ::  num_road_layers = 4
+   INTEGER ::  num_wall_layers = 4
+  REAL,DIMENSION(nhru) :: theta_urban,u_urban,v_urban,dz_urban,rho_urban,p_urban,ust
 !Hard coded for HB (on purpose)
 IOPT_SOIL = 1
 IOPT_PEDO = 1
@@ -1000,6 +1378,385 @@ if (debug_flag)then
     stop
 endif
 
+if (debug_flag)then
+           print*,'URBAN IN'
+           print*,'sf_urban_physics',sf_urban_physics 
+           print*,'nsoil',nsoil
+           print*,'ivgtyp',ivgtyp
+           print*,'itimestep',itimestep
+           print*,'dtbl',dt
+           print*,'coszen',coszin
+           print*,'xlat',xlat
+           print*,'t_phy',t_phy
+           print*,'qv_curr',qv_curr
+           print*,'u_phy',u_phy
+           print*,'v_phy',v_phy
+           print*,'swdown',swdown
+           print*,'glw',glw
+           print*,'p8w',p8w
+           print*,'rainbl',rainbl
+           print*,'dz8w',dz8w
+           print*,'znt',znt
+           print*,'tsk',tsk
+           print*,'hfx',hfx
+           print*,'qfx',qfx
+           print*,'lh',lh
+           print*,'grdflx',grdflx
+           print*,'albedo',albedo
+           print*,'emiss',emiss
+           print*,'qsfc',qsfc
+           print*,'ids',ids
+           print*,'ide',ide
+           print*,'jds',jds
+           print*,'jde',jde
+           print*,'kds',kds
+           print*,'kde',kde
+           print*,'ims',ims
+           print*,'ime',ime
+           print*,'jms',jms
+           print*,'jme',jme
+           print*,'kms',kms
+           print*,'kme',kme
+           print*,'its',its
+           print*,'ite',ite
+           print*,'jts',jts
+           print*,'jte',jte
+           print*,'kts',kts
+           print*,'kte',kte
+           print*,'cmr_sfcdif',cmr_sfcdif
+           print*,'chr_sfcdif',chr_sfcdif
+           print*,'cmc_sfcdif',cmc_sfcdif
+           print*,'chc_sfcdif',chc_sfcdif
+           print*,'cmgr_sfcdif',cmgr_sfcdif
+           print*,'chgr_sfcdif',chgr_sfcdif
+          print*,'TR_URB2D',TR_URB2D
+          print*,'TB_URB2D',TB_URB2D
+          print*,'TG_URB2D',TG_URB2D
+          print*,'TC_URB2D',TC_URB2D
+          print*,'QC_URB2D',QC_URB2D
+          print*,'UC_URB2D',UC_URB2D
+          print*,'XXXR_URB2D',XXXR_URB2D
+          print*,'XXXB_URB2D',XXXB_URB2D
+          print*,'XXXG_URB2D',XXXG_URB2D
+          print*,'XXXC_URB2D',XXXC_URB2D
+          print*,'TRL_URB3D',TRL_URB3D
+          print*,'TBL_URB3D',TBL_URB3D
+          print*,'TGL_URB3D',TGL_URB3D
+          print*,'SH_URB2D',SH_URB2D
+          print*,'LH_URB2D',LH_URB2D
+          print*,'G_URB2D',G_URB2D
+          print*,'RN_URB2D',RN_URB2D
+          print*,'TS_URB2D',TS_URB2D
+          print*,'PSIM_URB2D',PSIM_URB2D
+          print*,'PSIH_URB2D',PSIH_URB2D
+          print*,'U10_URB2D',U10_URB2D
+          print*,'V10_URB2D',V10_URB2D
+          print*,'GZ1OZ0_URB2D',GZ1OZ0_URB2D
+          print*,'AKMS_URB2D',AKMS_URB2D
+          print*,'TH2_URB2D',TH2_URB2D
+          print*,'Q2_URB2D',Q2_URB2D
+          print*,'UST_URB2D',UST_URB2D
+          print*,'declin',declin
+          print*,'hrang',hrang
+          print*,'num_roof_layers',num_roof_layers
+          print*,'num_wall_layers',num_wall_layers
+          print*,'num_road_layers',num_road_layers
+          print*,'DZR',DZR
+          print*,'DZB',DZB
+          print*,'DZG',DZG
+          print*,'CMCR_URB2D',CMCR_URB2D
+          print*,'TGR_URB2D',TGR_URB2D
+          print*,'TGRL_URB3D',TGRL_URB3D
+          print*,'SMR_URB3D',SMR_URB3D
+          print*,'DRELR_URB2D',DRELR_URB2D
+          print*,'DRELB_URB2D',DRELB_URB2D
+          print*,'DRELG_URB2D',DRELG_URB2D
+          print*,'FLXHUMR_URB2D',FLXHUMR_URB2D
+          print*,'FLXHUMB_URB2D',FLXHUMB_URB2D
+          print*,'FLXHUMG_URB2D',FLXHUMG_URB2D
+          print*,'julday',julday
+          print*,'yr',yr
+          print*,'FRC_URB2D',FRC_URB2D
+          print*,'UTYPE_URB2D',UTYPE_URB2D
+          print*,'chs',chs
+          print*,'chs2',chs2
+          print*,'cqs2',cqs2
+          print*,'num_urban_ndm',num_urban_ndm
+          print*,'urban_map_zrd',urban_map_zrd
+          print*,'urban_map_zwd',urban_map_zwd
+          print*,'urban_map_gd',urban_map_gd
+          print*,'urban_map_zd',urban_map_zd
+          print*,'urban_map_zdf',urban_map_zdf
+          print*,'urban_map_bd',urban_map_bd
+          print*,'urban_map_wd',urban_map_wd
+          print*,'urban_map_gbd',urban_map_gbd
+          print*,'urban_map_fbd',urban_map_fbd
+          print*,'num_urban_hi',num_urban_hi
+          print*,'TRB_URB4D',TRB_URB4D
+          print*,'TW1_URB4D',TW1_URB4D
+          print*,'TW2_URB4D',TW2_URB4D
+          print*,'TGB_URB4D',TGB_URB4D
+          print*,'TLEV_URB3D',TLEV_URB3D
+          print*,'QLEV_URB3D',QLEV_URB3D
+          print*,'TW1LEV_URB3D',TW1LEV_URB3D
+          print*,'TW2LEV_URB3D',TW2LEV_URB3D
+          print*,'TGLEV_URB3D',TGLEV_URB3D
+          print*,'TFLEV_URB3D',TFLEV_URB3D
+          print*,'SF_AC_URB3D',SF_AC_URB3D
+          print*,'LF_AC_URB3D',LF_AC_URB3D
+          print*,'CM_AC_URB3D',CM_AC_URB3D
+          print*,'SFVENT_URB3D',SFVENT_URB3D
+          print*,'LFVENT_URB3D',LFVENT_URB3D
+          print*,'SFWIN1_URB3D',SFWIN1_URB3D
+          print*,'SFWIN2_URB3D',SFWIN2_URB3D
+          print*,'SFW1_URB3D',SFW1_URB3D
+          print*,'SFW2_URB3D',SFW2_URB3D
+          print*,'SFR_URB3D',SFR_URB3D
+          print*,'SFG_URB3D',SFG_URB3D
+          print*,'LP_URB2D',LP_URB2D
+          print*,'HI_URB2D',HI_URB2D      
+          print*,'LB_URB2D',LB_URB2D
+          print*,'HGT_URB2D',HGT_URB2D
+          print*,'MH_URB2D',MH_URB2D
+          print*,'STDH_URB2D',STDH_URB2D
+          print*,'LF_URB2D',LF_URB2D
+          print*,'theta_urban',theta_urban
+          print*,'rho_urban',rho_urban
+          print*,'p_urban',p_urban
+          print*,'ust',ust
+          print*,'gmt',gmt
+          print*,'julday',julday
+          print*,'xlong',xlong
+          print*,'xlat',xlat
+          print*,'A_U_BEP',A_U_BEP
+          print*,'A_V_BEP',A_V_BEP
+          print*,'A_T_BEP',A_T_BEP
+          print*,'A_Q_BEP',A_Q_BEP
+          print*,'A_E_BEP',A_E_BEP
+          print*,'B_U_BEP',B_U_BEP
+          print*,'B_V_BEP',B_V_BEP
+          print*,'B_T_BEP',B_T_BEP
+          print*,'B_Q_BEP',B_Q_BEP
+          print*,'B_E_BEP',B_E_BEP
+          print*,'DLG_BEP',DLG_BEP
+          print*,'DL_U_BEP',DL_U_BEP  
+          print*,'SF_BEP',SF_BEP
+          print*,'VL_BEP',VL_BEP
+endif
+	   call noahmp_urban (sf_urban_physics,     NSOIL,     IVGTYP,ITIMESTEP,  & ! IN : Model configuration 
+                               DT,         COSZIN,           XLAT,                        & ! IN : Time/Space-related
+                              T_PHY,        QV_CURR,          U_PHY,      V_PHY,   SWDOWN,  & ! IN : Forcing
+		                GLW,            P8W,         RAINBL,       DZ8W,      ZNT,  & ! IN : Forcing
+                                TSK,            HFX,            QFX,         LH,   GRDFLX,  & ! IN/OUT : LSM 
+		             ALBEDO,          EMISS,           QSFC,                        & ! IN/OUT : LSM 
+                            ids,ide,        jds,jde,        kds,kde,                        &
+                            ims,ime,        jms,jme,        kms,kme,                        &
+                            its,ite,        jts,jte,        kts,kte,                        &
+                         cmr_sfcdif,     chr_sfcdif,     cmc_sfcdif,                        &
+	                 chc_sfcdif,    cmgr_sfcdif,    chgr_sfcdif,                        &
+                           tr_urb2d,       tb_urb2d,       tg_urb2d,                        & !H urban
+	                   tc_urb2d,       qc_urb2d,       uc_urb2d,                        & !H urban
+                         xxxr_urb2d,     xxxb_urb2d,     xxxg_urb2d, xxxc_urb2d,            & !H urban
+                          trl_urb3d,      tbl_urb3d,      tgl_urb3d,                        & !H urban
+                           sh_urb2d,       lh_urb2d,        g_urb2d,   rn_urb2d,  ts_urb2d, & !H urban
+                         psim_urb2d,     psih_urb2d,      u10_urb2d,  v10_urb2d,            & !O urban
+                       GZ1OZ0_urb2d,     AKMS_URB2D,                                        & !O urban
+                          th2_urb2d,       q2_urb2d,      ust_urb2d,                        & !O urban
+                             declin,          hrang,                                        & !I urban
+                    num_roof_layers,num_wall_layers,num_road_layers,                        & !I urban
+                                dzr,            dzb,            dzg,                        & !I urban
+                         cmcr_urb2d,      tgr_urb2d,     tgrl_urb3d,  smr_urb3d,            & !H urban
+                        drelr_urb2d,    drelb_urb2d,    drelg_urb2d,                        & !H urban
+                      flxhumr_urb2d,  flxhumb_urb2d,  flxhumg_urb2d,                        & !H urban
+                             julday,             yr,                                        & !H urban
+                          frc_urb2d,    utype_urb2d,                                        & !I urban
+                                chs,           chs2,           cqs2,                        & !H
+                      num_urban_ndm,  urban_map_zrd,  urban_map_zwd, urban_map_gd,          & !I multi-layer urban
+                       urban_map_zd,  urban_map_zdf,   urban_map_bd, urban_map_wd,          & !I multi-layer urban
+                      urban_map_gbd,  urban_map_fbd,                                        & !I multi-layer urban
+                       num_urban_hi,                                                        & !I multi-layer urban
+                          trb_urb4d,      tw1_urb4d,      tw2_urb4d,  tgb_urb4d,            & !H multi-layer urban
+                         tlev_urb3d,     qlev_urb3d,                                        & !H multi-layer urban
+                       tw1lev_urb3d,   tw2lev_urb3d,                                        & !H multi-layer urban
+                        tglev_urb3d,    tflev_urb3d,                                        & !H multi-layer urban
+                        sf_ac_urb3d,    lf_ac_urb3d,    cm_ac_urb3d,                        & !H multi-layer urban
+                       sfvent_urb3d,   lfvent_urb3d,                                        & !H multi-layer urban
+                       sfwin1_urb3d,   sfwin2_urb3d,                                        & !H multi-layer urban
+                         sfw1_urb3d,     sfw2_urb3d,      sfr_urb3d,  sfg_urb3d,            & !H multi-layer urban
+                           lp_urb2d,       hi_urb2d,       lb_urb2d,  hgt_urb2d,            & !H multi-layer urban
+                           mh_urb2d,     stdh_urb2d,       lf_urb2d,                        & !SLUCM
+                        theta_urban,      rho_urban,        p_urban,        ust,            & !I multi-layer urban
+                                gmt,         julday,          XLONG,       XLAT,            & !I multi-layer urban
+                            a_u_bep,        a_v_bep,        a_t_bep,    a_q_bep,            & !O multi-layer urban
+                            a_e_bep,        b_u_bep,        b_v_bep,                        & !O multi-layer urban
+                            b_t_bep,        b_q_bep,        b_e_bep,    dlg_bep,            & !O multi-layer urban
+                           dl_u_bep,         sf_bep,         vl_bep)                          !O multi-layer urban
+if (debug_flag)then
+           print*,'URBAN OUT'
+           print*,'sf_urban_physics',sf_urban_physics 
+           print*,'nsoil',nsoil
+           print*,'ivgtyp',ivgtyp
+           print*,'itimestep',itimestep
+           print*,'dtbl',dt
+           print*,'coszen',coszin
+           print*,'xlat',xlat
+           print*,'t_phy',t_phy
+           print*,'qv_curr',qv_curr
+           print*,'u_phy',u_phy
+           print*,'v_phy',v_phy
+           print*,'swdown',swdown
+           print*,'glw',glw
+           print*,'p8w',p8w
+           print*,'rainbl',rainbl
+           print*,'dz8w',dz8w
+           print*,'znt',znt
+           print*,'tsk',tsk
+           print*,'hfx',hfx
+           print*,'qfx',qfx
+           print*,'lh',lh
+           print*,'grdflx',grdflx
+           print*,'albedo',albedo
+           print*,'emiss',emiss
+           print*,'qsfc',qsfc
+           print*,'ids',ids
+           print*,'ide',ide
+           print*,'jds',jds
+           print*,'jde',jde
+           print*,'kds',kds
+           print*,'kde',kde
+           print*,'ims',ims
+           print*,'ime',ime
+           print*,'jms',jms
+           print*,'jme',jme
+           print*,'kms',kms
+           print*,'kme',kme
+           print*,'its',its
+           print*,'ite',ite
+           print*,'jts',jts
+           print*,'jte',jte
+           print*,'kts',kts
+           print*,'kte',kte
+           print*,'cmr_sfcdif',cmr_sfcdif
+           print*,'chr_sfcdif',chr_sfcdif
+           print*,'cmc_sfcdif',cmc_sfcdif
+           print*,'chc_sfcdif',chc_sfcdif
+           print*,'cmgr_sfcdif',cmgr_sfcdif
+           print*,'chgr_sfcdif',chgr_sfcdif
+          print*,'TR_URB2D',TR_URB2D
+          print*,'TB_URB2D',TB_URB2D
+          print*,'TG_URB2D',TG_URB2D
+          print*,'TC_URB2D',TC_URB2D
+          print*,'QC_URB2D',QC_URB2D
+          print*,'UC_URB2D',UC_URB2D
+          print*,'XXXR_URB2D',XXXR_URB2D
+          print*,'XXXB_URB2D',XXXB_URB2D
+          print*,'XXXG_URB2D',XXXG_URB2D
+          print*,'XXXC_URB2D',XXXC_URB2D
+          print*,'TRL_URB3D',TRL_URB3D
+          print*,'TBL_URB3D',TBL_URB3D
+          print*,'TGL_URB3D',TGL_URB3D
+          print*,'SH_URB2D',SH_URB2D
+          print*,'LH_URB2D',LH_URB2D
+          print*,'G_URB2D',G_URB2D
+          print*,'RN_URB2D',RN_URB2D
+          print*,'TS_URB2D',TS_URB2D
+          print*,'PSIM_URB2D',PSIM_URB2D
+          print*,'PSIH_URB2D',PSIH_URB2D
+          print*,'U10_URB2D',U10_URB2D
+          print*,'V10_URB2D',V10_URB2D
+          print*,'GZ1OZ0_URB2D',GZ1OZ0_URB2D
+          print*,'AKMS_URB2D',AKMS_URB2D
+          print*,'TH2_URB2D',TH2_URB2D
+          print*,'Q2_URB2D',Q2_URB2D
+          print*,'UST_URB2D',UST_URB2D
+          print*,'declin',declin
+          print*,'hrang',hrang
+          print*,'num_roof_layers',num_roof_layers
+          print*,'num_wall_layers',num_wall_layers
+          print*,'num_road_layers',num_road_layers
+          print*,'DZR',DZR
+          print*,'DZB',DZB
+          print*,'DZG',DZG
+          print*,'CMCR_URB2D',CMCR_URB2D
+          print*,'TGR_URB2D',TGR_URB2D
+          print*,'TGRL_URB3D',TGRL_URB3D
+          print*,'SMR_URB3D',SMR_URB3D
+          print*,'DRELR_URB2D',DRELR_URB2D
+          print*,'DRELB_URB2D',DRELB_URB2D
+          print*,'DRELG_URB2D',DRELG_URB2D
+          print*,'FLXHUMR_URB2D',FLXHUMR_URB2D
+          print*,'FLXHUMB_URB2D',FLXHUMB_URB2D
+          print*,'FLXHUMG_URB2D',FLXHUMG_URB2D
+          print*,'julday',julday
+          print*,'yr',yr
+          print*,'FRC_URB2D',FRC_URB2D
+          print*,'UTYPE_URB2D',UTYPE_URB2D
+          print*,'chs',chs
+          print*,'chs2',chs2
+          print*,'cqs2',cqs2
+          print*,'num_urban_ndm',num_urban_ndm
+          print*,'urban_map_zrd',urban_map_zrd
+          print*,'urban_map_zwd',urban_map_zwd
+          print*,'urban_map_gd',urban_map_gd
+          print*,'urban_map_zd',urban_map_zd
+          print*,'urban_map_zdf',urban_map_zdf
+          print*,'urban_map_bd',urban_map_bd
+          print*,'urban_map_wd',urban_map_wd
+          print*,'urban_map_gbd',urban_map_gbd
+          print*,'urban_map_fbd',urban_map_fbd
+          print*,'num_urban_hi',num_urban_hi
+          print*,'TRB_URB4D',TRB_URB4D
+          print*,'TW1_URB4D',TW1_URB4D
+          print*,'TW2_URB4D',TW2_URB4D
+          print*,'TGB_URB4D',TGB_URB4D
+          print*,'TLEV_URB3D',TLEV_URB3D
+          print*,'QLEV_URB3D',QLEV_URB3D
+          print*,'TW1LEV_URB3D',TW1LEV_URB3D
+          print*,'TW2LEV_URB3D',TW2LEV_URB3D
+          print*,'TGLEV_URB3D',TGLEV_URB3D
+          print*,'TFLEV_URB3D',TFLEV_URB3D
+          print*,'SF_AC_URB3D',SF_AC_URB3D
+          print*,'LF_AC_URB3D',LF_AC_URB3D
+          print*,'CM_AC_URB3D',CM_AC_URB3D
+          print*,'SFVENT_URB3D',SFVENT_URB3D
+          print*,'LFVENT_URB3D',LFVENT_URB3D
+          print*,'SFWIN1_URB3D',SFWIN1_URB3D
+          print*,'SFWIN2_URB3D',SFWIN2_URB3D
+          print*,'SFW1_URB3D',SFW1_URB3D
+          print*,'SFW2_URB3D',SFW2_URB3D
+          print*,'SFR_URB3D',SFR_URB3D
+          print*,'SFG_URB3D',SFG_URB3D
+          print*,'LP_URB2D',LP_URB2D
+          print*,'HI_URB2D',HI_URB2D      
+          print*,'LB_URB2D',LB_URB2D
+          print*,'HGT_URB2D',HGT_URB2D
+          print*,'MH_URB2D',MH_URB2D
+          print*,'STDH_URB2D',STDH_URB2D
+          print*,'LF_URB2D',LF_URB2D
+          print*,'theta_urban',theta_urban
+          print*,'rho_urban',rho_urban
+          print*,'p_urban',p_urban
+          print*,'ust',ust
+          print*,'gmt',gmt
+          print*,'julday',julday
+          print*,'xlong',xlong
+          print*,'xlat',xlat
+          print*,'A_U_BEP',A_U_BEP
+          print*,'A_V_BEP',A_V_BEP
+          print*,'A_T_BEP',A_T_BEP
+          print*,'A_Q_BEP',A_Q_BEP
+          print*,'A_E_BEP',A_E_BEP
+          print*,'B_U_BEP',B_U_BEP
+          print*,'B_V_BEP',B_V_BEP
+          print*,'B_T_BEP',B_T_BEP
+          print*,'B_Q_BEP',B_Q_BEP
+          print*,'B_E_BEP',B_E_BEP
+          print*,'DLG_BEP',DLG_BEP
+          print*,'DL_U_BEP',DL_U_BEP  
+          print*,'SF_BEP',SF_BEP
+          print*,'VL_BEP',VL_BEP
+endif
+
 end subroutine
 
 !------------------------------------------------------------------------------------
@@ -1077,5 +1834,9 @@ SUBROUTINE CALC_DECLIN ( NOWDATE, LATITUDE, LONGITUDE, COSZ, JULIAN, &
    !IF (PRESENT(DECLIN_OUT)) DECLIN_OUT = DECLIN
    !IF (PRESENT(GMT_OUT   ))    GMT_OUT = GMT
    !IF (PRESENT(JULDAY_OUT)) JULDAY_OUT = JULDAY
+   HRANG_OUT = HRANG
+   DECLIN_OUT = DECLIN
+   GMT_OUT = GMT
+   JULDAY_OUT = JULDAY
 
  END SUBROUTINE CALC_DECLIN
