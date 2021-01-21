@@ -1,10 +1,10 @@
 import os
 #Compile NOAH
 os.chdir('src/Utility_routines')
-#os.system('make clean')
-#os.system('make')
+os.system('make clean')
+os.system('make')
 os.chdir('../Noah')
-#os.system('make clean')
+os.system('make clean')
 os.system('make')
 os.system('cat pyNoahMP.F > pyNoahMP.f90')
 #Create signature file
