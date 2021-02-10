@@ -484,15 +484,25 @@ class HydroBlocks:
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
   for isoil in range(self.noahmp.nsoil):
-   self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
-   self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-   self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
-   self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-   self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-   self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
-   self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
-   self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-   self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
+   self.noahmp.bexp[:,isoil] =self.input_fp.groups['soil_properties'].variables['BB'][:,isoil] #laura svp
+   self.noahmp.smcdry[:,isoil] =self.input_fp.groups['soil_properties'].variables['DRYSMC'][:,isoil] #laura svp
+   self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['soil_properties'].variables['WLTSMC'][:,isoil] #laura svp
+   self.noahmp.smcref[:,isoil] =self.input_fp.groups['soil_properties'].variables['REFSMC'][:,isoil] #laura svp
+   self.noahmp.smcmax[:,isoil] =self.input_fp.groups['soil_properties'].variables['MAXSMC'][:,isoil] #laura svp
+   self.noahmp.dksat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATDK'][:,isoil] #laura svp
+   self.noahmp.dwsat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATDW'][:,isoil] #laura svp
+   self.noahmp.psisat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATPSI'][:,isoil] #laura svp
+   self.noahmp.quartz[:,isoil] =self.input_fp.groups['soil_properties'].variables['QTZ'][:,isoil] #laura svp
+
+   #self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
+   #self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
+   #self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
+   #self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
+   #self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
+   #self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
+   #self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
+   #self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
+   #self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
 
   #Set lat/lon (declination calculation)
   self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
@@ -868,8 +878,12 @@ class HydroBlocks:
   else:
    self.noahmp.sfcheadrt[:] = 0.0
 
+  import time
+  init=time.perf_counter()
   # Update subsurface
   self.update_subsurface()
+  end=time.perf_counter()
+  print('TIME: ',end-init)
   
   # Update NOAH
   n = self.noahmp
@@ -958,12 +972,19 @@ class HydroBlocks:
   if self.subsurface_module == 'richards':
 
    #Assign noahmp variables to subsurface module
-   self.richards.theta[:] = self.noahmp.smois[:]
-   self.richards.thetar[:] = self.noahmp.smcdry[:,0]
-   self.richards.thetas[:] = self.noahmp.smcmax[:,0]
-   self.richards.b[:] = self.noahmp.bexp[:,0]
-   self.richards.satpsi[:] = self.noahmp.psisat[:,0]
-   self.richards.ksat[:] = self.noahmp.dksat[:,0]
+   self.richards.theta[:]=self.noahmp.smois[:] #laura svp
+   self.richards.thetar[:]=self.noahmp.smcdry[:] #laura svp
+   self.richards.thetas[:] = self.noahmp.smcmax[:] #laura svp
+   self.richards.b[:] = self.noahmp.bexp[:] #laura svp
+   self.richards.satpsi[:] = self.noahmp.psisat[:] #laura svp
+   self.richards.ksat[:] = self.noahmp.dksat[:] #laura svp
+   
+   #self.richards.theta[:] = self.noahmp.smois[:]
+   #self.richards.thetar[:] = self.noahmp.smcdry[:,0]
+   #self.richards.thetas[:] = self.noahmp.smcmax[:,0]
+   #self.richards.b[:] = self.noahmp.bexp[:,0]
+   #self.richards.satpsi[:] = self.noahmp.psisat[:,0]
+   #self.richards.ksat[:] = self.noahmp.dksat[:,0]
    self.richards.dz[:] = self.noahmp.sldpth[:]
 
    #Update subsurface module

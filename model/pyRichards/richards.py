@@ -8,11 +8,16 @@ class richards:
  def __init__(self,nhru,nsoil):
 
   self.theta = np.zeros((nhru,nsoil))
-  self.thetar = np.zeros(nhru)
-  self.thetas = np.zeros(nhru)
-  self.b = np.zeros(nhru)
-  self.satpsi = np.zeros(nhru)
-  self.ksat = np.zeros(nhru)
+  self.thetar = np.zeros((nhru,nsoil)) #laura svp
+  self.thetas = np.zeros((nhru,nsoil)) #laura svp
+  self.b = np.zeros((nhru,nsoil)) #laura svp
+  self.satpsi = np.zeros((nhru,nsoil)) #laura svp
+  self.ksat = np.zeros((nhru,nsoil)) #laura svp
+  #self.thetar = np.zeros(nhru)
+  #self.thetas = np.zeros(nhru)
+  #self.b = np.zeros(nhru)
+  #self.satpsi = np.zeros(nhru)
+  #self.ksat = np.zeros(nhru)
   self.dem = np.zeros(nhru)
   self.slope = np.zeros(nhru)
   #self.hand = np.zeros(nhru)
@@ -181,10 +186,12 @@ def update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area)
  #Iterate per layer
  for il in range(theta.shape[1]):
   #Calculate soil moisture potential
-  psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
+  #psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
+  psi = calculate_soil_moisture_potential(il,theta,thetar[:,il],thetas[:,il],b[:,il],satpsi[:,il]) #laura svp
   zbot = np.sum(dz[:,0:il+1],axis=1)
   ztop = zbot - dz[:,il]
-  T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
+  #T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
+  T = calculate_transmissivity(psi,ztop,zbot,m,ksat[:,il],satpsi[:,il],b[:,il])#laura svp
   #Calculate hydraulic head
   h = calculate_hydraulic_head(hand,psi,ztop)
   #Calculate the divergence
