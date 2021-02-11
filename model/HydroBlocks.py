@@ -484,15 +484,15 @@ class HydroBlocks:
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
   for isoil in range(self.noahmp.nsoil):
-   self.noahmp.bexp[:,isoil] =self.input_fp.groups['soil_properties'].variables['BB'][:,isoil] #laura svp
-   self.noahmp.smcdry[:,isoil] =self.input_fp.groups['soil_properties'].variables['DRYSMC'][:,isoil] #laura svp
-   self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['soil_properties'].variables['WLTSMC'][:,isoil] #laura svp
-   self.noahmp.smcref[:,isoil] =self.input_fp.groups['soil_properties'].variables['REFSMC'][:,isoil] #laura svp
-   self.noahmp.smcmax[:,isoil] =self.input_fp.groups['soil_properties'].variables['MAXSMC'][:,isoil] #laura svp
-   self.noahmp.dksat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATDK'][:,isoil] #laura svp
-   self.noahmp.dwsat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATDW'][:,isoil] #laura svp
-   self.noahmp.psisat[:,isoil] =self.input_fp.groups['soil_properties'].variables['SATPSI'][:,isoil] #laura svp
-   self.noahmp.quartz[:,isoil] =self.input_fp.groups['soil_properties'].variables['QTZ'][:,isoil] #laura svp
+   self.noahmp.bexp[:,isoil] =self.input_fp.groups['parameters'].variables['BB'][:,isoil] #laura svp
+   self.noahmp.smcdry[:,isoil] =self.input_fp.groups['parameters'].variables['DRYSMC'][:,isoil] #laura svp
+   self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['parameters'].variables['WLTSMC'][:,isoil] #laura svp
+   self.noahmp.smcref[:,isoil] =self.input_fp.groups['parameters'].variables['REFSMC'][:,isoil] #laura svp
+   self.noahmp.smcmax[:,isoil] =self.input_fp.groups['parameters'].variables['MAXSMC'][:,isoil] #laura svp
+   self.noahmp.dksat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDK'][:,isoil] #laura svp
+   self.noahmp.dwsat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDW'][:,isoil] #laura svp
+   self.noahmp.psisat[:,isoil] =self.input_fp.groups['parameters'].variables['SATPSI'][:,isoil] #laura svp
+   self.noahmp.quartz[:,isoil] =self.input_fp.groups['parameters'].variables['QTZ'][:,isoil] #laura svp
 
    #self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
    #self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
