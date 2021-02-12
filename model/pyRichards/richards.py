@@ -5,19 +5,22 @@ import numba
 
 class richards:
 
- def __init__(self,nhru,nsoil):
+ def __init__(self,nhru,nsoil,flag):
 
   self.theta = np.zeros((nhru,nsoil))
-  self.thetar = np.zeros((nhru,nsoil)) #laura svp
-  self.thetas = np.zeros((nhru,nsoil)) #laura svp
-  self.b = np.zeros((nhru,nsoil)) #laura svp
-  self.satpsi = np.zeros((nhru,nsoil)) #laura svp
-  self.ksat = np.zeros((nhru,nsoil)) #laura svp
-  #self.thetar = np.zeros(nhru)
-  #self.thetas = np.zeros(nhru)
-  #self.b = np.zeros(nhru)
-  #self.satpsi = np.zeros(nhru)
-  #self.ksat = np.zeros(nhru)
+  if flag==True:
+   self.thetar = np.zeros((nhru,nsoil)) #laura svp
+   self.thetas = np.zeros((nhru,nsoil)) #laura svp
+   self.b = np.zeros((nhru,nsoil)) #laura svp
+   self.satpsi = np.zeros((nhru,nsoil)) #laura svp
+   self.ksat = np.zeros((nhru,nsoil)) #laura svp
+  else:
+   self.thetar = np.zeros(nhru)
+   self.thetas = np.zeros(nhru)
+   self.b = np.zeros(nhru)
+   self.satpsi = np.zeros(nhru)
+   self.ksat = np.zeros(nhru)
+
   self.dem = np.zeros(nhru)
   self.slope = np.zeros(nhru)
   #self.hand = np.zeros(nhru)
@@ -160,7 +163,7 @@ class richards:
 
   return
 
- def update_numba(self):
+ def update_numba(self,flag):
 
   theta = self.theta
   dz = self.dz
@@ -176,21 +179,40 @@ class richards:
   w = self.w
   dx = self.dx
   area = self.area
-  self.hdiv[:] = update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area)
+  if flag==True: #laura svp
+   self.hdiv[:] = update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area) #divergence computed with vertical variable soil properties
+  else:
+   self.hdiv[:] = update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area) #divergence computed with homogeneous vertical soil properties
 
   return
- 
+
 @numba.jit(nopython=True,cache=True)
 def update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
 
  #Iterate per layer
  for il in range(theta.shape[1]):
   #Calculate soil moisture potential
-  #psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
+  psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
+  zbot = np.sum(dz[:,0:il+1],axis=1)
+  ztop = zbot - dz[:,il]
+  T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
+  #Calculate hydraulic head
+  h = calculate_hydraulic_head(hand,psi,ztop)
+  #Calculate the divergence
+  q = calculate_divergence(h,T,w,dx,area)
+  hdiv[:,il] = np.sum(q,axis=0) #mm/s'''
+
+ return hdiv
+
+@numba.jit(nopython=True,cache=True)
+def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
+
+ #Iterate per layer
+ for il in range(theta.shape[1]):
+  #Calculate soil moisture potential
   psi = calculate_soil_moisture_potential(il,theta,thetar[:,il],thetas[:,il],b[:,il],satpsi[:,il]) #laura svp
   zbot = np.sum(dz[:,0:il+1],axis=1)
   ztop = zbot - dz[:,il]
-  #T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
   T = calculate_transmissivity(psi,ztop,zbot,m,ksat[:,il],satpsi[:,il],b[:,il])#laura svp
   #Calculate hydraulic head
   h = calculate_hydraulic_head(hand,psi,ztop)

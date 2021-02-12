@@ -72,44 +72,69 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  wbd['bbox'] = {'minlat':md['miny'],'maxlat':md['maxy'],
                 'minlon':md['minx'],'maxlon':md['maxx'],
                 'res':abs(md['resx'])}
- wbd['files'] = {
-  #'WLTSMC':'%s/theta1500_latlon.tif' % workspace,
-  'WLTSMC':glob.glob('%s/theta1500/*'%workspace), #laura svp
-  'TEXTURE_CLASS':'%s/texture_class_latlon.tif' % workspace,
-  #'MAXSMC':'%s/thetas_latlon.tif' % workspace,
-  'MAXSMC':glob.glob('%s/thetas/*'%workspace), #laura svp
-  #'BB':'%s/bb_latlon.tif' % workspace,
-  'BB':glob.glob('%s/bb/*'%workspace), #laura svp
-  #'DRYSMC':'%s/thetar_latlon.tif' % workspace,
-  'DRYSMC':glob.glob('%s/thetar/*'%workspace), #laura svp
-  #'QTZ':'%s/qtz_latlon.tif' % workspace,
-  'QTZ':glob.glob('%s/qtz/*'%workspace), #laura svp
-  #'SATDW':'%s/dsat_latlon.tif' % workspace,
-  'SATDW':glob.glob('%s/dsat/*'%workspace), #laura svp
-  #'REFSMC':'%s/theta33_latlon.tif' % workspace,
-  'REFSMC':glob.glob('%s/theta33/*'%workspace), #laura svp
-  'mask':'%s/mask_latlon.tif' % workspace,
-  #'SATPSI':'%s/psisat_latlon.tif' % workspace,
-  'SATPSI':glob.glob('%s/psisat/*'%workspace), #laura svp
-  'lc':'%s/lc_latlon.tif' % workspace,
-  'F11':'%s/f11_latlon.tif' % workspace,
-  #'SATDK':'%s/ksat_latlon.tif' % workspace,
-  'SATDK':glob.glob('%s/ksat/*'%workspace), #laura svp
-  'dem':'%s/dem_latlon.tif' % workspace,
-  'acc':'%s/acc_latlon.tif' % workspace,
-  'demns':'%s/demns_latlon.tif' % workspace,
-  'sand':'%s/sand_latlon.tif' % workspace,
-  'clay':'%s/clay_latlon.tif' % workspace,
-  'silt':'%s/silt_latlon.tif' % workspace,
-  'om':'%s/om_latlon.tif' % workspace,
-  'bare30':'%s/bare30_latlon.tif' % workspace,
-  'water30':'%s/water30_latlon.tif' % workspace,
-  'tree30':'%s/tree30_latlon.tif' % workspace,
-  'irrig_land':'%s/irrig_land_latlon.tif' % workspace,
-  'dbedrock':'%s/dbedrock_latlon.tif' % workspace,
-  'lstmean':'%s/lstmean_latlon.tif' % workspace,
-  'lststd':'%s/lststd_latlon.tif' % workspace
-  }
+
+ #Prepare dictionary with paths to properties files
+ if hydroblocks_info['vertical_soil_properties']==True:
+  wbd['files'] = {
+   'WLTSMC':glob.glob('%s/theta1500/*'%workspace), #laura svp
+   'TEXTURE_CLASS':'%s/texture_class_latlon.tif' % workspace,
+   'MAXSMC':glob.glob('%s/thetas/*'%workspace), #laura svp
+   'BB':glob.glob('%s/bb/*'%workspace), #laura svp
+   'DRYSMC':glob.glob('%s/thetar/*'%workspace), #laura svp
+   'QTZ':glob.glob('%s/qtz/*'%workspace), #laura svp
+   'SATDW':glob.glob('%s/dsat/*'%workspace), #laura svp
+   'REFSMC':glob.glob('%s/theta33/*'%workspace), #laura svp
+   'mask':'%s/mask_latlon.tif' % workspace,
+   'SATPSI':glob.glob('%s/psisat/*'%workspace), #laura svp
+   'lc':'%s/lc_latlon.tif' % workspace,
+   'F11':'%s/f11_latlon.tif' % workspace,
+   'SATDK':glob.glob('%s/ksat/*'%workspace), #laura svp
+   'dem':'%s/dem_latlon.tif' % workspace,
+   'acc':'%s/acc_latlon.tif' % workspace,
+   'demns':'%s/demns_latlon.tif' % workspace,
+   'sand':'%s/sand_latlon.tif' % workspace,
+   'clay':'%s/clay_latlon.tif' % workspace,
+   'silt':'%s/silt_latlon.tif' % workspace,
+   'om':'%s/om_latlon.tif' % workspace,
+   'bare30':'%s/bare30_latlon.tif' % workspace,
+   'water30':'%s/water30_latlon.tif' % workspace,
+   'tree30':'%s/tree30_latlon.tif' % workspace,
+   'irrig_land':'%s/irrig_land_latlon.tif' % workspace,
+   'dbedrock':'%s/dbedrock_latlon.tif' % workspace,
+   'lstmean':'%s/lstmean_latlon.tif' % workspace,
+   'lststd':'%s/lststd_latlon.tif' % workspace
+   }
+ else:
+  wbd['files'] = {
+   'WLTSMC':'%s/theta1500_latlon.tif' % workspace,
+   'TEXTURE_CLASS':'%s/texture_class_latlon.tif' % workspace,
+   'MAXSMC':'%s/thetas_latlon.tif' % workspace,
+   'BB':'%s/bb_latlon.tif' % workspace,
+   'DRYSMC':'%s/thetar_latlon.tif' % workspace,
+   'QTZ':'%s/qtz_latlon.tif' % workspace,
+   'SATDW':'%s/dsat_latlon.tif' % workspace,
+   'REFSMC':'%s/theta33_latlon.tif' % workspace,
+   'mask':'%s/mask_latlon.tif' % workspace,
+   'SATPSI':'%s/psisat_latlon.tif' % workspace,
+   'lc':'%s/lc_latlon.tif' % workspace,
+   'F11':'%s/f11_latlon.tif' % workspace,
+   'SATDK':'%s/ksat_latlon.tif' % workspace,
+   'dem':'%s/dem_latlon.tif' % workspace,
+   'acc':'%s/acc_latlon.tif' % workspace,
+   'demns':'%s/demns_latlon.tif' % workspace,
+   'sand':'%s/sand_latlon.tif' % workspace,
+   'clay':'%s/clay_latlon.tif' % workspace,
+   'silt':'%s/silt_latlon.tif' % workspace,
+   'om':'%s/om_latlon.tif' % workspace,
+   'bare30':'%s/bare30_latlon.tif' % workspace,
+   'water30':'%s/water30_latlon.tif' % workspace,
+   'tree30':'%s/tree30_latlon.tif' % workspace,
+   'irrig_land':'%s/irrig_land_latlon.tif' % workspace,
+   'dbedrock':'%s/dbedrock_latlon.tif' % workspace,
+   'lstmean':'%s/lstmean_latlon.tif' % workspace,
+   'lststd':'%s/lststd_latlon.tif' % workspace
+   }
+
  #if hydroblocks_info['water_management']['hwu_agric_flag']:
  #  wbd['files']['irrig_land'] = '%s/irrig_land_latlon.tif' % workspace
  #  wbd['files']['start_growing_season'] = '%s/start_growing_season_latlon.tif' % workspace
@@ -235,12 +260,17 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  #   vars.append(var)
 
  for var in vars:
-  if var in ['slope','area_pct','land_cover','channel','dem','soil_texture_class','ti','carea','area','F11','clay','m','hand','y_aspect','x_aspect','hru','hband']: #laura svp
+  if hydroblocks_info['vertical_soil_properties']==True:
+   if var in ['slope','area_pct','land_cover','channel','dem','soil_texture_class','ti','carea','area','F11','clay','m','hand','y_aspect','x_aspect','hru','hband']: #laura svp
+    grp.createVariable(var,'f4',('hru',))#,zlib=True)
+    grp.variables[var][:] = data['parameters']['hru'][var] #laura svp
+   else: #laura svp
+    grp.createVariable(var,'f4',('hru','nsoil'))#,zlib=True) #laura svp
+    grp.variables[var][:] = data['soil_properties_model']['hru'][var] #laura svp
+  else:
    grp.createVariable(var,'f4',('hru',))#,zlib=True)
-   grp.variables[var][:] = data['parameters']['hru'][var] #laura svp
-  else: #laura svp
-   grp.createVariable(var,'f4',('hru','nsoil'))#,zlib=True) #laura svp
-   grp.variables[var][:] = data['soil_properties_model']['hru'][var] #laura svp
+   grp.variables[var][:] = data['hru'][var]
+
  #if hydroblocks_info['water_management']['hwu_flag']:
  # grp.createVariable('hru_min_dist','f4',('hru','hru'))#,zlib=True)
  # grp.variables['hru_min_dist'][:] = data['hru']['hru_min_dist']
@@ -657,7 +687,119 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,new_hand2,
          basins,basin_clusters,hand,tiles,area_adj,tile_position)
 
-def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,dz_data,dz_model):
+def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj):
+
+ nhru = hydroblocks_info['nhru']
+ #Initialize the arrays
+ vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
+         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
+         'land_cover','soil_texture_class','clay','sand','silt',
+         'm','hand','x_aspect','y_aspect','hru','hband']
+
+ #if hydroblocks_info['water_management']['hwu_agric_flag']:
+ # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
+ #   vars.append(var)
+
+ OUTPUT['hru'] = {}
+ #if hydroblocks_info['water_management']['hwu_flag']: OUTPUT['hru']['hru_min_dist'] = np.zeros((nhru,nhru))
+ for var in vars:
+   OUTPUT['hru'][var] = np.zeros(nhru)
+
+
+ #Metadata
+ for hru in np.arange(nhru):
+  #Set indices
+  idx = np.where(cluster_ids == hru)
+  #Define hru
+  OUTPUT['hru']['hru'][hru] = hru
+  #Define height band id
+  OUTPUT['hru']['hband'][hru] = np.mean(hbands[idx])
+  #Calculate area per hru
+  #OUTPUT['hru']['area'][hru] = metadata['resx']**2*idx[0].size
+  #OUTPUT['hru']['area'][hru] = 26.0**2*idx[0].size #NEED TO FIX WITH DEM
+  OUTPUT['hru']['area'][hru] = np.sum(area_adj[idx])
+  #Calculate area percentage per hru
+  #OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(metadata['resx']**2*mask[mask].size)
+  #OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(26.0**2*mask[mask].size) #NEED TO FIX WITH DEM
+  OUTPUT['hru']['area_pct'][hru] = 100*OUTPUT['hru']['area'][hru]/(np.sum(area_adj[area_adj != -9999]))
+  #Soil properties
+  #for var in ['BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC','QTZ','clay','sand','silt']:
+  for var in ['BB','DRYSMC','F11','MAXSMC','SATPSI','SATDK','SATDW','QTZ','clay','sand','silt']:
+   #print(var,np.unique(covariates[var][idx]))
+   if var in ['SATDK','SATDW']:
+    try:
+     OUTPUT['hru'][var][hru] = stats.mstats.hmean(covariates[var][idx])/3600.0/1000.0 #mm/hr -> m/s
+    except:
+     OUTPUT['hru'][var][hru] = 1.41E-4
+   else:
+    OUTPUT['hru'][var][hru] = np.mean(covariates[var][idx])
+  OUTPUT['hru']['WLTSMC'][hru] = OUTPUT['hru']['MAXSMC'][hru]*(OUTPUT['hru']['SATPSI'][hru]/150)**(1/OUTPUT['hru']['BB'][hru])
+  OUTPUT['hru']['REFSMC'][hru] = OUTPUT['hru']['MAXSMC'][hru]*(OUTPUT['hru']['SATPSI'][hru]/3.3)**(1/OUTPUT['hru']['BB'][hru])
+  #Average Slope
+  OUTPUT['hru']['slope'][hru] = np.nanmean(covariates['slope'][idx])
+  #Topographic index
+  OUTPUT['hru']['ti'][hru] = np.nanmean(covariates['ti'][idx])
+  #DEM
+  OUTPUT['hru']['dem'][hru] = np.nanmean(covariates['dem'][idx])
+  #HAND
+  OUTPUT['hru']['hand'][hru] = np.nanmean(covariates['hand'][idx])
+  #Average Catchment Area
+  OUTPUT['hru']['carea'][hru] = np.nanmean(covariates['carea'][idx])
+  #Channel?
+  #OUTPUT['hru']['channel'][hru] = stats.mode(covariates['channels'][idx])[0]
+  #Average aspect
+  #OUTPUT['hru']['aspect'][hru] = np.arctan(y_aspect/x_aspect)
+  #OUTPUT['hru']['aspect'][hru] = np.arctan(x_aspect/y_aspect)
+  OUTPUT['hru']['x_aspect'][hru] = np.nanmean(covariates['x_aspect'][idx])
+  OUTPUT['hru']['y_aspect'][hru] = np.nanmean(covariates['y_aspect'][idx])
+
+  #Land cover type 
+  tmp = covariates['lc'][idx]
+  tmp = tmp[tmp>=1]
+  if len(tmp) >= 1 :
+   OUTPUT['hru']['land_cover'][hru] = stats.mode(tmp)[0][0]
+  else:
+   OUTPUT['hru']['land_cover'][hru] = 17  # if there is no valid value, set to water #Noemi
+      
+  #Soil texture class
+  OUTPUT['hru']['soil_texture_class'][hru] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
+
+  #Define the estimate for the model parameters
+  OUTPUT['hru']['m'][hru] = np.nanmean(covariates['dbedrock'][idx]) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
+
+  # Water Management Variables
+  '''if hydroblocks_info['water_management']['hwu_agric_flag'] == True:
+   # Irrigation: 1 Irrigated, 2 paddy crop
+   irrig_vec = np.copy(covariates['irrig_land'][idx].flatten())
+   nii = np.nansum( irrig_vec == 1 )
+   npi = np.nansum( irrig_vec == 2 )
+   ttt = np.nansum( irrig_vec >= 0 )
+   iratio = 0
+   if ttt > 0: 
+    iratio = float((nii+npi))/ttt
+    if   iratio >= 0.50 and nii > npi: OUTPUT['hru']['irrig_land'][hru] = 1
+    elif iratio >= 0.50 and nii < npi: OUTPUT['hru']['irrig_land'][hru] = 2
+    else: OUTPUT['hru']['irrig_land'][hru] = 0
+   else: OUTPUT['hru']['irrig_land'][hru] = 0
+ 
+    # Crop Calendar
+   OUTPUT['hru']['start_growing_season'][hru] = int(stats.mode(covariates['start_growing_season'][idx])[0][0])
+   OUTPUT['hru']['end_growing_season'][hru] = int(stats.mode(covariates['end_growing_season'][idx])[0][0])
+  
+  if hydroblocks_info['water_management']['hwu_flag'] == True:
+   #HRU Centroids for water management
+   OUTPUT['hru']['centroid_lons'][hru] = np.nanmean(covariates['lons'][idx])
+   OUTPUT['hru']['centroid_lats'][hru] = np.nanmean(covariates['lats'][idx])
+   #print OUTPUT['hru']['centroid_lons']  
+ #if hydroblocks_info['water_management']['hwu_flag'] == True: 
+ # for hru in np.arange(nhru):
+ #  #HRU distance between the centroids of the hru and all the other hrus 
+ #  OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
+ #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
+   
+ return OUTPUT
+
+def Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,dz_data,dz_model):
 
  nhru = hydroblocks_info['nhru']
  #Initialize the arrays
@@ -666,11 +808,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
          'm','hand','x_aspect','y_aspect','hru','hband'] #laura svp
 
  vars_s = ['BB','DRYSMC','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC',                 'QTZ'] #laura svp
-
- #vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
- #        'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
- #        'land_cover','soil_texture_class','clay','sand','silt',
- #        'm','hand','x_aspect','y_aspect','hru','hband']
 
  #if hydroblocks_info['water_management']['hwu_agric_flag']:
  # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -684,6 +821,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  OUTPUT['soil_properties_data']['hru'] = {} #laura svp
 
  #if hydroblocks_info['water_management']['hwu_flag']: OUTPUT['hru']['hru_min_dist'] = np.zeros((nhru,nhru))
+
  for var in vars:
    OUTPUT['parameters']['hru'][var] = np.zeros(nhru)
 
@@ -762,69 +900,6 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
    OUTPUT['soil_properties_data']['hru']['REFSMC'][hru,i] = OUTPUT['soil_properties_data']['hru']['MAXSMC'][hru,i]*(OUTPUT['soil_properties_data']['hru']['SATPSI'][hru,i]/3.3)**(1/OUTPUT['soil_properties_data']['hru']['BB'][hru,i])
    i=i+1
 
-  #Average Slope
-  #OUTPUT['hru']['slope'][hru] = np.nanmean(covariates['slope'][idx])
-  #Topographic index
-  #OUTPUT['hru']['ti'][hru] = np.nanmean(covariates['ti'][idx])
-  #DEM
-  #OUTPUT['hru']['dem'][hru] = np.nanmean(covariates['dem'][idx])
-  #HAND
-  #OUTPUT['hru']['hand'][hru] = np.nanmean(covariates['hand'][idx])
-  #Average Catchment Area
-  #OUTPUT['hru']['carea'][hru] = np.nanmean(covariates['carea'][idx])
-  #Channel?
-  #OUTPUT['hru']['channel'][hru] = stats.mode(covariates['channels'][idx])[0]
-  #Average aspect
-  #OUTPUT['hru']['aspect'][hru] = np.arctan(y_aspect/x_aspect)
-  #OUTPUT['hru']['aspect'][hru] = np.arctan(x_aspect/y_aspect)
-  #OUTPUT['hru']['x_aspect'][hru] = np.nanmean(covariates['x_aspect'][idx])
-  #OUTPUT['hru']['y_aspect'][hru] = np.nanmean(covariates['y_aspect'][idx])
-
-  #Land cover type 
-  #tmp = covariates['lc'][idx]
-  #tmp = tmp[tmp>=1]
-  #if len(tmp) >= 1 :
-   #OUTPUT['hru']['land_cover'][hru] = stats.mode(tmp)[0][0]
-  #else:
-   #OUTPUT['hru']['land_cover'][hru] = 17  # if there is no valid value, set to water #Noemi
-      
-  #Soil texture class
-  #OUTPUT['hru']['soil_texture_class'][hru] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
-
-  #Define the estimate for the model parameters
-  #OUTPUT['hru']['m'][hru] = np.nanmean(covariates['dbedrock'][idx]) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
-
-  # Water Management Variables
-  '''if hydroblocks_info['water_management']['hwu_agric_flag'] == True:
-   # Irrigation: 1 Irrigated, 2 paddy crop
-   irrig_vec = np.copy(covariates['irrig_land'][idx].flatten())
-   nii = np.nansum( irrig_vec == 1 )
-   npi = np.nansum( irrig_vec == 2 )
-   ttt = np.nansum( irrig_vec >= 0 )
-   iratio = 0
-   if ttt > 0: 
-    iratio = float((nii+npi))/ttt
-    if   iratio >= 0.50 and nii > npi: OUTPUT['hru']['irrig_land'][hru] = 1
-    elif iratio >= 0.50 and nii < npi: OUTPUT['hru']['irrig_land'][hru] = 2
-    else: OUTPUT['hru']['irrig_land'][hru] = 0
-   else: OUTPUT['hru']['irrig_land'][hru] = 0
- 
-    # Crop Calendar
-   OUTPUT['hru']['start_growing_season'][hru] = int(stats.mode(covariates['start_growing_season'][idx])[0][0])
-   OUTPUT['hru']['end_growing_season'][hru] = int(stats.mode(covariates['end_growing_season'][idx])[0][0])
-  
-  if hydroblocks_info['water_management']['hwu_flag'] == True:
-   #HRU Centroids for water management
-   OUTPUT['hru']['centroid_lons'][hru] = np.nanmean(covariates['lons'][idx])
-   OUTPUT['hru']['centroid_lats'][hru] = np.nanmean(covariates['lats'][idx])
-   #print OUTPUT['hru']['centroid_lons']  
-
- #if hydroblocks_info['water_management']['hwu_flag'] == True: 
- # for hru in np.arange(nhru):
- #  #HRU distance between the centroids of the hru and all the other hrus 
- #  OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
- #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
-
  #Sort data depths and soil properties for vertical interpolation laura svp 
  for var in vars_s:
   ind=np.argsort(dz_data[var])
@@ -856,6 +931,38 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
    elif np.sum(fp==-9999.0)>0 and var=='QTZ':
     fp[fp==-9999.0]=0.25
    OUTPUT['soil_properties_model']['hru'][var][hru,:]=np.interp(x,xp,fp,left=0)
+
+
+  # Water Management Variables
+  '''if hydroblocks_info['water_management']['hwu_agric_flag'] == True:
+   # Irrigation: 1 Irrigated, 2 paddy crop
+   irrig_vec = np.copy(covariates['irrig_land'][idx].flatten())
+   nii = np.nansum( irrig_vec == 1 )
+   npi = np.nansum( irrig_vec == 2 )
+   ttt = np.nansum( irrig_vec >= 0 )
+   iratio = 0
+   if ttt > 0: 
+    iratio = float((nii+npi))/ttt
+    if   iratio >= 0.50 and nii > npi: OUTPUT['hru']['irrig_land'][hru] = 1
+    elif iratio >= 0.50 and nii < npi: OUTPUT['hru']['irrig_land'][hru] = 2
+    else: OUTPUT['hru']['irrig_land'][hru] = 0
+   else: OUTPUT['hru']['irrig_land'][hru] = 0
+ 
+    # Crop Calendar
+   OUTPUT['hru']['start_growing_season'][hru] = int(stats.mode(covariates['start_growing_season'][idx])[0][0])
+   OUTPUT['hru']['end_growing_season'][hru] = int(stats.mode(covariates['end_growing_season'][idx])[0][0])
+  
+  if hydroblocks_info['water_management']['hwu_flag'] == True:
+   #HRU Centroids for water management
+   OUTPUT['hru']['centroid_lons'][hru] = np.nanmean(covariates['lons'][idx])
+   OUTPUT['hru']['centroid_lats'][hru] = np.nanmean(covariates['lats'][idx])
+   #print OUTPUT['hru']['centroid_lons']  
+
+ #if hydroblocks_info['water_management']['hwu_flag'] == True: 
+ # for hru in np.arange(nhru):
+ #  #HRU distance between the centroids of the hru and all the other hrus 
+ #  OUTPUT['hru']['hru_min_dist'][hru,:] = mgmt_funcs.calculate_min_distance(hru, nhru, cluster_ids, covariates['lats'], covariates['lons'], OUTPUT['hru']['centroid_lats'], OUTPUT['hru']['centroid_lons'])
+ #  OUTPUT['hru']['hru_min_dist'][hru,hru] = 0.0'''
 
  return OUTPUT
 
@@ -950,6 +1057,85 @@ def Calculate_HRU_Connections_Matrix_HMC_workhorse(cluster_ids,nhru,dx,tile_posi
  return (hdst,horg)
 
 def Create_and_Curate_Covariates(wbd,hydroblocks_info):
+
+ covariates = {}
+ #Read in and curate all the covariates
+ for file in wbd['files']:
+  if os.path.isfile(wbd['files'][file]): 
+   covariates[file] = gdal_tools.read_data(wbd['files'][file]).data
+
+ # check if lc is a covariates, and disagregate it in classes
+ if 'lc' in hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']:
+  for lc in np.unique(covariates['lc'][covariates['mask'].astype(np.bool)]):
+   if lc >= 0 :
+    vnam = u'lc_%i' % lc
+    masklc = (covariates['lc'] == lc)
+    covariates[vnam] = np.zeros(covariates['lc'].shape)
+    covariates[vnam][masklc] = 1.0
+    hydroblocks_info['covariates'][vnam] = 'n'
+    
+ #Create lat/lon grids
+ lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
+ lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['dem'].shape[1])
+
+ #Need to fix so that it doesn't suck up all the clustering:
+ lats, lons = np.meshgrid(lats, lons)
+ covariates['lats'] = lats.T
+ covariates['lons'] = lons.T
+
+ #Define the mask
+ mask = np.copy(covariates['mask']).astype(np.int64)
+ mask_all = np.copy(mask)
+ mask[mask != hydroblocks_info['cid']] = 0
+ mask = mask.astype(np.bool)
+ 
+ #Set all nans to the mean
+ for var in covariates:
+  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
+  #covariates[var][mask <= 0] = -9999.0
+  mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0) 
+  mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
+  covariates[var][mask0] = -9999.0# stats.mode(covariates[var][mask1])[0][0]
+
+ #Set everything that is -9999 to the mean
+ for var in covariates:
+
+  m2 = ( mask > 0 ) & (covariates[var] != -9999.0)
+  missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask))
+  if missing_ratio > 0.99 : 
+   print("Warning: Covariate %s in catchment %s has %.2f %% of nan's" % (var,hydroblocks_info['cid'],100*missing_ratio)) # Noemi insert
+   if var == 'lc': 
+    mlc = (covariates[var] == -9999) & mask
+    covariates[var][mlc] = 17  # Water
+   if var in ['dem','fdir','sand','clay','silt','TEXTURE_CLASS','dbedrock']:
+    exit('Error_clustering: %s_full_of_nans %s' % (var,hydroblocks_info['cid']))
+   #else: sys.stderr.write("Error_clustering: variable %s has %.2f %% of nan's" % (var,100*missing_ratio))
+
+  #print var
+  '''if var not in ['mask']:
+   if var in ['fdir','nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30','start_growing_season','end_growing_season']: 
+    covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest')  
+   else:
+    #covariates[var] = spatial_imputation(covariates[var],-9999.0,'nearest') #faster
+    covariates[var] = spatial_imputation(covariates[var],-9999.0,'linear')'''
+  if var not in ['mask',]:
+   if var in ['nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30','start_growing_season','end_growing_season']: 
+    covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]
+   else:
+    covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
+
+ #Set everything outside of the mask to -9999
+ for var in covariates:
+  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
+  if var == 'dem':continue 
+  covariates[var][mask <= 0] = -9999.0
+
+ #Add the mask_all to the covariates
+ covariates['mask_all'] = np.copy(mask_all)
+ 
+ return (covariates,mask)
+
+def Create_and_Curate_Covariates_svp(wbd,hydroblocks_info):
 
  covariates = {}
  depths={} #laura svp
@@ -1099,8 +1285,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  resx = 26.0#670.0**0.5#26.0
 
  print("Creating and curating the covariates",flush=True)
- (covariates,mask,z_data)=Create_and_Curate_Covariates(wbd,hydroblocks_info)
- 
+ if hydroblocks_info['vertical_soil_properties']==True: #laura svp
+  (covariates,mask,z_data)=Create_and_Curate_Covariates_svp(wbd,hydroblocks_info)
+ else:
+  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydroblocks_info)
  #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
  print("Computing the HRUs",flush=True)
  (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org,hbands,area_adj,tile_position) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx,input_dir)
@@ -1158,7 +1346,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
    dz2.append(elt)
  z_model=np.array(dz2)*100
 
- OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,z_data,z_model) #laura svp
+ if hydroblocks_info['vertical_soil_properties']==True:
+  OUTPUT = Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,z_data,z_model) #laura svp
+ else:
+  OUTPUT = Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj)
 
  #Add the new number of clusters
  OUTPUT['nhru'] = nhru

@@ -34,11 +34,12 @@ class HydroBlocks:
 
   #Initialize Noah-MP
   #print("Initializing Noah-MP",flush=True)
-  self.initialize_noahmp()
+  self.initialize_noahmp(info)
   self.tsno=np.zeros((self.noahmp.ncells,self.noahmp.nsnow),order='F').astype(np.float32) #Initial condition TSNO Laura
   #Initialize subsurface module
   #print("Initializing subsurface module",flush=True)
-  self.initialize_subsurface()
+  vsp_flag=info["vertical_soil_properties"] #laura svp
+  self.initialize_subsurface(vsp_flag) #laura svp
 
   #Initialize human water use module
   #print("Initializing Human Water Management",flush=True)
@@ -189,7 +190,6 @@ class HydroBlocks:
   return
  
  def general_information(self,info):
-
   #Parallel information
   self.MPI  = info['MPI']
 
@@ -247,7 +247,7 @@ class HydroBlocks:
 
   return
 
- def initialize_noahmp(self,):
+ def initialize_noahmp(self,info):
 
   #Initialize noahmp
   from model.pyNoahMP import NoahMP
@@ -483,26 +483,29 @@ class HydroBlocks:
   self.noahmp.clay_pct  = self.input_fp.groups['parameters'].variables['clay'][:] # Noemi
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
-  for isoil in range(self.noahmp.nsoil):
-   self.noahmp.bexp[:,isoil] =self.input_fp.groups['parameters'].variables['BB'][:,isoil] #laura svp
-   self.noahmp.smcdry[:,isoil] =self.input_fp.groups['parameters'].variables['DRYSMC'][:,isoil] #laura svp
-   self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['parameters'].variables['WLTSMC'][:,isoil] #laura svp
-   self.noahmp.smcref[:,isoil] =self.input_fp.groups['parameters'].variables['REFSMC'][:,isoil] #laura svp
-   self.noahmp.smcmax[:,isoil] =self.input_fp.groups['parameters'].variables['MAXSMC'][:,isoil] #laura svp
-   self.noahmp.dksat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDK'][:,isoil] #laura svp
-   self.noahmp.dwsat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDW'][:,isoil] #laura svp
-   self.noahmp.psisat[:,isoil] =self.input_fp.groups['parameters'].variables['SATPSI'][:,isoil] #laura svp
-   self.noahmp.quartz[:,isoil] =self.input_fp.groups['parameters'].variables['QTZ'][:,isoil] #laura svp
-
-   #self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
-   #self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-   #self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
-   #self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-   #self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-   #self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
-   #self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
-   #self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-   #self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
+  print(info['vertical_soil_properties'])
+  if info['vertical_soil_properties']==True:
+   for isoil in range(self.noahmp.nsoil):
+    self.noahmp.bexp[:,isoil] =self.input_fp.groups['parameters'].variables['BB'][:,isoil] #laura svp
+    self.noahmp.smcdry[:,isoil] =self.input_fp.groups['parameters'].variables['DRYSMC'][:,isoil] #laura svp
+    self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['parameters'].variables['WLTSMC'][:,isoil] #laura svp
+    self.noahmp.smcref[:,isoil] =self.input_fp.groups['parameters'].variables['REFSMC'][:,isoil] #laura svp
+    self.noahmp.smcmax[:,isoil] =self.input_fp.groups['parameters'].variables['MAXSMC'][:,isoil] #laura svp
+    self.noahmp.dksat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDK'][:,isoil] #laura svp
+    self.noahmp.dwsat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDW'][:,isoil] #laura svp
+    self.noahmp.psisat[:,isoil] =self.input_fp.groups['parameters'].variables['SATPSI'][:,isoil] #laura svp
+    self.noahmp.quartz[:,isoil] =self.input_fp.groups['parameters'].variables['QTZ'][:,isoil] #laura svp
+  else:
+   for ilayer in range(self.noahmp.nsoil):
+    self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
+    self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
+    self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
+    self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
+    self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
+    self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
+    self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
+    self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
+    self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
 
   #Set lat/lon (declination calculation)
   self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
@@ -709,18 +712,18 @@ class HydroBlocks:
    
   return
 
- def initialize_subsurface(self,):
+ def initialize_subsurface(self,vsp_flag):
 
-  if self.subsurface_module == 'richards':self.initialize_richards()
+  if self.subsurface_module == 'richards':self.initialize_richards(vsp_flag)
 
   return
 
- def initialize_richards(self,):
+ def initialize_richards(self,vsp_flag):
    
   from model.pyRichards import richards
   
   #Initialize richards
-  self.richards = richards.richards(self.nhru,self.nsoil)
+  self.richards = richards.richards(self.nhru,self.nsoil,vsp_flag) #laura svp
 
   #Set other parameters
   self.richards.dx = self.dx
@@ -762,6 +765,9 @@ class HydroBlocks:
 
  def run(self,info):
 
+  #VSP flag laura
+  vsp_flag=info['vertical_soil_properties']  
+
   #Run the model
   date = self.idate
   tic = time.time()
@@ -787,7 +793,7 @@ class HydroBlocks:
 
    #Update model
    tic0 = time.time()
-   self.update(date)
+   self.update(date,vsp_flag)
    #if i>1: self.update(date)
 
    #print('update model',time.time() - tic0,flush=True)
@@ -871,7 +877,7 @@ class HydroBlocks:
 
   return
 
- def update(self,date):
+ def update(self,date,vsp_flag):
 
   if self.routing_surface_coupling == True:
    self.noahmp.sfcheadrt[:] = self.routing.fct_infiltrate*self.routing.hru_inundation[:]*1000 #mm
@@ -881,7 +887,7 @@ class HydroBlocks:
   import time
   init=time.perf_counter()
   # Update subsurface
-  self.update_subsurface()
+  self.update_subsurface(vsp_flag)
   end=time.perf_counter()
   print('TIME: ',end-init)
   
@@ -965,27 +971,27 @@ class HydroBlocks:
 
   return
 
- def update_subsurface(self,):
+ def update_subsurface(self,vsp_flag):
 
   self.noahmp.dzwt[:] = 0.0
 
   if self.subsurface_module == 'richards':
-
    #Assign noahmp variables to subsurface module
-   self.richards.theta[:]=self.noahmp.smois[:] #laura svp
-   self.richards.thetar[:]=self.noahmp.smcdry[:] #laura svp
-   self.richards.thetas[:] = self.noahmp.smcmax[:] #laura svp
-   self.richards.b[:] = self.noahmp.bexp[:] #laura svp
-   self.richards.satpsi[:] = self.noahmp.psisat[:] #laura svp
-   self.richards.ksat[:] = self.noahmp.dksat[:] #laura svp
-   
-   #self.richards.theta[:] = self.noahmp.smois[:]
-   #self.richards.thetar[:] = self.noahmp.smcdry[:,0]
-   #self.richards.thetas[:] = self.noahmp.smcmax[:,0]
-   #self.richards.b[:] = self.noahmp.bexp[:,0]
-   #self.richards.satpsi[:] = self.noahmp.psisat[:,0]
-   #self.richards.ksat[:] = self.noahmp.dksat[:,0]
+   self.richards.theta[:]=self.noahmp.smois[:]
    self.richards.dz[:] = self.noahmp.sldpth[:]
+
+   if vsp_flag==True:
+    self.richards.thetar[:]=self.noahmp.smcdry[:] #laura svp
+    self.richards.thetas[:] = self.noahmp.smcmax[:] #laura svp
+    self.richards.b[:] = self.noahmp.bexp[:] #laura svp
+    self.richards.satpsi[:] = self.noahmp.psisat[:] #laura svp
+    self.richards.ksat[:] = self.noahmp.dksat[:] #laura svp
+   else:
+    self.richards.thetar[:] = self.noahmp.smcdry[:,0]
+    self.richards.thetas[:] = self.noahmp.smcmax[:,0]
+    self.richards.b[:] = self.noahmp.bexp[:,0]
+    self.richards.satpsi[:] = self.noahmp.psisat[:,0]
+    self.richards.ksat[:] = self.noahmp.dksat[:,0]
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
@@ -997,7 +1003,7 @@ class HydroBlocks:
      self.richards.dem1 = self.richards.dem
 
    #self.richards.update()
-   self.richards.update_numba()
+   self.richards.update_numba(vsp_flag) #laura svp
 
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
