@@ -381,7 +381,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Compute the basins
  print("Defining basins",flush=True)
- basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
+ basins = terrain_tools.ttf.delineate_basins(channels_wob,m2,fdir) #laura to avoid channels with a single cell
  basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
  
  #Compute channel properties
