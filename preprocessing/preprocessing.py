@@ -77,7 +77,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  if hydroblocks_info['vertical_soil_properties']==True:
   wbd['files'] = {
    'WLTSMC':glob.glob('%s/theta1500/*'%workspace), #laura svp
-   'TEXTURE_CLASS':'%s/texture_class_latlon.tif' % workspace,
+   'TEXTURE_CLASS':'%s/texture_class/texture_class_latlon_2.5cm.tif' % workspace,
    'MAXSMC':glob.glob('%s/thetas/*'%workspace), #laura svp
    'BB':glob.glob('%s/bb/*'%workspace), #laura svp
    'DRYSMC':glob.glob('%s/thetar/*'%workspace), #laura svp
@@ -92,10 +92,10 @@ def Prepare_Model_Input_Data(hydroblocks_info):
    'dem':'%s/dem_latlon.tif' % workspace,
    'acc':'%s/acc_latlon.tif' % workspace,
    'demns':'%s/demns_latlon.tif' % workspace,
-   'sand':'%s/sand_latlon.tif' % workspace,
-   'clay':'%s/clay_latlon.tif' % workspace,
-   'silt':'%s/silt_latlon.tif' % workspace,
-   'om':'%s/om_latlon.tif' % workspace,
+   'sand':'%s/sand/sand_latlon_2.5cm.tif' % workspace,
+   'clay':'%s/clay/clay_latlon_2.5cm.tif' % workspace,
+   'silt':'%s/silt/silt_latlon_2.5cm.tif' % workspace,
+   'om':'%s/om/om_latlon_2.5cm.tif' % workspace,
    'bare30':'%s/bare30_latlon.tif' % workspace,
    'water30':'%s/water30_latlon.tif' % workspace,
    'tree30':'%s/tree30_latlon.tif' % workspace,
