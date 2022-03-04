@@ -23,6 +23,7 @@ from scipy.interpolate import griddata
 import copy
 import collections
 import shapely.geometry
+import rasterio
 
 #dir = os.path.dirname(os.path.abspath(__file__))
 #sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
@@ -1446,7 +1447,14 @@ def Postprocess_Input(rdir,edir,cids):
   #cid
   ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
   ofile = '%s/cids/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  fpi = rasterio.open(ifile)
+  profile = fpi.profile
+  data = fpi.read(1)
+  data[data!=cid] = -9999.0
+  fpo = rasterio.open(ofile,'w',**profile)
+  fpo.write(data,1)
+  fpi.close()
+  fpo.close()
   #cid
   ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
   ofile = '%s/cids_org/%d.tif' % (sdir,cid)
