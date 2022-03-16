@@ -236,7 +236,7 @@ class HydroBlocks:
   #define period to extract
   idate = nc.date2num(self.idate,units=var.units,calendar=var.calendar)
   fdate = nc.date2num(self.fdate,units=var.units,calendar=var.calendar)
-  idx  = np.where((ndates >= idate) & (ndates < fdate))[0]
+  idx  = np.where((ndates >= idate) & (ndates <= fdate))[0]
   self.meteodata = {}
   for var in ['lwdown','swdown','psurf','wind','tair','spfh','precip']:
    self.meteodata[var] = self.input_fp['meteorology'][var][idx,:]
@@ -426,8 +426,10 @@ class HydroBlocks:
   self.noahmp.tmn[:] = self.metadata['noahmp_ics']['Tbot']#285.0
   self.noahmp.ht[:] = 218.0
   self.noahmp.lai[:] = 2.0
-  self.noahmp.xlat[:] = self.input_fp.groups['metadata'].latitude
-  self.noahmp.xlon[:] = self.input_fp.groups['metadata'].longitude
+  self.noahmp.xlat[:] = self.input_fp.groups['parameters'].variables['lats'][:]
+  #self.noahmp.xlat[:] = self.input_fp.groups['metadata'].latitude
+  self.noahmp.xlon[:] = self.input_fp.groups['parameters'].variables['lons'][:]
+  #self.noahmp.xlon[:] = self.input_fp.groups['metadata'].longitude
   self.noahmp.wtddt = 30.0
   self.noahmp.stepwtd = np.max([np.round(self.noahmp.wtddt*60.0/self.noahmp.dt),1])
   self.noahmp.runsf[:] = 0.0
@@ -495,8 +497,8 @@ class HydroBlocks:
    self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
 
   #Set lat/lon (declination calculation)
-  self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
-  self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
+  #self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
+  #self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
 
   #Define the parameters
   noah = self.noahmp
@@ -762,13 +764,14 @@ class HydroBlocks:
    i=i+1 
    #Update input data
    tic0 = time.time()
-   self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
+   #self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
+   #if i>1:self.update_input(date-datetime.timedelta(hours=1))
    self.update_input(date)
-   if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
-    #self.noahmp.tah=self.noahmp.t_ml
-    #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
-    self.noahmp.cm[:] = 0.1
-    self.noahmp.ch[:] = 0.1
+   #if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
+   # #self.noahmp.tah=self.noahmp.t_ml
+   # #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
+   # self.noahmp.cm[:] = 0.1
+   # self.noahmp.ch[:] = 0.1
    #Save the original precip
    precip = np.copy(self.noahmp.prcp)
 
@@ -777,8 +780,21 @@ class HydroBlocks:
 
    #Update model
    tic0 = time.time()
+   #self.update(date)
    self.update(date)
    #if i>1: self.update(date)
+
+   '''#Update input data
+   tic0 = time.time()
+   self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
+   self.update_input(date)
+   if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
+    #self.noahmp.tah=self.noahmp.t_ml
+    #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
+    self.noahmp.cm[:] = 0.1
+    self.noahmp.ch[:] = 0.1
+   #Save the original precip
+   precip = np.copy(self.noahmp.prcp)'''
 
    #print('update model',time.time() - tic0,flush=True)
    
@@ -827,20 +843,29 @@ class HydroBlocks:
 
   self.noahmp.itime = self.itime
   dt = self.dt
-  self.noahmp.nowdate = assign_string(19,date.strftime('%Y-%m-%d_%H:%M:%S'))
-  self.noahmp.julian = (date - datetime.datetime(date.year,1,1,0)).days
-  self.noahmp.year = date.year
+  date1 = date - self.dt_timedelta
+  self.noahmp.nowdate = assign_string(19,date1.strftime('%Y-%m-%d_%H:%M:%S'))
+  self.noahmp.julian = (date1 - datetime.datetime(date1.year,1,1,0)).days
+  self.noahmp.year = date1.year
 
   #Update meteorology
   i = int(np.floor(self.itime/self.nt_timestep))
+  #it1 = i-1
+  #it2 = i
   self.noahmp.lwdn[:] = self.meteodata['lwdown'][i,:] #W/m2
+  #self.noahmp.lwdn[:] = (self.meteodata['lwdown'][it1,:]+self.meteodata['lwdown'][it2,:])/2 #W/m2
   self.noahmp.swdn[:] = self.meteodata['swdown'][i,:] #W/m2
+  #self.noahmp.swdn[:] = (self.meteodata['swdown'][it1,:]+self.meteodata['swdown'][it2,:])/2 #W/m2
   self.noahmp.psfc[:] = self.meteodata['psurf'][i,:] #Pa
+  #self.noahmp.psfc[:] = (self.meteodata['psurf'][it1,:]+self.meteodata['psurf'][it2,:])/2 #Pa
   self.noahmp.p_ml[:] = self.noahmp.psfc[:] #Pa
   self.noahmp.u_ml[:] = self.meteodata['wind'][i,:] #m/s
+  #self.noahmp.u_ml[:] = (self.meteodata['wind'][it1,:]+self.meteodata['wind'][it2,:])/2 #m/s
   self.noahmp.v_ml[:] = 0.0 #m/s
   self.noahmp.t_ml[:] = self.meteodata['tair'][i,:] #K
+  #self.noahmp.t_ml[:] = (self.meteodata['tair'][it1,:]+self.meteodata['tair'][it2,:])/2 #K
   self.noahmp.q_ml[:] = self.meteodata['spfh'][i,:] #Kg/Kg
+  #self.noahmp.q_ml[:] = (self.meteodata['spfh'][it1,:]+self.meteodata['spfh'][it2,:])/2 #Kg/Kg
   self.noahmp.qsfc1d[:] = self.noahmp.q_ml[:] #Kg/Kg
   self.noahmp.prcp[:] = self.meteodata['precip'][i,:] #mm/s
 
@@ -1076,7 +1101,12 @@ class HydroBlocks:
   tmp['udrunoff'] = np.copy(NOAH.udrunoff)
   tmp['sfcrunoff'] = np.copy(NOAH.sfcrunoff)
   tmp['runoff'] = NOAH.dt*(np.copy(NOAH.runsf)+np.copy(NOAH.runsb)) #mm 
-  tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #mm
+  tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #W/m2
+  tmp['swdn'] = np.copy(NOAH.swdn) #Pa
+  tmp['psfc'] = np.copy(NOAH.psfc) #Pa
+  tmp['u_ml'] = np.copy(NOAH.u_ml) #m/s
+  tmp['t_ml'] = np.copy(NOAH.t_ml) #K
+  tmp['q_ml'] = np.copy(NOAH.q_ml) #Kg/Kg
   tmp['trad'] = np.copy(NOAH.trad) #K
   tmp['stc'] = np.copy(NOAH.stc[:,3]) #K
   tmp['tv'] = np.copy(NOAH.tv) #K
@@ -1354,6 +1384,10 @@ class HydroBlocks:
              'qsurface':{'description':'Surface runoff','units':'mm/s','dims':('time','hru',),'precision':4},
              'runoff':{'description':'Total runoff','units':'mm/s','dims':('time','hru',),'precision':4},
              'prcp':{'description':'Precipitation','units':'mm/s','dims':('time','hru',),'precision':4},
+             'psfc':{'description':'psfc','units':'Pa','dims':('time','hru',),'precision':4},
+             'u_ml':{'description':'u_ml','units':'m/s','dims':('time','hru',),'precision':4},
+             't_ml':{'description':'t_ml','units':'K','dims':('time','hru',),'precision':4},
+             'q_ml':{'description':'q_ml','units':'Kg/Kg','dims':('time','hru',),'precision':4},
              'smc':{'description':'Soil water content','units':'m3/m3','dims':('time','hru','soil'),'precision':3},
              'swd':{'description':'Soil water deficit','units':'mm','dims':('time','hru',),'precision':4},
              'sstorage':{'description':'Surface storage','units':'mm','dims':('time','hru',),'precision':4},

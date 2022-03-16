@@ -221,7 +221,8 @@ def Prepare_Model_Input_Data(hydroblocks_info):
         'dem','soil_texture_class','ti','carea','area',
         'BB','F11','SATPSI','SATDW','QTZ','clay',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
-        'm','hand','y_aspect','x_aspect','hru','hband']
+        'm','hand','y_aspect','x_aspect','hru','hband',
+        'lats','lons']
 
  #if hydroblocks_info['water_management']['hwu_agric_flag']:
  # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -654,7 +655,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
          'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
          'land_cover','soil_texture_class','clay','sand','silt',
-         'm','hand','x_aspect','y_aspect','hru','hband']
+         'm','hand','x_aspect','y_aspect','hru','hband','lats','lons']
 
  #if hydroblocks_info['water_management']['hwu_agric_flag']:
  # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
@@ -712,6 +713,9 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   #OUTPUT['hru']['aspect'][hru] = np.arctan(x_aspect/y_aspect)
   OUTPUT['hru']['x_aspect'][hru] = np.nanmean(covariates['x_aspect'][idx])
   OUTPUT['hru']['y_aspect'][hru] = np.nanmean(covariates['y_aspect'][idx])
+  #Average geographic coordinates
+  OUTPUT['hru']['lats'][hru] = np.nanmean(covariates['lats'][idx])
+  OUTPUT['hru']['lons'][hru] = np.nanmean(covariates['lons'][idx])
 
   #Land cover type 
   tmp = covariates['lc'][idx]

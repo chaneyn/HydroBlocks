@@ -719,7 +719,7 @@ CONTAINS
 !       parameters%refkdt = REFKDT_2D(I,J)         ! Soil Infiltration Parameter
 
        CALL TRANSFER_MP_PARAMETERS(VEGTYP,SOILTYP,SLOPETYP,SOILCOLOR,CROPTYPE,parameters)
-       
+
        if(iopt_soil == 3 .and. .not. parameters%urban_flag) then
          
 	sand = 0.01 * soilcomp(i,1:4,j)
@@ -1001,17 +1001,17 @@ CONTAINS
              SAGXY    (I,J)                = SAG
              RSSUNXY  (I,J)                = RSSUN
              RSSHAXY  (I,J)                = RSSHA
-             LAISUN                        = MAX(LAISUN, 0.0)
-             LAISHA                        = MAX(LAISHA, 0.0)
-             RB                            = MAX(RB, 0.0)
+             !LAISUN                        = MAX(LAISUN, 0.0)
+             !LAISHA                        = MAX(LAISHA, 0.0)
+             !RB                            = MAX(RB, 0.0)
 ! New Calculation of total Canopy/Stomatal Conductance Based on Bonan et al. (2011) 
 ! -- Inverse of Canopy Resistance (below)
-             IF(RSSUN .le. 0.0 .or. RSSHA .le. 0.0 .or. LAISUN .eq. 0.0 .or. LAISHA .eq. 0.0) THEN
-                RS    (I,J)                = 0.0
-             ELSE
-                RS    (I,J)                = ((1.0/(RSSUN+RB)*LAISUN) + ((1.0/(RSSHA+RB))*LAISHA))
-                RS    (I,J)                = 1.0/RS(I,J) !Resistance
-             ENDIF
+             !IF(RSSUN .le. 0.0 .or. RSSHA .le. 0.0 .or. LAISUN .eq. 0.0 .or. LAISHA .eq. 0.0) THEN
+             !   RS    (I,J)                = 0.0
+             !ELSE
+             !   RS    (I,J)                = ((1.0/(RSSUN+RB)*LAISUN) + ((1.0/(RSSHA+RB))*LAISHA))
+             !   RS    (I,J)                = 1.0/RS(I,J) !Resistance
+             !ENDIF
              BGAPXY   (I,J)                = BGAP
              WGAPXY   (I,J)                = WGAP
              TGVXY    (I,J)                = TGV
@@ -1237,6 +1237,7 @@ SUBROUTINE TRANSFER_MP_PARAMETERS(VEGTYPE,SOILTYPE,SLOPETYPE,SOILCOLOR,CROPTYPE,
    parameters%FSATMX     =      FSATMX_TABLE
    parameters%Z0SNO      =       Z0SNO_TABLE
    parameters%SSI        =         SSI_TABLE
+   parameters%SNOW_RET_FAC =  SNOW_RET_FAC_TABLE
    parameters%SWEMX      =       SWEMX_TABLE
    parameters%TAU0         =      TAU0_TABLE
    parameters%GRAIN_GROWTH = GRAIN_GROWTH_TABLE
