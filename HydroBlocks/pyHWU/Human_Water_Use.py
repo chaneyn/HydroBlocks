@@ -5,7 +5,7 @@ from scipy.sparse import csc_matrix, csr_matrix
 import sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))#+'/pyHWU/')
 import management_funcs as mgmt_funcs
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 
 class Human_Water_Use:
@@ -53,18 +53,17 @@ class Human_Water_Use:
   # Calc topographic index
   self.beta = HB.input_fp.groups['parameters'].variables['slope'][:] #Noemi
   m = HB.input_fp.groups['parameters'].variables['m'][:] #Depth to bedrock #Noemi
-  pct = HB.input_fp.groups['parameters'].variables['area_pct'][:]/100.0
-  af=10 #anisotropic factor
-  T0 = af*HB.input_fp.groups['parameters'].variables['SATDK'][:]*m
-  self.sti = HB.input_fp.groups['parameters'].variables['ti'][:] #Noemi
-  self.sti = self.sti -(np.log(T0)-np.sum(pct*np.log(T0)))
-  self.dem = HB.input_fp.groups['parameters'].variables['dem'][:]
+  #pct = HB.input_fp.groups['parameters'].variables['area_pct'][:]/100.0
+  #af=10 #anisotropic factor
+  #T0 = af*HB.input_fp.groups['parameters'].variables['SATDK'][:]*m
+  #self.sti = HB.input_fp.groups['parameters'].variables['ti'][:] #Noemi
+  #self.sti = self.sti -(np.log(T0)-np.sum(pct*np.log(T0)))
+  self.dem = HB.input_fp.groups['parameters'].variables['dem'][:] 
  
- 
+
   # GROUNDWATER supply variables
   if self.hwu_gw_flag == True:
-   # Well_depht 
-   # Correct well_depht for shallow soils and add 20% buffer. Well depth = 80% of bedrock depth
+   # Well_depht : Correct well_depht for shallow soils and add 20% buffer. Well depth = 80% of bedrock depth
    self.well_depth = np.maximum(-1.0*m*0.8,NOAH.zsoil[:,-1]*0.8)
    self.well_layer = np.argmin(abs(NOAH.zsoil-self.well_depth[:,np.newaxis]))
    self.supply_gw = np.zeros(ncells,dtype=np.float64)
@@ -83,8 +82,9 @@ class Human_Water_Use:
    self.supply_sf = np.zeros(ncells,dtype=np.float64)
    self.alloc_sf  = np.zeros(ncells,dtype=np.float64)
 
-   # Surface water availability where ti > 10 and slope < 0.01 (surface water only at the river streams -- update this later)
-   cond1 = ( self.sti >= 10.0 ) & ( self.beta < 0.01)
+   # Surface water availability where ti > 10 and slope < 0.01
+   # (surface water only at the river streams -- update this later) with actual river storage
+   cond1 = ( self.beta < 0.01) #( self.sti >= 10.0 ) & ( self.beta < 0.01)
    #cond1 = ( self.sti >= 10.0 )
    # surface water from HRUs with land cover as water or wetlands 
    cond2 = np.array([ True if x in self.water_use_land_cover["surface_water"] else False for x in NOAH.vegtyp ])
@@ -108,10 +108,7 @@ class Human_Water_Use:
    # 1: non-paddy irrigation, 2: paddy irrigation, 0: others
    self.irrig_land = HB.input_fp.groups['parameters'].variables['irrig_land'][:]
    self.mask_irrig = self.mask_agric & ( self.irrig_land > 0.0 )
-   #self.mask_irrig = np.copy(self.mask_agric)
-   print('Irrig Percentage:', np.sum([x==True for x in self.mask_irrig])/float(np.sum([x==True for x in self.mask_agric])))
    print('Irrig Percentage:', np.sum(self.mask_irrig)/float(np.sum(self.mask_agric)))
-
    
    # Crop calendar
    self.st_gscal = np.asarray(HB.input_fp.groups['parameters'].variables['start_growing_season'][:],dtype=np.int)
@@ -119,12 +116,7 @@ class Human_Water_Use:
    self.gscal = mgmt_funcs.calc_calendar(self,ncells)
    m = np.where(np.invert(self.mask_agric))[0]
    self.gscal[m,:] = 0.0
-   #print self.mask_agric
-   #print self.mask_irrig
-   #print self.st_gscal
-   #print self.en_gscal
-   #print self.gscal[0] 
-   # Test for the case with demand but zero irrigation
+   # Note: need to test for the case with demand but zero irrigation
 
 
   # INDUSTRIAL demand variables
@@ -273,7 +265,6 @@ class Human_Water_Use:
     from pywr.core import Link as wr_Link
 
     # Define Model
-    #self.ntwkm = wr_Model(start="2017-01-01", end="2017-01-01", timestep=1, solver='lpsolve')
     self.ntwkm = wr_Model(start="2017-01-01", end="2017-01-01", timestep=1, solver='glpk')
 
     # Define Network Supply and Demand Nodes    
@@ -707,7 +698,8 @@ class Human_Water_Use:
     
         p3 = datetime.now()
         #print 'P3', str(p3-p1), str(p3-p2)
-        self.ntwkm.run()
+        #self.ntwkm.run() 
+        self.ntwkm._step()
   
         p4 = datetime.now()
         #print 'P4', str(p4-p1), str(p4-p3)

@@ -936,10 +936,10 @@ contains
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
-    IF ( VEGTYP == ISURBAN ) THEN
-       QSFC = (QFX/RHOAIR*CH) + QAIR
-       Q2B = QSFC
-    END IF
+    !IF ( VEGTYP == ISURBAN ) THEN   ! Noemi commented
+    !   QSFC = (QFX/RHOAIR*CH) + QAIR
+    !   Q2B = QSFC
+    !END IF
 
     IF(SNOWH <= 1.E-6 .OR. SNEQV <= 1.E-3) THEN
      SNOWH = 0.0
@@ -1069,7 +1069,7 @@ contains
      ENDIF
 
      T = 12. * DAY / REAL(YEARLEN)
-     IT1 = T + 0.5
+     IT1 = int(T + 0.5)
      IT2 = IT1 + 1
      WT1 = (IT1+0.5) - T
      WT2 = 1.-WT1
@@ -1675,9 +1675,9 @@ contains
      END IF
 
 ! urban - jref 
-     IF (VEGTYP == ISURBAN .and. SNOWH == 0. ) THEN
-        RSURF = 1.E6
-     ENDIF
+     !IF (VEGTYP == ISURBAN .and. SNOWH == 0. ) THEN   ! Noemi commented
+     !   RSURF = 1.E6
+     !ENDIF
 
 ! set psychrometric constant
 
@@ -1830,6 +1830,7 @@ contains
 ! adjusting snow surface temperature
      IF(OPT_STC == 2) THEN
       IF (SNOWH > 0.05 .AND. TG > TFRZ) THEN
+
         TGV = TFRZ
         TGB = TFRZ
           IF (VEG .AND. FVEG > 0) THEN
@@ -2870,6 +2871,8 @@ contains
 
 ! -----------------------------------------------------------------
 ! compute within and between gaps
+      
+   
      VAI_SPREAD = VAI
      if(VAI == 0.0) THEN
          GAP     = 1.0
@@ -3948,7 +3951,7 @@ contains
          T2MB  = TGB - SHB/(RHOAIR*CPAIR) * 1./EHB2
          Q2B   = QSFC - EVB/(LATHEA*RHOAIR)*(1./CQ2B + RSURF)
        ENDIF
-       IF (IVGTYP == ISURBAN) Q2B = QSFC
+       ! IF (IVGTYP == ISURBAN) Q2B = QSFC  ! Noemi commented
      END IF
 
 ! myj consistent 2m temperature over bare soil
@@ -6233,8 +6236,9 @@ contains
 ! APPLY PHYSICAL BOUNDS TO FLERCHINGER SOLUTION
 ! ----------------------------------------------------------------------
        IF (KCOUNT == 0) THEN
-          write(message, '("Flerchinger used in NEW version. Iterations=", I6)') NLOG
-          call wrf_message(trim(message))
+          !write(message, '("Flerchinger used in NEW version. Iterations=", I6)') NLOG
+          !call wrf_message(trim(message))
+          !!! temporary - takes too long to write on disk Noemi
           FK = ( ( (hfus / (GRAV * ( - PSISAT)))*                    &
                ( (TKELV - TFRZ)/ TKELV))** ( -1/ BX))* SMCMAX
           IF (FK < 0.02) FK = 0.02
@@ -6579,6 +6583,7 @@ contains
 
 ! Jordan (1991)
 
+     
      IF(OPT_SNF == 1) THEN
        IF(SFCTMP > TFRZ+2.5)THEN
            FPICE = 0.
@@ -6592,6 +6597,7 @@ contains
          ENDIF
        ENDIF
      ENDIF
+
 
      IF(OPT_SNF == 2) THEN
        IF(SFCTMP >= TFRZ+2.2) THEN
@@ -7640,7 +7646,7 @@ contains
 !impermeable fraction due to frozen soil
 
     DO K = 1,NSOIL
-       FICE    = MIN(1.0,SICE(K)/SMCMAX)
+       FICE    = MIN(1.0,SICE(K)/SMCMAX) 
        FCR(K)  = MAX(0.0,EXP(-A*(1.-FICE))- EXP(-A)) /  &
                         (1.0              - EXP(-A))
     END DO
@@ -7668,7 +7674,8 @@ contains
 !surface runoff and infiltration rate using different schemes
 
 !jref impermable surface at urban
-    IF ( VEGTYP == ISURBAN ) FCR(1)= 0.95
+   
+    IF ( VEGTYP == ISURBAN ) FCR(1)= 0.95 
 
     IF(OPT_RUN == 1) THEN
        FFF = 6.0
@@ -7683,6 +7690,7 @@ contains
        FFF = 6.0
        FSAT   = FSATMX*EXP(-0.5*FFF*MAX(-2.0-ZWT,0.))
        IF(QINSUR > 0.) THEN
+         
          !RUNSRF = QINSUR * ( (1.0-FCR(1))*FSAT + FCR(1) )
          RUNSRF = 0.0
          PDDUM  = QINSUR - RUNSRF                          ! m/s
@@ -8024,7 +8032,9 @@ contains
         CALL WDFCND1 (WDF(K),WCND(K),SMC(K),FCR(K))
         SMX(K) = SMC(K)
       END DO
-        IF(OPT_RUN == 5)SMXWTD=SMCWTD
+      IF(OPT_RUN == 5) THEN
+        SMXWTD=SMCWTD
+      END IF
     END IF
 
     IF(OPT_INF == 2) THEN
@@ -8032,7 +8042,9 @@ contains
         CALL WDFCND2 (WDF(K),WCND(K),SH2O(K),SICEMAX)
         SMX(K) = SH2O(K)
       END DO
-          IF(OPT_RUN == 5)SMXWTD=SMCWTD*SH2O(NSOIL)/SMC(NSOIL)  !same liquid fraction as in the bottom layer
+      IF(OPT_RUN == 5) THEN
+         SMXWTD=SMCWTD*SH2O(NSOIL)/SMC(NSOIL)  !same liquid fraction as in the bottom layer
+      END IF
     END IF
 
     DO K = 1, NSOIL
@@ -8065,7 +8077,7 @@ contains
           IF(OPT_RUN == 5) THEN   !gmm new m-m&f water table dynamics formulation
              TEMP1    = 2.0 * DENOM(K)
              IF(ZWT < ZSOIL(NSOIL)-DENOM(NSOIL))THEN
-!gmm interpolate from below, midway to the water table, to the middle of the auxiliary layer below the soil bottom
+             !gmm interpolate from below, midway to the water table, to the middle of the auxiliary layer below the soil bottom
                 SMXBOT = SMX(K) - (SMX(K)-SMXWTD) *  DENOM(K) * 2./ (DENOM(K) + ZSOIL(K) - ZWT)
              ELSE
                 SMXBOT = SMXWTD
@@ -9214,9 +9226,9 @@ END  SUBROUTINE SHALLOWWATERTABLE
     NROOT = NROTBL (VEGTYP)   
 
 
-    IF(VEGTYP==ISURBAN)THEN
-       RSMIN=400.0
-    ENDIF
+    !IF(VEGTYP==ISURBAN)THEN ! Noemi commented
+    !   RSMIN=400.0
+    !ENDIF
 
 !    SHDFAC = SHDTBL(VEGTYP)
 !    IF (VEGTYP .eq. BARE) SHDFAC = 0.0

@@ -2,17 +2,17 @@
 #  Options for Linux with Intel Fortran
 #
 # COMPILERF90	=	ifort
-# FREESOURCE	=	-free
-# F90FLAGS	=       -convert big_endian -g -O0 -check all,noshape,nopointer,noarg_temp_created -mp -fpe0
+# FREESOURCE	=	-free 
+# F90FLAGS	=   -convert big_endian -g -O0 -check all,noshape,nopointer,noarg_temp_created -lmkl -fpe0
 # MODFLAG		=	-I
 # LDFLAGS		=	
 # CPP		=	cpp
 # CPPFLAGS	=	-C -P -traditional # -D_HRLDAS_URBAN_
-# LIBS		=	
-# LIBJASPER       =       -ljpeg -L/scholar/kmanning/jasper/lib -ljasper
-# INCJASPER       =       -I/scholar/kmanning/jasper/include
-# NETCDFMOD	=	-I/scholar/kmanning/netcdf-3.6.3-ifort/include
-# NETCDFLIB	=	-L/scholar/kmanning/netcdf-3.6.3-ifort/lib -lnetcdf
+# LIBS		=	-fopenmp
+# LIBJASPER       =       -ljpeg 
+# INCJASPER       =       
+# NETCDFMOD	=	
+# NETCDFLIB	=	-lnetcdf
 # BZIP2           =       YES
 # BZIP2_INCLUDE   =       -I/usr/include
 # BZIP2_LIB       =       -L/usr/lib -lbz2
@@ -33,8 +33,8 @@
  LIBS		=	-fopenmp
  LIBJASPER     =       -ljpeg -L/usr/lib -ljasper
  INCJASPER     =       -I/usr/include
- LIBJASPER     =       -ljpeg -L/scholar/kmanning/jasper/lib -ljasper
- INCJASPER     =       -I/scholar/kmanning/jasper/include
+ LIBJASPER     =       -ljpeg -ljasper
+ INCJASPER     =       
  NETCDFMOD	=	-I/usr/local/include
  NETCDFLIB	=	-L/usr/local/lib -lnetcdf
  BZIP2		=       YES
@@ -42,6 +42,7 @@
  BZIP2_INCLUDE	=       -I/usr/include
  RM		= 	rm -f
  CC		=	cc 
+
 #
 #
 #  Options for Linux with pgf90

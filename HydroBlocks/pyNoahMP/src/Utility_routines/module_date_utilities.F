@@ -55,6 +55,9 @@ contains
     integer :: units
     integer, dimension(12) :: mday = (/31,28,31,30,31,30,31,31,30,31,30,31/)
 
+    ! Initialization fix - Noemi Vergopolan
+    sp = ' '
+
     ! Determine if odate is "YYYY-MM-DD_HH ... " or "YYYYMMDDHH...."
     if (odate(5:5) == "-") then
        punct = .TRUE.

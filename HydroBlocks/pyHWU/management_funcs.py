@@ -1,5 +1,5 @@
 import numpy as np
-from skimage.segmentation import find_boundaries, clear_border
+#from skimage.segmentation import find_boundaries, clear_border
 import random
 
 def hrus_centroid_distance(lats,lons):
