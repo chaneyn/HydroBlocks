@@ -3,12 +3,19 @@ HydroBlocks
 
 HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) and the intel repository to install all the packages. Here are the steps to install the model.
 
+# 1. Clone HydroBlocks:
+```
+git clone -b dev_noemi https://github.com/chaneyn/HydroBlocks.git
+cd HydroBlocks
+```
 
-# 1. Install the libray dependencies:
+# 2. Install the libray dependencies and compile the model:
 Option 1: By creating a conda environment from yml file:
 ```
 conda env create -f yml/HBenv.yml
 source activate HBenv
+python setup.py
+cd ..
 ```
 
 Option 2: By install the dependencies yourself:
@@ -17,13 +24,7 @@ conda create -n HBenv -y
 source activate HBenv
 conda install -c conda-forge netcdf4 gdal geos jpeg scikit-learn numpy scipy h5py matplotlib cartopy mpi4py zarr opencv gfortran pandas rasterio xarray
 python -m pip install git+https://github.com/chaneyn/geospatialtools.git
-```
-
-# 2. Install HydroBlocks Model:
-```
-git clone -b dev_noemi https://github.com/chaneyn/HydroBlocks.git
-cd HydroBlocks
-python setup.py 
+python setup.py
 cd ..
 ```
 
