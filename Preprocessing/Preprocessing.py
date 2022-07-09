@@ -18,7 +18,7 @@ from geospatialtools import gdal_tools
 import terrain_tools as terrain_tools
 import gc
 from scipy.interpolate import griddata
-import numba
+#import numba
 
 dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
@@ -190,7 +190,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  lon_0 = (maxlon+minlon)/2.0
  lat_0 = (maxlat+minlat)/2.0
  #os.system('gdalwarp -tr %f %f -dstnodata %f -r mode -t_srs \'+proj=longlat +lon_0=%f +lat_0=%f +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +no_defs \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],lon_0,lat_0,minlon,minlat,maxlon,maxlat,file_ca,file_ll,log))
- os.system('gdalwarp -tr %.16f %.16f -dstnodata %f -t_srs \'+proj=longlat +lon_0=%.16f +lat_0=%.16f \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],lon_0,lat_0,minlon,minlat,maxlon,maxlat,file_ca,file_ll,log)) # Noemi 
+ os.system('gdalwarp -overwrite -tr %.16f %.16f -dstnodata %f -t_srs \'+proj=longlat \' -te %.16f %.16f %.16f %.16f %s %s >> %s 2>&1' % (res,res,metadata['nodata'],lon_0,lat_0,minlon,minlat,maxlon,maxlat,file_ca,file_ll,log)) # Noemi 
  tmp = gdal_tools.read_raster(file_ll)
  nhru_latlon = np.unique(tmp[tmp != -9999]).size
  if nhru_ea != nhru_latlon: exit('Catch: %s - nhru in hru_mapping_ea.tif (%s) and hru_mapping_latlon.tif (%s) do not match -- check resampling' % (str(icatch),nhru_ea,nhru_latlon))

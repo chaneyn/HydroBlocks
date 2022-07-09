@@ -4,37 +4,30 @@ HydroBlocks
 HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) and the intel repository to install all the packages. Here are the steps to install the model.
 
 
-Create a conda environment for HydroBlocks:
+# 1. Install the libray dependencies:
+Option 1: By creating a conda environment from yml file:
 ```
-conda update conda
-conda create -n HydroBlocks -c intel python=3.6 anaconda
-source activate HydroBlocks
-```
-
-Install HydroBlocks dependencies from intel channel:
-```
-conda install -c intel netcdf4 xerces-c jpeg scikit-image scikit-learn numpy pandas h5py kealib gcc libgcc python=3.6 mpi4py 
-conda install -c conda-forge gdal geos 
+conda env create -f yml/HBenv.yml
+source activate HBenv
 ```
 
-Install HydroBlocks:
+Option 2: By install the dependencies yourself:
 ```
-git clone https://github.com/chaneyn/HydroBlocks.git
+conda create -n HBenv -y
+source activate HBenv
+conda install -c conda-forge netcdf4 gdal geos jpeg scikit-learn numpy scipy h5py matplotlib cartopy mpi4py zarr opencv gfortran pandas rasterio xarray
+python -m pip install git+https://github.com/chaneyn/geospatialtools.git
+```
+
+# 2. Install HydroBlocks Model:
+```
+git clone -b dev_noemi https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
-git checkout dev_noemi
 python setup.py 
 cd ..
 ```
 
-Install geospatial tools:
-```
-git clone https://github.com/chaneyn/geospatialtools.git
-cd geospatialtools
-python setup.py install
-cd ..
-```
-
-To run the model on a test dataset:
+# 3.Run the model on a test dataset:
 ```
 wget https://www.dropbox.com/s/k7su7af5dk1l2vf/HB_sample.tar.gz?dl=0
 tar -xvzf HB_sample.tar.gz
@@ -43,10 +36,8 @@ python ../HydroBlocks/Preprocessing/Driver.py metadata.json
 python ../HydroBlocks/HydroBlocks/Driver.py metadata.json 
 ```
 
+# 4. Plot results 
 ```
-source deactivate 
-```
-
-source deactivate 
+python plot.py
 ```
 

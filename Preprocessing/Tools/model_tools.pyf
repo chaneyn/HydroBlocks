@@ -6,16 +6,16 @@ python module model_tools ! in
         module preprocessor ! in :model_tools:model_tools.f90
             subroutine calculate_connections(hsus,dinfangle,transition_probabilities,nhsu,n,m) ! in :model_tools:model_tools.f90:preprocessor
                 real*8 dimension(n,m),intent(in) :: hsus
-                real*8 dimension(n,m),intent(in),depend(n,m) :: dinfangle
-                real*8 dimension(nhsu,nhsu),intent(out),depend(nhsu,nhsu) :: transition_probabilities
+                real*8 dimension(n,m),intent(in),depend(m,n) :: dinfangle
+                real*8 dimension(nhsu,nhsu),intent(out),depend(nhsu) :: transition_probabilities
                 integer intent(in) :: nhsu
-                integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
-                integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
+                integer, optional,check(shape(hsus, 0) == n),depend(hsus) :: n=shape(hsus, 0)
+                integer, optional,check(shape(hsus, 1) == m),depend(hsus) :: m=shape(hsus, 1)
             end subroutine calculate_connections
             subroutine calculate_connections_d8(hsus,d8dir,area,hrus_dst,hrus_org,nhsu,max_nhsu,outlet_icoord,outlet_jcoord,outlet_hru,outlet_d8,n,m) ! in :model_tools:model_tools.f90:preprocessor
                 real*8 dimension(n,m),intent(in) :: hsus
-                real*8 dimension(n,m),intent(in),depend(n,m) :: d8dir
-                real*8 dimension(n,m),intent(in),depend(n,m) :: area
+                real*8 dimension(n,m),intent(in),depend(m,n) :: d8dir
+                real*8 dimension(n,m),intent(in),depend(m,n) :: area
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: hrus_dst
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: hrus_org
                 integer intent(in) :: nhsu
@@ -24,8 +24,8 @@ python module model_tools ! in
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_jcoord
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_hru
                 integer dimension(max_nhsu),intent(out),depend(max_nhsu) :: outlet_d8
-                integer, optional,check(shape(hsus,0)==n),depend(hsus) :: n=shape(hsus,0)
-                integer, optional,check(shape(hsus,1)==m),depend(hsus) :: m=shape(hsus,1)
+                integer, optional,check(shape(hsus, 0) == n),depend(hsus) :: n=shape(hsus, 0)
+                integer, optional,check(shape(hsus, 1) == m),depend(hsus) :: m=shape(hsus, 1)
             end subroutine calculate_connections_d8
             subroutine calculate_hsus ! in :model_tools:model_tools.f90:preprocessor
             end subroutine calculate_hsus
@@ -33,5 +33,6 @@ python module model_tools ! in
     end interface 
 end python module model_tools
 
-! This file was auto-generated with f2py (version:2).
-! See http://cens.ioc.ee/projects/f2py2e/
+! This file was auto-generated with f2py (version:1.23.0).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e
