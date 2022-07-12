@@ -60,9 +60,6 @@ def Prepare_Model_Input_Data(hydroblocks_info):
 
  #Create the dictionary to hold all of the data
  output = {}
-
- #Create the Latin Hypercube (Clustering)
- nhru = hydroblocks_info['nhru']
  icatch = hydroblocks_info['icatch']
 
  #Get metadata
@@ -130,7 +127,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
    wbd['files_water_use']['livestock']  = '%s/livestock.nc' % workspace
 
  #Create the clusters and their connections
- output, hydroblocks_info = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info)
+ output, hydroblocks_info = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,info,hydroblocks_info)
  #import matplotlib.pyplot as plt
  #plt.imshow(output['hru_map']); plt.show()
  
@@ -1017,7 +1014,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
     masklc = (covariates['lc'] == lc)
     covariates[vnam] = np.zeros(covariates['lc'].shape)
     covariates[vnam][masklc] = 1.0
-    hydroblocks_info['covariates'][vnam] = 'n'
+    #hydroblocks_info['covariates'][vnam] = 'n'
     
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
@@ -1165,7 +1162,7 @@ def spatial_imputation(array,fill_val,method,mask_catch):
   array = np.ma.filled(array)
  return array
  
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info):
+def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,info,hydroblocks_info):
  
  #Retrieve some metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])

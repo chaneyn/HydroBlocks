@@ -22,13 +22,13 @@ Option 2: By install the dependencies yourself:
 ```
 conda create -n HBenv -y
 source activate HBenv
-conda install -c conda-forge netcdf4 gdal geos jpeg scikit-learn numpy scipy h5py matplotlib cartopy mpi4py zarr opencv gfortran pandas rasterio xarray
+conda install -c conda-forge netcdf4 gdal geos jpeg scikit-learn numpy=1.23 scipy h5py matplotlib cartopy mpi4py zarr opencv gfortran pandas numba
 python -m pip install git+https://github.com/chaneyn/geospatialtools.git
 python setup.py
 cd ..
 ```
 
-# 3.Run the model on a test dataset:
+# 3. Run the model on a test dataset:
 ```
 wget https://www.dropbox.com/s/k7su7af5dk1l2vf/HB_sample.tar.gz?dl=0
 tar -xvzf HB_sample.tar.gz

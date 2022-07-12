@@ -236,6 +236,7 @@
                       drysmc0,f110,maxsmc0,refsmc0,satpsi0,satdk0,satdw0,wltsmc0,qtz0,& !1D,real
                       stc,sh2o,smc,smceq,zsnso,snice,snliq,ficeold,zsoil,sldpth,hdiv,&!2D,real
                       ncells,nsoil,nsnow)
+                      
 
   implicit none
   integer :: i,ncores,omp_get_thread_num
@@ -1137,7 +1138,6 @@ IF(totwater.gt.0.)then
                  - smceqdeep*zsoil(nsoil) + smcmax*(zsoil(nsoil)-dzs(nsoil)) ) / &
                      ( smcmax-smceqdeep )
                 totwater=0.
-              else
                 smcwtd=smcmax
                 totwater=totwater-maxwatup
                 do k=nsoil,0,-1

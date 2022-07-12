@@ -46,8 +46,9 @@ class HydroBlocks:
   print("Initializing subsurface module",flush=True)
   self.initialize_subsurface()
 
+  #-- Needs to be completed -- Noemi
   #Initialize human water use module
-  print("Initializing Human Water Management",flush=True)
+  #print("Initializing Human Water Management",flush=True)
   #self.initialize_hwu(info)
 
   #Other metrics
@@ -134,7 +135,7 @@ class HydroBlocks:
   self.nsoil = len(info['dz'])#['nsoil']
   #import multiprocessing
   #self.ncores = multiprocessing.cpu_count()
-  self.ncores = 1#cpu_count() # Used in OMP in Noah-MP
+  self.ncores = info['ncores']#cpu_count() # Used in OMP in Noah-MP
   print("threads in NOAH-MP",self.ncores,flush=True)
   self.idate = info['idate']
   self.fdate = info['fdate']
@@ -587,7 +588,9 @@ class HydroBlocks:
                         noah.si1,noah.zwt0,noah.minzwt,noah.co2air,noah.o2air,noah.bb0,noah.drysmc0,\
                         noah.f110,noah.maxsmc0,noah.refsmc0,noah.satpsi0,noah.satdk0,noah.satdw0,\
                         noah.wltsmc0,noah.qtz0,noah.stc,noah.sh2o,noah.smc,noah.smceq,noah.zsnso,\
-                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv)
+                        noah.snice,noah.snliq,noah.ficeold,noah.zsoil,noah.sldpth,noah.hdiv,\
+                        noah.nsoil,noah.nsnow)
+
 
   # Calculate water demands and supplies, and allocate volumes
   #self.hwu.Calc_Human_Water_Demand_Supply(self,date)
