@@ -1,7 +1,7 @@
 HydroBlocks
 ==========
 
-HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html) and the intel repository to install all the packages. Here are the steps to install the model.
+HydroBlocks relies on a number python libraries. To make this straightforward use conda (http://conda.pydata.org/miniconda.html).
 
 # 1. Clone HydroBlocks:
 ```
@@ -10,7 +10,7 @@ cd HydroBlocks
 ```
 
 # 2. Install the libray dependencies and compile the model:
-Option 1: By creating a conda environment from yml file:
+Option 1: By creating a conda environment from the yml file:
 ```
 conda env create -f yml/HBenv.yml
 source activate HBenv
@@ -18,7 +18,7 @@ python setup.py
 cd ..
 ```
 
-Option 2: By install the dependencies yourself:
+Option 2: By installing the dependencies yourself:
 ```
 conda create -n HBenv -y
 source activate HBenv
