@@ -198,9 +198,6 @@ def compute_cluster_parameters(Xd,maxnc=1000):
   #2.Compute the performance metrics
   maes = compute_performance_metrics(Xd,data)
   #3.Determine the next step
-  #print 't',tols
-  #print ncl,nc,ncr,maes,ws,size,np.sum(maes > tols)
-  #if (np.sum(maes <= tols) == maes.size) & (ncr - ncl == 1):
   if nc >= maxnc:
    nc = maxnc
    break
@@ -989,85 +986,32 @@ def create_basin_tiles(basin_clusters,hand,input_dem,basins,dh):
  tiles_position[:] = -9999
  count = 0
 
- '''
- #Normalize basins and compute maximum relief     
- #0.Assemble db of max relief    
- db = {}        
- for i in range(basins.shape[0]):
-  for j in range(basins.shape[1]):                
-   if basins[i,j] == -9999:continue               
-   b = basins[i,j]               
-   if b not in db:db[b] = 0.0    
-   if hand[i,j] > db[b]:db[b] = hand[i,j]         
- #1.Normalize each basin         
- maxhand = np.copy(hand)         
- for i in range(basins.shape[0]):
-  for j in range(basins.shape[1]):                
-   if basins[i,j] == -9999:continue               
-   b = basins[i,j]               
-   hand[i,j] = hand[i,j]/db[b]   
-   maxhand[i,j] = db[b]          
- #Check for nans
- hand[np.isnan(hand) == 1] = 0.0 
- #2.Compute basin cluster average max hand        
- for ubc in ubcs:                
-  m = basin_clusters == ubc      
-  val = np.mean(maxhand[m])      
-  hand[m] = val*hand[m]          
- ''' 
- 
- '''           
- #compute number of bins
- data_max = np.max(hand)
- pedges = 1.5
- #if data_max < 2: exit('check terrain_tools.py  sub-basins is too flat for high bands')
- if dh <= 10  and data_max > 30:   dh = 20
- if dh <= 20  and data_max > 100:  dh = 30
- if dh <= 30  and data_max > 200:  dh = 50; pedges = 2.0
- if dh <= 50  and data_max > 300:  dh = 60
- if dh <= 60  and data_max > 400:  dh = 70
- if dh <= 70  and data_max > 600:  dh = 80; pedges = 2.5
- if dh <= 80  and data_max > 800:  dh = 90
- if dh <= 90  and data_max > 1000:  dh = 100
-
- nbins = int(np.ceil(data_max/dh))
- bin_edges = np.linspace( 3**(1.0/float(pedges)), data_max**(1.0/float(pedges)), nbins+1)**pedges
- bin_edges = np.concatenate(([0.0,0.1],bin_edges))
- if data_max < 3:  bin_edges = np.array([0.0,0.1,data_max])
- print(['{:.2f}'.format(i) for i in bin_edges],flush=True)
- '''
-
  for ubc in ubcs:                
   m = basin_clusters == ubc      
   data = hand[m]
 
-  #curate        -- can be removed since spatial imputation is now done at Preprocessing.
-  #data[data == -9999] = np.max(data[data != -9999])                
-  #hand[m & (hand == -9999)] = np.max(hand[m & (hand != -9999)])    
-
-  
-  dh = 50#10
-  #compute number of bins
   data_max = np.max(data)
+
+  # Noemi -- attemps to constrain the number of tiles for arbitraty catchment sizes
+  #dh = 50 
+  #compute number of bins
   #if data_max < 2: exit('check terrain_tools.py  sub-basins is too flat for high bands')
-  #if dh <= 10  and data_max > 30:   dh = 20
-  #if dh <= 30  and data_max > 100:  dh = 40
-  if dh <= 40  and data_max > 200:  dh = 60
-  if dh <= 50  and data_max > 300:  dh = 70
-  if dh <= 60  and data_max > 400:  dh = 80
-  if dh <= 70  and data_max > 500:  dh = 100
-  if dh <= 100 and data_max > 750:  dh = 150
-  if dh <= 100 and data_max > 1000: dh = 200
-  #dh = 50  
+  # if dh <= 40  and data_max > 200:  dh = 60
+  # if dh <= 50  and data_max > 300:  dh = 70
+  # if dh <= 60  and data_max > 400:  dh = 80
+  # if dh <= 70  and data_max > 500:  dh = 100
+  # if dh <= 100 and data_max > 750:  dh = 150
+  # if dh <= 100 and data_max > 1000: dh = 200
  
   nbins = int(np.ceil(data_max/dh))
-  if nbins < 1 : nbins=1 # Noemi
+  if nbins < 1 : nbins=1 
 
   #Compute the edges for the high bands
   pedges = 1.5  #2.5 # 3.0 #2.5   # Noemi
   bin_edges = np.linspace( 7**(1.0/float(pedges)), data_max**(1.0/float(pedges)), nbins+1)**pedges
   bin_edges = np.concatenate(([0.0,0.1,3],bin_edges))
 
+  # Adjust the bin_edges if the terrain is somewhat flat
   if data_max < 10:  bin_edges = np.array([0.0,0.1,3,data_max])
   if data_max < 7 :  bin_edges = np.array([0.0,0.1,data_max])
   if data_max < 0.1: bin_edges = np.array([0.0,0.1]) 
@@ -1084,23 +1028,15 @@ def create_basin_tiles(basin_clusters,hand,input_dem,basins,dh):
          nbins = nbins+1
 
   #print('{:.2f}'.format(pedges),['{:.2f}'.format(i) for i in bin_edges],flush=True)
-  #exit() 
- 
-  #compute the binning           
-  #(hist,bin_edges) = np.histogram(data,bins='fd')#bins=nbins)     
-  #update edges 
-  #bin_edges[0] = 0.0            
-  #bin_edges[-1] = np.max(data)  
-  #Assign the tiles              
-
-  # Combute edges for the dem bins
-  dh_dem = 200
+  
+  # Noemi -- Included a transversal elevation band disagregation
+  # This will only be helpful or have an effect when a given elevation band has a high intra delta DEM
+  dh_dem = dh
   dem = input_dem[m]
   delta_dem = np.max(dem)-np.min(dem)
   dem_nbins = int(np.around(delta_dem/dh_dem,0))
   if dem_nbins < 1: dem_nbins=1
   dem_edges = np.linspace(np.min(dem),np.max(dem),dem_nbins+1)
-  #dem_edges = np.linspace(np.min(dem), np.max(dem), 2)
 
   count2 = 0
   for i in range(bin_edges.size-1):               
@@ -1114,25 +1050,17 @@ def create_basin_tiles(basin_clusters,hand,input_dem,basins,dh):
      tiles_position[m2] = count2
      if i == 0 : new_hand[m2] = 0.0
      else: new_hand[m2] = np.mean(hand[m2])
-     #new_hand[m2] = np.mean(hand[m2])
      count2 += 1
 
+      # Noemi -- apply the transversal elevation band disagregation
      for j in range(dem_edges.size-1):
        if j == 0: m3 = m2 & (input_dem >= dem_edges[j]) & (input_dem <= dem_edges[j+1])
        else:      m3 = m2 & (input_dem > dem_edges[j]) & (input_dem <= dem_edges[j+1])
-       #m3 = m2
 
        if np.sum(m3) > 0:
          tiles[m3] = count
          count += 1
-         #new_hand[m3] = np.mean(hand[m3])
-
-     #if np.sum(m2) > 0:            
-     # tiles[m2] = count            
-     # tiles_position[m2] = count2  
-     # new_hand[m2] = np.mean(hand[m2])              
-     # count += 1  
-     # count2 += 1       
+ 
 
  return (tiles,new_hand,tiles_position)
 
@@ -1152,18 +1080,20 @@ def create_hrus_hydroblocks(hillslopes,htiles,channels,covariates,nclusters):
  uhs = np.unique(hillslopes)
  uhs = uhs[uhs != -9999]
   
- # define average size for hrus # Noemi
- catch_ngrids = np.sum(hillslopes >= 0)
- grid_area_km2 = (100*0.00027777777777 * 100*0.00027777777777) #1 km2
- grids_per_km2 = 1/grid_area_km2
+ # Noemi -- attemps to constrain the number of tiles for arbitraty catchment sizes
+ # define average size for hrus 
+ #catch_ngrids = np.sum(hillslopes >= 0)
+ #grid_area_km2 = (100*0.00027777777777 * 100*0.00027777777777) #1 km2
+ #grids_per_km2 = 1/grid_area_km2
  
  # 36 grids -> 1km
  # 1296 -> 1km2
  # 648  grids ~ 0.5 km2/hru
  
- scale_hru = 0.5*grids_per_km2  # number of grids per HRU. Set to 0.5 km2 per HRU
- if catch_ngrids/scale_hru < 10:  scale_hru = catch_ngrids/10
- if catch_ngrids/scale_hru > 400: scale_hru = catch_ngrids/400.0 
+ # Noemi -- attemps to constrain the number of tiles for arbitraty catchment sizes 
+ #scale_hru = 0.5*grids_per_km2  # number of grids per HRU. Set to 0.5 km2 per HRU
+ #if catch_ngrids/scale_hru < 10:  scale_hru = catch_ngrids/10
+ #if catch_ngrids/scale_hru > 400: scale_hru = catch_ngrids/400.0 
  
  # define binary channels
  is_channel = np.zeros(channels.shape)
@@ -1213,9 +1143,10 @@ def create_hrus_hydroblocks(hillslopes,htiles,channels,covariates,nclusters):
    if flag == True:
     (nc,ws) = compute_cluster_parameters(ccp,maxnc)
    else:
-    #nc = nclusters
+    nc = nclusters
     size_tile = np.sum((mt == 1)) 
-    nc = int(np.ceil(size_tile/scale_hru)) 
+    # Noemi -- attemps to constrain the number of tiles for arbitraty catchment sizes
+    #nc = int(np.ceil(size_tile/scale_hru)) 
 
     if nc < 1: nc = 1 # Noemi
 
@@ -1224,9 +1155,13 @@ def create_hrus_hydroblocks(hillslopes,htiles,channels,covariates,nclusters):
     #  nc = int(nc*2)
     #  #print(uh,uts,min_hand,nc,flush=True)
 
-    if nc > (size_tile/10): nc = int(np.ceil(size_tile/10)) # at least about 10 pixels in each cluster, otherwise small clusters disappear in hru_latlon -- maybe will be solved when dropping ea_tif inputs.
+    # Noemi -- ensures at least about 10 pixels in each cluster, otherwise small clusters disappear in hru_latlon -- maybe will be solved when dropping ea_tif inputs.
+    # if nc > (size_tile/10): 
+    #   print('Ensuring there is at least 10 HRUs...')
+    #   nc = int(np.ceil(size_tile/10)) 
+
     ws = np.ones(len(ccp.keys()))
-   #print 'hillslope: %d, tile: %d, nc: %d' % (uh,ut,nc)
+
    #Add weights to covariates
    for var in covariates:
     covariates[var]['w'] = ws[list(ccp).index(var)]
@@ -1237,10 +1172,7 @@ def create_hrus_hydroblocks(hillslopes,htiles,channels,covariates,nclusters):
     tmp = covariates[var]['w']*normalize_variable(covariates[var]['d'][mt],covariates[var]['min'],covariates[var]['max'])
     mask_out = ( (np.isnan(tmp) | np.isinf(tmp)) | (tmp == -9999) )  # Noemi
     #print(tmp.shape,flush=True)
-    #tmp = tmp[~mask_out]
-    #print(tmp.shape,flush=True)
     if sum(mask_out) > 0 : exit('%s has -9999 or invalid entries on the clustering' % var)
-    #tmp[(np.isnan(tmp) == 1) | (np.isinf(tmp) == 1)] = 0.0
     #Convert to percentiles
     #argsort = np.argsort(tmp)
     #tmp[argsort] = np.linspace(0,1,tmp.size)
@@ -1248,12 +1180,6 @@ def create_hrus_hydroblocks(hillslopes,htiles,channels,covariates,nclusters):
    #cluster the data
    X = np.array(X).T
    clusters = cluster_data(X,nc)+maxc
-   #state = 35799
-   #if (X.shape[0] >= nc):
-   # model = sklearn.cluster.KMeans(n_clusters=nc,random_state=state)
-   # clusters = model.fit_predict(X)+maxc
-   #else:
-    #clusters = np.zeros(X.shape[0])+maxc
    hrus[mt] = clusters
    maxc = np.max(clusters)+1
 
@@ -1669,33 +1595,34 @@ def cluster_hillslopes_updated(hillslopes,covariates,hp_in,nclusters,ws,dh,max_n
 
 def cluster_basins_updated(basins,covariates,hp_in,nclusters):
 
- varea = np.sum(basins >= 0) # grids #Noemi
- # 33 grids -> 1km
- # 1089 -> 1 km2 
- varea_km2 = varea/1089.
- print('basin area km2: %.2f' % varea_km2, flush=True)
- scale_hru = 5.                      # 10 km2 per subbasin         
- nclusters = int(np.round(varea_km2/scale_hru,0))       
- #print('subbasins: %.2f' % nclusters, flush=True)
- max_nclusters = 50  # Set a maximum number of sub-basins  -- Noemi
- if nclusters == 0: nclusters=1
- if nclusters > max_nclusters: nclusters=max_nclusters
+# Noemi -- attemps to constrain the number of tiles for arbitraty catchment sizes
+#  varea = np.sum(basins >= 0) # grids #Noemi
+#  # 33 grids -> 1km
+#  # 1089 -> 1 km2 
+#  varea_km2 = varea/1089.
+#  #print('Basin area km2: %.2f' % varea_km2, flush=True)
+#  scale_hru = 5.                      # 10 km2 per subbasin         
+#  nclusters = int(np.round(varea_km2/scale_hru,0))       
+#  #print('subbasins: %.2f' % nclusters, flush=True)
+#  max_nclusters = 50  # Set a maximum number of sub-basins  -- Noemi
+#  if nclusters == 0: nclusters=1
+#  if nclusters > max_nclusters: nclusters=max_nclusters
  
- '''
- # use more subbasins if there is a steep topography
- if nclusters < max_nclusters:
-  dhmax = covariates['dem']['max']-covariates['dem']['min']
-  step_ratio = (dhmax/2.)/(varea_km2) # m/km2
-  if step_ratio > 1: nclusters = int(nclusters*step_ratio)
-  if nclusters > max_nclusters: nclusters=max_nclusters
- '''
+#  '''
+#  # use more subbasins if there is a steep topography
+#  if nclusters < max_nclusters:
+#   dhmax = covariates['dem']['max']-covariates['dem']['min']
+#   step_ratio = (dhmax/2.)/(varea_km2) # m/km2
+#   if step_ratio > 1: nclusters = int(nclusters*step_ratio)
+#   if nclusters > max_nclusters: nclusters=max_nclusters
+#  '''
 
- # number of existent subbasins
- nbasins = np.unique(basins)
- if -9999 in nbasins: nbasins = len(nbasins[1:] )
- if max_nclusters > nbasins: max_nclusters = nbasins
+#  # number of existent subbasins
+#  nbasins = np.unique(basins)
+#  if -9999 in nbasins: nbasins = len(nbasins[1:] )
+#  if max_nclusters > nbasins: max_nclusters = nbasins
 
- print('subbasins: %i' % nclusters, flush=True)
+ #print('subbasins: %i' % nclusters, flush=True)
  X = []
  for var in covariates:
   otmp = np.copy(covariates[var]['d'])
@@ -1708,10 +1635,10 @@ def cluster_basins_updated(basins,covariates,hp_in,nclusters):
  X = np.array(X).T
  
  # discontinuous clusters
- clusters = cluster_data(X,nclusters)+1
+ #clusters = cluster_data(X,nclusters)+1
 
  # continuous clusters
- #clusters = alternative_cluster_data(X,nclusters)+1
+ clusters = alternative_cluster_data(X,nclusters)+1
 
  #Create the mapping
  mapping = np.zeros(np.max(hp_in['bid'])+1)
