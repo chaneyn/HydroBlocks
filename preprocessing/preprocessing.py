@@ -314,9 +314,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Compute the channels
  print("Defining channels",flush=True)
  #(channels,channels_wob,channel_topology,tmp1) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdir,mask)
- (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**4,10**4,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
+ print("P1",flush=True)
+ (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**5,10**5,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
  #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
- (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
+ print("P2",flush=True)
+ (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**5,10**5,fdc,mask_all)
+ print("here",flush=True)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
@@ -413,10 +416,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Calculate average bankfull depth per basin cluster
  ubcs = np.unique(basin_clusters)
+ print(np.unique(ubcs),flush=True)
  ubcs = ubcs[ubcs != -9999]
  for ubc in ubcs:
   ubs = np.unique(basins[basin_clusters == ubc])
   ubs = ubs[ubs != -9999]
+  print(ubs,flush=True)
   #Compute mean width and bankfull depth
   db_channels['width'][ubs-1] = np.mean(db_channels['width'][ubs-1])
   db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
