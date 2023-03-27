@@ -335,12 +335,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
+ c_limit=int(hydroblocks_info['channel_initiation']['C']) #Take channel initiation parameters to metada file, laura
+ a_limit=int(hydroblocks_info['channel_initiation']['area'])
  #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
- ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
+ #ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
  #ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
  #ipoints = (C > 100).astype(np.int32)
+ ipoints = ((C > c_limit) & (area > a_limit)).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
@@ -353,9 +356,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Compute the channels
  print("Defining channels",flush=True)
  #(channels,channels_wob,channel_topology,tmp1) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdir,mask)
- (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**4,10**4,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
+ #(channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**4,10**4,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
+ (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,a_limit,a_limit,fdc,mask,np.flipud(covariates['lats']),covariates['lons']) #laura, change c and area parameters
  #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
- (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
+ #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
+ (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,a_limit,a_limit,fdc,mask_all) #laura, change c and area parameters
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
