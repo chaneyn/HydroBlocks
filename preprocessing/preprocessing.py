@@ -90,6 +90,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   'SATDK':'%s/ksat_latlon.tif' % workspace,
   'dem':'%s/dem_latlon.tif' % workspace,
   'acc':'%s/acc_latlon.tif' % workspace,
+  'fdir':'%s/fdir_latlon.tif' % workspace,
   'demns':'%s/demns_latlon.tif' % workspace,
   'sand':'%s/sand_latlon.tif' % workspace,
   'clay':'%s/clay_latlon.tif' % workspace,
@@ -264,11 +265,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Bring out the mask_all
  mask_all = covariates['mask_all']
 
+ #Bring out the flow direction (Convert flow direction from int to 2d approach)
+ fdir = terrain_tools.transform_arcgis_fdir(covariates['fdir'])
+
  #Pre-process DEM
  dem = covariates['dem']
  #Remove pits in dem
- print("Removing pits in dem",flush=True)
- demns = terrain_tools.ttf.remove_pits_planchon(dem,eares)
+ #print("Removing pits in dem",flush=True)
+ #demns = terrain_tools.ttf.remove_pits_planchon(dem,eares) 
+ demns = np.copy(dem)
  covariates['demns'] = demns
  area_all = covariates['acc']
  area_all_cp = np.copy(area_all)
@@ -290,7 +295,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  mall = mall.astype(np.bool)
  #m2[:] = 1
  print("Calculating accumulated area",flush=True)
- (area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
+ area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
+ #(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
  #(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mall,eares)
  area_all = area[:] #This could be defined for entire domain instead HERE!
 
@@ -299,14 +305,19 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
  #ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
- ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
+ #ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
+ ipoints = ((area > 10**5)).astype(np.int32)
  #ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
  #ipoints = (C > 100).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
- (ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
- (ac_all,fdc_all) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mall,ipoints,eares)
+ ac = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mask,ipoints,eares,fdir)
+ fdc = fdir
+ #(ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
+ ac_all = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mall,ipoints,eares,fdir)
+ #(ac_all,fdc_all) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mall,ipoints,eares)
+ fdc_all = fdir
  ac[(ac != 0) & (mask == 1)] = area[(ac != 0) & (mask == 1)]
  ac_all[(ac_all != 0) & (mall == 1)] = area[(ac_all != 0) & (mall == 1)]
  ac_all = np.ma.masked_array(ac_all,ac_all<=0)
@@ -317,9 +328,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  print("P1",flush=True)
  (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**5,10**5,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
  #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
- print("P2",flush=True)
  (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**5,10**5,fdc,mask_all)
- print("here",flush=True)
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
@@ -328,6 +337,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Determine inlets/outlets
  #os.system('mkdir -p routing')
+ print(area.dtype,fdir.dtype,mask.dtype,mask_all.dtype,area_all.dtype)
  db_routing = {}
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
@@ -412,16 +422,17 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
               't':-9999,
               'd':tmp}
  
- (basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
+ #(basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
+ (basin_clusters,) = terrain_tools.cluster_basins_updated(basins_wob,cvs,hp_in,ncatchments)
 
  #Calculate average bankfull depth per basin cluster
  ubcs = np.unique(basin_clusters)
- print(np.unique(ubcs),flush=True)
+ #print(np.unique(ubcs),flush=True)
  ubcs = ubcs[ubcs != -9999]
  for ubc in ubcs:
   ubs = np.unique(basins[basin_clusters == ubc])
   ubs = ubs[ubs != -9999]
-  print(ubs,flush=True)
+  #print(ubs,flush=True)
   #Compute mean width and bankfull depth
   db_channels['width'][ubs-1] = np.mean(db_channels['width'][ubs-1])
   db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
@@ -876,7 +887,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
     covariates[vnam] = np.zeros(covariates['lc'].shape)
     covariates[vnam][masklc] = 1.0
     hydroblocks_info['covariates'][vnam] = 'n'
-    
+
  #Create lat/lon grids
  lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
  lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['dem'].shape[1])
