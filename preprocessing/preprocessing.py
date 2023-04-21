@@ -219,7 +219,7 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  #Write the model parameters
  grp = fp.createGroup('parameters')
  vars = ['slope','area_pct','land_cover','channel',
-        'dem','soil_texture_class','ti','carea','area',
+        'dem','soil_texture_class','carea','area',
         'BB','F11','SATPSI','SATDW','QTZ','clay',
         'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
         'm','hand','y_aspect','x_aspect','hru','hband',
@@ -270,12 +270,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Pre-process DEM
  dem = covariates['dem']
- #Remove pits in dem
- #print("Removing pits in dem",flush=True)
- #demns = terrain_tools.ttf.remove_pits_planchon(dem,eares) 
  demns = np.copy(dem)
  covariates['demns'] = demns
- area_all = covariates['acc']
+ area_all = covariates['acc']*10**6 #km2->m2
  area_all_cp = np.copy(area_all)
   
  #Calculate slope and aspect
@@ -287,36 +284,23 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  aspect = np.flipud(aspect)
 
  #Compute accumulated area
- #m2 = np.copy(demns)
  m2 = np.copy(mask_all)
  m2[m2 > 0] = 1
  mall = np.copy(m2)
  mall[m2 <= 0] = 0
  mall = mall.astype(np.bool)
- #m2[:] = 1
  print("Calculating accumulated area",flush=True)
  area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
- #(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mask_all,eares)
- #(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,mall,eares)
- area_all = area[:] #This could be defined for entire domain instead HERE!
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
- #ipoints = ((C > 200) & (area > 10**5)).astype(np.int32)
- #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
- #ipoints = ((C > 100) & (area > 10**4)).astype(np.int32)
- #ipoints = ((C > 50) & (area > 10**4)).astype(np.int32)
- ipoints = ((area > 10**5)).astype(np.int32)
- #ipoints = ((C > 25) & (area > 10**4)).astype(np.int32)
- #ipoints = (C > 100).astype(np.int32)
+ ipoints = ((area > 10**6)).astype(np.int32)
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
  ac = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mask,ipoints,eares,fdir)
  fdc = fdir
- #(ac,fdc) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mask,ipoints,eares)
  ac_all = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mall,ipoints,eares,fdir)
- #(ac_all,fdc_all) = terrain_tools.ttf.calculate_d8_acc_wipoints(demns,mall,ipoints,eares)
  fdc_all = fdir
  ac[(ac != 0) & (mask == 1)] = area[(ac != 0) & (mask == 1)]
  ac_all[(ac_all != 0) & (mall == 1)] = area[(ac_all != 0) & (mall == 1)]
@@ -324,11 +308,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Compute the channels
  print("Defining channels",flush=True)
- #(channels,channels_wob,channel_topology,tmp1) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,10**4,10**4,fdir,mask)
- print("P1",flush=True)
- (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**5,10**5,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
- #(tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**4,10**4,fdc,mask_all)
- (tmp1,tmp2,tmp3,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac_all,10**5,10**5,fdc,mask_all)
+ (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,10**6,10**6,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
+
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
@@ -336,8 +317,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  channels[dem == -9999] = -9999
 
  #Determine inlets/outlets
- #os.system('mkdir -p routing')
- print(area.dtype,fdir.dtype,mask.dtype,mask_all.dtype,area_all.dtype)
  db_routing = {}
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
@@ -357,20 +336,18 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  print("Defining basins",flush=True)
  basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
  basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
+ basins = basins_wob
  
  #Compute channel properties
- db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,shreve_order,hydroblocks_info['parameter_scaling'])
+ db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,hydroblocks_info['parameter_scaling'])
 
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
- hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)#_adj)
-
- #Calculate topographic index
- print("Computing topographic index",flush=True)
- ti = np.copy(area)
- m = (area != -9999) & (slope != -9999) & (slope != 0.0)
- ti[m] = np.log(area[m]/eares/slope[m])
- ti[slope == 0] = 15.0
+ hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)
+ #odb = {'hand':hand,'demns':demns,'fdir':fdir,'basins_wob':basins_wob,'channels_wob':channels_wob}
+ #pickle.dump(odb,open('%s/test.pck' % input_dir,'wb'))
+ #Fill in hand that is undefined (probably flow direction issues)
+ hand[(hand == -9999) & (basins_wob!=-9999)] = 0.0
 
  # cleanup
  slope[mask != 1] = -9999
@@ -378,30 +355,24 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  area[mask != 1] = -9999
  channels[mask != 1] = -9999
  basins[mask != 1] = -9999
- #hand[mask != 1] = -9999
- ti[mask != 1] = -9999
- shreve_order[mask != 1] = -9999
 
+ # save covariates
  covariates['slope'] = slope
  covariates['aspect'] = aspect
  covariates['x_aspect'] = np.sin(aspect)
  covariates['y_aspect'] = np.cos(aspect)
  covariates['carea'] = area_all_cp#area
  covariates['carea_log10'] = np.log10(area_all_cp)#area
- covariates['shreve_order'] = shreve_order
  covariates['hand'] = hand
- #covariates['fdir'] = fdir
- covariates['ti'] = ti
 
  #Calculate the subbasin properties
  print("Assembling the subbasin properties",flush=True)
- #print(eares,np.unique(basins))
  vars1 = hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']
  vars = []
  for var in vars1:
   if var not in ['width','bankfull','length','area']:
    vars.append(var)
- hp_in = terrain_tools.calculate_basin_properties_updated(basins,eares,covariates,vars)
+ hp_in = terrain_tools.calculate_basin_properties_updated(basins_wob,eares,covariates,vars)
  #sort hp_in (should go in geospatialtools)
  argsort = np.argsort(hp_in['bid'])
  for var in hp_in:
@@ -412,17 +383,19 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Clustering the basins
  print("Clustering the basins",flush=True)
+ #Set the ncatchments to be at least the number of basins
+ ncatchments = min(ncatchments,np.unique(basins_wob)[1:].size)
+
  #Assemble input data
  cvs = {}
  for var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:
-  
   tmp = np.copy(hp_in[var])
+  print(hydroblocks_info['cid'],var,tmp.shape,flush=True)
   cvs[var] = {'min':np.min(tmp),
               'max':np.max(tmp),
               't':-9999,
               'd':tmp}
  
- #(basin_clusters,) = terrain_tools.cluster_basins_updated(basins,cvs,hp_in,ncatchments)
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins_wob,cvs,hp_in,ncatchments)
 
  #Calculate average bankfull depth per basin cluster
@@ -430,7 +403,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #print(np.unique(ubcs),flush=True)
  ubcs = ubcs[ubcs != -9999]
  for ubc in ubcs:
-  ubs = np.unique(basins[basin_clusters == ubc])
+  ubs = np.unique(basins_wob[basin_clusters == ubc])
   ubs = ubs[ubs != -9999]
   #print(ubs,flush=True)
   #Compute mean width and bankfull depth
@@ -438,11 +411,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
  
  #Divide each subbasin into height bands
- #(tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles(basin_clusters,hand,basins,dh)
  n_binning = dh #HACK 
  max_nbins = 100
- (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins,n_binning,max_nbins)
-
+ #odb = {'basin_clusters':basin_clusters,'hand':hand,'basins_wob':basins_wob}
+ #pickle.dump(odb,open('%s/test.pck' % input_dir,'wb'))
+ (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins_wob,n_binning,max_nbins)
 
  #Calculate histogram of travel distances per height band
  t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
@@ -465,7 +438,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Burn the average bankfull depth into newhand2
  for ubc in ubcs:
-  ubs = np.unique(basins[basin_clusters == ubc])
+  ubs = np.unique(basins_wob[basin_clusters == ubc])
   ubs = ubs[ubs != -9999]
   mnw = (basin_clusters == ubc) & (tile_position != 0)
   mnw1 = (basin_clusters == ubc) & (tile_position == 1)
@@ -624,6 +597,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #exit()
 
  #Correct the area per grid cell array (and then apply to construct database)
+ 
  hband_areas = np.array(np.sum(reach2hband,axis=0))
  area_adj = np.zeros(new_hand.shape)
  area_adj[:] = -9999.0
@@ -646,6 +620,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
               't':-9999,
               'd':covariates[var]}
  #print("Clustering the height bands into %d clusters" % nclusters)
+ #A.Ensure match between basin cluster map and tiles map
+ m = (basin_clusters == -9999) | (tiles == -9999)
+ basin_clusters[m] = -9999
+ tiles[m] = -9999
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
@@ -669,7 +647,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
  nhru = hydroblocks_info['nhru']
  #Initialize the arrays
  vars = ['area','area_pct','BB','DRYSMC','F11','MAXSMC','REFSMC','SATPSI',
-         'SATDK','SATDW','WLTSMC','QTZ','slope','ti','dem','carea','channel',
+         'SATDK','SATDW','WLTSMC','QTZ','slope','dem','carea','channel',
          'land_cover','soil_texture_class','clay','sand','silt',
          'm','hand','x_aspect','y_aspect','hru','hband','lats','lons']
 
@@ -715,7 +693,7 @@ def Assign_Parameters_Semidistributed(covariates,metadata,hydroblocks_info,OUTPU
   #Average Slope
   OUTPUT['hru']['slope'][hru] = np.nanmean(covariates['slope'][idx])
   #Topographic index
-  OUTPUT['hru']['ti'][hru] = np.nanmean(covariates['ti'][idx])
+  #OUTPUT['hru']['ti'][hru] = np.nanmean(covariates['ti'][idx])
   #DEM
   OUTPUT['hru']['dem'][hru] = np.nanmean(covariates['dem'][idx])
   #HAND
@@ -996,7 +974,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
  #resx = metadata['resx'] #NEED TO REDEFINE FROM DEM
  #eares = 25.0#30 #meters NEED TO REDEFINE FROM DEM
- resx = 26.0#670.0**0.5#26.0
+ #resx = 26.0#670.0**0.5#26.0
+ resx = 90.0#670.0**0.5#26.0
 
  print("Creating and curating the covariates",flush=True)
  (covariates,mask) = Create_and_Curate_Covariates(wbd,hydroblocks_info)
@@ -1404,7 +1383,7 @@ def driver(comm,metadata_file):
  #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
  info = metadata
- info['covariates'] = {'lats':'n','ti':'n','lons':'n','lc':'n'}
+ info['covariates'] = {'lats':'n','lons':'n','lc':'n'}
  info['idate'] = datetime.datetime(metadata['startdate']['year'],
                            metadata['startdate']['month'],
                            metadata['startdate']['day'],0)
@@ -1454,7 +1433,7 @@ def Postprocess_Input(rdir,edir,cids):
  for var in vars:
   os.system('mkdir -p %s/postprocess/%s' % (edir,var))
  for cid in cids:
-  print(cid)
+  print('Copying files for vrt',cid,flush=True)
   dir = '%s/%s' % (edir,cid)
   #hru
   ifile = '%s/hru_mapping_latlon.tif' % dir
@@ -1498,12 +1477,13 @@ def Postprocess_Input(rdir,edir,cids):
 
  #Create vrts
  for var in vars:
+  print("creating virtual raster: %s" % var,flush=True)
   os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
 
  #Create shapefiles
- os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
- os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basin_clusters.vrt %s/basin_clusters_shp' % (sdir,sdir))
- os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/cids.vrt %s/cids_shp' % (sdir,sdir))
+ #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
+ #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basin_clusters.vrt %s/basin_clusters_shp' % (sdir,sdir))
+ #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/cids.vrt %s/cids_shp' % (sdir,sdir))
 
  return
 
@@ -1589,7 +1569,7 @@ def Connect_Cell_Networks(rank,size,cids,edir):
   #Fill in the rest with info from other databases
   #print(mapping_ucid[ucid]['new']-mapping_ucid[ucid]['old'])
   ucids = np.unique(cid_new)
-  for var in ['slope','length','manning_channel','manning_floodplain','width','bankfull','shreve_order']:
+  for var in ['slope','length','manning_channel','manning_floodplain','width','bankfull']:
    tmp = np.zeros(cid_new.size)
    for ucid in ucids[:]:
     #Open file
@@ -1738,7 +1718,7 @@ def Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size):
   #Clean up
   os.system('rm -rf %s/%d' % (workspace,cid))
  comm.Barrier()
-
+ odbc2 = {}
  for cid in core_cids:
 
   #Read in the stream network information
@@ -1786,12 +1766,14 @@ def Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size):
     mapping_hdw[cid0][var] = np.array(mapping_hdw[cid0][var])
   os.system('mkdir -p %s/shared' % (edir,))
   pickle.dump(mapping_hdw,open('%s//shared/hdw_%s.pck' % (edir,cid),'wb'))
+  #copy odbc
+  odbc2[cid] = copy.deepcopy(odbc)
 
  #Prepare data for cids
  comm.Barrier()
  for cid in core_cids:
   if debug_level >= 0:print(cid,"Assembling the input/output",flush=True)
-  db = prepare_data(rank,cid,edir,debug_level,workspace,odbc,cids)
+  db = prepare_data(rank,cid,edir,debug_level,workspace,odbc2[cid],cids)
   cdir = '%s/%d' % (edir,cid)
   pickle.dump(db,open('%s/octopy.pck' % (cdir,),'wb'),pickle.HIGHEST_PROTOCOL)
 

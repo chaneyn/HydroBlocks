@@ -32,6 +32,10 @@ def main(argv):
         print("HydroBlocks: Model")
         import model.model
         model.model.run(comm,mfile)
+   elif mtype == 'postprocess':
+        print("HydroBlocks: Postprocess")
+        import postprocessing.postprocessing
+        postprocessing.postprocessing.driver(comm,mfile)
    else:
         print("The mtype provided is not an option")
 

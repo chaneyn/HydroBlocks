@@ -46,7 +46,8 @@ class HydroBlocks:
 
   #Initialize routing module
   #print("Initializing the routing module",flush=True)
-  self.initialize_routing()
+  if self.routing_module == 'kinematic':
+   self.initialize_routing()
   #Other metrics
   self.dE = 0.0
   self.r = 0.0

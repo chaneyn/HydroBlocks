@@ -29,9 +29,13 @@ def Run_HydroBlocks(metadata,edir,cid,rdir):
  info['Qobs_file'] = '%s/data/obs/obs.pck' % rdir
  info['routing_file'] = '%s/%s/octopy.pck' % (edir,cid)
  info['input_file'] = '%s/%s/input_file_routing.nc' % (edir,cid)
- info['output'] = {"dir":"%s/output_data/%s" % (edir,cid),
+ if metadata["routing_module"]["type"] == 'kinematic':
+  info['output'] = {"dir":"%s/output_data/%s" % (edir,cid),
      "vars":info['output']['vars'],
      "routing_vars":info['output']['routing_vars']}
+ else:
+  info['output'] = {"dir":"%s/output_data/%s" % (edir,cid),
+     "vars":info['output']['vars']}
  info['restart'] = {"flag":info['restart']['flag'],
                     "dir":"%s/restart_data/%d" % (edir,cid)}
  os.system('mkdir -p %s' % (info['restart']['dir']))
