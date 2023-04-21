@@ -6,14 +6,16 @@ dependencies:
   - _openmp_mutex=4.5=1_gnu
   - affine=2.3.0=py_0
   - attrs=21.4.0=pyhd8ed1ab_0
+  - binutils_impl_linux-64=2.40=hf600244_0
   - blosc=1.21.0=h9c3ff4c_0
   - boost-cpp=1.74.0=h6cacc03_7
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.18.1=h7f98852_0
-  - ca-certificates=2021.10.8=ha878542_0
+  - ca-certificates=2022.12.7=ha878542_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.16.0=ha00ac49_1009
+  - certifi=2022.12.7=pyhd8ed1ab_0
   - cfitsio=4.0.0=h9a35b8e_0
   - click-plugins=1.1.1=py_0
   - cligj=0.7.2=pyhd8ed1ab_1
@@ -28,22 +30,28 @@ dependencies:
   - fonts-conda-forge=1=0
   - freetype=2.10.4=h0708190_1
   - freexl=1.0.6=h7f98852_0
+  - gcc=12.2.0=h26027b1_11
+  - gcc_impl_linux-64=12.2.0=hcc96c02_19
   - geos=3.10.2=h9c3ff4c_0
   - geotiff=1.7.0=h6593c0a_6
   - gettext=0.19.8.1=h73d1719_1008
+  - gfortran=12.2.0=h8acd90e_11
+  - gfortran_impl_linux-64=12.2.0=h55be85b_19
   - giflib=5.2.1=h36c2ea0_2
   - hdf4=4.2.15=h10796ff_3
   - hdf5=1.12.1=nompi_h7f166f4_103
   - icu=69.1=h9c3ff4c_0
+  - importlib_metadata=4.11.4=hd8ed1ab_0
   - jbig=2.1=h7f98852_2003
   - joblib=1.1.0=pyhd8ed1ab_0
   - jpeg=9e=h7f98852_0
   - json-c=0.15=h98cffda_0
   - kealib=1.4.14=h87e4c3c_3
+  - kernel-headers_linux-64=2.6.32=he073ed8_15
   - keyutils=1.6.1=h166bdaf_0
   - krb5=1.19.2=h08a2579_4
   - lcms2=2.12=hddcbb42_0
-  - ld_impl_linux-64=2.36.1=hea4e1c9_2
+  - ld_impl_linux-64=2.40=h41732ed_0
   - lerc=3.0=h9c3ff4c_0
   - libblas=3.9.0=13_linux64_openblas
   - libcblas=3.9.0=13_linux64_openblas
@@ -53,12 +61,13 @@ dependencies:
   - libedit=3.1.20191231=he28a2e2_2
   - libev=4.33=h516909a_1
   - libffi=3.4.2=h7f98852_5
-  - libgcc-ng=11.2.0=h1d223b6_13
+  - libgcc-devel_linux-64=12.2.0=h3b97bd3_19
+  - libgcc-ng=12.2.0=h65d4601_19
   - libgdal=3.4.1=hff5c5e8_5
-  - libgfortran-ng=11.2.0=h69a702a_13
-  - libgfortran5=11.2.0=h5c6108e_13
+  - libgfortran-ng=12.2.0=h69a702a_19
+  - libgfortran5=12.2.0=h337968e_19
   - libglib=2.70.2=h174f98d_4
-  - libgomp=11.2.0=h1d223b6_13
+  - libgomp=12.2.0=h65d4601_19
   - libiconv=1.16=h516909a_0
   - libkml=1.3.0=h238a007_1014
   - liblapack=3.9.0=13_linux64_openblas
@@ -70,9 +79,10 @@ dependencies:
   - libpng=1.6.37=h21135ba_2
   - libpq=14.2=h676c864_0
   - librttopo=1.1.0=hf69c175_9
+  - libsanitizer=12.2.0=h46fd767_19
   - libspatialite=5.0.1=h0e567f8_14
   - libssh2=1.10.0=ha35d2d1_2
-  - libstdcxx-ng=11.2.0=he4da1e4_13
+  - libstdcxx-ng=12.2.0=h46fd767_19
   - libtiff=4.3.0=h542a066_3
   - libuuid=2.32.1=h7f98852_1000
   - libwebp-base=1.2.2=h7f98852_1
@@ -86,7 +96,8 @@ dependencies:
   - nspr=4.32=h9c3ff4c_1
   - nss=3.74=hb5efdd6_0
   - openjpeg=2.4.0=hb52868f_1
-  - openssl=3.0.0=h7f98852_2
+  - openssl=3.1.0=h0b41bf4_0
+  - packaging=21.3=pyhd8ed1ab_0
   - pcre=8.45=h9c3ff4c_0
   - pip=22.0.3=pyhd8ed1ab_0
   - pixman=0.40.0=h36c2ea0_0
@@ -103,12 +114,15 @@ dependencies:
   - six=1.16.0=pyh6c4a22f_0
   - snuggs=1.4.7=py_0
   - sqlite=3.37.0=h9cd32fc_0
+  - sysroot_linux-64=2.12=he073ed8_15
   - threadpoolctl=3.1.0=pyh8a188c0_0
   - tiledb=2.7.0=h3f4058f_0
   - tk=8.6.12=h27826a3_0
+  - typing_extensions=4.3.0=pyha770c72_0
   - tzcode=2021e=h7f98852_0
   - tzdata=2021e=he74cb21_0
   - wheel=0.37.1=pyhd8ed1ab_0
+  - xarray=2022.3.0=pyhd8ed1ab_0
   - xerces-c=3.2.3=h8ce2273_4
   - xorg-kbproto=1.0.7=h7f98852_1002
   - xorg-libice=1.0.10=h7f98852_0
@@ -122,10 +136,10 @@ dependencies:
   - xorg-xextproto=7.3.0=h7f98852_1002
   - xorg-xproto=7.0.31=h7f98852_1007
   - xz=5.2.5=h516909a_1
+  - zipp=3.8.0=pyhd8ed1ab_0
   - zlib=1.2.11=h36c2ea0_1013
   - zstd=1.5.2=ha95c52a_0
   - pip:
-    - certifi==2021.10.8
     - cftime==1.6.0
     - click==8.0.4
     - fiona==1.8.21
@@ -133,18 +147,19 @@ dependencies:
     - geopandas==0.10.2
     - geospatialtools==0.0.0
     - h5py==3.6.0
+    - importlib-metadata==4.11.4
     - llvmlite==0.38.0
     - mpi4py==3.1.3
     - netcdf4==1.5.8
     - numba==0.55.1
     - numpy==1.21.5
     - pandas==1.4.1
+    - psutil==5.9.4
     - pyproj==3.3.0
     - pytz==2021.3
     - rasterio==1.2.10
     - scikit-learn==1.0.2
     - scipy==1.8.0
-    - setuptools==60.9.3
+    - setuptools==59.8.0
     - shapely==1.8.0
     - "git+https://github.com/chaneyn/geospatialtools.git@dev_nate"
-prefix: /home/nc153/software/miniconda3/envs/HB
