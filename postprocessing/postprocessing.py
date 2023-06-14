@@ -4,6 +4,7 @@ import postprocessing.upscaling_python as upscaling_python
 import geospatialtools.gdal_tools as gdal_tools
 import numpy as np
 import datetime
+import sys
 
 def Read_Metadata_File(file):
 
@@ -16,7 +17,6 @@ def driver(comm,metadata_file):
 
  size = comm.Get_size()
  rank = comm.Get_rank()
-
  #Read in the metadata
  #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
@@ -32,8 +32,8 @@ def driver(comm,metadata_file):
  edir = '%s/experiments/simulations/%s' % (rdir,metadata['experiment'])
 
  #Create the upscale template
- #if rank == 0:
- # upscaling_python.Create_Upscale_Template(metadata)
+ if rank == 0:
+  upscaling_python.Create_Upscale_Template(metadata) #laura, uncommented
  #comm.Barrier()
 
  #Determine the sites box
@@ -42,8 +42,8 @@ def driver(comm,metadata_file):
 
  #Create upscaling mapping
  print(rank,"Creating the upscaling mapping",flush=True)
- #upscaling_python.Create_Upscale_Mapping(metadata,rank,bbox_metadata)
-
+ upscaling_python.Create_Upscale_Mapping(metadata,rank,bbox_metadata) #laura, uncommented
+ 
  #Map the data
  vars = metadata['upscaling']['vars']
  #metadata['nt_in'] = 365*24
@@ -58,7 +58,9 @@ def driver(comm,metadata_file):
   else:
    startdate = datetime.datetime(year,1,1,0)
    enddate = datetime.datetime(year,12,31,23)
+
   upscaling_python.Map_Model_Output(metadata,vars,rank,bbox_metadata,startdate,enddate)
+  #print('upscale_python_map',flush=True)
   #Pause until all files have been processed
   comm.Barrier()
 
@@ -71,11 +73,11 @@ def driver(comm,metadata_file):
  return
 
 def Determine_Bounding_Box(metadata,rank,size):
-
+ print(rank,size,flush=True)
+ sys.exit('para')
  rdir = metadata['rdir']
  file_cid = '%s/experiments/simulations/%s/postprocess/cids.vrt' % (rdir,metadata['experiment'])
  file_mapping = '%s/experiments/simulations/%s/postprocess/mapping.tif' % (rdir,metadata['experiment'])
-
  #Retrieve metadata for entire region
  metadata_upscale = gdal_tools.retrieve_metadata(file_mapping)
  res_upscale = metadata_upscale['resx']
@@ -111,6 +113,9 @@ def Determine_Bounding_Box(metadata,rank,size):
  ilats_upscale_box = np.where(np.in1d(lats_upscale,lats_upscale_box))[0]
  ilons_upscale_box = np.where(np.in1d(lons_upscale,lons_upscale_box))[0]
  ilats_upscale_flipped_box = np.where(np.in1d(lats_upscale_flipped,lats_upscale_box))[0]
+ 
+ print(rank,np.where((lons_finescale+res_finescale/2 <= lons_upscale_box[-1]+res_upscale/2) & (lons_finescale-res_finescale/2 >= lons_upscale_box[0]-res_upscale/2))[0],flush=True)
+ sys.exit('para') 
 
  #Determine the lats/lons and ilats/ilons for the bounding box (finescale)
  ilats_finescale_box = np.where((lats_finescale+res_finescale/2 <= lats_upscale_box[-1]+res_upscale/2) &

@@ -33,21 +33,23 @@ class HydroBlocks:
   self.general_information(info)
 
   #Initialize Noah-MP
-  #print("Initializing Noah-MP",flush=True)
-  self.initialize_noahmp()
+  print("  Initializing Noah-MP",flush=True)
+  self.initialize_noahmp(info)
   self.tsno=np.zeros((self.noahmp.ncells,self.noahmp.nsnow),order='F').astype(np.float32) #Initial condition TSNO Laura
   #Initialize subsurface module
-  #print("Initializing subsurface module",flush=True)
-  self.initialize_subsurface()
+  print("  Initializing subsurface module",flush=True)
+  vsp_flag=info["soil_vertical_properties"] #laura svp
+  self.initialize_subsurface(vsp_flag) #laura svp
+  #self.initialize_subsurface()
 
   #Initialize human water use module
   #print("Initializing Human Water Management",flush=True)
   #self.initialize_hwu(info)
 
   #Initialize routing module
-  #print("Initializing the routing module",flush=True)
-  if self.routing_module == 'kinematic':
-   self.initialize_routing()
+  print("  Initializing the routing module",flush=True)
+  #if self.routing_module == 'kinematic': #Laura initialize routing even if routing is off
+  self.initialize_routing()
   #Other metrics
   self.dE = 0.0
   self.r = 0.0
@@ -77,7 +79,7 @@ class HydroBlocks:
   file_restart = '%s/%s.h5' % (self.metadata['restart']['dir'],self.idate.strftime('%Y-%m-%d'))
   if (os.path.exists(file_restart) == False 
       or self.metadata['restart']['flag'] == False):
-    #print("Cold startup",flush=True)
+    print("Cold startup",flush=True)
     return
 
   #Read in the restart information
@@ -215,6 +217,13 @@ class HydroBlocks:
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
+  #if (info['fully_distributed']==True) and (info['connection_matrix_hbands']==True): #laura
+   #self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins_CID_%s'%info['cid']]#laura
+  #elif (info['fully_distributed']==True) and (info['connection_matrix_hbands']==False): #laura
+   #self.ncsbasins=self.nhru #laura
+  #else: #laura
+  self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
+  self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m
   self.input_fp_meteo_time = self.input_fp.groups['meteorology'].variables['time']
@@ -248,7 +257,7 @@ class HydroBlocks:
 
   return
 
- def initialize_noahmp(self,):
+ def initialize_noahmp(self,info):#laura, svp
 
   #Initialize noahmp
   from model.pyNoahMP import NoahMP
@@ -486,16 +495,28 @@ class HydroBlocks:
   self.noahmp.clay_pct  = self.input_fp.groups['parameters'].variables['clay'][:] # Noemi
   self.noahmp.smcwtd[:] = self.noahmp.sh2o[:,0]
   #Initialize the soil parameters
-  for isoil in range(self.noahmp.nsoil):
-   self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
-   self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
-   self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
-   self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
-   self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
-   self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
-   self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
-   self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
-   self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
+  if info['soil_vertical_properties']==True:
+   for isoil in range(self.noahmp.nsoil):
+    self.noahmp.bexp[:,isoil] =self.input_fp.groups['parameters'].variables['BB'][:,isoil]#svp
+    self.noahmp.smcdry[:,isoil] =self.input_fp.groups['parameters'].variables['DRYSMC'][:,isoil]#svp
+    self.noahmp.smcwlt[:,isoil] =self.input_fp.groups['parameters'].variables['WLTSMC'][:,isoil]#svp
+    self.noahmp.smcref[:,isoil] =self.input_fp.groups['parameters'].variables['REFSMC'][:,isoil]#svp
+    self.noahmp.smcmax[:,isoil] =self.input_fp.groups['parameters'].variables['MAXSMC'][:,isoil]#svp
+    self.noahmp.dksat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDK'][:,isoil]#svp
+    self.noahmp.dwsat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDW'][:,isoil]#svp
+    self.noahmp.psisat[:,isoil] =self.input_fp.groups['parameters'].variables['SATPSI'][:,isoil]#svp
+    self.noahmp.quartz[:,isoil] =self.input_fp.groups['parameters'].variables['QTZ'][:,isoil] #svp
+  else:
+   for isoil in range(self.noahmp.nsoil):
+    self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
+    self.noahmp.smcdry[:,isoil] = self.input_fp.groups['parameters'].variables['DRYSMC'][:]
+    self.noahmp.smcwlt[:,isoil] = self.input_fp.groups['parameters'].variables['WLTSMC'][:]
+    self.noahmp.smcref[:,isoil] = self.input_fp.groups['parameters'].variables['REFSMC'][:]
+    self.noahmp.smcmax[:,isoil] = self.input_fp.groups['parameters'].variables['MAXSMC'][:]
+    self.noahmp.dksat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDK'][:]
+    self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
+    self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
+    self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
 
   #Set lat/lon (declination calculation)
   #self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
@@ -702,42 +723,79 @@ class HydroBlocks:
    
   return
 
- def initialize_subsurface(self,):
+ def initialize_subsurface(self,vsp_flag):
 
-  if self.subsurface_module == 'richards':self.initialize_richards()
+  if self.subsurface_module == 'richards':
+   self.initialize_richards(vsp_flag,self.ncsbasins) #laura
 
   return
 
- def initialize_richards(self,):
+ def initialize_richards(self,vsp_flag,ncsbasins): #laura, svp
    
   from model.pyRichards import richards
+  if self.flagcmatrix==False:  
+   #Initialize richards
+   self.richards = richards.richards(self.nhru,self.nsoil,vsp_flag) #laura, svp
+   #Set other parameters
+   self.richards.dx = self.dx
+   self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
+   self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
+   #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
+   self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
+   self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
+                                   self.input_fp.groups['wmatrix'].variables['indices'][:],
+                                   self.input_fp.groups['wmatrix'].variables['indptr'][:]),
+                                   shape=(self.nhru,self.nhru),dtype=np.float64)
+   #self.richards.width_dense = np.array(self.richards.width.todense())
+   #with np.errstate(invalid='ignore',divide='ignore'):tmp = self.richards.width_dense/self.richards.area
+   #self.richards.dx = (tmp + tmp.T)/2
+   self.richards.I = self.richards.width.copy()
+   self.richards.I[self.richards.I != 0] = 1
+   self.richards.w = np.array(self.richards.width.todense())
+   with np.errstate(invalid='ignore', divide='ignore'):
+    tmp = self.richards.area/self.richards.w
+   dx = (tmp + tmp.T)/2
+   self.richards.dx = dx
   
-  #Initialize richards
-  self.richards = richards.richards(self.nhru,self.nsoil)
+  else:
+   self.richards=richards.richards_hbands(self.nhru,self.nhband,self.nsoil,vsp_flag) #laura,svp
+   #Set other parameters
+   self.richards.dx = {} #laura
+   self.richards.nhband = int(self.nhband) #laura
+   hru_area = self.input_fp.groups['parameters'].variables['area'][:] #laura
 
-  #Set other parameters
-  self.richards.dx = self.dx
+   self.richards.area=np.empty(self.richards.nhband)
+   aux=0
+   for h_band in (np.unique(self.hbands)): #laura sum up and average up all the HRUs areas that belong to the same hband
+    m=self.hbands==h_band
+    self.richards.area[aux]=np.sum(hru_area[m])
+    #print(self.cid,np.sum(m),h_band,self.richards.area[aux],flush=True)
+    self.richards.m[aux]=np.sum(((self.input_fp.groups['parameters'].variables['m'][m])*(hru_area[m]))/(self.richards.area[aux]))
+    self.richards.demhband[aux]=np.sum(((self.input_fp.groups['parameters'].variables['hand'][m])*(hru_area[m]))/(self.richards.area[aux]))
+    self.richards.slope[aux]=np.sum(((self.input_fp.groups['parameters'].variables['slope'][m])*(hru_area[m]))/(self.richards.area[aux]))
+    aux=aux+1 
+
+   basin_aux=0
+   w_dict={}
+   for i in range(1,(int(ncsbasins)+1)):
+    text='wmatrix_Basin%s'%int(i)
+    text2='Basin%s' %int(i)
+    a=sparse.csr_matrix((self.input_fp.groups[text].variables['data'][:],
+                                   self.input_fp.groups[text].variables['indices'][:],
+                                   self.input_fp.groups[text].variables['indptr'][:]),
+                                   shape=(int((np.max(self.input_fp.groups[text].variables['indices']))+1),int((np.max(self.input_fp.groups[text].variables['indices']))+1)),dtype=np.float64)
+    w_dict[text2]=np.array(a.todense())
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+     tmp = (self.richards.area[basin_aux:int((np.max(self.input_fp.groups[text].variables['indices']))+1)+basin_aux])/w_dict['Basin%s' %int(i)]
+    dx = (tmp + tmp.T)/2
+    self.richards.dx[text2] = dx
+    basin_aux=basin_aux+w_dict[text2].shape[0]
+   self.richards.w=w_dict #end, laura's modification
+
+  self.richards.ncsbasins=int(ncsbasins) #number of characteristic subbasins, laura
   self.richards.nhru = self.nhru
-  self.richards.m[:] = self.input_fp.groups['parameters'].variables['m'][:]
-  #self.richards.dem[:] = self.input_fp.groups['parameters'].variables['dem'][:]
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
-  self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
-  #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
-  self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-  self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
-                                  self.input_fp.groups['wmatrix'].variables['indices'][:],
-                                  self.input_fp.groups['wmatrix'].variables['indptr'][:]),
-                                  shape=(self.nhru,self.nhru),dtype=np.float64)
-  #self.richards.width_dense = np.array(self.richards.width.todense())
-  #with np.errstate(invalid='ignore',divide='ignore'):tmp = self.richards.width_dense/self.richards.area
-  #self.richards.dx = (tmp + tmp.T)/2
-  self.richards.I = self.richards.width.copy()
-  self.richards.I[self.richards.I != 0] = 1
-  self.richards.w = np.array(self.richards.width.todense())
-  with np.errstate(invalid='ignore', divide='ignore'):
-   tmp = self.richards.area/self.richards.w
-  dx = (tmp + tmp.T)/2
-  self.richards.dx = dx
   
   return
 
@@ -754,6 +812,9 @@ class HydroBlocks:
   return
 
  def run(self,info):
+
+  #svp flag laura
+  vsp_flag=info['soil_vertical_properties']
 
   #Run the model
   date = self.idate
@@ -782,7 +843,7 @@ class HydroBlocks:
    #Update model
    tic0 = time.time()
    #self.update(date)
-   self.update(date)
+   self.update(date,vsp_flag) #laura, svp
    #if i>1: self.update(date)
 
    '''#Update input data
@@ -887,7 +948,7 @@ class HydroBlocks:
 
   return
 
- def update(self,date):
+ def update(self,date,vsp_flag): #laura, svp
 
   if self.routing_surface_coupling == True:
    self.noahmp.sfcheadrt[:] = self.routing.fct_infiltrate*self.routing.hru_inundation[:]*1000 #mm
@@ -895,7 +956,7 @@ class HydroBlocks:
    self.noahmp.sfcheadrt[:] = 0.0
 
   # Update subsurface
-  self.update_subsurface()
+  self.update_subsurface(vsp_flag) #laura, svp
   
   # Update NOAH
   n = self.noahmp
@@ -977,20 +1038,28 @@ class HydroBlocks:
 
   return
 
- def update_subsurface(self,):
+ def update_subsurface(self,vsp_flag):
 
   self.noahmp.dzwt[:] = 0.0
 
-  if self.subsurface_module == 'richards':
-
-   #Assign noahmp variables to subsurface module
-   self.richards.theta[:] = self.noahmp.smois[:]
-   self.richards.thetar[:] = self.noahmp.smcdry[:,0]
-   self.richards.thetas[:] = self.noahmp.smcmax[:,0]
-   self.richards.b[:] = self.noahmp.bexp[:,0]
-   self.richards.satpsi[:] = self.noahmp.psisat[:,0]
-   self.richards.ksat[:] = self.noahmp.dksat[:,0]
+  if (self.subsurface_module == 'richards') and (self.flagcmatrix==False):
+   self.richards.theta[:]=self.noahmp.smois[:]
+   #print(self.richards.theta[:],flush=True)
    self.richards.dz[:] = self.noahmp.sldpth[:]
+
+   if vsp_flag==False:
+   #Assign noahmp variables to subsurface module
+    self.richards.thetar[:] = self.noahmp.smcdry[:,0]
+    self.richards.thetas[:] = self.noahmp.smcmax[:,0]
+    self.richards.b[:] = self.noahmp.bexp[:,0]
+    self.richards.satpsi[:] = self.noahmp.psisat[:,0]
+    self.richards.ksat[:] = self.noahmp.dksat[:,0]
+   else:
+    self.richards.thetar[:]=self.noahmp.smcdry[:] #laura svp
+    self.richards.thetas[:] = self.noahmp.smcmax[:] #laura svp
+    self.richards.b[:] = self.noahmp.bexp[:] #laura svp
+    self.richards.satpsi[:] = self.noahmp.psisat[:] #laura svp
+    self.richards.ksat[:] = self.noahmp.dksat[:] #laura svp
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
@@ -1002,11 +1071,50 @@ class HydroBlocks:
      self.richards.dem1 = self.richards.dem
 
    #self.richards.update()
-   self.richards.update_numba()
+   self.richards.update_numba(vsp_flag)
 
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
-   
+
+  elif (self.subsurface_module == 'richards') and (self.flagcmatrix==True):
+   hru_area = self.input_fp.groups['parameters'].variables['area'][:] #laura
+   aux=0
+   for h_band in np.unique(self.hbands): #laura average up all the HRUs areas that belong to the same hband
+    m=self.hbands==h_band
+    import sys
+    self.richards.theta[aux,:]=(np.sum(((self.noahmp.smois[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
+    self.richards.thetar[aux]=(np.sum(((self.noahmp.smcdry[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    self.richards.thetas[aux]=(np.sum(((self.noahmp.smcmax[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    self.richards.b[aux]=(np.sum(((self.noahmp.bexp[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    self.richards.satpsi[aux]=(np.sum(((self.noahmp.psisat[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    self.richards.ksat[aux]=(np.sum(((self.noahmp.dksat[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    self.richards.dz[aux,:]=(np.sum(((self.noahmp.sldpth[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
+    aux=aux+1
+
+   #Update subsurface module
+   #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
+   if self.routing_module == 'kinematic': #laura kept the inundation computation at a HRU level
+    self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
+    m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
+    self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
+   else:
+    self.richards.dem1 = self.richards.dem  
+
+   aux=0
+   for h_band in np.unique(self.hbands): #laura average up all the HRUs areas that belong to the same hband
+    m=self.hbands==h_band
+    self.richards.dem1hband[aux]=(np.sum(((self.richards.dem1[m])*(hru_area[m])),axis=0))/(self.richards.area[aux])
+    aux=aux+1
+
+   self.richards.update_numba(vsp_flag) #laura, svp
+
+   #Assign subsurface module variables to noahmp
+   aux=0 #laura convert hband level divergence to HRU level. TO DO: limit the dovergence for different land covers
+   for h_band in np.unique(self.hbands):
+    m=self.hbands==h_band
+    self.noahmp.hdiv[m,:]=self.richards.hdiv[aux,:]
+    aux=aux+1
+ 
   return
 
  def initialize_water_balance(self,):
@@ -1275,10 +1383,8 @@ class HydroBlocks:
   return
 
  def create_netcdf_file(self,):
-
   #Create the output directory if necessary
   os.system('mkdir -p %s' % self.metadata['output']['dir'])
-
   #Extract the pointers to both input and output files
   ofile = '%s/%s.nc' % (self.metadata['output']['dir'],self.idate.strftime('%Y-%m-%d'))
   self.output_fp = nc.Dataset(ofile,'w',format='NETCDF4')

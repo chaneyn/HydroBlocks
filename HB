@@ -24,16 +24,16 @@ def main(argv):
          mtype = arg
 
    if mtype == 'preprocess':
-        print("HydroBlocks: Preprocess")
+        print("HydroBlocks: Preprocess",flush=True)
         import preprocessing.preprocessing
         preprocessing.preprocessing.driver(comm,mfile)
         #preprocessing.driver(comm,edir)
    elif mtype == 'model':
-        print("HydroBlocks: Model")
+        print("HydroBlocks: Model",flush=True)
         import model.model
         model.model.run(comm,mfile)
    elif mtype == 'postprocess':
-        print("HydroBlocks: Postprocess")
+        print("HydroBlocks: Postprocess",flush=True)
         import postprocessing.postprocessing
         postprocessing.postprocessing.driver(comm,mfile)
    else:

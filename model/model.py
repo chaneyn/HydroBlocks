@@ -13,7 +13,7 @@ def Read_Metadata_File(file):
  return metadata
 
 def Run_HydroBlocks(metadata,edir,cid,rdir):
-
+ #print('Run HB',flush=True)
  import datetime
  from dateutil.relativedelta import relativedelta
  #import sys
@@ -45,28 +45,28 @@ def Run_HydroBlocks(metadata,edir,cid,rdir):
  fdate = datetime.datetime(metadata['enddate']['year'],metadata['enddate']['month'],metadata['enddate']['day'],0) + datetime.timedelta(days=1)
  
  #Run the segments for the model
- restart_frequency = metadata['segment']['restart_frequency']
+ #restart_frequency = metadata['segment']['restart_frequency']
  sidate = idate
  sfdate = idate
  while sidate < fdate:
-  #sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
-  if restart_frequency == 'daily':
-   sfdate = sidate + relativedelta(days=1)
-  if restart_frequency == 'monthly':
-   sfdate = sidate + relativedelta(months=1)
-  if restart_frequency == 'yearly':
-   sfdate = sidate + relativedelta(years=1)
+  sfdate = sidate + relativedelta(years=metadata['segment']['years_per_segment'])
+  #if restart_frequency == 'daily':
+   #sfdate = sidate + relativedelta(days=1)
+  #if restart_frequency == 'monthly':
+   #sfdate = sidate + relativedelta(months=1)
+  #if restart_frequency == 'yearly':
+   #sfdate = sidate + relativedelta(years=1)
   if sfdate > fdate: sfdate = fdate
   #Set the parameters
   info['idate'] = sidate
   info['fdate'] = sfdate 
   info['MPI'] = MPI
   #Run the model
-  #Initialize
+  print(' Initialize model',flush=True)
   HB = HydroBlocks.initialize(info)
-  #Run the model
+  print(' Run the model',flush=True)
   HB.run(info)
-  #Finalize
+  print(' Finalize the model',flush=True)
   HB.finalize()
   #Update initial time step
   sidate = sfdate
