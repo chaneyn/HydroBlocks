@@ -1,0 +1,142 @@
+{
+  "rdir": "/stor/tyche/hydro/private/lpt14/projects/HBupdate2023/FD_test",
+  "experiment": "CMHB_ON_svp_ON",
+  "startdate": {
+    "year": 2018,
+    "month": 1,
+    "day": 1
+  },
+  "enddate": {
+    "year": 2018,
+    "month": 3,
+    "day": 31
+  },
+  "dt": 3600.0,
+  "channel_initiation": {
+    "athrs": 1000000
+  },
+  "connection_matrix_hbands": true,
+  "soil_vertical_properties": true,
+  "hmc_parameters": {
+    "number_of_characteristic_subbasins": 5,
+    "average_height_difference_between_bands": 80,
+    "number_of_intraband_clusters": 5,
+    "subbasin_clustering_covariates": [
+      "dem",
+      "lats",
+      "lons"
+    ],
+    "intraband_clustering_covariates": [
+      "lc",
+      "clay"
+    ],
+    "interridge_connectivity": false,
+    "intervalley_connectivity": false,
+    "intraband_connectivity": false
+  },
+  "parameter_scaling": {
+    "bankfull_depth": 1.0,
+    "channel_manning": 1.0,
+    "floodplain_manning": 1.0,
+    "channel_width": 1.0
+  },
+  "noahmp_options": {
+    "idveg": 3,
+    "iopt_crs": 2,
+    "iopt_btr": 1,
+    "iopt_run": 2,
+    "iopt_sfc": 1,
+    "iopt_frz": 2,
+    "iopt_inf": 2,
+    "iopt_rad": 1,
+    "iopt_alb": 2,
+    "iopt_snf": 3,
+    "iopt_tbot": 2,
+    "iopt_stc": 2,
+    "iopt_gla": 1,
+    "iopt_rsf": 1,
+    "iopt_crop": 0,
+    "sf_urban_physics": 0,
+    "z_ml": 10.0,
+    "nsnow": 3
+  },
+  "noahmp_ics": {
+    "swe": 0.0,
+    "snowh": 0.0,
+    "Tsoil": [
+      266.1,
+      274.0,
+      276.9,
+      279.9,
+      279.9,
+      279.9,
+      279.9,
+      279.9,
+      279.9,
+      279.9
+    ],
+    "soilM": [
+      0.298,
+      0.294,
+      0.271,
+      0.307,
+      0.307,
+      0.307,
+      0.307,
+      0.307,
+      0.307,
+      0.307
+    ],
+    "Tskin": 278.0,
+    "Tbot": 285.0
+  },
+  "segment": {
+    "years_per_segment": 1
+  },
+  "dz": [
+    0.05,
+    0.1,
+    0.1,
+    0.1,
+    0.2,
+    0.2,
+    0.25,
+    0.25,
+    0.25,
+    0.5
+  ],
+  "routing_module": {
+    "type": "kinematic",
+    "surface_coupling": true
+  },
+  "subsurface_module": "richards",
+  "restart": {
+    "flag": false
+  },
+  "output": {
+    "vars": [
+      "smc",
+      "trad",
+      "sh",
+      "lh",
+      "runoff",
+      "prcp",
+      "cm",
+      "emissi",
+      "salb"
+    ],
+    "routing_vars": [
+      "Q",
+      "A",
+      "Qc",
+      "Qf"
+    ]
+  },
+  "upscaling": {
+    "res": 0.0166666666667,
+    "vars": [
+      "trad",
+      "smc1"
+    ]
+  }
+}
