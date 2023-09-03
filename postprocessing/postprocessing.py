@@ -34,7 +34,7 @@ def driver(comm,metadata_file):
  #Create the upscale template
  if rank == 0:
   upscaling_python.Create_Upscale_Template(metadata) #laura, uncommented
- #comm.Barrier()
+ comm.Barrier()
 
  #Determine the sites box
  print(rank,"Determing the bounding box",flush=True)
@@ -74,7 +74,6 @@ def driver(comm,metadata_file):
 
 def Determine_Bounding_Box(metadata,rank,size):
  print(rank,size,flush=True)
- sys.exit('para')
  rdir = metadata['rdir']
  file_cid = '%s/experiments/simulations/%s/postprocess/cids.vrt' % (rdir,metadata['experiment'])
  file_mapping = '%s/experiments/simulations/%s/postprocess/mapping.tif' % (rdir,metadata['experiment'])
@@ -115,7 +114,6 @@ def Determine_Bounding_Box(metadata,rank,size):
  ilats_upscale_flipped_box = np.where(np.in1d(lats_upscale_flipped,lats_upscale_box))[0]
  
  print(rank,np.where((lons_finescale+res_finescale/2 <= lons_upscale_box[-1]+res_upscale/2) & (lons_finescale-res_finescale/2 >= lons_upscale_box[0]-res_upscale/2))[0],flush=True)
- sys.exit('para') 
 
  #Determine the lats/lons and ilats/ilons for the bounding box (finescale)
  ilats_finescale_box = np.where((lats_finescale+res_finescale/2 <= lats_upscale_box[-1]+res_upscale/2) &
