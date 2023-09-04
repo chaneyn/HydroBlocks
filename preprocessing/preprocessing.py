@@ -182,7 +182,7 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  if lon < 0:lon += 360
  grp.longitude = lon
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
- grp.dx = 26.0#25.0#metadata['resx'] #UPDATE WITH DEM!
+ grp.dx = 90.0#26.0#25.0#metadata['resx'] #UPDATE WITH DEM!
 
  #Write out the mapping
  hru_map = np.copy(output['hru_map'])
@@ -370,7 +370,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  mall[m2 <= 0] = 0
  mall = mall.astype(np.bool)
  print("Calculating accumulated area",flush=True)
- area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
+ #area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
+ area = area_all
 
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
@@ -379,18 +380,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
- ac = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mask,ipoints,eares,fdir)
+ ac = np.copy(area_all)
+ ac[mask == 0] = -9999 #used to calculate channels within the subdomain only
  fdc = fdir
- ac_all = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,mall,ipoints,eares,fdir)
+ ac_all = area_all
  fdc_all = fdir
- ac[(ac != 0) & (mask == 1)] = area[(ac != 0) & (mask == 1)]
- ac_all[(ac_all != 0) & (mall == 1)] = area[(ac_all != 0) & (mall == 1)]
- ac_all = np.ma.masked_array(ac_all,ac_all<=0)
 
  #Compute the channels
  print("Defining channels",flush=True)
  (channels,channels_wob,channel_topology,tmp1,crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,cthrs,cthrs,fdc,mask,np.flipud(covariates['lats']),covariates['lons'])
-
  #Curate channel_topology
  channel_topology = channel_topology[channel_topology != -9999]
  
@@ -399,7 +397,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Determine inlets/outlets
  db_routing = {}
- db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
  lst_crds = []
@@ -415,10 +413,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Compute the basins
  print("Defining basins",flush=True)
- basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
+ #basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
  basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
  basins = basins_wob
- #print(hydroblocks_info['cid'],basins.shape,np.unique(basins),np.sum(basins==-9999),flush=True)
  
  #Compute channel properties
  db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,hydroblocks_info['parameter_scaling'])
@@ -426,8 +423,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
  hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)
- #odb = {'hand':hand,'demns':demns,'fdir':fdir,'basins_wob':basins_wob,'channels_wob':channels_wob}
- #pickle.dump(odb,open('%s/test.pck' % input_dir,'wb'))
+
  #Fill in hand that is undefined (probably flow direction issues)
  hand[(hand == -9999) & (basins_wob!=-9999)] = 0.0
 
@@ -523,7 +519,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  (basin_clusters,) = terrain_tools.cluster_basins_updated(basins_wob,cvs,hp_in,ncatchments)
  #Calculate average bankfull depth per basin cluster
  ubcs = np.unique(basin_clusters)
- #print(np.unique(ubcs),flush=True)
  ubcs = ubcs[ubcs != -9999]
  for ubc in ubcs:
   ubs = np.unique(basins_wob[basin_clusters == ubc])
@@ -536,9 +531,85 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  print("Discretizing clusters of basins (hbands)",flush=True) #laura
  n_binning = dh #HACK 
  max_nbins = 100
- #odb = {'basin_clusters':basin_clusters,'hand':hand,'basins_wob':basins_wob}
- #pickle.dump(odb,open('%s/test.pck' % input_dir,'wb'))
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins_wob,n_binning,hydroblocks_info['cid'],max_nbins)
+
+ #Assemble river/hillslope database for routing/two-way connectivity
+ (db_routing,area_adj,new_hand2) = Build_Hillslope_River_Database(channels_wob,mask,fdir,eares,tiles,hand,basins_wob,basin_clusters,new_hand,db_routing,ubcs,tile_position,db_channels)
+
+ #Disagregate land cover
+ intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
+ if 'lc' in intraband_clust_vars: 
+  intraband_clust_vars.remove('lc')
+  ##disag = [i for i in covariates.keys() if 'lc_' in i] #laura, commented out so lc not overwhelms clustering
+  ##intraband_clust_vars = intraband_clust_vars + disag #laura, commented out so lc not overwhelms clustering
+  intraband_clust_vars=intraband_clust_vars+['lc_w_now','lc_urb_nourb','lc_grass_forest'] #laura, divide land cover in water_vs_no_water, urban_vs_no_urban, and grass_vs_forest (including grass and shrubs as intermediate values)
+
+ #Calculate the hrus (kmeans on each tile of each basin)
+ cvs = {}
+ for var in intraband_clust_vars:
+  if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
+   if var=='lc_w_now':
+    lc_mask=covariates['lc_17']
+   elif var=='lc_urb_nourb':
+    lc_mask=covariates['lc_13']
+   elif var=='lc_grass_forest':
+    lc_mask=covariates['lc_4'] #deciduous_forest
+    if 'lc_2' in covariates:
+     lc_mask[covariates['lc_2']==1]=1 #evergreen_forest
+    if 'lc_5' in covariates:
+     lc_mask[covariates['lc_5']==1]=1 #mixed_forest
+    if 'lc_6' in covariates:
+     lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub
+#   lc_mask[covariates['lc_7']==1]=0.66 #dwarf/scrub, Alaska only
+    if 'lc_11' in covariates:
+     lc_mask[covariates['lc_11']==1]=0.66 #wetlands
+    if 'lc_12' in covariates:
+     lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops
+    if 'lc_10' in covariates:
+     lc_mask[covariates['lc_10']==1]=0.33 #grassland
+#   lc_mask[covariates['lc_19']==1]=0.33 #moss/sedge/lichens, Alaska only
+    if 'lc_16' in covariates:
+     lc_mask[covariates['lc_16']==1]=0.01 #barren_land  
+
+   cvs[var] = {'min':0,
+               'max':1,
+               't':-9999,
+               'd':lc_mask}
+  else:
+   cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
+               'max':np.max(covariates[var][covariates[var]!=-9999]),
+               't':-9999,
+               'd':covariates[var]}
+ 
+ print("Clustering the height bands into clusters", flush=True)
+ #A.Ensure match between basin cluster map and tiles map
+ m = (basin_clusters == -9999) | (tiles == -9999)
+ basin_clusters[m] = -9999
+ tiles[m] = -9999
+ 
+ hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,hydroblocks_info['cid']) #laura
+ hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
+ nhru = np.unique(hrus[hrus!=-9999]).size
+ #print(' CID',hydroblocks_info['cid'],'#HRUs          ',nhru,flush=True)
+ #print(' CID',hydroblocks_info['cid'],'#Total pixels  ',np.sum(basin_clusters!=-9999))
+
+ #Save the channel info
+ pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
+ pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
+
+ #Construct HMC info for creating connections matrix
+ HMC_info = {}
+ HMC_info['basins'] = basins
+ HMC_info['tile_position'] = tile_position
+ HMC_info['channel_map'] = channels_wob
+
+ #return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,hand,
+ return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,new_hand2,
+         basins,basin_clusters,hand,tiles,area_adj,tile_position)
+
+def Build_Hillslope_River_Database(channels_wob,mask,fdir,eares,tiles,hand,basins_wob,
+    basin_clusters,new_hand,db_routing,ubcs,tile_position,db_channels):
+
  #Calculate histogram of travel distances per height band
  t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
  uhbands = np.unique(tiles)
@@ -649,7 +720,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   #Update the channel depth
   odb['hand'][b-1,0:c_hand.size] = c_hand[:]
   #Calculate width
-  #c_width = c_area/c_length
   odb['W'][b-1,0:c_width.size] = c_width[:]
   #Calculate wetted perimeter at each stage
   dPc = []
@@ -661,7 +731,6 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
    else:
     dPc.append(0.0)
     dPf.append(c_width[iseg-1] + 2*(c_width[iseg]/2**2 + (c_hand[iseg+1]-c_hand[iseg])**2)**0.5)
-  #dP = c_width[0:-1] + 2*np.diff(c_hand)
   #Compute perimieters for channel and floodplain
   dPc = np.array(dPc)
   dPf = np.array(dPf)
@@ -686,24 +755,15 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
     pt2 = 2*c_width[iseg]/2*(c_hand[iseg+1]-c_hand[iseg])/2
     tmp = pt1+pt2
     dAf.append(tmp)
-    #pt1 = np.sum(c_width[0:iseg]*(c_hand[iseg+1]-c_hand[iseg]))
-    #pt2 = 2*c_width[iseg]/2*(c_hand[iseg+1]-c_hand[iseg])/2
-    #tmp = pt1 + pt2
-    #dA.append(tmp)
   #Compute cross sectional areas for channel and floodplain
   dAc = np.array(dAc)
   dAf = np.array(dAf)
-  #dA = np.array(dA)
   Ac = np.cumsum(dAc)
   Af = np.cumsum(dAf)
   odb['Ac'][b-1,0] = 0.0
   odb['Ac'][b-1,1:Ac.size+1] = Ac[:]
   odb['Af'][b-1,0] = 0.0
   odb['Af'][b-1,1:Af.size+1] = Af[:]
-  #dA = np.cumsum(c_width[0:-1])*np.diff(c_hand)
-  #A = np.cumsum(dA)
-  #odb['A'][b-1,0] = 0.0
-  #odb['A'][b-1,1:A.size+1] = A[:]
 
  #Calculate inundation height at each stage
  db_routing['reach_cross_section'] = copy.deepcopy(odb)
@@ -714,13 +774,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   for hband in db_routing['reach_hband_area'][reach]:
    tmp = db_routing['reach_hband_area'][reach][hband]
    reach2hband[reach-1,hband] = db_routing['reach_hband_area'][reach][hband]
- #print(np.sum(odb['W']*db_channels['length'][:,np.newaxis]))
- #print(np.sum(odb['W']),np.sum(db_channels['length']),np.sum(odb['W']*db_channels['length'][:,np.newaxis]))
- #print(odb['W'][0,0:10],db_channels['length'][0])
- #exit()
 
  #Correct the area per grid cell array (and then apply to construct database)
- 
  hband_areas = np.array(np.sum(reach2hband,axis=0))
  area_adj = np.zeros(new_hand.shape)
  area_adj[:] = -9999.0
@@ -728,76 +783,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
   m = tiles == hband
   area_adj[m] = hband_areas[hband]/np.sum(m)
 
- #Disagregate land cover
- intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
- if 'lc' in intraband_clust_vars: 
-  intraband_clust_vars.remove('lc')
-  ##disag = [i for i in covariates.keys() if 'lc_' in i] #laura, commented out so lc not overwhelms clustering
-  ##intraband_clust_vars = intraband_clust_vars + disag #laura, commented out so lc not overwhelms clustering
-  intraband_clust_vars=intraband_clust_vars+['lc_w_now','lc_urb_nourb','lc_grass_forest'] #laura, divide land cover in water_vs_no_water, urban_vs_no_urban, and grass_vs_forest (including grass and shrubs as intermediate values)
-
- #Calculate the hrus (kmeans on each tile of each basin)
- cvs = {}
- for var in intraband_clust_vars:
-  if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
-   if var=='lc_w_now':
-    lc_mask=covariates['lc_17']
-   elif var=='lc_urb_nourb':
-    lc_mask=covariates['lc_13']
-   elif var=='lc_grass_forest':
-    lc_mask=covariates['lc_4'] #deciduous_forest
-    if 'lc_2' in covariates:
-     lc_mask[covariates['lc_2']==1]=1 #evergreen_forest
-    if 'lc_5' in covariates:
-     lc_mask[covariates['lc_5']==1]=1 #mixed_forest
-    if 'lc_6' in covariates:
-     lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub
-#   lc_mask[covariates['lc_7']==1]=0.66 #dwarf/scrub, Alaska only
-    if 'lc_11' in covariates:
-     lc_mask[covariates['lc_11']==1]=0.66 #wetlands
-    if 'lc_12' in covariates:
-     lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops
-    if 'lc_10' in covariates:
-     lc_mask[covariates['lc_10']==1]=0.33 #grassland
-#   lc_mask[covariates['lc_19']==1]=0.33 #moss/sedge/lichens, Alaska only
-    if 'lc_16' in covariates:
-     lc_mask[covariates['lc_16']==1]=0.01 #barren_land  
-
-   cvs[var] = {'min':0,
-               'max':1,
-               't':-9999,
-               'd':lc_mask}
-  else:
-   cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
-               'max':np.max(covariates[var][covariates[var]!=-9999]),
-               't':-9999,
-               'd':covariates[var]}
- 
- print("Clustering the height bands into clusters", flush=True)
- #A.Ensure match between basin cluster map and tiles map
- m = (basin_clusters == -9999) | (tiles == -9999)
- basin_clusters[m] = -9999
- tiles[m] = -9999
- 
- hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,hydroblocks_info['cid']) #laura
- hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
- nhru = np.unique(hrus[hrus!=-9999]).size
- #print(' CID',hydroblocks_info['cid'],'#HRUs          ',nhru,flush=True)
- #print(' CID',hydroblocks_info['cid'],'#Total pixels  ',np.sum(basin_clusters!=-9999))
-
- #Save the channel info
- pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
- pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
-
- #Construct HMC info for creating connections matrix
- HMC_info = {}
- HMC_info['basins'] = basins
- HMC_info['tile_position'] = tile_position
- HMC_info['channel_map'] = channels_wob
-
- #return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,hand,
- return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,new_hand2,
-         basins,basin_clusters,hand,tiles,area_adj,tile_position)
+ return (db_routing,area_adj,new_hand2)
 
 def Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,dz_data,dz_model):
 
@@ -1289,7 +1275,7 @@ def Create_and_Curate_Covariates_svp(wbd,hydroblocks_info):
  #Set everything outside of the mask to -9999
  for var in covariates:
   if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
-  if var == 'dem':continue 
+  if var in ['dem','fdir','acc']:continue 
   if var in ['WLTSMC','MAXSMC','BB','DRYSMC','QTZ','SATDW','REFSMC','SATPSI','SATDK']: #laura svp
    for depth in covariates[var]: #laura svp
     covariates[var][depth][mask<0]=-9999.0 #laura svp
@@ -1372,7 +1358,7 @@ def Create_and_Curate_Covariates(wbd,hydroblocks_info):
  #Set everything outside of the mask to -9999
  for var in covariates:
   if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
-  if var == 'dem':continue 
+  if var in ['dem','fdir']:continue 
   covariates[var][mask <= 0] = -9999.0
 
  #Add the mask_all to the covariates
