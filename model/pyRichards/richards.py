@@ -392,6 +392,7 @@ class richards_hbands:
     aux=fin
    else:
     div[init:fin,:]=update_workhorse_vsp(theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],thetar[init:fin],thetas[init:fin],b[init:fin],satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],w_bas,dx_bas,area[init:fin])
+    aux=fin #laura, added to fix flerchinger
   self.hdiv=div
 
   return
