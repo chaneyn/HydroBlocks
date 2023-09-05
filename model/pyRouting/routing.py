@@ -104,8 +104,18 @@ class kinematic:
   #Update data
   self.A0_org[:] = np.copy(self.A0)
   self.u0_org[:] = np.copy(self.u0)
+ 
+  #Explicit solution
+  self.dt_routing = 100 #seconds
+  dt_routing = self.dt_routing
+  nt = int(dt/dt_routing)
+  for it in range(nt):
+   #Exchange boundary conditions
+   self.exchange_bcs()
+   #Update solution
+   self.update_solution_explicit()
 
-  dif0 = -9999
+  '''dif0 = -9999
   max_niter = 25
   min_niter = 1
   flag_end = False
@@ -113,26 +123,13 @@ class kinematic:
   for itr in range(max_niter):
    #Exchange boundary conditions
    self.exchange_bcs()
-   #Define streamflow BCs
-   #for gauge in self.Qobs:
-    #rid = gauge['rid']
-    #if self.cid == gauge['cid']:    
-     #self.bcs[rid] = gauge['Q'][self.itime]
-   #if self.cid == 9:
-   # self.bcs[198] = self.Qobs['Q'][self.itime]
-   #Chikaskia river
-   #if self.cid == 14:
-   # self.bcs[196] = self.Qobs2['Q'][self.itime]
    #Update solution
-   self.update_solution()
+   self.update_solution_implicit()
    #Determine if we are done
    if self.rank == 0:dif1 = dif0
    dif0 = self.comm.gather(self.dif0,root=0)
    dif0 = self.comm.bcast(np.max(dif0),root=0)
-   #if(self.rank == 0):print(itr,dif0,dif1,flush=True)
-   if (dif0 < 0.01) & (itr >= min_niter-1):break #tolerance is 0.01 m3/s
-  #if self.rank == 0:
-  # print(itr,dif0,dif1,flush=True)
+   if (dif0 < 0.01) & (itr >= min_niter-1):break #tolerance is 0.01 m3/s'''
 
   #Zero out qss
   self.qss[:] = 0.0
@@ -140,7 +137,6 @@ class kinematic:
   #Calculate area-weighted average inundation height per hband
   A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
-  #A1 = self.A0
   A1 = self.A0[:]# + self.Af[:]
   W = self.hdb['W']
   M = self.hdb['M']
@@ -160,8 +156,6 @@ class kinematic:
   self.Qf[:] = self.u0*self.Af
   self.Qc[self.Qc < 0.0] = 0.0
   self.Qf[self.Qf < 0.0] = 0.0
-  #print(self.Qc[0],self.Qf[0],self.Q1[0],self.Qc[0]+self.Qf[0])
-  #exit()
 
   return
 
@@ -198,7 +192,7 @@ class kinematic:
 
   return
 
- def update_solution(self,):
+ def update_solution_implicit(self,):
 
   #Extract info
   hdb = self.hdb
@@ -211,19 +205,15 @@ class kinematic:
   A0_org = self.A0_org[:]
   qss = self.qss
   bcs = self.bcs
-  maxu = 10.0#10.0#0.1#0.1#1.0#0.1#1.0#2.0
-  minu = 0.1#10.0#1.0#2.0#1.0#0.1#10**-6#0.1
+  maxu = 2.0
+  minu = 0.1
   dt = self.dt
 
   #Determine velocity
-  #Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,self.c_n,self.fp_n)
-  #u1 = np.zeros(Kvn.size)
-  #u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
   #This effectively linearizes the sub-grid network solver by setting the velocity with the previous time step A (Another way to do this, is converge first locally every change in BCs)
   Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
   u1 = np.zeros(Kvn.size)
   u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
-  #u1[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
   #Constrain velocity
   u1[u1 > maxu] = maxu
   u1[u1 < minu] = minu
@@ -242,7 +232,6 @@ class kinematic:
   RHS = (RHS0 + RHS1 + RHS2)#/(c_length + dt*u1)
   A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=False)
   #Curate A1 (issues with conservation of mass)
-  #if np.sum(A1<0) > 0:print(np.sum(A1<0))
   A1[A1 < 0] = 0.0
   #Calculate difference with previous iteration
   dif1 = np.max(np.abs(A0 - A1))
@@ -259,6 +248,51 @@ class kinematic:
   self.Q1[:] = Q1[:]
   self.A1[:] = A1[:]
   self.dif0 = dif1
+
+  return
+
+ def update_solution_explicit(self,):
+
+  #Extract info
+  hdb = self.hdb
+  A0 = self.A0[:]
+  c_slope = self.c_slope
+  c_slope[c_slope < 10**-3] = 10**-3
+  c_n = self.c_n
+  LHS = self.LHS
+  c_length = self.c_length
+  A0_org = A0[:]#elf.A0_org[:]
+  qss = self.qss
+  bcs = self.bcs/c_length
+  maxu = 10.0
+  minu = 0.1
+  dt = self.dt_routing
+
+  #Determine velocity
+  #This effectively linearizes the sub-grid network solver by setting the velocity with the previous time step A (Another way to do this, is converge first locally every change in BCs)
+  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
+  u1 = np.zeros(Kvn.size)
+  u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
+  #Constrain velocity
+  u1[u1 > maxu] = maxu
+  u1[u1 < minu] = minu
+  #Ammending LHS from the implicit solver for this (HACK)
+  LHS.setdiag(0)
+  #LHS = np.array(LHS.todense())
+  #A1 = A0 + source/sink + boundary conditions - Qout + Qin
+  A1 = A0 + dt*qss + dt*bcs - dt*(u1*A0)/c_length + dt*(LHS*(u1*A0))/c_length
+  #Curate A1 (issues with conservation of mass)
+  A1[A1 < 0] = 0.0
+  #Reset A0
+  A0[:] = A1[:]
+  #Calculate Q1
+  Q1 = A0*u1
+  #Update data in db
+  self.Q0[:] = Q1[:]
+  self.u0[:] = u1[:]
+  self.A0[:] = A0[:]
+  self.Q1[:] = Q1[:]
+  self.A1[:] = A1[:]
 
   return
 
