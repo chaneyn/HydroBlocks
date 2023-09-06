@@ -107,7 +107,8 @@
   ],
   "routing_module": {
     "type": "kinematic",
-    "surface_coupling": true
+    "surface_coupling": true,
+    "dt_routing":100
   },
   "subsurface_module": "richards",
   "restart": {

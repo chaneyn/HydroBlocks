@@ -15,7 +15,7 @@ import h5py
 
 class kinematic:
 
- def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file):
+ def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file,dt_routing):
 
   self.itime = 0
   self.comm = MPI.COMM_WORLD
@@ -35,6 +35,7 @@ class kinematic:
 
   #Define the variables
   self.dt = dt
+  self.dt_routing = dt_routing
   self.cid = cid
   self.uhs = self.db['uhs'][:] #unit hydrographs
   self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hband (travel time is bug)
@@ -46,6 +47,7 @@ class kinematic:
   m =  self.fp_n < self.c_n
   self.fp_n[m] = self.c_n[m]
   self.c_slope = self.db['c_slope'][:]
+  self.c_slope[self.c_slope < 10**-3] = 10**-3
   self.c_bankfull = self.db['c_bankfull'][:]
   self.nchannel = self.c_length.size
   self.A0 = 10**-5*np.ones(self.c_length.size)
@@ -66,9 +68,19 @@ class kinematic:
   self.rcids_hdw = self.db['rcids_hdw']
   self.hdw = self.db['hdw']
   self.hdb = self.db['hdb']
+  self.hdb['hband'] = self.hdb['hband'].astype(np.int64)
   self.hdb['M'][self.hdb['M'] == 0] = 10**-5
   self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
   self.LHS = self.db['LHS']
+  tmp_topology = self.db['LHS'][:]
+  tmp_topology.setdiag(0)
+  tmp_topology = tmp_topology.todense()
+  topology = np.zeros((tmp_topology.shape[0],3),dtype=np.int32)
+  topology[:] = -9999
+  for i in range(tmp_topology.shape[0]):
+   ids = np.where(tmp_topology[i,:] != 0)[1]
+   topology[i,0:ids.size] = ids[:]
+  self.topology = topology
   self.A0_org = np.copy(self.A0)
   self.u0_org = np.copy(self.u0)
   self.Ac0 = np.zeros(self.c_length.size)
@@ -101,47 +113,28 @@ class kinematic:
 
  def update(self,dt):
 
-  #Update data
-  self.A0_org[:] = np.copy(self.A0)
-  self.u0_org[:] = np.copy(self.u0)
- 
   #Explicit solution
-  self.dt_routing = 100 #seconds
+  #self.dt_routing = 100 #seconds
   dt_routing = self.dt_routing
   nt = int(dt/dt_routing)
   for it in range(nt):
    #Exchange boundary conditions
    self.exchange_bcs()
    #Update solution
-   self.update_solution_explicit()
-
-  '''dif0 = -9999
-  max_niter = 25
-  min_niter = 1
-  flag_end = False
-  #Update solution
-  for itr in range(max_niter):
-   #Exchange boundary conditions
-   self.exchange_bcs()
-   #Update solution
-   self.update_solution_implicit()
-   #Determine if we are done
-   if self.rank == 0:dif1 = dif0
-   dif0 = self.comm.gather(self.dif0,root=0)
-   dif0 = self.comm.bcast(np.max(dif0),root=0)
-   if (dif0 < 0.01) & (itr >= min_niter-1):break #tolerance is 0.01 m3/s'''
+   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'])
+   self.A0[:] = self.A1[:]
+   self.Q1[:] = self.Q0[:]
 
   #Zero out qss
   self.qss[:] = 0.0
-
   #Calculate area-weighted average inundation height per hband
   A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
-  A1 = self.A0[:]# + self.Af[:]
+  A1 = self.A0[:]
   W = self.hdb['W']
   M = self.hdb['M']
   hand = self.hdb['hand']
-  hband = self.hdb['hband'].astype(np.int64)
+  hband = self.hdb['hband']
   (self.hband_inundation[:],self.reach2hband_inundation[:]) = calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,self.reach2hband_inundation,self.reach2hband)
   tmp = np.sum(self.reach2hband*self.reach2hband_inundation,axis=1)/self.c_length
   tmp1 = np.max(np.abs(A1-tmp))
@@ -198,7 +191,6 @@ class kinematic:
   hdb = self.hdb
   A0 = self.A0[:]
   c_slope = self.c_slope
-  c_slope[c_slope < 10**-3] = 10**-3
   c_n = self.c_n
   LHS = self.LHS
   c_length = self.c_length
@@ -251,7 +243,7 @@ class kinematic:
 
   return
 
- def update_solution_explicit(self,):
+ def update_solution_explicit_original(self,it):
 
   #Extract info
   hdb = self.hdb
@@ -279,6 +271,10 @@ class kinematic:
   #Ammending LHS from the implicit solver for this (HACK)
   LHS.setdiag(0)
   #LHS = np.array(LHS.todense())
+  if (it == 0):
+   Q0in = LHS*(u1*A0)
+   if (self.rank == 0):print(Q0in[0:3])
+  exit()
   #A1 = A0 + source/sink + boundary conditions - Qout + Qin
   A1 = A0 + dt*qss + dt*bcs - dt*(u1*A0)/c_length + dt*(LHS*(u1*A0))/c_length
   #Curate A1 (issues with conservation of mass)
@@ -296,21 +292,51 @@ class kinematic:
 
   return
 
-def calculate_hydraulic_radius_rect(c_bankfull,c_width,A):
+@numba.jit(nopython=True,cache=True)
+def update_solution_explicit(c_slope,c_n,u0,A0,topology,c_length,qss,bcs,dt_routing,
+     fp_n,Ac,Af,Pc,Pf,W,M):
 
- Arh = np.copy(A)
- #Calculate stage
- h = Arh/c_width
- #Calculate wetted perimeter
- P = 2*h + c_width
- #Restrict to bankfull under flooding conditions
- #m = h > c_bankfull
- #Arh[m] = c_bankfull[m]*c_width[m]
- #P[m] = 2*c_bankfull[m] + c_width[m]
- #Calculate hydraulic radius
- Rh = Arh/P
+ #Extract info
+ bcs_c = bcs/c_length
+ maxu = 10.0
+ minu = 0.1
+ dt = dt_routing
 
- return Rh
+ #Determine velocity
+ #Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,c_n,fp_n)
+ Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+ u0 = np.zeros(Kvn.size)
+ u0[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+
+ #Constrain velocity
+ u0[u0 > maxu] = maxu
+ u0[u0 < minu] = minu
+
+ #Compute Q0in
+ Q0in = Compute_Q0in(topology,u0,A0)
+
+ #A1 = A0 + source/sink + boundary conditions - Qout + Qin
+ A1 = A0 + dt*qss + dt*bcs_c - dt*(u0*A0)/c_length + dt*Q0in/c_length
+
+ #Curate A1 (issues with conservation of mass)
+ A1[A1 < 0] = 0.0
+
+ #Calculate Q0
+ Q0 = A0*u0
+
+ return (Q0,u0,A1)
+
+
+@numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
+def Compute_Q0in(topology,u0,A0):
+
+ Q0in = np.zeros(A0.size)
+ for i in range(Q0in.size):
+  for j in range(topology.shape[1]):
+   if topology[i,j] == -9999:continue
+   else: Q0in[i] += u0[topology[i,j]]*A0[topology[i,j]]
+
+ return Q0in
 
 @numba.jit(nopython=True,cache=True)
 def calculate_hydraulic_radius(A,P,W,A1):
@@ -334,13 +360,13 @@ def calculate_hydraulic_radius(A,P,W,A1):
 
  return Rh
 
-@numba.jit(nopython=True,cache=True)
+@numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
 def calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A1,cn,fpn):
  
  Kvn = np.zeros(Ac.shape[0])
  #Determine the level for which we need to back out info
  for i in range(Ac.shape[0]):
-  for j in range(Ac.shape[1]):
+  for j in range(Ac.shape[1]-1):
    if (Af[i,j+1]+Ac[i,j+1]) > A1[i]:break
    if (Af[i,j+1]+Ac[i,j+1]) == 0.0:break
   if j == 0:
@@ -392,32 +418,18 @@ def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inunda
    if A[i,j+1] == 0.0:break
    A0 = A[i,j]
   #Calculate the height above the segment
-  #htop = (A1[i] - A0)/np.sum(W[i,0:j]) (rectangular)
-  #print(A1[i],A0,W[i,0])
   if j == 1:htop = (A1[i] - A0)/W[i,0]
-  #if j != 1:print('here!')
   else:
    c = -(A1[i] - A0)
    b = np.sum(W[i,0:j-1])
    a = 1.0/M[i,j-1]
    htop = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) #trapezoidal
-   #print('h',(-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a))
-   #print('l',(-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a))
   #Based on htop calculate the water heights (Wrong)
   h = np.zeros(j)
   h[0] = hand[i,j-1] + htop
   if j > 1:h[j-1] = htop*htop/M[i,j-1]/W[i,j-1]
-  # print(j,A[i,:])
-  # print(j,A0,A1[i],htop,h[0]*W[i,0],h[j-1]*W[i,j-1])
   if j > 2:
-   #print(j)
-   #print(hand[i,j-1],hand[i,1:j-1],(hand[i,2:j]+hand[i,1:j-1])/2,htop)
    h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] - (hand[i,2:j]-hand[i,1:j-1])/2 + htop
-   #h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] + htop
-   #h[1:j-1] = hand[i,j-1] - hand[i,1:j-1] - (hand[i,2:j]+hand[i,1:j-1])/2 + htop
-   #print(h)
-  #h0 = hand[i,j-1] - hand[i,:j]
-  #h = htop + h0 #m
   #Add to hband sum (times area)
   idxs = hband[i,0:j]
   #Place the inundation level
@@ -430,3 +442,9 @@ def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inunda
 
  return (hband_inundation,reach2hband_inundation)
 
+@numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
+def compute_qss(reach2hband,crunoff,c_length,qss):
+  for i in range(qss.size):
+   qss[i] = np.sum(reach2hband[i,:]*crunoff/1000.0)/c_length[i] #m2/s
+  #qss[:] += reach2hband.dot(crunoff/1000.0)/c_length #m2/s
+  return qss
