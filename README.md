@@ -3,10 +3,10 @@ HydroBlocks
 
 The following steps walk through how to install HydroBlocks
 
-**1. Clone the the dev_laura branch of HydroBlocks.**
+**1. Clone the HydroBlocks repository.**
 
 ```
-git clone --single-branch --branch dev_laura https://github.com/chaneyn/HydroBlocks.git
+git clone https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
 ```
 
@@ -19,7 +19,7 @@ pip install git+https://github.com/chaneyn/geospatialtools@dev_nate
 pip install psutil==5.9.4
 ```
 
-**3. Install the dev_laura branch of HydroBlocks.**
+**3. Install HydroBlocks.**
 
 ```
 python setup.py 
