@@ -15,7 +15,7 @@ import h5py
 
 class kinematic:
 
- def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file,dt_routing):
+ def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file,dt_routing,HB):
 
   self.itime = 0
   self.comm = MPI.COMM_WORLD
@@ -64,9 +64,30 @@ class kinematic:
   self.reach2hband = np.asarray(self.db['reach2hband'].todense())
   self.reach2hband_inundation = np.copy(self.reach2hband)
   self.reach2hband_inundation[:] = 0.0
-  self.scids_hdw = self.db['scids_hdw']
-  self.rcids_hdw = self.db['rcids_hdw']
+  #self.scids_hdw = self.db['scids_hdw']
+  #self.rcids_hdw = self.db['rcids_hdw']
   self.hdw = self.db['hdw']
+  #Set up send/receive of cids
+  fp = nc.Dataset('%s/input_file.nc' % cdir)
+  tmp = np.unique(fp['stream_network']['outlets'][:,2])
+  tmp = tmp[tmp != -9999]
+  self.scids_hdw = tmp
+  tmp = np.unique(fp['stream_network']['inlets'][:,2:6])
+  tmp = tmp[tmp != -9999]
+  self.rcids_hdw = tmp
+  self.outlets_array = fp['stream_network']['outlets'][:]
+  #Determine which channels need to pass information
+  #for ucid in self.scids_hdw:
+  # m = fp['stream_network']['outlets'][:][:,2] == ucid
+  # self.hdw[ucid][cid]['outlet'] = fp['stream_network']['outlets'][:][m,1]-1 #-1 due to channel
+  # #print(ucid,cid,np.sort(fp['stream_network']['outlets'][:][m,1]))
+  # #print(ucid,cid,np.sort(self.hdw[ucid][cid]['outlet']))
+  #Determine which channels need to receive information
+  #for ucid in self.rcids_hdw:
+  # m = fp['stream_network']['outlets'][:][:,2] == ucid
+  # self.hdw[ucid][cid] = fp['stream_network']['outlets'][:][m,1]-1 #-1 due to channel
+  #print(self.hdw)
+  fp.close()
   self.hdb = self.db['hdb']
   self.hdb['hband'] = self.hdb['hband'].astype(np.int64)
   self.hdb['M'][self.hdb['M'] == 0] = 10**-5
@@ -115,13 +136,16 @@ class kinematic:
 
   #Explicit solution
   #self.dt_routing = 100 #seconds
+  flag_constant_Kvn = True
   dt_routing = self.dt_routing
   nt = int(dt/dt_routing)
+  A0_org = np.copy(self.A0)
   for it in range(nt):
    #Exchange boundary conditions
-   self.exchange_bcs()
+   #self.exchange_bcs()
+   self.exchange_bcs_v2()
    #Update solution
-   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'])
+   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
    self.A0[:] = self.A1[:]
    self.Q1[:] = self.Q0[:]
 
@@ -161,6 +185,7 @@ class kinematic:
    dest = crm[ucid]
    db_ex = {'cid':self.cid,'scid_hdw':ucid,
           'Q0':self.Q0[self.hdw[ucid][self.cid]['outlet']]}
+          #'Q0':self.Q0[outlets[outlets[:,2]==ucid,1]]}
    self.comm.send(db_ex,dest=dest,tag=11)
 
   #Receive headwater data
@@ -176,9 +201,50 @@ class kinematic:
   bcs = self.bcs
   self.bcs[:] = 0.0
   for ucid in self.rcids_hdw:
+   #m = inlets[inlets[:,2] == ucid]
+   #for ic in range(np.sum(m).size):
+   # inlet = inlets[m,1]
+   # self.bcs[inlet] += recv[ucid]['Q0'][ic]
    for ic in range(len(self.hdw[self.cid][ucid]['inlet'])):
     inlet = self.hdw[self.cid][ucid]['inlet'][ic]
     self.bcs[inlet] += recv[ucid]['Q0'][ic]
+
+  #Wait until all are done
+  self.comm.Barrier()
+
+  return
+
+ def exchange_bcs_v2(self,):
+
+  #Send headwater data
+  crm = self.cid_rank_mapping #Where each cid resides
+  for ucid in self.scids_hdw:
+   dest = crm[ucid]
+   m = self.outlets_array[:,2] == ucid
+   channels_ucid = self.outlets_array[m,3].data-1 
+   channels_cid = self.outlets_array[m,1].data-1
+   Q0_bcs_ucid = self.Q0[channels_cid]
+   db_ex = {'cid':self.cid,'scid_hdw':ucid,
+          'channels_ucid':channels_ucid,
+          'Q0_bcs_ucid':Q0_bcs_ucid}
+   self.comm.send(db_ex,dest=dest,tag=11)
+
+  #Receive headwater data
+  recv = {}
+  for ucid in self.rcids_hdw:
+   if ucid not in recv:recv[ucid] = {}
+   source = crm[ucid]
+   db_ex = self.comm.recv(source=source,tag=11)
+   for var in db_ex:
+    recv[ucid][var] = db_ex[var]
+
+  #Update the boundary conditions
+  bcs = self.bcs
+  self.bcs[:] = 0.0
+  for ucid in self.rcids_hdw:
+   channels_ucid = recv[ucid]['channels_ucid']
+   Q0_bcs_ucid = recv[ucid]['Q0_bcs_ucid']
+   self.bcs[channels_ucid] += Q0_bcs_ucid
 
   #Wait until all are done
   self.comm.Barrier()
@@ -294,19 +360,24 @@ class kinematic:
 
 @numba.jit(nopython=True,cache=True)
 def update_solution_explicit(c_slope,c_n,u0,A0,topology,c_length,qss,bcs,dt_routing,
-     fp_n,Ac,Af,Pc,Pf,W,M):
+     fp_n,Ac,Af,Pc,Pf,W,M,A0_org,flag_constant_Kvn):
 
  #Extract info
  bcs_c = bcs/c_length
  maxu = 10.0
- minu = 0.1
+ minu = 10**-5
  dt = dt_routing
 
- #Determine velocity
- #Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0,c_n,fp_n)
- Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
- u0 = np.zeros(Kvn.size)
- u0[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+ if flag_constant_Kvn == True:
+  #Determine velocity
+  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0_org,c_n,fp_n)
+  u0 = np.zeros(Kvn.size)
+  u0[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
+ else:
+  #Determine velocity
+  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+  u0 = np.zeros(Kvn.size)
+  u0[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
 
  #Constrain velocity
  u0[u0 > maxu] = maxu

@@ -603,7 +603,7 @@ class HydroBlocks:
 
   #Initialize kinematic wave routing
   self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
-                                   self.nhband,self.nhru,self.cdir,self.Qobs_file,self.dt_routing)
+                                   self.nhband,self.nhru,self.cdir,self.Qobs_file,self.dt_routing,self)
   #Add numba functions
   self.routing.calculate_inundation_height_per_hband = routing.calculate_inundation_height_per_hband
   self.routing.compute_qss = routing.compute_qss
