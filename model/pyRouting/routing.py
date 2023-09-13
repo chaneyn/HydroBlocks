@@ -66,42 +66,30 @@ class kinematic:
   self.reach2hband_inundation[:] = 0.0
   #self.scids_hdw = self.db['scids_hdw']
   #self.rcids_hdw = self.db['rcids_hdw']
-  self.hdw = self.db['hdw']
-  #Set up send/receive of cids
+  #self.hdw = self.db['hdw']
   fp = nc.Dataset('%s/input_file.nc' % cdir)
+  #cids to send to 
   tmp = np.unique(fp['stream_network']['outlets'][:,2])
   tmp = tmp[tmp != -9999]
   self.scids_hdw = tmp
+  #cids to receive from
   tmp = np.unique(fp['stream_network']['inlets'][:,2:6])
   tmp = tmp[tmp != -9999]
   self.rcids_hdw = tmp
   self.outlets_array = fp['stream_network']['outlets'][:]
-  #Determine which channels need to pass information
-  #for ucid in self.scids_hdw:
-  # m = fp['stream_network']['outlets'][:][:,2] == ucid
-  # self.hdw[ucid][cid]['outlet'] = fp['stream_network']['outlets'][:][m,1]-1 #-1 due to channel
-  # #print(ucid,cid,np.sort(fp['stream_network']['outlets'][:][m,1]))
-  # #print(ucid,cid,np.sort(self.hdw[ucid][cid]['outlet']))
-  #Determine which channels need to receive information
-  #for ucid in self.rcids_hdw:
-  # m = fp['stream_network']['outlets'][:][:,2] == ucid
-  # self.hdw[ucid][cid] = fp['stream_network']['outlets'][:][m,1]-1 #-1 due to channel
-  #print(self.hdw)
+  #topology
+  topology = fp['stream_network']['topology'][:]
+  tmp = -9999*np.ones((topology.size,3),dtype=np.int32)
+  for i in range(topology.size):
+   m = topology == i
+   if np.sum(m) >= 1:
+    tmp[i,:np.sum(m)] = np.where(m)[0]
+  self.topology = tmp[:]
   fp.close()
   self.hdb = self.db['hdb']
   self.hdb['hband'] = self.hdb['hband'].astype(np.int64)
   self.hdb['M'][self.hdb['M'] == 0] = 10**-5
   self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
-  self.LHS = self.db['LHS']
-  tmp_topology = self.db['LHS'][:]
-  tmp_topology.setdiag(0)
-  tmp_topology = tmp_topology.todense()
-  topology = np.zeros((tmp_topology.shape[0],3),dtype=np.int32)
-  topology[:] = -9999
-  for i in range(tmp_topology.shape[0]):
-   ids = np.where(tmp_topology[i,:] != 0)[1]
-   topology[i,0:ids.size] = ids[:]
-  self.topology = topology
   self.A0_org = np.copy(self.A0)
   self.u0_org = np.copy(self.u0)
   self.Ac0 = np.zeros(self.c_length.size)
@@ -176,44 +164,6 @@ class kinematic:
 
   return
 
-
- def exchange_bcs(self,):
-
-  #Send headwater data
-  crm = self.cid_rank_mapping #Where each cid resides
-  for ucid in self.scids_hdw:
-   dest = crm[ucid]
-   db_ex = {'cid':self.cid,'scid_hdw':ucid,
-          'Q0':self.Q0[self.hdw[ucid][self.cid]['outlet']]}
-          #'Q0':self.Q0[outlets[outlets[:,2]==ucid,1]]}
-   self.comm.send(db_ex,dest=dest,tag=11)
-
-  #Receive headwater data
-  recv = {}
-  for ucid in self.rcids_hdw:
-   if ucid not in recv:recv[ucid] = {}
-   source = crm[ucid]
-   db_ex = self.comm.recv(source=source,tag=11)
-   for var in db_ex:
-    recv[ucid][var] = db_ex[var]
-
-  #Update the boundary conditions
-  bcs = self.bcs
-  self.bcs[:] = 0.0
-  for ucid in self.rcids_hdw:
-   #m = inlets[inlets[:,2] == ucid]
-   #for ic in range(np.sum(m).size):
-   # inlet = inlets[m,1]
-   # self.bcs[inlet] += recv[ucid]['Q0'][ic]
-   for ic in range(len(self.hdw[self.cid][ucid]['inlet'])):
-    inlet = self.hdw[self.cid][ucid]['inlet'][ic]
-    self.bcs[inlet] += recv[ucid]['Q0'][ic]
-
-  #Wait until all are done
-  self.comm.Barrier()
-
-  return
-
  def exchange_bcs_v2(self,):
 
   #Send headwater data
@@ -221,8 +171,8 @@ class kinematic:
   for ucid in self.scids_hdw:
    dest = crm[ucid]
    m = self.outlets_array[:,2] == ucid
-   channels_ucid = self.outlets_array[m,3].data-1 
-   channels_cid = self.outlets_array[m,1].data-1
+   channels_ucid = self.outlets_array[m,3].data
+   channels_cid = self.outlets_array[m,1].data
    Q0_bcs_ucid = self.Q0[channels_cid]
    db_ex = {'cid':self.cid,'scid_hdw':ucid,
           'channels_ucid':channels_ucid,
@@ -248,113 +198,6 @@ class kinematic:
 
   #Wait until all are done
   self.comm.Barrier()
-
-  return
-
- def update_solution_implicit(self,):
-
-  #Extract info
-  hdb = self.hdb
-  A0 = self.A0[:]
-  c_slope = self.c_slope
-  c_n = self.c_n
-  LHS = self.LHS
-  c_length = self.c_length
-  A0_org = self.A0_org[:]
-  qss = self.qss
-  bcs = self.bcs
-  maxu = 2.0
-  minu = 0.1
-  dt = self.dt
-
-  #Determine velocity
-  #This effectively linearizes the sub-grid network solver by setting the velocity with the previous time step A (Another way to do this, is converge first locally every change in BCs)
-  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
-  u1 = np.zeros(Kvn.size)
-  u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
-  #Constrain velocity
-  u1[u1 > maxu] = maxu
-  u1[u1 < minu] = minu
-  #Fill non-diagonals
-  tmp = -dt*u1
-  LHS = LHS.multiply(tmp)
-  #Fill diagonal
-  tmp = c_length + dt*u1
-  LHS.setdiag(tmp)
-  #Set right hand side
-  RHS0 = c_length*A0_org
-  RHS2 = np.zeros(A0.size)
-  RHS2[:] = dt*bcs
-  #Iterate qss values to ensure A1 is above 0
-  RHS1 = dt*qss*c_length
-  RHS = (RHS0 + RHS1 + RHS2)#/(c_length + dt*u1)
-  A1 = scipy.sparse.linalg.spsolve(LHS.tocsr(),RHS,use_umfpack=False)
-  #Curate A1 (issues with conservation of mass)
-  A1[A1 < 0] = 0.0
-  #Calculate difference with previous iteration
-  dif1 = np.max(np.abs(A0 - A1))
-  #Reset A0
-  A0[:] = A1[:]
-  #Calculate Q1
-  Q1 = A0*u1
-  #Reset Q0
-  self.Q0[:] = Q1[:]
-  self.u0[:] = u1[:]
- 
-  #Update data in db
-  self.A0[:] = A0[:]
-  self.Q1[:] = Q1[:]
-  self.A1[:] = A1[:]
-  self.dif0 = dif1
-
-  return
-
- def update_solution_explicit_original(self,it):
-
-  #Extract info
-  hdb = self.hdb
-  A0 = self.A0[:]
-  c_slope = self.c_slope
-  c_slope[c_slope < 10**-3] = 10**-3
-  c_n = self.c_n
-  LHS = self.LHS
-  c_length = self.c_length
-  A0_org = A0[:]#elf.A0_org[:]
-  qss = self.qss
-  bcs = self.bcs/c_length
-  maxu = 10.0
-  minu = 0.1
-  dt = self.dt_routing
-
-  #Determine velocity
-  #This effectively linearizes the sub-grid network solver by setting the velocity with the previous time step A (Another way to do this, is converge first locally every change in BCs)
-  Kvn = calculate_compound_convenyance(hdb['Ac'],hdb['Af'],hdb['Pc'],hdb['Pf'],hdb['W'],hdb['M'],A0_org,self.c_n,self.fp_n)
-  u1 = np.zeros(Kvn.size)
-  u1[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
-  #Constrain velocity
-  u1[u1 > maxu] = maxu
-  u1[u1 < minu] = minu
-  #Ammending LHS from the implicit solver for this (HACK)
-  LHS.setdiag(0)
-  #LHS = np.array(LHS.todense())
-  if (it == 0):
-   Q0in = LHS*(u1*A0)
-   if (self.rank == 0):print(Q0in[0:3])
-  exit()
-  #A1 = A0 + source/sink + boundary conditions - Qout + Qin
-  A1 = A0 + dt*qss + dt*bcs - dt*(u1*A0)/c_length + dt*(LHS*(u1*A0))/c_length
-  #Curate A1 (issues with conservation of mass)
-  A1[A1 < 0] = 0.0
-  #Reset A0
-  A0[:] = A1[:]
-  #Calculate Q1
-  Q1 = A0*u1
-  #Update data in db
-  self.Q0[:] = Q1[:]
-  self.u0[:] = u1[:]
-  self.A0[:] = A0[:]
-  self.Q1[:] = Q1[:]
-  self.A1[:] = A1[:]
 
   return
 
