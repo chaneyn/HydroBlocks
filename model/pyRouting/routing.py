@@ -15,23 +15,17 @@ import h5py
 
 class kinematic:
 
- def __init__(self,MPI,cid,cid_rank_mapping,dt,nhband,nhru,cdir,Qobs_file,dt_routing,HB):
+ def __init__(self,MPI,cid,dt,nhband,nhru,cdir,dt_routing,HB):
 
   self.itime = 0
   self.comm = MPI.COMM_WORLD
   self.size = self.comm.Get_size()
   self.rank = self.comm.Get_rank()
   self.name = MPI.Get_processor_name()
-  self.cid_rank_mapping = cid_rank_mapping
+  #self.cid_rank_mapping = cid_rank_mapping
 
   #Read in all the relevant data (this should be moved to the preprocessor)
-  #self.db = pickle.load(open('/stor/soteria/hydro/private/nc153/projects/Octopy/parallel/tmp/%d.pck' ,'rb'))
   self.db = pickle.load(open('%s/octopy.pck' % cdir ,'rb'))
-
-  #Read in the discharge input data
-  #self.Qobs = pickle.load(open(Qobs_file,'rb'))
-  #self.Qobs = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/GSAL_2004-2019.pck','rb'))
-  #self.Qobs2 = pickle.load(open('/home/nc153/soteria/projects/hydroblocks_inter_catchment/regions/SGP_OK/obs/chikaskia/chikaskia_2015-2017.pck','rb'))
 
   #Define the variables
   self.dt = dt
@@ -131,7 +125,7 @@ class kinematic:
   for it in range(nt):
    #Exchange boundary conditions
    #self.exchange_bcs()
-   self.exchange_bcs_v2()
+   #self.exchange_bcs_v2()
    #Update solution
    (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
    self.A0[:] = self.A1[:]
@@ -362,3 +356,97 @@ def compute_qss(reach2hband,crunoff,c_length,qss):
    qss[i] = np.sum(reach2hband[i,:]*crunoff/1000.0)/c_length[i] #m2/s
   #qss[:] += reach2hband.dot(crunoff/1000.0)/c_length #m2/s
   return qss
+
+def exchange_bcs_v3(cids,hbdb,rank,size):
+
+  #Send headwater data
+  for cid in cids[rank::size]:
+   self = hbdb[cid].routing
+   crm = self.cid_rank_mapping #Where each cid resides
+   for ucid in self.scids_hdw:
+    dest = crm[ucid]
+    m = self.outlets_array[:,2] == ucid
+    channels_ucid = self.outlets_array[m,3].data
+    channels_cid = self.outlets_array[m,1].data
+    Q0_bcs_ucid = self.Q0[channels_cid]
+    db_ex = {'cid':self.cid,'scid_hdw':ucid,
+           'channels_ucid':channels_ucid,
+           'Q0_bcs_ucid':Q0_bcs_ucid}
+    tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+    self.comm.send(db_ex,dest=dest,tag=tag)
+
+  #Wait until all are done
+  self.comm.Barrier()
+  
+  #Receive headwater data
+  recv = {}
+  for cid in cids[rank::size]:
+   self = hbdb[cid].routing
+   crm = self.cid_rank_mapping #Where each cid resides
+   recv[cid] = {}
+   for ucid in self.rcids_hdw:
+    if ucid not in recv[cid]:recv[cid][ucid] = {}
+    source = crm[ucid]
+    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    db_ex = self.comm.recv(source=source,tag=tag)
+    for var in db_ex:
+     recv[cid][ucid][var] = db_ex[var]
+
+  #Update the boundary conditions
+  for cid in cids[rank::size]:
+   self = hbdb[cid].routing
+   bcs = self.bcs
+   self.bcs[:] = 0.0
+   for ucid in self.rcids_hdw:
+    channels_ucid = recv[cid][ucid]['channels_ucid']
+    Q0_bcs_ucid = recv[cid][ucid]['Q0_bcs_ucid']
+    self.bcs[channels_ucid] += Q0_bcs_ucid
+
+  #Wait until all are done
+  self.comm.Barrier()
+
+  return
+
+def update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn):
+
+  for cid in cids[rank::size]:
+   self = HBdb[cid].routing
+   A0_org = self.A0_org
+   #print(np.unique(self.qss))
+   #Update solution
+   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
+   self.A0[:] = self.A1[:]
+   self.Q1[:] = self.Q0[:]
+
+  return
+
+def calculate_routing_inundation(cids,HBdb,rank,size):
+
+  for cid in cids[rank::size]:
+   self = HBdb[cid].routing
+   #Zero out qss
+   self.qss[:] = 0.0
+   #Calculate area-weighted average inundation height per hband
+   A = self.hdb['Af'] + self.hdb['Ac']
+   #Add channel and flood cross sectional area
+   A1 = self.A0[:]
+   W = self.hdb['W']
+   M = self.hdb['M']
+   hand = self.hdb['hand']
+   hband = self.hdb['hband']
+   (self.hband_inundation[:],self.reach2hband_inundation[:]) = calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,self.reach2hband_inundation,self.reach2hband)
+   tmp = np.sum(self.reach2hband*self.reach2hband_inundation,axis=1)/self.c_length
+   tmp1 = np.max(np.abs(A1-tmp))
+   if tmp1 > 10**-3:
+    argmax = np.argmax(np.abs(A1-tmp))
+    print(self.itime,np.abs(A1-tmp)[argmax],A1[argmax],tmp[argmax],flush=True)
+
+   #Calculate Qc and Qf
+   self.Ac[:] = self.reach2hband[range(self.nchannel),self.hband_channel]*self.reach2hband_inundation[range(self.nchannel),self.hband_channel]/self.c_length
+   self.Af[:] = self.A0 - self.Ac
+   self.Qc[:] = self.u0*self.Ac
+   self.Qf[:] = self.u0*self.Af
+   self.Qc[self.Qc < 0.0] = 0.0
+   self.Qf[self.Qf < 0.0] = 0.0
+
+  return

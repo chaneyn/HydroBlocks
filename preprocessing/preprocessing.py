@@ -58,6 +58,11 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  input_dir = hydroblocks_info['input_dir']
  os.system('mkdir -p %s' % input_dir)
 
+ #Create soft link to HydroBlocks from within the directory
+ HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
+ HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
+ os.system('ln -s %s %s' % (HBdir,HBedir))
+
  #Create the dictionary to hold all of the data
  output = {}
 
@@ -1591,11 +1596,18 @@ def driver(comm,metadata_file):
  Connect_Cell_Networks_v2(rank,size,cids,edir)
  comm.Barrier()
 
+ #Create downstream channel database for particle tracker routing scheme
+ Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
+ comm.Barrier()
+
  #Wait until they are all done
  workspace = '%s/workspace' % (edir)
  os.system('mkdir -p %s' % workspace)
  Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
  comm.Barrier()
+ 
+ #Create the soft link to the NoahMP code from the directory
+ #os.system('ln -s 
 
  #Postprocess the model input 
  if rank == 0:Postprocess_Input(rdir,edir,cids)
@@ -1746,6 +1758,91 @@ def Connect_Cell_Networks_v2(rank,size,cids,edir):
   #Close ammended file
   fp.close()
  
+ return
+
+def create_enhanced_topology(topology,outlets,cid):
+    
+ #create enhanced topology by adding outlet information (channel id and cid)
+ topology_enhanced = -1*np.ones((topology.size,2),dtype=np.int32)
+ topology_enhanced[:,0] = topology
+ topology_enhanced[topology != -1,1] = cid
+ topology_enhanced[outlets[:,1],0] = outlets[:,3] 
+ topology_enhanced[outlets[:,1],1] = outlets[:,2]
+ topology_enhanced[topology_enhanced==-9999] = -1
+
+ return topology_enhanced
+
+def read_channel_database(cid,edir):
+    
+ db = {}
+
+ #Open input_file.nc for cid in append mode
+ file = '%s/%s/input_file.nc' % (edir,cid)
+ fp = nc.Dataset(file,'r')
+ 
+ #create enhanced topology by adding outlet information (channel id and cid)
+ db['topology_enhanced'] = create_enhanced_topology(fp['stream_network']['topology'][:],fp['stream_network']['outlets'][:],cid)
+ db['length'] = fp['stream_network']['length'][:]
+
+ fp.close()
+ 
+ return db
+
+def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
+
+ #Determine the total distance that can be covered
+ dt = 3600 #sec #This should be defined by the dt_routing parameter
+ maxu = 2 #m/s #parameter
+ maxd = maxu*dt #m
+ ncmax = 20 #parameter
+
+ #Iterate per catchment
+ for cid in cids[rank::size]:
+
+  #Change to integer
+  cid = int(cid)
+
+  #Initialize dictionary where information will be held
+  db = {cid:{}}
+    
+  #create enhanced topology by adding outlet information (channel id and cid)
+  db[cid] = read_channel_database(cid,edir)
+
+  #Initialize downstream channel array (channel id, cid)
+  downstream_channels = -9999*np.ones((db[cid]['topology_enhanced'].shape[0],2,ncmax),dtype=np.int32)
+                                   
+  #Iterate through each channel
+  for ic in range(db[cid]['topology_enhanced'].shape[0]):
+   d = maxd
+   cid0 = cid
+   ic0 = ic
+   count = -1
+   while (d > 0) & (count < ncmax):
+    count += 1
+    ic1 = db[cid0]['topology_enhanced'][ic0,0]
+    cid1 = db[cid0]['topology_enhanced'][ic0,1]
+    if ic1 == -1:
+     downstream_channels[ic,0,count] = -1
+     downstream_channels[ic,1,count] = -1
+     break
+    if cid1 not in db:
+     db[cid1]=read_channel_database(cid1,edir)
+    #save information
+    downstream_channels[ic,0,count] = ic1
+    downstream_channels[ic,1,count] = cid1
+    #subtract distance
+    d = d - db[cid1]['length'][ic1]
+    #update ids
+    cid0 = cid1
+    ic0 = ic1
+
+ comm.Barrier()
+ #Add downstream_channels array to input_file.nc
+ file = '%s/%s/input_file.nc' % (edir,cid)
+ fp = h5py.File(file,'a')
+ fp['stream_network']['downstream_channels'] = downstream_channels[:]
+ fp.close()
+
  return
 
 def Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size):

@@ -7,6 +7,7 @@ import time
 import sys
 import scipy.sparse as sparse
 import pickle
+import subprocess
 
 def assign_string(nelem,pstring):
 
@@ -19,8 +20,9 @@ def assign_string(nelem,pstring):
 
  return tmp
 
-def initialize(info):
+def initialize(info,MPI):
 
+ info['MPI'] = MPI
  HB = HydroBlocks(info)
 
  return HB
@@ -205,7 +207,6 @@ class HydroBlocks:
   self.idate = info['idate']
   self.fdate = info['fdate']
   self.cdir = info['cdir']
-  self.Qobs_file = info['Qobs_file']
   self.dt_timedelta = datetime.timedelta(seconds=self.dt)
   self.input_fp = nc.Dataset(info['input_file'])
   self.dx = self.input_fp.groups['metadata'].dx
@@ -260,10 +261,32 @@ class HydroBlocks:
 
  def initialize_noahmp(self,info):#laura, svp
 
+  import subprocess
+  import time
+  import sys
   #Initialize noahmp
-  from model.pyNoahMP import NoahMP
+  #Need to hack a new "module" per instance given that these are modules
+  #Determine directory of model (This assumes that the file is HydroBlocks.py)
+  #mdir = __file__[0:-15]
+  #Create symbolic link for the given cid
+  #os.system('ln -s -f %s/pyNoahMP %s/pyNoahMP%d' % (mdir,mdir,info['cid']))
+  #subprocess.Popen('ln -s %s/pyNoahMP %s/pyNoahMP%d' % (mdir,mdir,info['cid']), shell=True).wait()
+  #Load the module
+  sys.path.append('%s' % (info['cdir'],))
+  #from model.pyNoahMP import NoahMP
+  exec('from pyNoahMP%d import NoahMP as NoahMP' % info['cid'])
+  #time.sleep(1)
+  #Remove symbolic link for the given cid
+  #subprocess.Popen('rm -f %s/pyNoahMP%d' % (mdir,info['cid']), shell=True).wait()
+  #os.system('rm %s/pyNoahMP%d' % (mdir,info['cid']))
+  #from model.pyNoahMP import NoahMP
+  #importlib.reload(NoahMP)
   #self.noahmp = pyNoahMP.NoahMP
-  self.noahmp = NoahMP
+  exec('self.noahmp = NoahMP')
+  #self.noahmp = NoahMP
+  #import sys 
+  #del NoahMP
+  #del sys.modules['model.pyNoahMP']
 
   #Initialize parameters
   self.noahmp.ncells = self.nhru
@@ -568,7 +591,7 @@ class HydroBlocks:
 
  def initialize_routing(self,):
 
-  #Determine what rank has which cid
+  '''#Determine what rank has which cid
   self.comm = self.MPI.COMM_WORLD
   self.size = self.comm.Get_size()
   self.rank = self.comm.Get_rank()
@@ -591,19 +614,21 @@ class HydroBlocks:
   if self.rank != 0:
    db = self.comm.recv(source=0,tag=11)
   #Memorize links
-  self.cid_rank_mapping = db
+  self.cid_rank_mapping = db'''
 
   if self.routing_module == 'kinematic':self.initialize_kinematic()
 
+  if self.routing_module == 'particle_tracker':self.initialize_particle_tracker()
+
   return
 
- def initialize_kinematic(self,):
+ def initialize_particle_tracker(self,):
 
   from model.pyRouting import routing
 
   #Initialize kinematic wave routing
-  self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
-                                   self.nhband,self.nhru,self.cdir,self.Qobs_file,self.dt_routing,self)
+  self.routing = routing.particle_tracker(self)
+
   #Add numba functions
   self.routing.calculate_inundation_height_per_hband = routing.calculate_inundation_height_per_hband
   self.routing.compute_qss = routing.compute_qss
@@ -619,7 +644,30 @@ class HydroBlocks:
 
   return
 
- def update_routing(self,):
+ def initialize_kinematic(self,):
+
+  from model.pyRouting import routing
+
+  #Initialize kinematic wave routing
+  #self.routing = routing.kinematic(self.MPI,self.cid,self.cid_rank_mapping,self.dt,
+  self.routing = routing.kinematic(self.MPI,self.cid,self.dt,self.nhband,self.nhru,
+                                   self.cdir,self.dt_routing,self)
+  #Add numba functions
+  self.routing.calculate_inundation_height_per_hband = routing.calculate_inundation_height_per_hband
+  self.routing.compute_qss = routing.compute_qss
+
+  #Initialize hru to reach IRF
+  ntmax = 100
+  self.routing.IRF = {}
+  uhs = self.routing.uhs[:]
+  uhs = uhs/np.sum(uhs,axis=1)[:,np.newaxis]
+  self.routing.IRF['uh'] = uhs[:]
+  #Setup qfuture
+  self.routing.IRF['qfuture'] = np.zeros((self.nhband,ntmax-1))
+
+  return
+
+ def update_channel_source_sink(self,):
 
   if self.routing_module == 'kinematic':
 
@@ -691,13 +739,13 @@ class HydroBlocks:
     self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
 
    #Update routing module
-   self.routing.itime = self.itime
-   self.routing.update(self.dt)
+   #self.routing.itime = self.itime
+   #self.routing.update(self.dt)
 
    #Update the hru inundation values
-   for hru in self.hrus:
-    #Only allow fct of the inundated height to infiltrate
-    self.routing.hru_inundation[hru] = self.routing.hband_inundation[self.hbands[hru]]
+   #for hru in self.hrus:
+   # #Only allow fct of the inundated height to infiltrate
+   # self.routing.hru_inundation[hru] = self.routing.hband_inundation[self.hbands[hru]]
    
   return
 
@@ -789,84 +837,52 @@ class HydroBlocks:
 
   return
 
- def run(self,info):
+ def run_timestep(self,info,date,tic):
 
   #svp flag laura
   vsp_flag=info['soil_vertical_properties']
 
   #Run the model
-  date = self.idate
-  tic = time.time()
-  self.noahmp.dzwt[:] = 0.0
-  i=0
+  #date = self.idate
+  #tic = time.time()
+  #self.noahmp.dzwt[:] = 0.0
+  #i=0
 
-  while date < self.fdate:
-   i=i+1 
-   #Update input data
-   tic0 = time.time()
-   #self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
-   #if i>1:self.update_input(date-datetime.timedelta(hours=1))
-   self.update_input(date)
-   #if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
-   # #self.noahmp.tah=self.noahmp.t_ml
-   # #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
-   # self.noahmp.cm[:] = 0.1
-   # self.noahmp.ch[:] = 0.1
-   #Save the original precip
-   precip = np.copy(self.noahmp.prcp)
+  #while date < self.fdate:
+  # i=i+1 
+  #Update input data
+  self.update_input(date)
 
-   #Calculate initial NOAH water balance
-   self.initialize_water_balance()
+  #Calculate initial NOAH water balance
+  self.initialize_water_balance()
 
-   #Update model
-   tic0 = time.time()
-   #self.update(date)
-   self.update(date,vsp_flag) #laura, svp
-   #if i>1: self.update(date)
+  #Update model
+  self.update(date,vsp_flag) #laura, svp
 
-   '''#Update input data
-   tic0 = time.time()
-   self.noahmp.stc[:,0:self.noahmp.nsnow]=self.tsno #Laura
-   self.update_input(date)
-   if i==1: #Laura. Initial conditions for tah and eah as defined in NOAH
-    #self.noahmp.tah=self.noahmp.t_ml
-    #self.noahmp.eah=(self.noahmp.p_ml*self.noahmp.q_ml)/(0.622+self.noahmp.q_ml)
-    self.noahmp.cm[:] = 0.1
-    self.noahmp.ch[:] = 0.1
-   #Save the original precip
-   precip = np.copy(self.noahmp.prcp)'''
+  #Calculate final water balance
+  self.finalize_water_balance()
 
-   #print('update model',time.time() - tic0,flush=True)
-   
-   #Return precip to original value
-   #self.noahmp.prcp[:] = precip[:] 
+  #Update the water balance error
+  self.calculate_water_balance_error()
 
-   #Calculate final water balance
-   self.finalize_water_balance()
-
-   #Update the water balance error
-   self.calculate_water_balance_error()
-
-   #Update the energy balance error
-   self.calculate_energy_balance_error()
+  #Update the energy balance error
+  self.calculate_energy_balance_error()
  
-   #Update time and date
-   self.date = date
-   info['date'] = date
-   self.runtime = self.runtime0 + time.time()-tic
+  #Update time and date
+  self.date = date
+  info['date'] = date
+  self.runtime = self.runtime0 + time.time()-tic
 
-   #Update output
-   tic0 = time.time()
-   self.update_output(date)
-   #print('update output',time.time() - tic0,flush=True)
+  #Update output
+  tic0 = time.time()
+  self.update_output(date)
 
-   #Update time step
-   date = date + self.dt_timedelta
-   self.itime = self.itime + 1
+  #Update time step
+  #date = date + self.dt_timedelta
+  self.itime = self.itime + 1
 
-   #Output some statistics
-   #if (date.minute ==0):# and (date.hour == 0) and (date.day == 1):
-   string = '|%s|%s|%s|%s|%s|%s|%s|' % \
+  #Output some statistics
+  string = '|%s|%s|%s|%s|%s|%s|%s|' % \
         ('Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
          'Runtime:%.2f(s)'%(self.runtime),\
          'Acc_ET:%.2f(mm)'%self.acc_et,\
@@ -874,8 +890,7 @@ class HydroBlocks:
          'Acc_Q:%.2f(mm)'%self.acc_q,\
          'Acc_WBE:%.2f(mm)' % self.acc_errwat,\
          'Acc_EBE:%.2f(J/m2)' % self.acc_erreng)
-   print(string,flush=True)
-   #print(' '*len(string),flush=True)
+  print(string,flush=True)
 
   return
 
@@ -926,7 +941,7 @@ class HydroBlocks:
 
   return
 
- def update(self,date,vsp_flag): #laura, svp
+ def update_noahmp(self,date,vsp_flag=True): #laura, svp
 
   if self.routing_surface_coupling == True:
    self.noahmp.sfcheadrt[:] = self.routing.fct_infiltrate*self.routing.hru_inundation[:]*1000 #mm
@@ -1012,7 +1027,7 @@ class HydroBlocks:
   #self.hwu.Water_Supply_Abstraction(self,date)
 
   # Update routing
-  self.update_routing()
+  #self.update_routing()
 
   return
 
@@ -1571,7 +1586,7 @@ class HydroBlocks:
 
   return
 
- def finalize(self,):
+ def finalize(self,info):
 
   #Create the restart directory if necessary
   os.system('mkdir -p %s' % self.metadata['restart']['dir'])
@@ -1687,6 +1702,10 @@ class HydroBlocks:
    
   #Close the LSM
   del self.noahmp
+  #Determine directory of model (This assumes that the file is HydroBlocks.py)
+  #mdir = __file__[0:-15]
+  #Remove symbolic link for the given cid
+  #subprocess.Popen('rm -f %s/pyNoahMP%d' % (mdir,info['cid']), shell=True).wait()
  
   #Close the routing module
   if self.routing_module == 'kinematic':
