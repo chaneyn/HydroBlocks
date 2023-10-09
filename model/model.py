@@ -207,8 +207,6 @@ def update_model(cids,rank,size,date,HBdb):
   
   #Update routing
   update_routing(cids,rank,size,HBdb)
-  #for cid in cids[rank::size]:
-  # HBdb[cid].update_routing()
 
   return
 
@@ -249,14 +247,38 @@ def update_routing_scheme(cids,rank,size,HBdb):
 
   for it in range(nt):
 
-   #Exchange boundary conditions
-   HBrouting.exchange_bcs_v3(cids,HBdb,rank,size) 
+   #update routing (kinematic)
+   update_routing_kinematic(cids,HBdb,rank,size,flag_constant_Kvn)
 
-   #Update local routing solution
-   HBrouting.update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn)
+   #update routing (particle tracker)
+   #update_routing_particle_tracker(cids,HBdb,rank,size)
+   #exit()
 
   #Update local routing inundation
   HBrouting.calculate_routing_inundation(cids,HBdb,rank,size)
+
+  return
+
+def update_routing_particle_tracker(cids,HBdb,rank,size):
+ 
+  #Send/receive velocity fields
+  HBrouting.exchange_velocity_fields()
+
+  #Push water down the channel network
+  HBrouting.update_particle_tracker_macroscale_polygon()
+
+  #Send/receive volume of water that enters/leaves each channel
+  HBrouting.exchange_water_volumes()
+
+  return
+
+def update_routing_kinematic(cids,HBdb,rank,size,flag_constant_Kvn):
+
+  #Exchange boundary conditions
+  HBrouting.exchange_bcs_v3(cids,HBdb,rank,size)
+
+  #Update local routing solution
+  HBrouting.update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn)
 
   return
 

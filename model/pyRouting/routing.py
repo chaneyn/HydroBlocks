@@ -400,7 +400,8 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
    for ucid in self.rcids_hdw:
     channels_ucid = recv[cid][ucid]['channels_ucid']
     Q0_bcs_ucid = recv[cid][ucid]['Q0_bcs_ucid']
-    self.bcs[channels_ucid] += Q0_bcs_ucid
+    for ic in range(channels_ucid.size):
+     self.bcs[channels_ucid[ic]] += Q0_bcs_ucid[ic]
 
   #Wait until all are done
   self.comm.Barrier()
@@ -450,3 +451,21 @@ def calculate_routing_inundation(cids,HBdb,rank,size):
    self.Qf[self.Qf < 0.0] = 0.0
 
   return
+
+def exchange_velocity_fields():
+
+ print('hello')
+
+ return
+
+def update_particle_tracker_macroscale_polygon():
+
+ print('hello2')
+
+ return
+
+def exchange_water_volumes():
+
+ print('hello3')
+
+ return

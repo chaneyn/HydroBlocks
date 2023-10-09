@@ -345,8 +345,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
  cthrs = hydroblocks_info['channel_initiation']["athrs"]#laura #10**6
- ipoints = ((area > cthrs)).astype(np.int32)
- ipoints[ipoints == 0] = -9999
+ #ipoints = ((area > cthrs)).astype(np.int32)
+ #ipoints[ipoints == 0] = -9999
 
  #Create area for channel delineation
  ac = np.copy(area_all)
@@ -374,6 +374,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Convert channel ids to start from 0 (instead of 1)
  channel_outlet_id[channel_outlet_id>0] = channel_outlet_id[channel_outlet_id>0] - 1
  channel_inlet_id[channel_inlet_id>0] = channel_inlet_id[channel_inlet_id>0] - 1
+ ###
+ '''tcid = int(input_dir.split('/')[-1])
+ if tcid == 1:
+  for i in range(channel_inlet_id.size):
+   print(tcid,channel_inlet_id[i],channel_inlet_target_mp[i,:])
+ exit()'''
  
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -388,6 +394,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
                                   'channel_inlet_target_mp':channel_inlet_target_mp,
                                   'channel_inlet_target_crds':channel_inlet_target_crds}
  db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
  lst_crds = []
@@ -1721,6 +1728,7 @@ def Connect_Cell_Networks_v2(rank,size,cids,edir):
      lats2 = db2[cid2]['channel_crds'][:,:,0]
      lons2 = db2[cid2]['channel_crds'][:,:,1]
      dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
+     print('outlet',np.min(dist))
      icd = np.where(dist == np.min(dist))[0][0]
      output_array[ic,3] = icd
         
@@ -1751,12 +1759,15 @@ def Connect_Cell_Networks_v2(rank,size,cids,edir):
     dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
     icd = np.where(dist == np.min(dist))[0][0]
     inlet_array[ic,6+j] = icd 
+    print('inlet',inlet_array[ic,0],inlet_array[ic,1],inlet_array[ic,6+j],np.min(dist))
 
   #Add array to file
   fp['stream_network']['inlets'] = inlet_array[:]
         
   #Close ammended file
   fp.close()
+
+  #exit()
  
  return
 
