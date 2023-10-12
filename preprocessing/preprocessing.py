@@ -967,7 +967,12 @@ def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_i
  #Perform the work
  (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(hbands,dx,tile_position,
                basins,ivc,irc,ibc) #laura, nhrus replaced with nhbands
-
+ 
+ #If there're not lateral connections (just diagonal) create a single "fake" connection, laura
+ if hdst.size == 0:
+  hdst = np.array([0])
+  horg = np.array([0])
+  
  #Prepare the sparse matrix
  cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(int(np.unique(hbands).shape[0]-1),int(np.unique(hbands).shape[0]-1)),dtype=np.float32) #laura, nhrus replaced with hbands
  cmatrix = cmatrix.tocsr()
@@ -1623,9 +1628,10 @@ def driver(comm,metadata_file):
  Topology_Connected(rank,size,cids,edir,comm)
  comm.Barrier()
 
- #Create self-contained trees of reaches for the domain, laura
- Create_Trees(rank,size,cids,edir,comm)
- comm.Barrier()
+ if metadata['network_abstraction']['flag']==True: #laura
+  #Create self-contained trees of reaches for the domain, laura
+  Create_Trees(rank,size,cids,edir,comm)
+  comm.Barrier()
     
  #Correct Shreve order (domain-wise), laura
  Correct_Shreve(rank,size,cids,edir)
