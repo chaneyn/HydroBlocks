@@ -73,7 +73,7 @@ class kinematic:
   self.outlets_array = fp['stream_network']['outlets'][:]
   #topology
   topology = fp['stream_network']['topology'][:]
-  tmp = -9999*np.ones((topology.size,3),dtype=np.int32)
+  tmp = -9999*np.ones((topology.size,5),dtype=np.int32)
   for i in range(topology.size):
    m = topology == i
    if np.sum(m) >= 1:
@@ -110,7 +110,7 @@ class kinematic:
   self.hband_channel[:] = self.hdb['hband'][m]
 
   #Pause until all cores have all their data
-  self.comm.Barrier()
+  #self.comm.Barrier()
 	
   return
 
@@ -359,10 +359,14 @@ def compute_qss(reach2hband,crunoff,c_length,qss):
 
 def exchange_bcs_v3(cids,hbdb,rank,size):
 
+  cids_core = cids[rank::size]
+  db_ex_local = {} #exchange between cids on the same process (minimize MPI overhead)
+
   #Send headwater data
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
-   crm = self.cid_rank_mapping #Where each cid resides
+   crm = hbdb[cid].cid_rank_mapping #Where each cid resides
+   db_ex_local[cid] = {}
    for ucid in self.scids_hdw:
     dest = crm[ucid]
     m = self.outlets_array[:,2] == ucid
@@ -372,23 +376,29 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
     db_ex = {'cid':self.cid,'scid_hdw':ucid,
            'channels_ucid':channels_ucid,
            'Q0_bcs_ucid':Q0_bcs_ucid}
-    tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
-    self.comm.send(db_ex,dest=dest,tag=tag)
+    if ucid in cids_core:
+     db_ex_local[cid][ucid] = copy.deepcopy(db_ex)
+    else:
+     tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+     self.comm.send(db_ex,dest=dest,tag=tag)
 
   #Wait until all are done
-  self.comm.Barrier()
+  #self.comm.Barrier()
   
   #Receive headwater data
   recv = {}
   for cid in cids[rank::size]:
    self = hbdb[cid].routing
-   crm = self.cid_rank_mapping #Where each cid resides
+   crm = hbdb[cid].cid_rank_mapping #Where each cid resides
    recv[cid] = {}
    for ucid in self.rcids_hdw:
     if ucid not in recv[cid]:recv[cid][ucid] = {}
     source = crm[ucid]
-    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
-    db_ex = self.comm.recv(source=source,tag=tag)
+    if ucid not in cids_core:
+     tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+     db_ex = self.comm.recv(source=source,tag=tag)
+    else:
+     db_ex = db_ex_local[ucid][cid]
     for var in db_ex:
      recv[cid][ucid][var] = db_ex[var]
 
@@ -404,7 +414,7 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
      self.bcs[channels_ucid[ic]] += Q0_bcs_ucid[ic]
 
   #Wait until all are done
-  self.comm.Barrier()
+  #self.comm.Barrier()
 
   return
 

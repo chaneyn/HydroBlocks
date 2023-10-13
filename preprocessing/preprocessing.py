@@ -356,7 +356,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  fdc_all = fdir
 
  #Compute the channels
- print("Defining channels",flush=True)
+ print("Defining channels",flush=True)	
  (channels,channels_wob,channel_topology,tmp1,crds,channel_outlet_id,channel_target_mp,channel_target_crds,channel_inlet_id,channel_inlet_target_mp,channel_inlet_target_crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,ac_all,cthrs,cthrs,fdc,mask,mask_all,np.flipud(covariates['lats']),covariates['lons'])
 
  #Curate list output
@@ -393,11 +393,13 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
                                   'channel_inlet_id':channel_inlet_id,
                                   'channel_inlet_target_mp':channel_inlet_target_mp,
                                   'channel_inlet_target_crds':channel_inlet_target_crds}
- db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #print("got here 3",flush=True)
+ #exit()
  #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
- lst_crds = []
+ '''lst_crds = []
  for icrd in range(crds.shape[0]):
    mcrd = crds[icrd,:,0] != -9999
    if (np.sum(mcrd) == 0):break
@@ -406,7 +408,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
        lst_crds.append(shapely.geometry.LineString(np.fliplr(crds_i)))
    else:
        lst_crds.append(shapely.geometry.Point(np.flipud(crds_i[0,:])))
- db_routing['crds'] = lst_crds
+ db_routing['crds'] = lst_crds'''
 
  #Compute the basins
  print("Defining basins",flush=True)
@@ -592,7 +594,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Save the channel info
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
- pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
+ #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
  pickle.dump(db_routing['mp_connectivity'],open('%s/routing_mp_connectivity.pck' % input_dir,'wb'))
 
  #Construct HMC info for creating connections matrix
@@ -1604,8 +1606,8 @@ def driver(comm,metadata_file):
  comm.Barrier()
 
  #Create downstream channel database for particle tracker routing scheme
- Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
- comm.Barrier()
+ #Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
+ #comm.Barrier()
 
  #Wait until they are all done
  workspace = '%s/workspace' % (edir)
@@ -1613,11 +1615,8 @@ def driver(comm,metadata_file):
  Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
  comm.Barrier()
  
- #Create the soft link to the NoahMP code from the directory
- #os.system('ln -s 
-
  #Postprocess the model input 
- if rank == 0:Postprocess_Input(rdir,edir,cids)
+ #if rank == 0:Postprocess_Input(rdir,edir,cids)
 
  return
 
@@ -1805,7 +1804,7 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
  dt = 3600 #sec #This should be defined by the dt_routing parameter
  maxu = 2 #m/s #parameter
  maxd = maxu*dt #m
- ncmax = 20 #parameter
+ ncmax = 50 #parameter
 
  #Iterate per catchment
  for cid in cids[rank::size]:

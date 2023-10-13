@@ -733,6 +733,8 @@ class HydroBlocks:
 
    #Aggregate the hband runoff at the reaches
    self.routing.qss[:] = self.routing.compute_qss(self.routing.reach2hband,crunoff,self.routing.c_length,self.routing.qss) #m2/s
+   if np.max(self.routing.qss[:])>10**2:
+    print(self.cid,np.unique(self.routing.qss[:]))
  
    if self.routing_surface_coupling == True:
     #Add changes between Ac1 and Ac0 to qss term

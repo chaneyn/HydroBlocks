@@ -206,7 +206,7 @@ def update_model(cids,rank,size,date,HBdb):
    HBdb[cid].update_noahmp(date)
   
   #Update routing
-  update_routing(cids,rank,size,HBdb)
+  if HBdb[cid].routing_module == 'kinematic':update_routing(cids,rank,size,HBdb)
 
   return
 
@@ -341,7 +341,7 @@ def determine_cid_rank_mapping(cids,HBdb,rank,size):
   for cid in cids[rank::size]:
    self = HBdb[cid]
    self.cid_rank_mapping = db
-   self.routing.cid_rank_mapping = db
+   #self.routing.cid_rank_mapping = db
 
   return
 
