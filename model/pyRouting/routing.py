@@ -35,7 +35,8 @@ class kinematic:
   self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hband (travel time is bug)
   self.c_length = self.db['c_length'][:]
   self.c_n = self.db['c_n'][:]
-  self.fp_n = self.db['fp_n'][:]
+  #self.fp_n = self.db['fp_n'][:]
+  self.fp_n = self.db['c_n'][:] #NWC - 10/2023 -> set to the same for now, model too "jumpy"
   #self.c_n[:] = 0.035#0.05#1#0.05#0.03
   #self.fp_n[:] = 0.15#0.15#25#0.15#0.15
   m =  self.fp_n < self.c_n
@@ -55,6 +56,7 @@ class kinematic:
   self.dA = np.zeros(self.c_length.size)
   self.Q0 = np.zeros(self.c_length.size)
   self.Q1 = np.zeros(self.c_length.size)
+  self.Kvn0 = np.zeros(self.c_length.size)
   self.reach2hband = np.asarray(self.db['reach2hband'].todense())
   self.reach2hband_inundation = np.copy(self.reach2hband)
   self.reach2hband_inundation[:] = 0.0
@@ -71,6 +73,7 @@ class kinematic:
   tmp = tmp[tmp != -9999]
   self.rcids_hdw = tmp
   self.outlets_array = fp['stream_network']['outlets'][:]
+  self.inlets_array = fp['stream_network']['inlets'][:]
   #topology
   topology = fp['stream_network']['topology'][:]
   tmp = -9999*np.ones((topology.size,5),dtype=np.int32)
@@ -118,7 +121,7 @@ class kinematic:
 
   #Explicit solution
   #self.dt_routing = 100 #seconds
-  flag_constant_Kvn = True
+  flag_constant_Kvn = False#True
   dt_routing = self.dt_routing
   nt = int(dt/dt_routing)
   A0_org = np.copy(self.A0)
@@ -128,15 +131,15 @@ class kinematic:
    #self.exchange_bcs_v2()
    #Update solution
    (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
-   self.A0[:] = self.A1[:]
-   self.Q1[:] = self.Q0[:]
+   #self.A0[:] = self.A1[:]
+   #self.Q1[:] = self.Q0[:]
 
   #Zero out qss
   self.qss[:] = 0.0
   #Calculate area-weighted average inundation height per hband
   A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
-  A1 = self.A0[:]
+  A1 = self.A1[:]
   W = self.hdb['W']
   M = self.hdb['M']
   hand = self.hdb['hand']
@@ -150,7 +153,7 @@ class kinematic:
 
   #Calculate Qc and Qf
   self.Ac[:] = self.reach2hband[range(self.nchannel),self.hband_channel]*self.reach2hband_inundation[range(self.nchannel),self.hband_channel]/self.c_length
-  self.Af[:] = self.A0 - self.Ac
+  self.Af[:] = self.A1 - self.Ac
   self.Qc[:] = self.u0*self.Ac
   self.Qf[:] = self.u0*self.Af
   self.Qc[self.Qc < 0.0] = 0.0
@@ -197,42 +200,48 @@ class kinematic:
 
 @numba.jit(nopython=True,cache=True)
 def update_solution_explicit(c_slope,c_n,u0,A0,topology,c_length,qss,bcs,dt_routing,
-     fp_n,Ac,Af,Pc,Pf,W,M,A0_org,flag_constant_Kvn):
+     fp_n,Ac,Af,Pc,Pf,W,M,A0_org,flag_constant_Kvn,Kvn0):
 
  #Extract info
- bcs_c = bcs/c_length
+ #bcs_c = bcs/c_length
  maxu = 10.0
  minu = 10**-5
  dt = dt_routing
 
  if flag_constant_Kvn == True:
   #Determine velocity
-  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0_org,c_n,fp_n)
+  #Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0_org,c_n,fp_n)
+  Kvn = A0_org**(5.0/3.0)/(W[:,0])**(2.0/3.0)/c_n
+  #Kvn = (0.2*Kvn + 0.8*Kvn0) #Time smooth conveyance to avoid jumpiness
   u0 = np.zeros(Kvn.size)
   u0[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
  else:
   #Determine velocity
-  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+  #Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+  Kvn = A0**(5.0/3.0)/(W[:,0])**(2.0/3.0)/c_n
+  #Kvn = (0.2*Kvn + 0.8*Kvn0) #Time smooth conveyance to avoid jumpiness
   u0 = np.zeros(Kvn.size)
   u0[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+
 
  #Constrain velocity
  u0[u0 > maxu] = maxu
  u0[u0 < minu] = minu
+ u0[:] = 2.0
 
  #Compute Q0in
  Q0in = Compute_Q0in(topology,u0,A0)
 
+ #Compute Q0out
+ Q0out = A0*u0
+
  #A1 = A0 + source/sink + boundary conditions - Qout + Qin
- A1 = A0 + dt*qss + dt*bcs_c - dt*(u0*A0)/c_length + dt*Q0in/c_length
+ A1 = A0 + dt*qss + dt*bcs/c_length - dt*(u0*A0)/c_length + dt*Q0in/c_length
 
  #Curate A1 (issues with conservation of mass)
- A1[A1 < 0] = 0.0
+ #A1[A1 < 0] = 0.0
 
- #Calculate Q0
- Q0 = A0*u0
-
- return (Q0,u0,A1)
+ return (Q0out,u0,A1,Kvn,Q0in)
 
 
 @numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
@@ -359,7 +368,7 @@ def compute_qss(reach2hband,crunoff,c_length,qss):
 
 def exchange_bcs_v3(cids,hbdb,rank,size):
 
-  cids_core = cids[rank::size]
+  cids_core = cids
   db_ex_local = {} #exchange between cids on the same process (minimize MPI overhead)
 
   #Send headwater data
@@ -387,7 +396,7 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
   
   #Receive headwater data
   recv = {}
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
    crm = hbdb[cid].cid_rank_mapping #Where each cid resides
    recv[cid] = {}
@@ -403,7 +412,7 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
      recv[cid][ucid][var] = db_ex[var]
 
   #Update the boundary conditions
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
    bcs = self.bcs
    self.bcs[:] = 0.0
@@ -413,30 +422,27 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
     for ic in range(channels_ucid.size):
      self.bcs[channels_ucid[ic]] += Q0_bcs_ucid[ic]
 
-  #Wait until all are done
-  #self.comm.Barrier()
-
   return
 
-def update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn):
+def update_macroscale_polygon_routing(cids,HBdb,flag_constant_Kvn):
 
-  for cid in cids[rank::size]:
+  for cid in cids:
    self = HBdb[cid].routing
    A0_org = self.A0_org
-   #print(np.unique(self.qss))
-   #Update solution
-   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
    self.A0[:] = self.A1[:]
-   self.Q1[:] = self.Q0[:]
+   #Update solution
+   (self.Q0,self.u0,self.A1,self.Kvn0,self.Q0in) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn,self.Kvn0)
+   #self.A0[:] = self.A1[:]
+   #self.Q1[:] = self.Q0[:]
 
   return
 
-def calculate_routing_inundation(cids,HBdb,rank,size):
+def calculate_routing_inundation(cids,HBdb):
 
-  for cid in cids[rank::size]:
+  for cid in cids:
    self = HBdb[cid].routing
    #Zero out qss
-   self.qss[:] = 0.0
+   #self.qss[:] = 0.0
    #Calculate area-weighted average inundation height per hband
    A = self.hdb['Af'] + self.hdb['Ac']
    #Add channel and flood cross sectional area

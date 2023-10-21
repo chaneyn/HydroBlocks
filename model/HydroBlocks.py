@@ -717,12 +717,8 @@ class HydroBlocks:
 
    #Apply convolution to the runoff of each hband
    qr = runoff_hband[:,np.newaxis]*self.routing.IRF['uh']
-   #QC to ensure we are conserving mass
-   m = np.sum(qr,axis=1) > 0
-   if np.sum(m) > 0:
-    qr[m,:] = runoff_hband[m,np.newaxis]*qr[m,:]/np.sum(qr[m,:],axis=1)[:,np.newaxis]
    #Add corresponding qfuture to this time step
-   crunoff = self.routing.IRF['qfuture'][:,0]
+   crunoff = np.copy(self.routing.IRF['qfuture'][:,0])
    #Update qfuture
    self.routing.IRF['qfuture'][:,0:-1] = self.routing.IRF['qfuture'][:,1:]
    self.routing.IRF['qfuture'][:,-1] = 0.0
@@ -740,15 +736,6 @@ class HydroBlocks:
     #Add changes between Ac1 and Ac0 to qss term
     self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
 
-   #Update routing module
-   #self.routing.itime = self.itime
-   #self.routing.update(self.dt)
-
-   #Update the hru inundation values
-   #for hru in self.hrus:
-   # #Only allow fct of the inundated height to infiltrate
-   # self.routing.hru_inundation[hru] = self.routing.hband_inundation[self.hbands[hru]]
-   
   return
 
  def initialize_subsurface(self,vsp_flag):
@@ -1058,7 +1045,7 @@ class HydroBlocks:
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
-   if self.routing_module == 'kinematic':
+   if (self.routing_module == 'kinematic') & (self.routing_surface_coupling == True):
      self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
      m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
      self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
@@ -1088,7 +1075,8 @@ class HydroBlocks:
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
-   if self.routing_module == 'kinematic': #laura kept the inundation computation at a HRU level
+   #if self.routing_module == 'kinematic': #laura kept the inundation computation at a HRU level
+   if (self.routing_module == 'kinematic') & (self.routing_surface_coupling == True):
     self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
     m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
     self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
@@ -1352,9 +1340,10 @@ class HydroBlocks:
    grp = self.output_fp.groups['data_routing']
    tmp = {}
    tmp['A'] = self.routing.A1[:]
-   tmp['Q'] = self.routing.Q1[:]
+   tmp['Q'] = self.routing.Q0[:]
    tmp['Qc'] = self.routing.Qc[:]
    tmp['Qf'] = self.routing.Qf[:]
+   tmp['Qin_overland'] = self.routing.c_length*self.routing.qss[:] 
    tmp['reach_inundation'] = self.routing.reach2hband_inundation[:]
    sep = 100
    if itime == 0:
@@ -1522,6 +1511,7 @@ class HydroBlocks:
              'Q':{'description':'Discharge','units':'m3/s','dims':('time','channel',),'precision':4},
              'Qc':{'description':'Discharge (channel)','units':'m3/s','dims':('time','channel',),'precision':4},
              'Qf':{'description':'Discharge (floodplain)','units':'m3/s','dims':('time','channel',),'precision':4},
+             'Qin_overland':{'description':'Discharge into channel from overland flow','units':'m3/s','dims':('time','channel',),'precision':4},
              'reach_inundation':{'description':'Inundation height (reach level)','units':'m','dims':('time','channel','hband'),'precision':3},
              'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
              'inundation':{'description':'Inundation height','units':'m','dims':('time','hru',),'precision':4},

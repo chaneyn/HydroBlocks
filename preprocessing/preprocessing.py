@@ -61,7 +61,8 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  #Create soft link to HydroBlocks from within the directory
  HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
  HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
- os.system('ln -s %s %s' % (HBdir,HBedir))
+ if os.path.exists(HBedir) == False:
+  os.system('ln -s %s %s' % (HBdir,HBedir))
 
  #Create the dictionary to hold all of the data
  output = {}
@@ -155,7 +156,9 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  if lon < 0:lon += 360
  grp.longitude = lon
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
- grp.dx = 90.0#26.0#25.0#metadata['resx'] #UPDATE WITH DEM!
+ mask_object = gdal_tools.read_data(wbd['files']['mask'])
+ terrain_tools.calculate_area(mask_object)
+ grp.dx = np.mean(mask_object.area**0.5)
 
  #Write out the mapping
  hru_map = np.copy(output['hru_map'])
@@ -328,6 +331,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  print("Calculating slope and aspect",flush=True)
  res_array = np.copy(demns)
  res_array[:] = eares
+ #res_array = terrain_tools.calculate_area(mask_object)
  (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(np.flipud(demns),res_array,res_array)
  slope = np.flipud(slope)
  aspect = np.flipud(aspect)
@@ -483,12 +487,17 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  cvs = {}
  for var in subbasin_clustering_cov: #laura
   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
+   lc_mask=np.copy(dem)
+   lc_mask[:] = 0.0
    if var=='lc_w_now': #laura
-    lc_mask=covariates['lc_17'] #laura
+    if 'lc_17' in covariates:
+     lc_mask=covariates['lc_17'] #laura
    elif var=='lc_urb_nourb': #laura
-    lc_mask=covariates['lc_13'] #laura
+    if 'lc_13' in covariates:
+     lc_mask=covariates['lc_13'] #laura
    elif var=='lc_grass_forest': #laura
-    lc_mask=covariates['lc_4'] #deciduous_forest #laura
+    if 'lc_4' in covariates:
+     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
     if 'lc_2' in covariates: #laura
      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
     if 'lc_5' in covariates: #laura
@@ -547,12 +556,17 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  cvs = {}
  for var in intraband_clust_vars:
   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
+   lc_mask=np.copy(dem)
+   lc_mask[:] = 0.0
    if var=='lc_w_now':
-    lc_mask=covariates['lc_17']
+    if 'lc_17' in covariates:
+     lc_mask=covariates['lc_17']
    elif var=='lc_urb_nourb':
-    lc_mask=covariates['lc_13']
+    if 'lc_13' in covariates:
+     lc_mask=covariates['lc_13'] #laura
    elif var=='lc_grass_forest':
-    lc_mask=covariates['lc_4'] #deciduous_forest
+    if 'lc_4' in covariates:
+     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
     if 'lc_2' in covariates:
      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest
     if 'lc_5' in covariates:
@@ -927,32 +941,6 @@ def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
 
  return True
 
-def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info,hydroblocks_info):
-
- #Add pointers for simplicity
- tile_position = HMC_info['tile_position']
- basins = HMC_info['basins']
- ivc = hydroblocks_info['hmc_parameters']['intervalley_connectivity']
- irc = hydroblocks_info['hmc_parameters']['interridge_connectivity']
- ibc = hydroblocks_info['hmc_parameters']['intraband_connectivity']
- 
- #Perform the work
- (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(cluster_ids,dx,tile_position,
-               basins,ivc,irc,ibc)
-
- #Prepare the sparse matrix
- cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(nhru,nhru),dtype=np.float32)
- cmatrix = cmatrix.tocsr()
-
- #Prepare length, width, and ksat matrices
- wmatrix = cmatrix.copy()
- wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
-
- #Prepare output dictionary
- cdata = {'width':wmatrix.T,}
-
- return cdata
-
 def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_info):
 #Removed covariates and cluster ids from parameters, replace nhrus for nhbands, laura
  #Add pointers for simplicity
@@ -965,6 +953,11 @@ def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_i
  #Perform the work
  (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(hbands,dx,tile_position,
                basins,ivc,irc,ibc) #laura, nhrus replaced with nhbands
+
+ #If there're not lateral connections (just diagonal) create a single "fake" connection, laura
+ if hdst.size == 0:
+  hdst = np.array([0])
+  horg = np.array([0])
 
  #Prepare the sparse matrix
  cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(int(np.unique(hbands).shape[0]-1),int(np.unique(hbands).shape[0]-1)),dtype=np.float32) #laura, nhrus replaced with hbands
@@ -1136,7 +1129,10 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  dz=hydroblocks_info['dz'] #laura svp
  #Retrieve some metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
- resx = 90.0#670.0**0.5#26.0
+ mask_object = gdal_tools.read_data('%s/mask_latlon.tif' % workspace)
+ terrain_tools.calculate_area(mask_object)
+ resx = np.mean(mask_object.area**0.5) #all pixels in the subdomain have the same resolution in x and y; still not ideal and needs to be revisited, but much better than resx = 90...
+ #resx = 90.0#670.0**0.5#26.0
 
  print("Creating and curating the covariates",flush=True)
  (covariates,mask,z_data)=Create_and_Curate_Covariates_svp(wbd,hydroblocks_info)
@@ -1590,6 +1586,7 @@ def driver(comm,metadata_file):
  cids = np.array(range(1,len(list(fp))+1))
  fp.close()
  for cid in cids[rank::size]:
+  #for cid in [509,]:
   print(rank,size,cid)
   metadata['cid'] = cid
   metadata['input_dir'] = "%s/%d" % (edir,cid)
@@ -1616,11 +1613,12 @@ def driver(comm,metadata_file):
  comm.Barrier()
  
  #Postprocess the model input 
- #if rank == 0:Postprocess_Input(rdir,edir,cids)
+ Postprocess_Input(rdir,edir,cids,rank,size,comm)
+ comm.Barrier()
 
  return
 
-def Postprocess_Input(rdir,edir,cids):
+def Postprocess_Input(rdir,edir,cids,rank,size,comm):
 
  sdir = '%s/postprocess' % (edir)
  ddir = '%s/data/cids' % rdir
@@ -1629,17 +1627,17 @@ def Postprocess_Input(rdir,edir,cids):
  vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters']
  for var in vars:
   os.system('mkdir -p %s/postprocess/%s' % (edir,var))
- for cid in cids:
+ for cid in cids[rank::size]:
   print('Copying files for vrt',cid,flush=True)
   dir = '%s/%s' % (edir,cid)
   #hru
   ifile = '%s/hru_mapping_latlon.tif' % dir
   ofile = '%s/hrus/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #channels
   ifile = '%s/channel_mapping_latlon.tif' % dir
   ofile = '%s/channels/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #cid
   ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
   ofile = '%s/cids/%d.tif' % (sdir,cid)
@@ -1654,28 +1652,30 @@ def Postprocess_Input(rdir,edir,cids):
   #cid
   ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
   ofile = '%s/cids_org/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #dem
   ifile = '%s/%d/dem_latlon.tif' % (ddir,cid)
   ofile = '%s/dem/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #hand
   ifile = '%s/hand_latlon.tif' % dir
   ofile = '%s/hand/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #basins
   ifile = '%s/basins_latlon.tif' % dir
   ofile = '%s/basins/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #basin clusters
   ifile = '%s/basin_clusters_latlon.tif' % dir
   ofile = '%s/basin_clusters/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
 
  #Create vrts
- for var in vars:
-  print("creating virtual raster: %s" % var,flush=True)
-  os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
+ comm.Barrier()
+ if rank == 0:
+  for var in vars:
+   print("creating virtual raster: %s" % var,flush=True)
+   os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
 
  #Create shapefiles
  #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
