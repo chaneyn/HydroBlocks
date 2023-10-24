@@ -1603,8 +1603,8 @@ def driver(comm,metadata_file):
  comm.Barrier()
 
  #Create downstream channel database for particle tracker routing scheme
- #Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
- #comm.Barrier()
+ Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
+ comm.Barrier()
 
  #Wait until they are all done
  workspace = '%s/workspace' % (edir)
@@ -1802,9 +1802,9 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
 
  #Determine the total distance that can be covered
  dt = 3600 #sec #This should be defined by the dt_routing parameter
- maxu = 2 #m/s #parameter
+ maxu = 10 #m/s #parameter
  maxd = maxu*dt #m
- ncmax = 50 #parameter
+ ncmax = 250 #parameter
 
  #Iterate per catchment
  for cid in cids[rank::size]:

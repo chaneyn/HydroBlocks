@@ -8,6 +8,7 @@ import sys
 import time
 import copy
 import model.HydroBlocks as HydroBlocks
+import netCDF4 as nc
 from model.pyRouting import routing as HBrouting
 
 def Read_Metadata_File(file):
@@ -38,7 +39,7 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
   info['cdir'] = '%s/%s' % (edir,cid)
   info['routing_file'] = '%s/%s/octopy.pck' % (edir,cid)
   info['input_file'] = '%s/%s/input_file.nc' % (edir,cid)
-  if metadata["routing_module"]["type"] == 'kinematic':
+  if metadata["routing_module"]["flag"] == True:
    info['output'] = {"dir":"%s/output_data/%s" % (edir,cid),
       "vars":info['output']['vars'],
       "routing_vars":info['output']['routing_vars']}
@@ -68,6 +69,9 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
 
  #Determine cid/rank mapping
  determine_cid_rank_mapping(MPdb)
+
+ if (metadata["routing_module"]["flag"] == True) & (metadata["routing_module"]["type"] == 'particle_tracker'):
+  determine_particle_tracker_mapping(MPdb,edir)
 
  #Run the segments for the model
  sidate = idate
@@ -234,7 +238,7 @@ def update_model(cids,rank,size,date,HBdb):
    HBdb[cid].update_noahmp(date)
   
   #Update routing
-  if HBdb[cid].routing_module == 'kinematic':update_routing(cids,rank,size,HBdb)
+  if HBdb[cid].routing_flag == True:update_routing(cids,rank,size,HBdb)
 
   return
 
@@ -277,14 +281,16 @@ def update_routing_scheme(cids,rank,size,HBdb):
   for it in range(nt):
 
    #update routing (kinematic)
-   update_routing_kinematic(cids,HBdb,rank,size,flag_constant_Kvn)
-
-   for cid in cids:
-    HBdb[cid].routing.Q0sum += HBdb[cid].routing.Q0
+   if HBdb[cid].routing_module == 'kinematic':
+    update_routing_kinematic(cids,HBdb,rank,size,flag_constant_Kvn)
 
    #update routing (particle tracker)
-   #update_routing_particle_tracker(cids,HBdb,rank,size)
-   #exit()
+   elif HBdb[cid].routing_module == 'particle_tracker':
+    update_routing_particle_tracker(cids,HBdb,rank,size)
+
+   #Sum up the time step
+   for cid in cids:
+    HBdb[cid].routing.Q0sum += HBdb[cid].routing.Q0
 
   #Compute Q0 as average of all sub Q0
   for cid in cids:
@@ -298,13 +304,19 @@ def update_routing_scheme(cids,rank,size,HBdb):
 def update_routing_particle_tracker(cids,HBdb,rank,size):
  
   #Send/receive velocity fields
-  HBrouting.exchange_velocity_fields()
+  HBrouting.exchange_velocity_fields(cids,HBdb)
 
   #Push water down the channel network
-  HBrouting.update_particle_tracker_macroscale_polygon()
+  HBrouting.update_particle_tracker_macroscale_polygon(cids,HBdb)
 
   #Send/receive volume of water that enters/leaves each channel
-  HBrouting.exchange_water_volumes()
+  HBrouting.exchange_water_volumes(cids,HBdb)
+
+  #Define Q0
+  for cid in cids:
+   HBdb[cid].routing.Q0[:] = HBdb[cid].routing.Qout[:]
+   HBdb[cid].routing.A0[:] = HBdb[cid].routing.A1[:]
+   #HBdb[cid].routing.Q1[:] = HBdb[cid].routing.Q0[:]
 
   return
 
@@ -408,6 +420,91 @@ def determine_cid_rank_mapping(MPdb):
    #self.routing.cid_rank_mapping = db
 
   return
+
+def determine_particle_tracker_mapping(MPdb,edir):
+
+ #For each cid determine the unique cids that you need information from
+ cids = MPdb.cids
+ HBdb = MPdb.HBdb
+ rank = MPdb.mpi_rank
+ size = MPdb.mpi_size
+ cid_rank_mapping = HBdb[cids[0]].cid_rank_mapping
+
+ #Define the cid/channel id that the given cid will need u0 from
+ db = {}
+ for cid in cids:
+  db[cid] = {}
+  ucids = np.unique(HBdb[cid].routing.downstream_channels[:,1,:])
+  ucids = ucids[(ucids > 0) & (ucids != cid)]
+  for ucid in ucids:
+   m = HBdb[cid].routing.downstream_channels[:,1,:] == ucid  
+   channels = np.unique(HBdb[cid].routing.downstream_channels[:,0,:][m])
+   db[cid][ucid] = channels.data
+
+ #Send database to rank 0
+ if rank != 0:
+  MPdb.mpi_comm.send(db,dest=0,tag=11)
+
+ if rank == 0:
+  for i in range(1,size):
+   dbin = MPdb.mpi_comm.recv(source=i,tag=11)
+   for key in dbin:
+    db[key] = dbin[key]
+  #Place together all channels that are requested by cid i by cid j
+  db2 = {}
+  for cid in db:
+   for ucid in db[cid]:
+    if ucid not in db2:db2[ucid] = {}
+    db2[ucid][cid] = db[cid][ucid]
+  #Send each database to the corresponding rank
+  for cid in db2:
+   if cid_rank_mapping[cid] != 0:
+    tag = int('%s%s' % (str(0).ljust(4,'0'),str(cid).ljust(4,'0')))
+    MPdb.mpi_comm.send(db2[cid],dest=cid_rank_mapping[cid],tag=tag)
+  #Clean up database
+  db_send = {}
+  for key in db2:
+   if cid_rank_mapping[key] == 0:db_send[key] = db2[key]
+
+ else:
+  db_send = {}
+  for cid in cids:
+   tag = int('%s%s' % (str(0).ljust(4,'0'),str(cid).ljust(4,'0')))
+   db_send[cid] = MPdb.mpi_comm.recv(source=0,tag=tag)
+
+ db_receive = db
+ #Save the send and receive database
+ for cid in HBdb:
+  HBdb[cid].routing.particle_tracker_db_send = db_send[cid]
+  HBdb[cid].routing.particle_tracker_db_receive = db_receive[cid]
+
+ #Initialize array to save u0
+ maxnc = 0
+ for cid in HBdb:
+  ucids = list(HBdb[cid].routing.particle_tracker_db_receive.keys())
+  for ucid in ucids:
+   if np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid]) > maxnc:
+    maxnc = np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid])+1
+  HBdb[cid].routing.downstream_u0 = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
+  HBdb[cid].routing.downstream_c_length = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
+  HBdb[cid].routing.downstream_Vin = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
+  HBdb[cid].routing.downstream_Vout = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
+  #Create cid mapping for downstream u0
+  HBdb[cid].routing.cid_mapping = -1*np.ones(len(cid_rank_mapping.keys())).astype(np.int32)
+  for i in range(1,HBdb[cid].routing.cid_mapping.size+1):
+    if i in ucids:HBdb[cid].routing.cid_mapping[i-1] = ucids.index(i)
+  #Read in the channel length for each downstream channel
+  for ucid in ucids:
+   cdir = '%s/%s' % (edir,ucid)
+   fp = nc.Dataset('%s/input_file.nc' % cdir)
+   c_length = fp['stream_network']['length'][:]
+   iucid = HBdb[cid].routing.cid_mapping[ucid-1]
+   ichannels = HBdb[cid].routing.particle_tracker_db_receive[ucid]
+   HBdb[cid].routing.downstream_c_length[iucid,ichannels] = c_length[ichannels]
+
+ MPdb.mpi_comm.Barrier()
+
+ return
 
 def run(comm,metadata_file):
 
