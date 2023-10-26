@@ -1598,7 +1598,6 @@ def driver(comm,metadata_file):
  comm.Barrier()
 
  #Create enhanced input data file
- #Connect_Cell_Networks(rank,size,cids,edir)
  Connect_Cell_Networks_v2(rank,size,cids,edir)
  comm.Barrier()
 
@@ -1805,6 +1804,7 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
  maxu = 10 #m/s #parameter
  maxd = maxu*dt #m
  ncmax = 250 #parameter
+ dbout = {}
 
  #Iterate per catchment
  for cid in cids[rank::size]:
@@ -1845,13 +1845,17 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
     #update ids
     cid0 = cid1
     ic0 = ic1
+  dbout[cid] = np.copy(downstream_channels)
 
  comm.Barrier()
- #Add downstream_channels array to input_file.nc
- file = '%s/%s/input_file.nc' % (edir,cid)
- fp = h5py.File(file,'a')
- fp['stream_network']['downstream_channels'] = downstream_channels[:]
- fp.close()
+
+ for cid in cids[rank::size]:
+  #Add downstream_channels array to input_file.nc
+  file = '%s/%s/input_file.nc' % (edir,cid)
+  fp = h5py.File(file,'a')
+  if 'downstream_channels' in fp['stream_network']:del fp['stream_network']['downstream_channels']
+  fp['stream_network']['downstream_channels'] = dbout[cid][:]
+  fp.close()
 
  return
 

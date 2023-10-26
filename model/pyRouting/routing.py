@@ -63,6 +63,15 @@ class particle_tracker:
   fp = nc.Dataset('%s/input_file.nc' % cdir)
   #Read in downstream channels database
   self.downstream_channels = fp['stream_network']['downstream_channels'][:]
+  #self.downstream_channels[:,:,5:] = -9999
+  '''if cid == 5:
+   ucids = np.unique(self.downstream_channels[:,1,:])
+   ucids = ucids[(ucids > 0) & (ucids != cid)]
+   for ucid in ucids:
+    m = self.downstream_channels[:,1,:] == ucid
+    channels = np.unique(self.downstream_channels[:,0,:][m])
+    print(ucid,channels.size)
+  exit()'''
   #cids to send to 
   tmp = np.unique(fp['stream_network']['outlets'][:,2])
   tmp = tmp[tmp != -9999]
@@ -576,20 +585,25 @@ def exchange_velocity_fields(cids,HBdb):
   self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
   #Send velocities
   for ucid in self.particle_tracker_db_send:
+   if ucid in cids:continue
    dest = HBdb[cid].cid_rank_mapping[ucid]
    tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
    #print('send',cid,ucid,dest,tag,flush=True)
-   self.comm.send(self.u0[self.particle_tracker_db_send[ucid]],dest=dest,tag=tag)
+   tmp = self.u0[self.particle_tracker_db_send[ucid]].astype(np.float16)
+   self.comm.send(tmp,dest=dest,tag=tag)
 
  #Receive velocities for the downstream reaches
  for cid in cids:
   self = HBdb[cid].routing
   for ucid in self.particle_tracker_db_receive:
-   source = HBdb[cid].cid_rank_mapping[ucid]
-   tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
-   #print('receive',cid,ucid,source,tag,flush=True)
-   tmp = self.comm.recv(source=source,tag=tag)
-   HBdb[cid].routing.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
+   if ucid in cids:
+    self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = HBdb[ucid].routing.u0[HBdb[ucid].routing.particle_tracker_db_send[cid]]
+   else:
+    source = HBdb[cid].cid_rank_mapping[ucid]
+    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    #print('receive',cid,ucid,source,tag,flush=True)
+    tmp = self.comm.recv(source=source,tag=tag)
+    self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
   
  #Wait
  #self.comm.Barrier()
@@ -638,7 +652,7 @@ def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,ci
     cc = cl-(t - dt)*u
     f = cc/snake_length[ic]
     if (f > 1) | (jc == 0):
-     if cid1 == cid:
+     if cid1 == cid: 
       Vin[channel] += Vc[ic]
      else:
       downstream_Vin[cid_mapping[cid1-1],channel] += Vc[ic]
@@ -646,16 +660,16 @@ def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,ci
      #Split between channels (probably necessary to make possible to split into multiple channels instead; should be ok for now)
      #bottom channel
      if cid1 == cid:
-      Vin[channel] += f*Vc[ic]
+       Vin[channel] += f*Vc[ic]
      else:
       downstream_Vin[cid_mapping[cid1-1],channel] += f*Vc[ic]
      #top channel
      cid2 = downstream_channels[ic,1,jc-1]
      channel2 = downstream_channels[ic,0,jc-1]
      if cid2 == cid:
-      Vin[channel] += (1-f)*Vc[ic]
+      Vin[channel2] += (1-f)*Vc[ic]
      else:
-      downstream_Vin[cid_mapping[cid1-2],channel] += (1-f)*Vc[ic]
+      downstream_Vin[cid_mapping[cid2-1],channel2] += (1-f)*Vc[ic]
     break
      
    else:
@@ -675,24 +689,31 @@ def exchange_water_volumes(cids,HBdb):
   self = HBdb[cid].routing
   #Send Vin/Vout
   for ucid in self.particle_tracker_db_receive:
+   if ucid in cids:continue
    dest = HBdb[cid].cid_rank_mapping[ucid]
    tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
    ics = self.particle_tracker_db_receive[ucid]
    iucid = self.cid_mapping[ucid-1]
-   db = {'Vin':self.downstream_Vin[iucid,ics],
-          'Vout':self.downstream_Vout[iucid,ics]}
+   db = {'Vin':self.downstream_Vin[iucid,ics].astype(np.float16),
+          'Vout':self.downstream_Vout[iucid,ics].astype(np.float16)}
    self.comm.send(db,dest=dest,tag=tag)
 
  #Receive computed Vin/Vout
  for cid in cids:
   self = HBdb[cid].routing
   for ucid in self.particle_tracker_db_send:
-   source = HBdb[cid].cid_rank_mapping[ucid]
-   tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
    ics = self.particle_tracker_db_send[ucid]
-   db = self.comm.recv(source=source,tag=tag)
-   HBdb[cid].routing.Vin[ics] += db['Vin'][:]
-   HBdb[cid].routing.Vout[ics] += db['Vout'][:]
+   if ucid in cids:
+    iucid2 = HBdb[ucid].routing.cid_mapping[cid-1]
+    ics2 = HBdb[ucid].routing.particle_tracker_db_receive[cid]
+    HBdb[cid].routing.Vin[ics] += HBdb[ucid].routing.downstream_Vin[iucid2,ics2]
+    HBdb[cid].routing.Vout[ics] += HBdb[ucid].routing.downstream_Vout[iucid2,ics2]
+   else:
+    source = HBdb[cid].cid_rank_mapping[ucid]
+    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    db = self.comm.recv(source=source,tag=tag)
+    HBdb[cid].routing.Vin[ics] += db['Vin'][:]
+    HBdb[cid].routing.Vout[ics] += db['Vout'][:]
 
  #Calculate Qin,Qout,A
  for cid in cids:

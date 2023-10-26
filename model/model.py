@@ -68,9 +68,11 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
   #del HydroBlocks
 
  #Determine cid/rank mapping
+ print('Determine rank mapping',flush=True)
  determine_cid_rank_mapping(MPdb)
 
  if (metadata["routing_module"]["flag"] == True) & (metadata["routing_module"]["type"] == 'particle_tracker'):
+  print('Determine particle tracker mapping',flush=True)
   determine_particle_tracker_mapping(MPdb,edir)
 
  #Run the segments for the model
@@ -456,6 +458,10 @@ def determine_particle_tracker_mapping(MPdb,edir):
    for ucid in db[cid]:
     if ucid not in db2:db2[ucid] = {}
     db2[ucid][cid] = db[cid][ucid]
+  #Check for ucids that are missing
+  for cid in db:
+   if cid not in db2:
+    db2[cid] = {}
   #Send each database to the corresponding rank
   for cid in db2:
    if cid_rank_mapping[cid] != 0:
@@ -465,7 +471,6 @@ def determine_particle_tracker_mapping(MPdb,edir):
   db_send = {}
   for key in db2:
    if cid_rank_mapping[key] == 0:db_send[key] = db2[key]
-
  else:
   db_send = {}
   for cid in cids:
@@ -479,16 +484,23 @@ def determine_particle_tracker_mapping(MPdb,edir):
   HBdb[cid].routing.particle_tracker_db_receive = db_receive[cid]
 
  #Initialize array to save u0
- maxnc = 0
+ maxnc = 1
+ nucid = 1
  for cid in HBdb:
   ucids = list(HBdb[cid].routing.particle_tracker_db_receive.keys())
   for ucid in ucids:
-   if np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid]) > maxnc:
-    maxnc = np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid])+1
-  HBdb[cid].routing.downstream_u0 = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
-  HBdb[cid].routing.downstream_c_length = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
-  HBdb[cid].routing.downstream_Vin = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
-  HBdb[cid].routing.downstream_Vout = np.zeros((len(HBdb[cid].routing.particle_tracker_db_receive.keys()),maxnc))
+   cdir = '%s/%s' % (edir,ucid)
+   fp = nc.Dataset('%s/input_file.nc' % cdir)
+   c_length = fp['stream_network']['length'][:]
+   fp.close()
+   #if np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid]) > (maxnc+1):
+   # maxnc = np.max(HBdb[cid].routing.particle_tracker_db_receive[ucid])+1
+   if c_length.size > maxnc: maxnc = c_length.size
+  nucid = max(nucid,len(HBdb[cid].routing.particle_tracker_db_receive.keys()))
+  HBdb[cid].routing.downstream_u0 = np.zeros((nucid,maxnc))
+  HBdb[cid].routing.downstream_c_length = np.zeros((nucid,maxnc))
+  HBdb[cid].routing.downstream_Vin = np.zeros((nucid,maxnc))
+  HBdb[cid].routing.downstream_Vout = np.zeros((nucid,maxnc))
   #Create cid mapping for downstream u0
   HBdb[cid].routing.cid_mapping = -1*np.ones(len(cid_rank_mapping.keys())).astype(np.int32)
   for i in range(1,HBdb[cid].routing.cid_mapping.size+1):
