@@ -1801,7 +1801,7 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
 
  #Determine the total distance that can be covered
  dt = 3600 #sec #This should be defined by the dt_routing parameter
- maxu = 10 #m/s #parameter
+ maxu = 2 #m/s #parameter
  maxd = maxu*dt #m
  ncmax = 250 #parameter
  dbout = {}

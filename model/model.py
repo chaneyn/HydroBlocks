@@ -175,8 +175,9 @@ def run_timestep(cids,info,date,tic,rank,size,HBdb):
 def update_statistics(cids,HBdb,date):
 
   for cid in cids:
-   string = '|%s|%s|%s|%s|%s|%s|%s|' % \
-        ('Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
+   string = '|%s|%s|%s|%s|%s|%s|%s|%s|' % \
+         ('CID:%s' % cid,\
+         'Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
          'Runtime:%.2f(s)'%(HBdb[cid].runtime),\
          'Acc_ET:%.2f(mm)'%HBdb[cid].acc_et,\
          'Acc_P:%.2f(mm)'%HBdb[cid].acc_prcp,\

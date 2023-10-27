@@ -850,8 +850,9 @@ class HydroBlocks:
   self.itime = self.itime + 1
 
   #Output some statistics
-  string = '|%s|%s|%s|%s|%s|%s|%s|' % \
-        ('Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
+  string = '|%d|%s|%s|%s|%s|%s|%s|%s|' % \
+        ('CID:%d' % self.cid,\
+         'Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
          'Runtime:%.2f(s)'%(self.runtime),\
          'Acc_ET:%.2f(mm)'%self.acc_et,\
          'Acc_P:%.2f(mm)'%self.acc_prcp,\

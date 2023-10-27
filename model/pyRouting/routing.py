@@ -580,17 +580,100 @@ def calculate_routing_inundation(cids,HBdb):
 def exchange_velocity_fields(cids,HBdb):
 
  #Compute velocities on all reaches
+ db_send = {}
  for cid in cids:
   self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
   self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
   #Send velocities
   for ucid in self.particle_tracker_db_send:
    if ucid in cids:continue
    dest = HBdb[cid].cid_rank_mapping[ucid]
-   tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+   if dest == rank:continue
+   if dest not in db_send:db_send[dest] = {}
+   if cid not in db_send[dest]:db_send[dest][cid] = {}
+   #tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
    #print('send',cid,ucid,dest,tag,flush=True)
-   tmp = self.u0[self.particle_tracker_db_send[ucid]].astype(np.float16)
-   self.comm.send(tmp,dest=dest,tag=tag)
+   tmp = self.u0[self.particle_tracker_db_send[ucid]]
+   #self.comm.send(tmp,dest=dest,tag=tag)
+   db_send[dest][cid][ucid] = tmp.astype(np.float32)
+
+ #Assemble send tags
+ tags_send = []
+ ns = 0
+ for dest in db_send:
+  tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+  tags_send.append([tag,dest])
+ if len(tags_send) > 0:
+  tags_send = np.array(tags_send)
+  argsort = np.argsort(tags_send[:,0])
+  tags_send = tags_send[argsort,:]
+  ns = tags_send.shape[0]
+
+ #Receive from all corresponding ranks
+ db_receive = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  for ucid in self.particle_tracker_db_receive:
+   source = HBdb[cid].cid_rank_mapping[ucid]
+   if source == rank:continue
+   if source not in db_receive:db_receive[source] = {}
+
+ #Assemble receive tags
+ tags_receive = []
+ nr = 0
+ for source in db_receive:
+  tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+  tags_receive.append([tag,source])
+ if len(tags_receive) > 0:
+  tags_receive = np.array(tags_receive)
+  argsort = np.argsort(tags_receive[:,0])
+  tags_receive = tags_receive[argsort,:]
+  nr = tags_receive.shape[0]
+
+ #Send/receive
+ for i in range(ns):
+  dest = tags_send[i,1]
+  tag = tags_send[i,0]
+  comm.send(db_send[dest],dest=dest,tag=tag)
+ for i in range(nr):
+  source = tags_receive[i,1]
+  tag = tags_receive[i,0]
+  db_receive[source] = comm.recv(source=source,tag=tag)
+ #nsr = max(nr,ns)
+ #for i in range(nsr):
+ # if i < ns:
+ #  dest = tags_send[i,1]
+ #  tag = tags_send[i,0]
+ #  comm.send(db_send[dest],dest=dest,tag=tag)
+ # if i < nr:
+ #  source = tags_receive[i,1] 
+ #  tag = tags_receive[i,0]
+ #  db_receive[source] = comm.recv(source=source,tag=tag)
+  
+ #Send to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0'))) 
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # comm.issend(db_send[dest],dest=dest,tag=tag)
+
+
+ #Send/receive to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # comm.issend(db_send[dest],dest=dest,tag=tag)
+
+ #for source in db_receive:
+ # tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+ # #print('receive',tag,flush=True)
+ # #db_receive[source] = comm.recv(source=source,tag=tag)
+ # db_receive[source] = comm.irecv(source=source,tag=tag).wait()
 
  #Receive velocities for the downstream reaches
  for cid in cids:
@@ -600,9 +683,10 @@ def exchange_velocity_fields(cids,HBdb):
     self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = HBdb[ucid].routing.u0[HBdb[ucid].routing.particle_tracker_db_send[cid]]
    else:
     source = HBdb[cid].cid_rank_mapping[ucid]
-    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    #tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
     #print('receive',cid,ucid,source,tag,flush=True)
-    tmp = self.comm.recv(source=source,tag=tag)
+    #tmp = self.comm.recv(source=source,tag=tag)
+    tmp = db_receive[source][ucid][cid]
     self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
   
  #Wait
@@ -685,18 +769,82 @@ def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,ci
 def exchange_water_volumes(cids,HBdb):
 
  #Send computed Vin/Vout to the corresponding cid
+ db_send = {}
  for cid in cids:
   self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
   #Send Vin/Vout
   for ucid in self.particle_tracker_db_receive:
    if ucid in cids:continue
    dest = HBdb[cid].cid_rank_mapping[ucid]
-   tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+   if dest not in db_send:db_send[dest] = {}
+   if cid not in db_send[dest]:db_send[dest][cid] = {}
+   #tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
    ics = self.particle_tracker_db_receive[ucid]
    iucid = self.cid_mapping[ucid-1]
-   db = {'Vin':self.downstream_Vin[iucid,ics].astype(np.float16),
-          'Vout':self.downstream_Vout[iucid,ics].astype(np.float16)}
-   self.comm.send(db,dest=dest,tag=tag)
+   db_send[dest][cid][ucid] = {'Vin':self.downstream_Vin[iucid,ics].astype(np.float32),
+          'Vout':self.downstream_Vout[iucid,ics].astype(np.float32)}
+   #self.comm.send(db,dest=dest,tag=tag)
+
+ #Assemble send tags
+ tags_send = []
+ ns = 0
+ for dest in db_send:
+  tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+  tags_send.append([tag,dest])
+ if len(tags_send) > 0:
+  tags_send = np.array(tags_send)
+  argsort = np.argsort(tags_send[:,0])
+  tags_send = tags_send[argsort,:]
+  ns = tags_send.shape[0]
+
+ #Send to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # #comm.issend(db_send[dest],dest=dest,tag=tag)
+ # comm.send(db_send[dest],dest=dest,tag=tag)
+
+ #Receive from all corresponding ranks
+ db_receive = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  for ucid in self.particle_tracker_db_send:
+   source = HBdb[cid].cid_rank_mapping[ucid]
+   if source == rank:continue
+   if source not in db_receive:db_receive[source] = {}
+
+ #Assemble receive tags
+ tags_receive = []
+ nr = 0
+ for source in db_receive:
+  tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+  tags_receive.append([tag,source])
+ if len(tags_receive) > 0:
+  tags_receive = np.array(tags_receive)
+  argsort = np.argsort(tags_receive[:,0])
+  tags_receive = tags_receive[argsort,:]
+  nr = tags_receive.shape[0]
+
+ #Send/receive
+ for i in range(ns):
+  dest = tags_send[i,1]
+  tag = tags_send[i,0]
+  comm.send(db_send[dest],dest=dest,tag=tag)
+ for i in range(nr):
+  source = tags_receive[i,1]
+  tag = tags_receive[i,0]
+  db_receive[source] = comm.recv(source=source,tag=tag)
+
+ #for source in db_receive:
+ # tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+ # #print('receive',tag,flush=True)
+ # db_receive[source] = comm.recv(source=source,tag=tag)
+ # #db_receive[source] = comm.irecv(source=source,tag=tag).wait()
 
  #Receive computed Vin/Vout
  for cid in cids:
@@ -710,8 +858,9 @@ def exchange_water_volumes(cids,HBdb):
     HBdb[cid].routing.Vout[ics] += HBdb[ucid].routing.downstream_Vout[iucid2,ics2]
    else:
     source = HBdb[cid].cid_rank_mapping[ucid]
-    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
-    db = self.comm.recv(source=source,tag=tag)
+    #tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    #db = self.comm.recv(source=source,tag=tag)
+    db = db_receive[source][ucid][cid]
     HBdb[cid].routing.Vin[ics] += db['Vin'][:]
     HBdb[cid].routing.Vout[ics] += db['Vout'][:]
 
