@@ -224,7 +224,10 @@ class HydroBlocks:
   #elif (info['fully_distributed']==True) and (info['connection_matrix_hbands']==False): #laura
    #self.ncsbasins=self.nhru #laura
   #else: #laura
-  self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
+  if info['network_abstraction']['flag']==False:
+   self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
+  else:
+   self.ncsbasins=info['network_abstraction']['number_of_characteristic_main_subbasins']+info['network_abstraction']['number_of_characteristic_secondary_subbasins']
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m

@@ -412,7 +412,6 @@ def update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn):
   for cid in cids[rank::size]:
    self = HBdb[cid].routing
    A0_org = self.A0_org
-   #print(np.unique(self.qss))
    #Update solution
    (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
    self.A0[:] = self.A1[:]
