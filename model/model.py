@@ -116,6 +116,7 @@ class HydroBlocks_MacroscalePolygons:
     
   #Save MPI information
   self.mpi_comm = MPI.COMM_WORLD
+  self.mpi = MPI
   self.mpi_rank = comm.Get_rank()
   self.mpi_size = comm.Get_size()
 
@@ -387,6 +388,7 @@ def determine_cid_rank_mapping(MPdb):
   #Determine what rank has which cid
   for cid in cids:
    HBdb[cid].comm = MPdb.mpi_comm
+   HBdb[cid].mpi = MPdb.mpi
    HBdb[cid].size = MPdb.mpi_size
    HBdb[cid].rank = MPdb.mpi_rank
 

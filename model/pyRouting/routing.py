@@ -585,6 +585,9 @@ def exchange_velocity_fields(cids,HBdb):
   self = HBdb[cid].routing
   rank = self.rank
   comm = self.comm
+  status = HBdb[cid].mpi.Status()  
+  mpi_any_source = HBdb[cid].mpi.ANY_SOURCE
+  mpi_any_tag = HBdb[cid].mpi.ANY_TAG
   self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
   #Send velocities
   for ucid in self.particle_tracker_db_send:
@@ -640,19 +643,26 @@ def exchange_velocity_fields(cids,HBdb):
   tag = tags_send[i,0]
   comm.send(db_send[dest],dest=dest,tag=tag)
  for i in range(nr):
-  source = tags_receive[i,1]
-  tag = tags_receive[i,0]
-  db_receive[source] = comm.recv(source=source,tag=tag)
- #nsr = max(nr,ns)
- #for i in range(nsr):
- # if i < ns:
- #  dest = tags_send[i,1]
- #  tag = tags_send[i,0]
- #  comm.send(db_send[dest],dest=dest,tag=tag)
- # if i < nr:
- #  source = tags_receive[i,1] 
- #  tag = tags_receive[i,0]
- #  db_receive[source] = comm.recv(source=source,tag=tag)
+  #source = tags_receive[i,1]
+  #tag = tags_receive[i,0]
+  #db_receive[source] = comm.recv(source=source,tag=tag)
+  tmp1 = comm.recv(source=mpi_any_source,tag=mpi_any_tag,status=status)
+  source = status.Get_source()
+  db_receive[source] = tmp1
+
+ '''nsr = max(nr,ns)
+ for i in range(nsr):
+  if i < ns:
+   dest = tags_send[i,1]
+   tag = tags_send[i,0]
+   comm.send(db_send[dest],dest=dest,tag=tag)
+  if i < nr:
+   #source = tags_receive[i,1] 
+   #tag = tags_receive[i,0]
+   tmp1 = comm.recv(source=mpi_any_source,tag=mpi_any_tag,status=status)
+   source = status.Get_source()
+   db_receive[source] = tmp1
+   #db_receive[source] = comm.recv(source=source,tag=tag)'''
   
  #Send to all corresponding ranks
  #for dest in db_send:
@@ -690,7 +700,7 @@ def exchange_velocity_fields(cids,HBdb):
     self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
   
  #Wait
- #self.comm.Barrier()
+ self.comm.Barrier()
 
  return
 
@@ -774,6 +784,9 @@ def exchange_water_volumes(cids,HBdb):
   self = HBdb[cid].routing
   rank = self.rank
   comm = self.comm
+  status = HBdb[cid].mpi.Status()
+  mpi_any_source = HBdb[cid].mpi.ANY_SOURCE
+  mpi_any_tag = HBdb[cid].mpi.ANY_TAG
   #Send Vin/Vout
   for ucid in self.particle_tracker_db_receive:
    if ucid in cids:continue
@@ -836,9 +849,28 @@ def exchange_water_volumes(cids,HBdb):
   tag = tags_send[i,0]
   comm.send(db_send[dest],dest=dest,tag=tag)
  for i in range(nr):
-  source = tags_receive[i,1]
-  tag = tags_receive[i,0]
-  db_receive[source] = comm.recv(source=source,tag=tag)
+  #source = tags_receive[i,1]
+  #tag = tags_receive[i,0]
+  #db_receive[source] = comm.recv(source=source,tag=tag)
+  tmp1 = comm.recv(source=mpi_any_source,tag=mpi_any_tag,status=status)
+  source = status.Get_source()
+  db_receive[source] = tmp1
+
+ #Wait
+ '''self.comm.Barrier()
+ nsr = max(nr,ns)
+ for i in range(nsr):
+  if i < ns:
+   dest = tags_send[i,1]
+   tag = tags_send[i,0]
+   print('send',rank,tag,flush=True)
+   comm.send(db_send[dest],dest=dest,tag=tag)
+  if i < nr:
+   tmp1 = comm.recv(source=mpi_any_source,tag=mpi_any_tag,status=status)
+   source = status.Get_source()
+   print('receive',rank,status.Get_tag(),flush=True)
+   db_receive[source] = tmp1'''
+
 
  #for source in db_receive:
  # tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
