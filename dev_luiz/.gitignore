@@ -1,0 +1,12 @@
+*.pyc
+*.pyf
+*.mod
+*.so
+*.o
+*.tar.gz
+*.dSYM
+*.ipynb_checkpoints
+model/pyNoahMP/src/Noah/*.f90
+model/pyNoahMP/src/Utility_routines/*.f90
+*.nbc
+*.nbi

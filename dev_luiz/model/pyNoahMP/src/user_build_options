@@ -1,0 +1,24 @@
+
+#=============================================================================================
+#  Options for Linux with gfortran (not fully tested)
+#=============================================================================================
+
+ COMPILERF90    =       /usr/bin/gfortran
+ FREESOURCE     =       -ffree-form  -ffree-line-length-none
+# F90FLAGS       =       -g -fconvert=big-endian -fbounds-check -fno-range-check -fno-underscoring
+ F90FLAGS       =       -g -fconvert=big-endian -fbounds-check -fno-range-check -fPIC
+ MODFLAG        =       -I
+ LDFLAGS        =       
+ CPP            =       /usr/bin/cpp
+ CPPFLAGS       =       -P -traditional -D_GFORTRAN_
+ LIBS           =       
+ LIBJASPER      =       -ljpeg -L/home/nc153/soteria/software/miniconda3/envs/hrldas/lib -ljasper
+ INCJASPER      =       -I/home/nc153/soteria/software/miniconda3/envs/hrldas/include
+ NETCDFMOD      =       -I/stor/soteria/hydro/private/nc153/local/include
+ NETCDFLIB      =       -L/stor/soteria/hydro/private/nc153/local/lib -lnetcdf -lnetcdff
+ BZIP2          =       NO
+ BZIP2_LIB      =       -lbz2 -L/home/nc153/soteria/software/miniconda3/envs/hrldas/lib
+ BZIP2_INCLUDE  =       -I/home/nc153/soteria/software/miniconda3/envs/hrldas/include
+ RM             =       rm -f
+ CC             =       /usr/bin/gcc
+

@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+import sys
+import getopt
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+#size = comm.Get_size()
+#rank = comm.Get_rank()
+#name = MPI.Get_processor_name()
+
+def main(argv):
+   edir = ''
+   try:
+      opts, args = getopt.getopt(argv,"hm:t:",["mfile=","mtype="])
+   except getopt.GetoptError:
+      print('HB -m <mfile> -t <mtype>')
+      sys.exit(2)
+   for opt, arg in opts:
+      if opt == '-h':
+         print('HB -m <mfile> -t <mtype>')
+         sys.exit()
+      elif opt in ("-m", "--mfile"):
+         mfile = arg
+      elif opt in ("-t", "--mtype"):
+         mtype = arg
+
+   if mtype == 'preprocess':
+        print("HydroBlocks: Preprocess",flush=True)
+        import preprocessing.preprocessing
+        preprocessing.preprocessing.driver(comm,mfile)
+        #preprocessing.driver(comm,edir)
+   elif mtype == 'model':
+        print("HydroBlocks: Model",flush=True)
+        import model.model
+        model.model.run(comm,mfile)
+   elif mtype == 'postprocess':
+        print("HydroBlocks: Postprocess",flush=True)
+        import postprocessing.postprocessing
+        postprocessing.postprocessing.driver(comm,mfile)
+   else:
+        print("The mtype provided is not an option")
+
+   
+
+if __name__ == "__main__":
+   main(sys.argv[1:])
