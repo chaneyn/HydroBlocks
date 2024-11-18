@@ -72,7 +72,7 @@ class particle_tracker:
     channels = np.unique(self.downstream_channels[:,0,:][m])
     print(ucid,channels.size)
   exit()'''
-  #cids to send to 
+  #cids to send to
   tmp = np.unique(fp['stream_network']['outlets'][:,2])
   tmp = tmp[tmp != -9999]
   self.scids_hdw = tmp
@@ -173,7 +173,7 @@ class kinematic:
   #self.rcids_hdw = self.db['rcids_hdw']
   #self.hdw = self.db['hdw']
   fp = nc.Dataset('%s/input_file.nc' % cdir)
-  #cids to send to 
+  #cids to send to
   tmp = np.unique(fp['stream_network']['outlets'][:,2])
   tmp = tmp[tmp != -9999]
   self.scids_hdw = tmp
@@ -223,7 +223,7 @@ class kinematic:
 
   #Pause until all cores have all their data
   #self.comm.Barrier()
-	
+
   return
 
  def update(self,dt):
@@ -388,7 +388,7 @@ def calculate_hydraulic_radius(A,P,W,A1):
 
 @numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
 def calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A1,cn,fpn):
- 
+
  Kvn = np.zeros(Ac.shape[0])
  #Determine the level for which we need to back out info
  for i in range(Ac.shape[0]):
@@ -409,8 +409,8 @@ def calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A1,cn,fpn):
    c = -(A1[i] - (Af[i,j] + Ac[i,j]))
    b = np.sum(W[i,0:j])
    a = 1.0/M[i,j]
-   h = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) 
-   #h2 = (-b - (b**2.0 - 4.0*a*c)**0.5)/(2.0*a) 
+   h = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a)
+   #h2 = (-b - (b**2.0 - 4.0*a*c)**0.5)/(2.0*a)
    #print('inside1:',h1,h2,A1[i],(Af[i,j] + Ac[i,j]),a,b,c,M[i,j])
    #Calculate channel cross sectional area
    Ac1 = Ac[i,1] + W[i,0]*h
@@ -463,7 +463,7 @@ def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inunda
    idx = idxs[k]
    reach2hband_inundation[i,idx] = h[k]
  areas = np.sum(reach2hband,axis=0)
- hband_inundation = np.zeros(areas.size)	
+ hband_inundation = np.zeros(areas.size)
  hband_inundation[:] = np.sum(reach2hband*reach2hband_inundation,axis=0)/np.sum(reach2hband,axis=0)
 
  return (hband_inundation,reach2hband_inundation)
@@ -502,7 +502,7 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
 
   #Wait until all are done
   #self.comm.Barrier()
-  
+
   #Receive headwater data
   recv = {}
   for cid in cids_core:
@@ -586,11 +586,11 @@ def exchange_velocity_fields(cids,HBdb):
   rank = self.rank
   comm = self.comm
 
-  if HBdb[cid].routing.flag_c == True: #luiz 
+  if HBdb[cid].routing.flag_c == True: #luiz
    self.u0[:] = HBdb[cid].routing.vel_chan
    #print('velocity sensivity', HBdb[cid].routing.vel_chan,flush=True)
   else:
-   self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
+   self.u0[:] = 1.8  #m/s (Set to 2.0 m/s on all reaches for now)
 
   #Send velocities
   for ucid in self.particle_tracker_db_send:
@@ -656,13 +656,13 @@ def exchange_velocity_fields(cids,HBdb):
  #  tag = tags_send[i,0]
  #  comm.send(db_send[dest],dest=dest,tag=tag)
  # if i < nr:
- #  source = tags_receive[i,1] 
+ #  source = tags_receive[i,1]
  #  tag = tags_receive[i,0]
  #  db_receive[source] = comm.recv(source=source,tag=tag)
-  
+
  #Send to all corresponding ranks
  #for dest in db_send:
- # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0'))) 
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
  # #print('send',tag,flush=True)
  # #comm.send(db_send[dest],dest=dest,tag=tag)
  # comm.issend(db_send[dest],dest=dest,tag=tag)
@@ -694,7 +694,7 @@ def exchange_velocity_fields(cids,HBdb):
     #tmp = self.comm.recv(source=source,tag=tag)
     tmp = db_receive[source][ucid][cid]
     self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
-  
+
  #Wait
  #self.comm.Barrier()
 
@@ -742,7 +742,7 @@ def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,ci
     cc = cl-(t - dt)*u
     f = cc/snake_length[ic]
     if (f > 1) | (jc == 0):
-     if cid1 == cid: 
+     if cid1 == cid:
       Vin[channel] += Vc[ic]
      else:
       downstream_Vin[cid_mapping[cid1-1],channel] += Vc[ic]
@@ -761,7 +761,7 @@ def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,ci
      else:
       downstream_Vin[cid_mapping[cid2-1],channel2] += (1-f)*Vc[ic]
     break
-     
+
    else:
     if cid1 == cid:
      Vin[channel] += Vc[ic]
@@ -878,7 +878,7 @@ def exchange_water_volumes(cids,HBdb):
   HBr.Qout[:] = HBr.Vout/dt
   #qss should probable be before pushing water
   HBr.A1[:] = HBr.A0[:] - dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length + dt*HBr.qss
-  #HBr.A1[:] = -dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length 
+  #HBr.A1[:] = -dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length
   #A1 = A0 + dt*qss + dt*bcs/c_length - dt*(u0*A0)/c_length + dt*Q0in/c_length
 
  return
