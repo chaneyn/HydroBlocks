@@ -118,7 +118,6 @@ class particle_tracker:
   #Define channel hbands per reach
   self.hband_channel = np.zeros(self.c_length.size).astype(np.int32)
   m = (self.hdb['hand'] == 0) & (self.hdb['W'] > 0)
-  print('hbands',self.hband_channel[:].shape,self.hdb['hband'][m].shape)
   self.hband_channel[:] = self.hdb['hband'][m]
 
   return
@@ -465,16 +464,8 @@ def calculate_inundation_height_per_hband(A,A1,W,M,hand,hband,reach2hband_inunda
    reach2hband_inundation[i,idx] = h[k]
  areas = np.sum(reach2hband,axis=0)
  hband_inundation = np.zeros(areas.size)	
- #print('reach2hband',np.min(reach2hband),np.min(reach2hband_inundation))
- for i in range(reach2hband_inundation.shape[0]):
-  for j in range(reach2hband_inundation.shape[1]): ##luiz forced
-   if np.isnan(reach2hband_inundation[i, j]):
-    reach2hband_inundation[i, j] = 0
  hband_inundation[:] = np.sum(reach2hband*reach2hband_inundation,axis=0)/np.sum(reach2hband,axis=0)
- for i in range(hband_inundation.shape[0]): #luiz forced
-  if np.isnan(hband_inundation[i]):
-   hband_inundation[i] = 0
- 
+
  return (hband_inundation,reach2hband_inundation)
 
 @numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
@@ -588,60 +579,19 @@ def calculate_routing_inundation(cids,HBdb):
 
 def exchange_velocity_fields(cids,HBdb):
 
- #Compute velocities on all reaches 
+ #Compute velocities on all reaches
  db_send = {}
  for cid in cids:
   self = HBdb[cid].routing
   rank = self.rank
   comm = self.comm
-    
-  #print('CID',cid,'A0',self.A0[:],self.A0[:].shape)
-  #print('CID',cid,'A1',self.A1[:],self.A1[:].shape)
-  #print('CID',cid,'A0_org',self.A0_org[:],self.A0_org[:].shape)
-  #print('CID',cid,'W',self.hdb['W'][:,0],self.hdb['W'][:,0].shape)
-  #print('CID',cid,'c_n',self.c_n,self.c_n.shape)
 
-  #Kvn = self.A0[:]**(5.0/3.0)/(self.hdb['W'][:,0])**(2.0/3.0)/self.c_n
-  #Kvn = self.A0_org[:]**(5.0/3.0)/(self.hdb['W'][:,0])**(2.0/3.0)/self.c_n
+  if HBdb[cid].routing.flag_c == True: #luiz 
+   self.u0[:] = HBdb[cid].routing.vel_chan
+   #print('velocity sensivity', HBdb[cid].routing.vel_chan,flush=True)
+  else:
+   self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
 
-   #Calculate the height above the segment
-  ##h = self.A0[:]/self.hdb['W'][:,0]
-  #Calculate the wetted perimeter
-  #print('Pc',self.hdb['Pc'],flush=True)
-  #print('W',self.hdb['W'],flush=True)
-  ##P1 = self.hdb['Pc'][:,1] + 2*h + self.hdb['W'][:,0]
-  #Calculate compound conveyance
-  ##manc= self.c_n*1.5
-  ##Kvn = (1/manc)*self.A0[:]*((self.A0[:]/P1)**(2.0/3.0))
-    
-  #kvn=((1.49)/self.c_n)*self.A0[:]*(())
-
-  #print('CID',cid,'Kvn',Kvn,Kvn.shape,flush=True)
-  #Kvn = (0.2*Kvn + 0.8*Kvn0) #Time smooth conveyance to avoid jumpiness
-  ##u0 = np.zeros(Kvn.size)
-  #u0[self.A0[:] > 0.0] = Kvn[self.A0[:] > 0.0]*self.c_slope[self.A0 > 0.0]**0.5/self.A0[self.A0 > 0.0]
-  #u0[self.A0_org[:] > 0.0] = Kvn[self.A0_org[:] > 0.0]*self.c_slope[self.A0_org > 0.0]**0.5/self.A0_org[self.A0_org > 0.0]
-  #u=(1/A)*K*(S^1/2)
-  ##u0[self.A0[:] > 0.0] = (1/self.A0[:])*Kvn[self.A0[:] > 0.0]*(self.c_slope[self.A0[:] > 0.0]**0.5)
-    
-  ##self.u0[:]=u0
-  
-  self.u0[:] = 0.09 #m/s (Set to 2.0 m/s on all reaches for now) #commented Luiz 
-
-  #maxu = 0.15
-  #minu = 0.0001
-
-  #Constrain velocity
-  #self.u0[self.u0 > maxu] = maxu
-  #self.u0[self.u0 < minu] = minu
-    
-  #for u in range(0,len(self.u0)):
-    #print('CID',cid,self.A0[u],u,'u',self.u0[u],'W',Kvn[u],u0[u])
-    
-    
-  #print('CID',cid,'u0',self.u0[:],self.u0[:].shape)
-    
-    
   #Send velocities
   for ucid in self.particle_tracker_db_send:
    if ucid in cids:continue
@@ -928,7 +878,6 @@ def exchange_water_volumes(cids,HBdb):
   HBr.Qout[:] = HBr.Vout/dt
   #qss should probable be before pushing water
   HBr.A1[:] = HBr.A0[:] - dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length + dt*HBr.qss
-  #print('CID',cid,'HBr.A1[:]',HBr.A1[:],HBr.A1[:].shape)
   #HBr.A1[:] = -dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length 
   #A1 = A0 + dt*qss + dt*bcs/c_length - dt*(u0*A0)/c_length + dt*Q0in/c_length
 
