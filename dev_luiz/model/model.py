@@ -50,6 +50,21 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
                      "dir":"%s/restart_data/%d" % (edir,cid)}
   os.system('mkdir -p %s' % (info['restart']['dir']))
 
+  print('previous entering calibration')
+
+  if metadata["calibration"]["flag"] == True: #luiz add flag for calibration analysis
+   ens=metadata["calibration"]["ens"]
+   print('entering calibration',ens)
+   info['output'] = {"dir":"%s/output_data_ens%s/%s" % (edir,ens,cid),
+      "vars":info['output']['vars'],
+      "routing_vars":info['output']['routing_vars']}
+
+  if metadata["sensitivity"]["flag"] == True: #luiz add flag for sensivity analysis
+   ens=metadata["sensitivity"]["ens"]
+   info['output'] = {"dir":"%s/output_data_ens%s/%s" % (edir,ens,cid),
+      "vars":info['output']['vars'],
+      "routing_vars":info['output']['routing_vars']}
+
   #Define idate and fdate
   idate = datetime.datetime(metadata['startdate']['year'],metadata['startdate']['month'],metadata['startdate']['day'],0)
   fdate = datetime.datetime(metadata['enddate']['year'],metadata['enddate']['month'],metadata['enddate']['day'],0) + datetime.timedelta(days=1)
@@ -90,7 +105,16 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
   #HB = HydroBlocks.initialize(info)
   print(' Run the model',flush=True)
   date = sidate
+
   MPdb.HBdb[cid].noahmp.dzwt[:] = 0.0
+  if metadata["calibration"]["flag"] == True: #luiz add flag for calibration analysis
+      MPdb.HBdb[cid].routing.flag_c = True
+      MPdb.HBdb[cid].routing.ens = metadata["calibration"]["ens"]
+      MPdb.HBdb[cid].routing.m_uhs = metadata["calibration"]["m_uhs"]
+      MPdb.HBdb[cid].routing.vel_chan = metadata["calibration"]["vel_chan"]    
+    
+    
+    
   i = 0
   tic = time.time()
   while date < sfdate:
@@ -319,8 +343,6 @@ def update_routing_particle_tracker(cids,HBdb,rank,size):
   for cid in cids:
    HBdb[cid].routing.Q0[:] = HBdb[cid].routing.Qout[:]
    HBdb[cid].routing.A0[:] = HBdb[cid].routing.A1[:]
-   #print('CID',cid,'routing.Q0[:]',HBdb[cid].routing.Q0[:],flush=True)
-   #print('CID',cid,'routing.A0',HBdb[cid].routing.A0[:],flush=True) #luiz 
    #HBdb[cid].routing.Q1[:] = HBdb[cid].routing.Q0[:]
 
   return
@@ -410,7 +432,7 @@ def determine_cid_rank_mapping(MPdb):
     self = HBdb[cid]
     db[self.cid] = 0
    for i in range(1,self.size):
-    #print('cids',cids,len(cids),'rank luizb',rank,flush=True)
+    p#rint('cids',cids,len(cids),'rank luizb',rank,flush=True)
     db_ex = self.comm.recv(source=i,tag=11)
     for key in db_ex:
      db[key] = db_ex[key]

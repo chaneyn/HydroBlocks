@@ -8,6 +8,8 @@ import sys
 import scipy.sparse as sparse
 import pickle
 import subprocess
+from scipy.stats import mode
+from scipy.interpolate import interp1d
 
 def assign_string(nelem,pstring):
 
@@ -221,17 +223,17 @@ class HydroBlocks:
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
-    
   #if (info['fully_distributed']==True) and (info['connection_matrix_hbands']==True): #laura
    #self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins_CID_%s'%info['cid']]#laura
   #elif (info['fully_distributed']==True) and (info['connection_matrix_hbands']==False): #laura
    #self.ncsbasins=self.nhru #laura
   #else: #laura
-  #self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura replace 
-    
-  list_groups=list(self.input_fp.groups.keys()) #laura 
-  self.ncsbasins=int(sum(1 for element in list_groups if "wmatrix" in element))
 
+  self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura replace 
+    
+#   list_groups=list(self.input_fp.groups.keys()) #laura 
+#   self.ncsbasins=int(sum(1 for element in list_groups if "wmatrix" in element))
+    
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m
@@ -326,9 +328,11 @@ class HydroBlocks:
           'sfcrunoff','udrunoff','albedo','snowc',\
           'acsnom','acsnow',\
           'emiss','qsfc',\
-          'z0','znt',\
-          'edir','rs',\
+          'z0','znt','edir','rs',\
           'pah']
+    
+    
+    
   for var in vars:
    exec('self.noahmp.%s = np.zeros(self.nhru,order=\'F\').astype(np.float32)' % var)
    exec('self.noahmp.%s[:] = 9999999999.0' % var)
@@ -486,10 +490,18 @@ class HydroBlocks:
   self.noahmp.llanduse = 'MODIFIED_IGBP_MODIS_NOAH'
   #self.noahmp.lsoil = 'CUST'
   fdir = os.path.dirname(os.path.abspath(__file__))
-  SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
-  GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
-  MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % fdir
-  URBTABLE = '%s/pyNoahMP/data/URBPARM.TBL' % fdir
+    
+  if info["sensitivity"]["flag"] == True: #luiz 
+   ens=info["sensitivity"]["ens"]
+   SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
+   GENPARM = '%s/pyNoahMP/data/GENPARM_%s.TBL' % (fdir,ens)
+   MPTABLE = '%s/pyNoahMP/data/MPTABLE_%s.TBL' % (fdir,ens)
+   URBTABLE = '%s/pyNoahMP/data/URBPARM.TBL' % fdir
+  else: 
+   SOILPARM = '%s/pyNoahMP/data/SOILPARM.TBL' % fdir
+   GENPARM = '%s/pyNoahMP/data/GENPARM.TBL' % fdir
+   MPTABLE = '%s/pyNoahMP/data/MPTABLE.TBL' % fdir
+   URBTABLE = '%s/pyNoahMP/data/URBPARM.TBL' % fdir
   self.noahmp.soilparm_file = SOILPARM
   self.noahmp.genparm_file = GENPARM
   self.noahmp.mptable_file = MPTABLE
@@ -537,7 +549,6 @@ class HydroBlocks:
     self.noahmp.dwsat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDW'][:,isoil]#svp
     self.noahmp.psisat[:,isoil] =self.input_fp.groups['parameters'].variables['SATPSI'][:,isoil]#svp
     self.noahmp.quartz[:,isoil] =self.input_fp.groups['parameters'].variables['QTZ'][:,isoil] #svp
-    #print('max soil',np.max(self.noahmp.psisat[:,isoil]),np.max( self.noahmp.bexp[:,isoil]),np.max(self.noahmp.smcwlt[:,isoil]),flush=True)
   else:
    for isoil in range(self.noahmp.nsoil):
     self.noahmp.bexp[:,isoil] = self.input_fp.groups['parameters'].variables['BB'][:]
@@ -549,7 +560,22 @@ class HydroBlocks:
     self.noahmp.dwsat[:,isoil] = self.input_fp.groups['parameters'].variables['SATDW'][:]
     self.noahmp.psisat[:,isoil] = self.input_fp.groups['parameters'].variables['SATPSI'][:]
     self.noahmp.quartz[:,isoil] = self.input_fp.groups['parameters'].variables['QTZ'][:]
+    
+  if info["sensitivity"]["flag"] == True: #luiz 
+    ens=info["sensitivity"]["ens"]
+    print('Running sensitivity analysis ens#',ens,flush=True)
+    for isoil in range(self.noahmp.nsoil):
+     self.noahmp.bexp[:,isoil] =self.input_fp.groups['parameters'].variables['BB'][:,isoil]*info["sensitivity"]["m_bb"] #svp
+     self.noahmp.dksat[:,isoil] =self.input_fp.groups['parameters'].variables['SATDK'][:,isoil]*info["sensitivity"]["m_ksat"] #svp
+     self.noahmp.smcmax[:,isoil] =self.input_fp.groups['parameters'].variables['MAXSMC'][:,isoil]*info["sensitivity"]["m_maxsmc"] #svp
+    
+    #self.noahmp.m_refdk = info["sensitivity"]["m_refdk"]
+ 
 
+  print('info["sensitivity"]["m_bb"]',info["sensitivity"]["m_bb"],flush=True)
+  print('info["sensitivity"]["m_ksat"]',info["sensitivity"]["m_ksat"],flush=True)
+  print('info["sensitivity"]["m_maxsmc"]',info["sensitivity"]["m_maxsmc"],flush=True)
+    
   #Set lat/lon (declination calculation)
   #self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
   #self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
@@ -662,29 +688,38 @@ class HydroBlocks:
 
    #Compute total runoff for the HRU
    runoff = self.noahmp.runsf+self.noahmp.runsb
-   #print('CID',self.cid,'runoff ',np.max(self.noahmp.runsf),np.max(self.noahmp.runsb),flush=True)
 
    #Back out the actual runoff for this time step
-   #print('CID',self.cid,'self.routing.hru_inundation',self.routing.hru_inundation,flush=True)
    runoff_true = runoff - self.routing.hru_inundation*1000/self.dt #mm/s
    runoff_true[runoff_true < 0] = 0.0
    r = np.copy(runoff_true)
    r[:] = 1.0
    r[runoff > 0] = runoff_true[runoff > 0]/runoff[runoff > 0]
-   #print('CID',self.cid,'r only ',np.min(r),flush=True)
-   #print('CID',self.cid,'runoff_true ',np.max(r*self.noahmp.runsf[:]),np.max(r*self.noahmp.runsb[:]),flush=True)
    self.noahmp.runsf[:] = r*self.noahmp.runsf[:]
    self.noahmp.runsb[:] = r*self.noahmp.runsb[:]
    self.routing.hru_runoff_inundation[:] = runoff - self.noahmp.runsf - self.noahmp.runsb
    self.routing.hru_runoff_inundation[self.routing.hru_runoff_inundation<0] = 0.0
 
    #Calculate runoff per hband (This needs to be optimized; Numba?) 
+   #Calculate runoff per hband    
    runoff_hband = np.zeros(self.nhband)
    area_hband = np.zeros(self.nhband)
    for hru in self.hrus:
     runoff_hband[self.hbands[hru]] += self.area[hru]*runoff[hru]
     area_hband[self.hbands[hru]] += self.area[hru]
    runoff_hband = runoff_hband/area_hband
+
+   # Calculate the most dominant land cover (mode) per hband Luiz 
+  
+   # Calculate most dominant land cover (mode) per hband
+   land_cover_hband = np.zeros(self.nhband, dtype=int)
+   for hband in range(self.nhband):
+       hru_indices = np.where(self.hbands == hband)[0]
+       if hru_indices.size > 0:
+        land_cover_hband[hband] = mode(self.input_fp.groups['parameters'].variables['land_cover'][hru_indices])[0][0]
+       else:
+        land_cover_hband[hband] = -9999  # Placeholder for hbands without land cover data
+
 
    if self.routing_surface_coupling == True:
     #Zero out hband_inundation1
@@ -703,7 +738,62 @@ class HydroBlocks:
    A = np.sum(self.routing.reach2hband*self.routing.reach2hband_inundation,axis=1)/self.routing.c_length
    Adb = self.routing.hdb['Ac'] + self.routing.hdb['Af']
    (self.routing.hband_inundation[:],self.routing.reach2hband_inundation[:]) = self.routing.calculate_inundation_height_per_hband(Adb,A,self.routing.hdb['W'],self.routing.hdb['M'],self.routing.hdb['hand'],self.routing.hdb['hband'].astype(np.int64),self.routing.reach2hband_inundation,self.routing.reach2hband)
+    
+   # Luiz apply the multiplicative factor to decrease IRF based on land cover
+   # Define land cover multipliers based on the class map
+   # Define land cover multipliers based on the class map
+   land_cover_multipliers = {
+       2.: 0.3,    # Evergreen Forest
+       4.: 0.35,   # Deciduous Forest
+       5.: 0.4,    # Mixed Forest
+       6.: 0.45,   # Shrub/Scrub
+       10.: 0.5,   # Grassland
+       11.: 0.25,  # Wetlands
+       12.: 0.6,   # Crops
+       13.: 1.0,   # Developed (Urban)
+       16.: 0.7,   # Barren Land
+       17.: 0.1    # Water
+   }
 
+   # Initialize the multiplier array for each hband
+   hband_multipliers = np.ones(self.nhband)
+
+   # Assign multipliers based on the dominant land cover for each hband
+   for hband in range(self.nhband):
+       lulc = land_cover_hband[hband]
+       if lulc in land_cover_multipliers:
+           hband_multipliers[hband] = land_cover_multipliers[lulc]
+       else:
+           hband_multipliers[hband] = 1.0  # Default value for unknown land cover types
+
+   # Get the existing unit hydrograph data and bins
+   uh_data = self.routing.IRF['uh']  # Shape: (n_hbands, n_bins)
+   bins = np.linspace(0, 100, 100)  # Assuming 100 bins
+
+   # Initialize an array for the adjusted unit hydrograph
+   adjusted_uh = np.zeros_like(uh_data)
+
+   # Loop over each hband to adjust the unit hydrograph
+   #print(self.routing.m_uhs,'self.routing.m_uhs',flush=True)
+   for hband in range(self.nhband):
+       # Combine the land cover multiplier and the global adjustment parameter
+       combined_multiplier = hband_multipliers[hband] * self.routing.m_uhs
+    
+       # Define the new x-axis (time) based on the combined multiplier
+       new_bins = bins / combined_multiplier
+       new_bins = np.clip(new_bins, bins[0], bins[-1])  # Ensure new_bins are within the original range
+
+       # Interpolate the original unit hydrograph onto the new time axis
+       f_interp = interp1d(bins, uh_data[hband], kind='linear', fill_value="extrapolate")
+       adjusted_uh[hband] = f_interp(new_bins)
+
+       # Normalize the adjusted unit hydrograph to ensure it sums to 1
+       adjusted_uh[hband] /= adjusted_uh[hband].sum()
+
+   # Update the unit hydrograph in the routing database
+   self.routing.IRF['uh'] = adjusted_uh
+
+    
    #Apply convolution to the runoff of each hband
    qr = runoff_hband[:,np.newaxis]*self.routing.IRF['uh']
    #Add corresponding qfuture to this time step
@@ -746,7 +836,6 @@ class HydroBlocks:
    self.richards.slope[:] = self.input_fp.groups['parameters'].variables['slope'][:]
    #self.richards.hand[:] = self.input_fp.groups['parameters'].variables['hand'][:]
    self.richards.area[:] = self.input_fp.groups['parameters'].variables['area'][:]
-   print('richards.area',np.max(richards.area),flush=True)
    self.richards.width = sparse.csr_matrix((self.input_fp.groups['wmatrix'].variables['data'][:],
                                    self.input_fp.groups['wmatrix'].variables['indices'][:],
                                    self.input_fp.groups['wmatrix'].variables['indptr'][:]),
@@ -768,19 +857,14 @@ class HydroBlocks:
    self.richards.dx = {} #laura
    self.richards.nhband = int(self.nhband) #laura
    hru_area = self.input_fp.groups['parameters'].variables['area'][:] #laura
-   print(self.cid,'hru_area',np.min(hru_area),np.mean(hru_area),np.max(hru_area),flush=True)
-   print(self.cid,'hru_m',np.min(self.input_fp.groups['parameters'].variables['m'][:]),np.mean(self.input_fp.groups['parameters'].variables['m'][:]),np.max(self.input_fp.groups['parameters'].variables['m'][:]),flush=True)
-   print(self.cid,'hru_m',np.min(self.input_fp.groups['parameters'].variables['slope'][:]),np.mean(self.input_fp.groups['parameters'].variables['slope'][:]),np.max(self.input_fp.groups['parameters'].variables['slope'][:]),flush=True)
 
    self.richards.area=np.empty(self.richards.nhband)
    aux=0
    for h_band in (np.unique(self.hbands)): #laura sum up and average up all the HRUs areas that belong to the same hband
     m=self.hbands==h_band
     self.richards.area[aux]=np.sum(hru_area[m])
-    #print(self.cid,h_band,'self.richards.area',self.richards.area[aux],np.max(hru_area[m]),flush=True)
     #print(self.cid,np.sum(m),h_band,self.richards.area[aux],flush=True)
     self.richards.m[aux]=np.sum(((self.input_fp.groups['parameters'].variables['m'][m])*(hru_area[m]))/(self.richards.area[aux]))
-    #print('richards here',np.max(self.richards.m[aux]),np.max(self.input_fp.groups['parameters'].variables['m'][m]),np.max(hru_area[m]),np.max(self.richards.area[aux]),flush=True)
     self.richards.demhband[aux]=np.sum(((self.input_fp.groups['parameters'].variables['hand'][m])*(hru_area[m]))/(self.richards.area[aux]))
     self.richards.slope[aux]=np.sum(((self.input_fp.groups['parameters'].variables['slope'][m])*(hru_area[m]))/(self.richards.area[aux]))
     aux=aux+1 
@@ -935,6 +1019,7 @@ class HydroBlocks:
 
   # Update subsurface
   self.update_subsurface(vsp_flag) #laura, svp
+
   
   # Update NOAH
   n = self.noahmp
@@ -1067,10 +1152,7 @@ class HydroBlocks:
     self.richards.satpsi[aux]=(np.sum(((self.noahmp.psisat[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
     self.richards.ksat[aux]=(np.sum(((self.noahmp.dksat[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
     self.richards.dz[aux,:]=(np.sum(((self.noahmp.sldpth[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
-    print(self.cid,'sf 1',h_band,np.max(self.noahmp.smcdry[m,0]),np.max(hru_area[m]),self.richards.area[aux],flush=True)
-    print(self.cid,'sf 2',h_band,np.max(self.richards.thetar[aux]),np.max(self.richards.thetas[aux]),np.max(self.richards.b[aux]),np.max(self.richards.satpsi[aux]),flush=True)
     aux=aux+1
-    
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
@@ -1095,7 +1177,6 @@ class HydroBlocks:
    for h_band in np.unique(self.hbands):
     m=self.hbands==h_band
     self.noahmp.hdiv[m,:]=self.richards.hdiv[aux,:]
-    #print('self.noahmp.hdiv',np.max(self.noahmp.hdiv[m,:]),flush=True)
     aux=aux+1
  
   return
@@ -1127,13 +1208,9 @@ class HydroBlocks:
   else:
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.edir-NOAH.runsf-NOAH.runsb))
-  print('tmp', np.max(self.end_wb),np.max(self.beg_wb),np.max(NOAH.prcp),np.max(NOAH.ecan),np.max(NOAH.etran),np.max(NOAH.edir),np.max(NOAH.runsf),np.max(NOAH.runsb),np.max(np.sum(NOAH.hdiv,axis=1)),flush=True) #luiz
   #if self.routing_module == 'kinematic':
   if self.routing_flag == True:
    tmp = tmp - np.copy(NOAH.sfcheadrt) + np.copy(self.routing.hru_runoff_inundation)*dt
-  #print('tmp', np.max(tmp),np.max(np.copy(NOAH.sfcheadrt)),np.max(np.copy(self.routing.hru_runoff_inundation)*dt),flush=True) #luiz
-    
-  
   self.acc_errwat += np.sum(self.pct*tmp)
   self.acc_q += dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
   self.acc_et += dt*np.sum(self.pct*(NOAH.ecan + NOAH.etran + NOAH.edir))
@@ -1198,6 +1275,8 @@ class HydroBlocks:
   tmp['udrunoff'] = np.copy(NOAH.udrunoff)
   tmp['sfcrunoff'] = np.copy(NOAH.sfcrunoff)
   tmp['runoff'] = NOAH.dt*(np.copy(NOAH.runsf)+np.copy(NOAH.runsb)) #mm 
+  #print('runoff luiz', tmp['runoff'].shape,NOAH.udrunoff[160],NOAH.sfcrunoff[160],flush=True)
+  print('runoff luiz', tmp['runoff'].shape,np.mean(NOAH.udrunoff,axis=0),np.mean(NOAH.sfcrunoff,axis=0),flush=True)
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #W/m2
   tmp['swdn'] = np.copy(NOAH.swdn) #Pa
   tmp['psfc'] = np.copy(NOAH.psfc) #Pa
@@ -1352,25 +1431,16 @@ class HydroBlocks:
    tmp['Qf'] = self.routing.Qf[:]
    tmp['Qin_overland'] = self.routing.c_length*self.routing.qss[:] 
    tmp['reach_inundation'] = self.routing.reach2hband_inundation[:]
-   tmp['water_level'] = np.sum(self.routing.reach2hband*self.routing.reach2hband_inundation,axis=1)/np.sum(self.routing.reach2hband,axis=1) #luiz
    sep = 100
    if itime == 0:
     self.output_routing = {}
     for var in self.metadata['output']['routing_vars']:
      shp = grp.variables[var].shape
-     if var == 'reach_inundation':
-      self.output_routing[var] = np.zeros((sep, shp[1], shp[2]))  # Adjusted for 3D shape Luiz 
-     else:
-      self.output_routing[var] = np.zeros((sep, shp[1]))  # 2D shape
+     self.output_routing[var] = np.zeros((sep,shp[1]))
    #Fill the data (MISSING!)
    val = itime % sep
    for var in self.metadata['output']['routing_vars']:
-     #print(var,self.output_routing[var].shape,tmp[var].shape,flush=True) ##Luiz 
-     # result from the print reach_inundation (318,) (318, 357)
-     if var=='reach_inundation':
-      self.output_routing[var][val,:,:] = tmp[var]
-     else: 
-      self.output_routing[var][val,:] = tmp[var]
+     self.output_routing[var][val,:] = tmp[var]
    # self.output[itime] =
    if (itime+1) % sep == 0:
     for var in self.metadata['output']['routing_vars']:
@@ -1529,7 +1599,6 @@ class HydroBlocks:
              'Qf':{'description':'Discharge (floodplain)','units':'m3/s','dims':('time','channel',),'precision':4},
              'Qin_overland':{'description':'Discharge into channel from overland flow','units':'m3/s','dims':('time','channel',),'precision':4},
              'reach_inundation':{'description':'Inundation height (reach level)','units':'m','dims':('time','channel','hband'),'precision':3},
-             'water_level':{'description':'mean water level per reach','units':'m','dims':('time','channel',),'precision':4},
              'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
              'inundation':{'description':'Inundation height','units':'m','dims':('time','hru',),'precision':4},
              }
