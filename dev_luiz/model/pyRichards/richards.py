@@ -59,14 +59,14 @@ class richards:
 
   with np.errstate(invalid='ignore'):
     psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
-    
-  #print('psi',np.max(psi),np.max(satpsi),np.max(theta),np.max(thetar),np.max(b),flush=True)
 
   return psi
 
  def calculate_hydraulic_conductivity(self,psi,il):
  
-  af = 1.0 #safe
+  #af = 1.0 #safe
+  af = self.latsdk #luiz
+  print(af,'af luiz',flush=True)
   #sdz = np.cumsum(self.dz,axis=1)-self.dz/2.
   #df = np.exp(-self.m[:,np.newaxis]/sdz)[:,il]
   #Ksat_x = af*df*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -78,8 +78,10 @@ class richards:
 
  def calculate_transmissivity(self,psi,ztop,zbot):
   
-  af = 1.0  #safe
+  #af = 1.0  #safe
   #af = 2.0
+  af = self.latsdk #luiz
+  print(af,'af luiz',flush=True)
   m = np.copy(self.m)
   #m[:] = 1000.0
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -114,7 +116,7 @@ class richards:
   #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
   calc_div = -1000.0*That*np.true_divide(dh,dx)*np.true_divide(w,area) # mm/s
   calc_div[~np.isfinite(calc_div)] = np.nan
-  print('calc_div',time.time() - tic,flush=True)
+  #print('calc_div',time.time() - tic)
 
   return calc_div
 
@@ -252,13 +254,14 @@ class richards_hbands:
 
   with np.errstate(invalid='ignore'):
     psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
-  print('psi',np.max(psi),np.max(satpsi),np.max(theta),np.max(thetar),np.max(b),flush=True)
 
   return psi
 
  def calculate_hydraulic_conductivity(self,psi,il):
  
-  af = 1.0 #safe
+  #af = 1.0 #safe
+  af = self.latsdk #luiz
+  print(af,'af luiz',flush=True)
   #sdz = np.cumsum(self.dz,axis=1)-self.dz/2.
   #df = np.exp(-self.m[:,np.newaxis]/sdz)[:,il]
   #Ksat_x = af*df*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -271,7 +274,9 @@ class richards_hbands:
  def calculate_transmissivity(self,psi,ztop,zbot):
   
   #af = 1.0  #safe
-  af = 2.0
+  #af = 2.0
+  af = self.latsdk #luiz
+  print(af,'af luiz',flush=True)
   m = np.copy(self.m)
   #m[:] = 1000.0
   Ksat_x = af*self.ksat[:] #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
@@ -415,8 +420,6 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
   #Calculate the divergence
   q = calculate_divergence(h,T,w,dx,area)
   hdiv[:,il] = np.sum(q,axis=0) #mm/s'''
-  #print('inside richards',np.max(psi),np.max(T),np.max(h),np.max(q))
-  
 
  return hdiv
  
@@ -446,7 +449,6 @@ def calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi):
  m = (theta <= (1+eps)*thetar)
  theta[m] = (1+eps)*thetar[m]
  psi = satpsi*((theta-thetar)/(thetas-thetar))**-b
- #print('psi svp',np.max(psi),np.max(satpsi),np.max(theta),np.max(thetar),np.max(b))
 
  return psi
 
