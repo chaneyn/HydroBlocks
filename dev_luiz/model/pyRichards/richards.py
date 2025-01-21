@@ -199,9 +199,10 @@ class richards:
 
 class richards_hbands:
 
- def __init__(self,nhru,nhru2,nsoil,flag): #laura
+ def __init__(self,nhru,latsdk,nhru2,nsoil,flag): #laura
   
   self.theta = np.zeros((nhru,nsoil))
+  print('entered here with latsdk!!!',latsdk,flush=True)  
   if flag==True:
    self.thetar = np.zeros((nhru,nsoil)) #laura svp
    self.thetas = np.zeros((nhru,nsoil)) #laura svp
@@ -230,6 +231,7 @@ class richards_hbands:
   self.dz = np.zeros((nhru2,nsoil))
   self.hdiv = np.zeros((nhru2,nsoil))
   self.m = np.zeros(nhru2)
+  self.latsdk = latsdk   
 
   #Initialize the width array
   self.width = {}#[] #laura
@@ -372,6 +374,8 @@ class richards_hbands:
  def update_numba(self,flag):
 
   theta = self.theta
+  latsdk = self.latsdk  
+  print('latsdk in numba',latsdk,flush=True)
   dz = self.dz
   hdiv = self.hdiv
   thetar = self.thetar
@@ -396,17 +400,18 @@ class richards_hbands:
    init=aux
    fin=aux+w_bas.shape[0]
    if flag==False:
-    div[init:fin,:]=update_workhorse(theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],thetar[init:fin],thetas[init:fin],b[init:fin],satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],w_bas,dx_bas,area[init:fin])
+    div[init:fin,:]=update_workhorse(latsdk,theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],thetar[init:fin],thetas[init:fin],b[init:fin],satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],w_bas,dx_bas,area[init:fin])
     aux=fin
    else:
-    div[init:fin,:]=update_workhorse_vsp(theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],thetar[init:fin],thetas[init:fin],b[init:fin],satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],w_bas,dx_bas,area[init:fin])
+    div[init:fin,:]=update_workhorse_vsp(latsdk,theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],thetar[init:fin],thetas[init:fin],b[init:fin],satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],w_bas,dx_bas,area[init:fin])
     aux=fin #laura, added to fix flerchinger
   self.hdiv=div
+  print('div from numba',div.shape,np.mean(div),flush=True)
 
   return
 
 @numba.jit(nopython=True,cache=True)
-def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
+def update_workhorse_vsp(latsdk,theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
 
  #Iterate per layer
  for il in range(theta.shape[1]):
@@ -414,7 +419,7 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
   psi = calculate_soil_moisture_potential(il,theta,thetar[:,il],thetas[:,il],b[:,il],satpsi[:,il]) #laura svp
   zbot = np.sum(dz[:,0:il+1],axis=1)
   ztop = zbot - dz[:,il]
-  T = calculate_transmissivity(psi,ztop,zbot,m,ksat[:,il],satpsi[:,il],b[:,il])#laura svp
+  T = calculate_transmissivity(psi,ztop,zbot,m,ksat[:,il],latsdk,satpsi[:,il],b[:,il])#laura svp
   #Calculate hydraulic head
   h = calculate_hydraulic_head(hand,psi,ztop)
   #Calculate the divergence
@@ -424,7 +429,7 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
  return hdiv
  
 @numba.jit(nopython=True,cache=True)
-def update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
+def update_workhorse(latsdk,theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area):
 
  #Iterate per layer
  for il in range(theta.shape[1]):
@@ -432,7 +437,7 @@ def update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area)
   psi = calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi)
   zbot = np.sum(dz[:,0:il+1],axis=1)
   ztop = zbot - dz[:,il]
-  T = calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b)
+  T = calculate_transmissivity(psi,ztop,zbot,m,ksat,latsdk,satpsi,b)
   #Calculate hydraulic head
   h = calculate_hydraulic_head(hand,psi,ztop)
   #Calculate the divergence
@@ -453,9 +458,9 @@ def calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi):
  return psi
 
 @numba.jit(nopython=True,cache=True)
-def calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b):
+def calculate_transmissivity(psi,ztop,zbot,m,ksat,latsdk,satpsi,b):
   
- af = 1.0#10.0#2.0
+ af = latsdk
  Ksat_x = af*ksat #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
  K_x = Ksat_x*np.true_divide(psi,satpsi)**(-2-np.true_divide(3.,b))
  #Calculate transmissivity at top layer (exponential decay)
