@@ -235,6 +235,8 @@ class HydroBlocks:
 #   self.ncsbasins=int(sum(1 for element in list_groups if "wmatrix" in element))
     
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
+  self.latsdk=info["sensitivity"]["m_latsdk"]
+
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m
   self.input_fp_meteo_time = self.input_fp.groups['meteorology'].variables['time']
@@ -576,7 +578,8 @@ class HydroBlocks:
   print('info["sensitivity"]["m_bb"]',info["sensitivity"]["m_bb"],flush=True)
   print('info["sensitivity"]["m_ksat"]',info["sensitivity"]["m_ksat"],flush=True)
   print('info["sensitivity"]["m_maxsmc"]',info["sensitivity"]["m_maxsmc"],flush=True)
-    
+  print('info["sensitivity"]["m_latsdk"]',info["sensitivity"]["m_latsdk"],flush=True)    
+
   #Set lat/lon (declination calculation)
   #self.noahmp.lat[:] = 0.0174532925*self.input_fp.groups['metadata'].latitude
   #self.noahmp.lon[:] = 0.0174532925*self.input_fp.groups['metadata'].longitude
@@ -834,6 +837,7 @@ class HydroBlocks:
    self.richards = richards.richards(self.nhru,self.nsoil,vsp_flag) #laura, svp
     
    self.richards.latsdk=info["sensitivity"]["m_latsdk"] 
+   print('sending latsdk to richards',self.richards.latsdk,flush=True)
     
    #Set other parameters
    self.richards.dx = self.dx
@@ -857,7 +861,8 @@ class HydroBlocks:
    self.richards.dx = dx
   
   else:
-   self.richards=richards.richards_hbands(self.nhru,self.nhband,self.nsoil,vsp_flag) #laura,svp
+   self.richards=richards.richards_hbands(self.nhru,self.latsdk,self.nhband,self.nsoil,vsp_flag) #laura,svp
+   print('sending latsdk to richards self.flagcmatrix==true',self.latsdk,flush=True)
    #Set other parameters
    self.richards.dx = {} #laura
    self.richards.nhband = int(self.nhband) #laura
@@ -1282,7 +1287,7 @@ class HydroBlocks:
   tmp['sfcrunoff'] = np.copy(NOAH.sfcrunoff)
   tmp['runoff'] = NOAH.dt*(np.copy(NOAH.runsf)+np.copy(NOAH.runsb)) #mm 
   #print('runoff luiz', tmp['runoff'].shape,NOAH.udrunoff[160],NOAH.sfcrunoff[160],flush=True)
-  print('runoff luiz', tmp['runoff'].shape,np.mean(NOAH.udrunoff,axis=0),np.mean(NOAH.sfcrunoff,axis=0),flush=True)
+  print('runoff luiz', tmp['runoff'].shape,'udrunoff',np.mean(NOAH.udrunoff,axis=0),'sfcrunoff',np.mean(NOAH.sfcrunoff,axis=0),flush=True)
   tmp['prcp'] = NOAH.dt*np.copy(NOAH.prcp) #W/m2
   tmp['swdn'] = np.copy(NOAH.swdn) #Pa
   tmp['psfc'] = np.copy(NOAH.psfc) #Pa
