@@ -24,9 +24,13 @@ def main(argv):
          mtype = arg
 
    if mtype == 'preprocess':
-        print("HydroBlocks: Preprocess",flush=True)
+        print("HydroBlocks: Preprocess data")
         import preprocessing.preprocessing
         preprocessing.preprocessing.driver(comm,mfile)
+   elif mtype == 'cluster':
+        print("HydroBlocks: Cluster",flush=True)
+        import clustering.preprocessing
+        clustering.preprocessing.driver(comm,mfile)
         #preprocessing.driver(comm,edir)
    elif mtype == 'model':
         print("HydroBlocks: Model",flush=True)

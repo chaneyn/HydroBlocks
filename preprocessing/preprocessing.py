@@ -1,1967 +1,2213 @@
 import warnings
-warnings.filterwarnings('ignore')
-import sys
-#import geopandas
-import fiona
-#sys.path.append('Tools')
-import pickle
-import datetime
-import numpy as np
-import scipy.sparse as sparse
-import scipy.stats as stats
-#import model_tools as mt
-import os
-import h5py
-import netCDF4 as nc
-import time
-import glob
-import numba
-from geospatialtools import gdal_tools
-from geospatialtools import terrain_tools
-import gc
-from scipy.interpolate import griddata
-import copy
 import collections
-import shapely.geometry
+warnings.filterwarnings('ignore')
+#import gdal
+import os
+import pickle
+import numpy as np
+#import matplotlib.pyplot as plt
+import sys
+import glob
+sys.stdout.flush()
+
+import geospatialtools.pedotransfer as pedotransfer
+import geospatialtools.gdal_tools as gdal_tools
+import geospatialtools.terrain_tools as terrain_tools
+#import geospatialtools.netcdf_tools as nc_io
+import time
+import datetime
+from random import shuffle
+import netCDF4 as nc
+from scipy.io import netcdf as scipy_nc
+import time
+from dateutil.relativedelta import relativedelta
+#from rpy2.robjects import r,FloatVector
+from osgeo import ogr,osr
+import gc
+#import sparse
+from scipy.sparse import csr_matrix, csc_matrix, find, hstack
+import psutil
 import rasterio
-
-#dir = os.path.dirname(os.path.abspath(__file__))
-#sys.path.append('%s/../HydroBlocks/pyHWU/' % dir )
-#import management_funcs as mgmt_funcs
-
-def plot_data(data):
-
- import matplotlib.pyplot as plt
- data = np.ma.masked_array(data,data==-9999)
- plt.figure(figsize=(10,10))
- plt.imshow(data)
- plt.colorbar()
- plt.savefig('tmp.png')
-
- return
-
-def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
-
- #Prepare the info dictionary
- info = {}
-
- #Define the start/end dates
- info['time_info'] = {}
- info['time_info']['startdate'] = hydroblocks_info['idate']
- info['time_info']['enddate'] = hydroblocks_info['fdate']
- info['time_info']['dt'] = hydroblocks_info['dt']
-
- #Define the workspace
- workspace = hydroblocks_info['workspace']
-
- #Define the model input data directory
- input_dir = hydroblocks_info['input_dir']
- os.system('mkdir -p %s' % input_dir)
-
- #Create soft link to HydroBlocks from within the directory
- HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
- HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
- if os.path.exists(HBedir) == False:
-  os.system('ln -s %s %s' % (HBdir,HBedir))
-
- #Create the dictionary to hold all of the data
- output = {}
-
- #Create the Latin Hypercube (Clustering)
- nhru = 1#hydroblocks_info['nhru']
- cid = hydroblocks_info['cid']
-
- #Get metadata
- md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
- 
- #Prepare the input file
- wbd = {}
- wbd['bbox'] = {'minlat':md['miny'],'maxlat':md['maxy'],
-                'minlon':md['minx'],'maxlon':md['maxx'],
-                'res':abs(md['resx'])}
- wbd['files'] = {
-  'WLTSMC':glob.glob('%s/theta1500/*'%workspace), #laura svp
-  'TEXTURE_CLASS':'%s/texture_class/texture_class_latlon_2.5cm.tif' % workspace,
-  'MAXSMC':glob.glob('%s/thetas/*'%workspace), #laura svp
-  'BB':glob.glob('%s/bb/*'%workspace), #laura svp
-  'DRYSMC':glob.glob('%s/thetar/*'%workspace), #laura svp
-  'QTZ':glob.glob('%s/qtz/*'%workspace), #laura svp
-  'SATDW':glob.glob('%s/dsat/*'%workspace), #laura svp
-  'REFSMC':glob.glob('%s/theta33/*'%workspace), #laura svp
-  'mask':'%s/mask_latlon.tif' % workspace,
-  'SATPSI':glob.glob('%s/psisat/*'%workspace), #laura svp
-  'lc':'%s/lc_latlon.tif' % workspace,
-  'F11':'%s/f11_latlon.tif' % workspace,
-  'SATDK':glob.glob('%s/ksat/*'%workspace), #laura svp
-  'dem':'%s/dem_latlon.tif' % workspace,
-  'acc':'%s/acc_latlon.tif' % workspace,
-  'fdir':'%s/fdir_latlon.tif' % workspace,
-  'demns':'%s/demns_latlon.tif' % workspace,
-  'sand':'%s/sand/sand_latlon_2.5cm.tif' % workspace,
-  'clay':'%s/clay/clay_latlon_2.5cm.tif' % workspace,
-  'silt':'%s/silt/silt_latlon_2.5cm.tif' % workspace,
-  'om':'%s/om/om_latlon_2.5cm.tif' % workspace,
-  'bare30':'%s/bare30_latlon.tif' % workspace,
-  'water30':'%s/water30_latlon.tif' % workspace,
-  'tree30':'%s/tree30_latlon.tif' % workspace,
-  'irrig_land':'%s/irrig_land_latlon.tif' % workspace,
-  'dbedrock':'%s/dbedrock_latlon.tif' % workspace,
-  'lstmean':'%s/lstmean_latlon.tif' % workspace,
-  'lststd':'%s/lststd_latlon.tif' % workspace
-  }
- #if hydroblocks_info['water_management']['hwu_agric_flag']:
- #  wbd['files']['irrig_land'] = '%s/irrig_land_latlon.tif' % workspace
- #  wbd['files']['start_growing_season'] = '%s/start_growing_season_latlon.tif' % workspace
- #  wbd['files']['end_growing_season']   = '%s/end_growing_season_latlon.tif' % workspace
-
- wbd['files_meteorology'] = {
-  'lwdown':'%s/lwdown.nc' % workspace,
-  'swdown':'%s/swdown.nc' % workspace,
-  'tair':'%s/tair.nc' % workspace,
-  'precip':'%s/precip.nc' % workspace,
-  'psurf':'%s/psurf.nc' % workspace,
-  'wind':'%s/wind.nc' % workspace,
-  'spfh':'%s/spfh.nc' % workspace,
-  }
-
- #if hydroblocks_info['water_management']['hwu_flag'] == True:
- # wbd['files_water_use'] = {}
- # if hydroblocks_info['water_management']['hwu_domest_flag']:
- #  wbd['files_water_use']['domestic']   = '%s/domestic.nc' % workspace
- # if hydroblocks_info['water_management']['hwu_indust_flag']:
- #  wbd['files_water_use']['industrial'] = '%s/industrial.nc' % workspace
- # if hydroblocks_info['water_management']['hwu_lstock_flag']:
- #  wbd['files_water_use']['livestock']  = '%s/livestock.nc' % workspace
-
- #Create the clusters and their connections
- (output,covariates) = Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info)
-
- #Extract the meteorological forcing
- print("Preparing the meteorology",flush=True)
- Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info,covariates)
-
- #Extract the water use demands
- #print("Preparing the water use",flush=True)
- #if hydroblocks_info['water_management']['hwu_flag'] == True:
- # Prepare_Water_Use_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info)
-
- #Write out the files to the netcdf file
- fp = hydroblocks_info['input_fp']
- data = output
-
- #Write out the metadata
- grp = fp.createGroup('metadata')
- grp.latitude = (wbd['bbox']['minlat'] + wbd['bbox']['maxlat'])/2
- lon = (wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2 
- if lon < 0:lon += 360
- grp.longitude = lon
- metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
- mask_object = gdal_tools.read_data(wbd['files']['mask'])
- terrain_tools.calculate_area(mask_object)
- grp.dx = np.mean(mask_object.area**0.5)
-
- #Write out the mapping
- hru_map = np.copy(output['hru_map'])
- hru_map[np.isnan(hru_map) == 1] = -9999.0
- file_ca = '%s/hru_mapping_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,hru_map)
-
- #Write out the hand map
- hand_map = np.copy(output['hand_map'])
- hand_map[np.isnan(hand_map) == 1] = -9999.0
- file_ca = '%s/hand_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,hand_map)
-
- #Write out the basin map
- basin_map = np.copy(output['basin_map'])
- basin_map[np.isnan(basin_map) == 1] = -9999.0
- file_ca = '%s/basins_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,basin_map)
-
- #Write out the basin cluster map
- basin_clusters_map = np.copy(output['basin_clusters_map'])
- basin_clusters_map[np.isnan(basin_clusters_map) == 1] = -9999.0
- file_ca = '%s/basin_clusters_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,basin_clusters_map)
-
- #If fully-distributed, save number of basins in metadata file, laura
- #if (hydroblocks_info['fully_distributed']==True) and (hydroblocks_info['connection_matrix_hbands']==True): 
-  #with open(metadata_file,'r') as f:
-   #import json
-   #json_data=json.load(f)
-  #json_data['hmc_parameters']['number_of_characteristic_subbasins_CID_%s'%cid]=len(np.unique(basin_clusters_map))-1
-  #with open(metadata_file,'w') as f:
-   #json.dump(json_data,f,indent=2)
-  #hydroblocks_info=Read_Metadata_File(metadata_file)#Re-read metadata file
-
- #Write out the hand org map
- hand_org_map = np.copy(output['hand_org_map'])
- hand_org_map[np.isnan(hand_org_map) == 1] = -9999.0
- file_ca = '%s/hand_org_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,hand_org_map)
-
- #Write out the height band id map
- hband_map = np.copy(output['hband_map'])
- hband_map[np.isnan(hband_map) == 1] = -9999.0
- file_ca = '%s/hband_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,hband_map)
-
- #Write out the channels
- channel_map = np.copy(output['channel_map'])
- channel_map[np.isnan(channel_map) == 1] = -9999.0
- file_ca = '%s/channel_mapping_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,channel_map)
-
- #Write the connection matrices
- #width
- #laura's modification start
- if (hydroblocks_info['connection_matrix_hbands']==False):
-  wmatrix = output['cmatrix']['width']
-  nconnections = wmatrix.data.size
-  grp = fp.createGroup('wmatrix')
-  grp.createDimension('connections_columns',wmatrix.indices.size)
-  grp.createDimension('connections_rows',wmatrix.indptr.size)
-  grp.createVariable('data','f4',('connections_columns',))
-  grp.createVariable('indices','f4',('connections_columns',))
-  grp.createVariable('indptr','f4',('connections_rows',))
-  grp.variables['data'][:] = wmatrix.data
-  grp.variables['indices'][:] = wmatrix.indices
-  grp.variables['indptr'][:] = wmatrix.indptr
- elif (hydroblocks_info['connection_matrix_hbands']==True): #and (hydroblocks_info['fully_distributed']==False):
-  for i in range(1,(int(hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins"]+1))):
-   text='wmatrix_Basin%s' %int(i)
-   wmatrix=output['cmatrix_Basin%s' %int(i)]['width']
-   nconnections = wmatrix.data.size
-   grp = fp.createGroup(text)
-   grp.createDimension('connections_columns',wmatrix.indices.size)
-   grp.createDimension('connections_rows',wmatrix.indptr.size)
-   grp.createVariable('data','f4',('connections_columns',))
-   grp.createVariable('indices','f4',('connections_columns',))
-   grp.createVariable('indptr','f4',('connections_rows',))
-   grp.variables['data'][:] = wmatrix.data
-   grp.variables['indices'][:] = wmatrix.indices
-   grp.variables['indptr'][:] = wmatrix.indptr
- #elif (hydroblocks_info['connection_matrix_hbands']==True) and (hydroblocks_info['fully_distributed']==True):
-  #for i in range(1,(int(hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins_CID_%s"%cid]+1))):
-   #text='wmatrix_Basin%s' %int(i)
-   #wmatrix=output['cmatrix_Basin%s' %int(i)]['width']
-   #nconnections = wmatrix.data.size
-   #grp = fp.createGroup(text)
-   #grp.createDimension('connections_columns',wmatrix.indices.size)
-   #grp.createDimension('connections_rows',wmatrix.indptr.size)
-   #grp.createVariable('data','f4',('connections_columns',))
-   #grp.createVariable('indices','f4',('connections_columns',))
-   #grp.createVariable('indptr','f4',('connections_rows',))
-   #grp.variables['data'][:] = wmatrix.data
-   #grp.variables['indices'][:] = wmatrix.indices
-   #grp.variables['indptr'][:] = wmatrix.indptr
-   #end of laura's modification
-
- #Write the model parameters
- grp = fp.createGroup('parameters')
- vars = ['slope','area_pct','land_cover','channel',
-        'dem','soil_texture_class','carea','area',
-        'BB','F11','SATPSI','SATDW','QTZ','clay',
-        'WLTSMC','MAXSMC','DRYSMC','REFSMC','SATDK',
-        'm','hand','y_aspect','x_aspect','hru','hband',
-        'lats','lons']
-
- #if hydroblocks_info['water_management']['hwu_agric_flag']:
- # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
- #   vars.append(var)
-
- for var in vars:
-  if var in ['slope','area_pct','land_cover','channel','dem','soil_texture_class','ti','carea','area','F11','clay','m','hand','y_aspect','x_aspect','hru','hband','lats','lons']: #laura svp
-   grp.createVariable(var,'f4',('hru',))#,zlib=True)
-   grp.variables[var][:] = data['parameters']['hru'][var] #laura svp
-  else: #laura svp
-   grp.createVariable(var,'f4',('hru','nsoil'))#,zlib=True) #laura svp
-   grp.variables[var][:] = data['soil_properties_model']['hru'][var] #laura svp
-
- #if hydroblocks_info['water_management']['hwu_flag']:
- # grp.createVariable('hru_min_dist','f4',('hru','hru'))#,zlib=True)
- # grp.variables['hru_min_dist'][:] = data['hru']['hru_min_dist']
-
- #Write out the stream network info
- grp = fp.createGroup('stream_network')
- grp.createDimension('nc',data['stream_network']['slope'].size)
- for var in data['stream_network']:
-  grp.createVariable(var,'f4',('nc'))
-  grp.variables[var][:] = data['stream_network'][var][:]
-
- #Remove info from output
- del output['hru']
-
- #Add in the catchment info
- output['wbd'] = wbd
-
- #Close the file
- fp.close()
-
- return output
-
-def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,input_dir):
-
- #Define the parameters for the hierarchical multivariate clustering
- ncatchments = hydroblocks_info['hmc_parameters']['number_of_characteristic_subbasins']
- dh = hydroblocks_info['hmc_parameters']['average_height_difference_between_bands']
- nclusters = hydroblocks_info['hmc_parameters']['number_of_intraband_clusters']
-
- #Bring out the mask_all
- mask_all = covariates['mask_all']
-
- #Bring out the flow direction (Convert flow direction from int to 2d approach)
- fdir = terrain_tools.transform_arcgis_fdir(covariates['fdir'])
-
- #Pre-process DEM
- dem = covariates['dem']
- demns = np.copy(dem)
- covariates['demns'] = demns
- area_all = covariates['acc']*10**6 #km2->m2
- area_all_cp = np.copy(area_all)
-  
- #Calculate slope and aspect
- print("Calculating slope and aspect",flush=True)
- res_array = np.copy(demns)
- res_array[:] = eares
- #res_array = terrain_tools.calculate_area(mask_object)
- (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(np.flipud(demns),res_array,res_array)
- slope = np.flipud(slope)
- aspect = np.flipud(aspect)
-
- #Compute accumulated area
- m2 = np.copy(mask_all)
- m2[m2 > 0] = 1
- mall = np.copy(m2)
- mall[m2 <= 0] = 0
- mall = mall.astype(np.bool)
- print("Calculating accumulated area",flush=True)
- #area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
- area = area_all
-
- #Calculate channel initiation points (2 parameters)
- C = area/eares*slope**2
- cthrs = hydroblocks_info['channel_initiation']["athrs"]#laura #10**6
- #ipoints = ((area > cthrs)).astype(np.int32)
- #ipoints[ipoints == 0] = -9999
-
- #Create area for channel delineation
- ac = np.copy(area_all)
- ac[mask == 0] = -9999 #used to calculate channels within the subdomain only
- fdc = fdir
- ac_all = area_all
- fdc_all = fdir
-
- #Compute the channels
- print("Defining channels",flush=True)	
- (channels,channels_wob,channel_topology,tmp1,crds,channel_outlet_id,channel_target_mp,channel_target_crds,channel_inlet_id,channel_inlet_target_mp,channel_inlet_target_crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,ac_all,cthrs,cthrs,fdc,mask,mask_all,np.flipud(covariates['lats']),covariates['lons'])
-
- #Curate list output
- channel_topology = channel_topology[channel_topology != -9999]
- m = channel_outlet_id != 0
- channel_outlet_id = channel_outlet_id[m]
- channel_target_mp = channel_target_mp[m]
- channel_target_crds = channel_target_crds[m,:]
- crds = crds[crds[:,0,0] != -9999,:,:] 
- m = channel_inlet_id != 0
- channel_inlet_id = channel_inlet_id[m]
- channel_inlet_target_mp = channel_inlet_target_mp[m,:]
- channel_inlet_target_mp[channel_inlet_target_mp == 0] = -9999
- channel_inlet_target_crds = channel_inlet_target_crds[m,:,:]
- #Convert channel ids to start from 0 (instead of 1)
- channel_outlet_id[channel_outlet_id>0] = channel_outlet_id[channel_outlet_id>0] - 1
- channel_inlet_id[channel_inlet_id>0] = channel_inlet_id[channel_inlet_id>0] - 1
- ###
- '''tcid = int(input_dir.split('/')[-1])
- if tcid == 1:
-  for i in range(channel_inlet_id.size):
-   print(tcid,channel_inlet_id[i],channel_inlet_target_mp[i,:])
- exit()'''
- 
- #If the dem is undefined then set to undefined
- channels[dem == -9999] = -9999
-
- #Determine inlets/outlets
- db_routing = {}
- db_routing['mp_connectivity'] = {'channel_outlet_id':channel_outlet_id,
-                                  'channel_target_mp':channel_target_mp,
-                                  'channel_target_crds':channel_target_crds,
-                                  'channel_crds':crds,
-                                  'channel_inlet_id':channel_inlet_id,
-                                  'channel_inlet_target_mp':channel_inlet_target_mp,
-                                  'channel_inlet_target_crds':channel_inlet_target_crds}
- #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
- #print("got here 3",flush=True)
- #exit()
- #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
-
- #Compute and output the list of the channel positions
- '''lst_crds = []
- for icrd in range(crds.shape[0]):
-   mcrd = crds[icrd,:,0] != -9999
-   if (np.sum(mcrd) == 0):break
-   crds_i = crds[icrd,mcrd,:]
-   if crds_i.shape[0] > 1:
-       lst_crds.append(shapely.geometry.LineString(np.fliplr(crds_i)))
-   else:
-       lst_crds.append(shapely.geometry.Point(np.flipud(crds_i[0,:])))
- db_routing['crds'] = lst_crds'''
-
- #Compute the basins
- print("Defining basins",flush=True)
- #basins = terrain_tools.ttf.delineate_basins(channels,m2,fdir)
- basins_wob = terrain_tools.ttf.delineate_basins(channels_wob,mask,fdir)
- basins = basins_wob
- 
- #Compute channel properties
- db_channels = terrain_tools.calculate_channel_properties(channels_wob,channel_topology,slope,eares,mask,area_all,area_all_cp,basins_wob,hydroblocks_info['parameter_scaling'])
-
- #Calculate the height above nearest drainage area
- print("Computing height above nearest drainage area",flush=True)
- hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,basins_wob,fdir,demns)
-
- #Fill in hand that is undefined (probably flow direction issues)
- hand[(hand == -9999) & (basins_wob!=-9999)] = 0.0
-
- # cleanup
- slope[mask != 1] = -9999
- aspect[mask != 1] = -9999
- area[mask != 1] = -9999
- channels[mask != 1] = -9999
- basins[mask != 1] = -9999
-
- # save covariates
- covariates['slope'] = slope
- covariates['aspect'] = aspect
- covariates['x_aspect'] = np.sin(aspect)
- covariates['y_aspect'] = np.cos(aspect)
- covariates['carea'] = area_all_cp#area
- covariates['carea_log10'] = np.log10(area_all_cp)#area
- covariates['hand'] = hand
-
- #Calculate the subbasin properties
- print("Assembling the subbasin properties",flush=True)
- vars1 = hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']
- vars = []
- for var in vars1:
-  if var not in ['width','bankfull','length','area']:
-   vars.append(var)
- hp_in = terrain_tools.calculate_basin_properties_updated(basins_wob,eares,covariates,vars)
- #sort hp_in (should go in geospatialtools)
- argsort = np.argsort(hp_in['bid'])
- for var in hp_in:
-  hp_in[var] = hp_in[var][argsort]
- #bring in channel variables
- for var in ['width','bankfull','length','area']:
-  hp_in[var] = db_channels[var]
-
- #Clustering the basins
- print("Clustering the basins",flush=True)
-
- #Flag fully distributed simulation
- #flag_fd=hydroblocks_info['fully_distributed']
- #if flag_fd==True: #laura
-  #basin_clusters=np.copy(basins_wob) #laura
-  #nhru=len(np.unique(basin_clusters))-1
-  #if np.min(basin_clusters[basin_clusters!=-9999])==0:
-   #basin_clusters[basin_clusters!=-9999]=basin_clusters[basin_clusters!=-9999]+1 
-   #hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins"]=len(np.unique(basin_clusters))-1 #laura
-  #print(np.unique(basin_clusters),flush=True)
- #else:
-  #Set the ncatchments to be at least the number of basins
- ncatchments = min(ncatchments,np.unique(basins_wob)[1:].size)
- subbasin_clustering_cov=hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']#laura
- #dissaggregate land cover if it is in covariates
- if 'lc' in subbasin_clustering_cov:#laura
-  subbasin_clustering_cov.remove('lc') #laura
-  subbasin_clustering_cov=subbasin_clustering_cov+['lc_w_now','lc_urb_nourb','lc_grass_forest'] #laura, divide land cover in water_vs_no_water, urban_vs_no_urban, and grass_vs_forest (including grass and shrubs as intermediate values) #laura
-
-  #Assemble input data
- cvs = {}
- for var in subbasin_clustering_cov: #laura
-  if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
-   lc_mask=np.copy(dem)
-   lc_mask[:] = 0.0
-   if var=='lc_w_now': #laura
-    if 'lc_17' in covariates:
-     lc_mask=covariates['lc_17'] #laura
-   elif var=='lc_urb_nourb': #laura
-    if 'lc_13' in covariates:
-     lc_mask=covariates['lc_13'] #laura
-   elif var=='lc_grass_forest': #laura
-    if 'lc_4' in covariates:
-     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
-    if 'lc_2' in covariates: #laura
-     lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
-    if 'lc_5' in covariates: #laura
-     lc_mask[covariates['lc_5']==1]=1 #mixed_forest #laura
-    if 'lc_6' in covariates: #laura
-     lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub #laura
-    if 'lc_11' in covariates: #laura
-     lc_mask[covariates['lc_11']==1]=0.66 #wetlands #laura
-    if 'lc_12' in covariates: #laura
-     lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops #laura
-    if 'lc_10' in covariates: #laura
-     lc_mask[covariates['lc_10']==1]=0.33 #grassland #laura
-    if 'lc_16' in covariates: #laura
-     lc_mask[covariates['lc_16']==1]=0.01 #barren_land #laura
-  
-   cvs[var] = {'min':0, #laura
-               'max':1, #laura
-               't':-9999, #laura
-               'd':lc_mask} #laura
-  else: #laura
-   tmp = np.copy(hp_in[var])
-   cvs[var] = {'min':np.min(tmp),
-               'max':np.max(tmp),
-               't':-9999,
-               'd':tmp}
-
- (basin_clusters,) = terrain_tools.cluster_basins_updated(basins_wob,cvs,hp_in,ncatchments)
- #Calculate average bankfull depth per basin cluster
- ubcs = np.unique(basin_clusters)
- ubcs = ubcs[ubcs != -9999]
- for ubc in ubcs:
-  ubs = np.unique(basins_wob[basin_clusters == ubc])
-  ubs = ubs[ubs != -9999]
-  #Compute mean width and bankfull depth
-  db_channels['width'][ubs-1] = np.mean(db_channels['width'][ubs-1])
-  db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
- 
- #Divide each subbasin into height bands
- print("Discretizing clusters of basins (hbands)",flush=True) #laura
- n_binning = dh #HACK 
- max_nbins = 100
- (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins_wob,n_binning,hydroblocks_info['cid'],max_nbins)
-
- #Assemble river/hillslope database for routing/two-way connectivity
- (db_routing,area_adj,new_hand2) = Build_Hillslope_River_Database(channels_wob,mask,fdir,eares,tiles,hand,basins_wob,basin_clusters,new_hand,db_routing,ubcs,tile_position,db_channels)
-
- #Disagregate land cover
- intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
- if 'lc' in intraband_clust_vars: 
-  intraband_clust_vars.remove('lc')
-  ##disag = [i for i in covariates.keys() if 'lc_' in i] #laura, commented out so lc not overwhelms clustering
-  ##intraband_clust_vars = intraband_clust_vars + disag #laura, commented out so lc not overwhelms clustering
-  intraband_clust_vars=intraband_clust_vars+['lc_w_now','lc_urb_nourb','lc_grass_forest'] #laura, divide land cover in water_vs_no_water, urban_vs_no_urban, and grass_vs_forest (including grass and shrubs as intermediate values)
-
- #Calculate the hrus (kmeans on each tile of each basin)
- cvs = {}
- for var in intraband_clust_vars:
-  if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
-   lc_mask=np.copy(dem)
-   lc_mask[:] = 0.0
-   if var=='lc_w_now':
-    if 'lc_17' in covariates:
-     lc_mask=covariates['lc_17']
-   elif var=='lc_urb_nourb':
-    if 'lc_13' in covariates:
-     lc_mask=covariates['lc_13'] #laura
-   elif var=='lc_grass_forest':
-    if 'lc_4' in covariates:
-     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
-    if 'lc_2' in covariates:
-     lc_mask[covariates['lc_2']==1]=1 #evergreen_forest
-    if 'lc_5' in covariates:
-     lc_mask[covariates['lc_5']==1]=1 #mixed_forest
-    if 'lc_6' in covariates:
-     lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub
-#   lc_mask[covariates['lc_7']==1]=0.66 #dwarf/scrub, Alaska only
-    if 'lc_11' in covariates:
-     lc_mask[covariates['lc_11']==1]=0.66 #wetlands
-    if 'lc_12' in covariates:
-     lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops
-    if 'lc_10' in covariates:
-     lc_mask[covariates['lc_10']==1]=0.33 #grassland
-#   lc_mask[covariates['lc_19']==1]=0.33 #moss/sedge/lichens, Alaska only
-    if 'lc_16' in covariates:
-     lc_mask[covariates['lc_16']==1]=0.01 #barren_land  
-
-   cvs[var] = {'min':0,
-               'max':1,
-               't':-9999,
-               'd':lc_mask}
-  else:
-   cvs[var] = {'min':np.min(covariates[var][covariates[var]!=-9999]),
-               'max':np.max(covariates[var][covariates[var]!=-9999]),
-               't':-9999,
-               'd':covariates[var]}
- 
- print("Clustering the height bands into clusters", flush=True)
- #A.Ensure match between basin cluster map and tiles map
- m = (basin_clusters == -9999) | (tiles == -9999)
- basin_clusters[m] = -9999
- tiles[m] = -9999
- 
- hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,hydroblocks_info['cid']) #laura
- hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
- nhru = np.unique(hrus[hrus!=-9999]).size
- #print(' CID',hydroblocks_info['cid'],'#HRUs          ',nhru,flush=True)
- #print(' CID',hydroblocks_info['cid'],'#Total pixels  ',np.sum(basin_clusters!=-9999))
-
- #Save the channel info
- pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
- #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
- pickle.dump(db_routing['mp_connectivity'],open('%s/routing_mp_connectivity.pck' % input_dir,'wb'))
-
- #Construct HMC info for creating connections matrix
- HMC_info = {}
- HMC_info['basins'] = basins
- HMC_info['tile_position'] = tile_position
- HMC_info['channel_map'] = channels_wob
-
- #return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,hand,
- return (hrus.astype(np.float32),nhru,new_hand,HMC_info,covariates,db_channels,new_hand2,
-         basins,basin_clusters,hand,tiles,area_adj,tile_position)
-
-def Build_Hillslope_River_Database(channels_wob,mask,fdir,eares,tiles,hand,basins_wob,
-    basin_clusters,new_hand,db_routing,ubcs,tile_position,db_channels):
-
- #Calculate histogram of travel distances per height band
- t2c = terrain_tools.ttf.calculate_distance2channel(channels_wob,mask,fdir,eares)
- uhbands = np.unique(tiles)
- uhbands = uhbands[uhbands != -9999]
- bins = np.linspace(0,100,101)
- uhs = []
- for hband in uhbands:
-   m = tiles == hband
-   hist = np.histogram(t2c[m]/0.1/3600.0,bins=bins,density=True)[0]
-   uhs.append(hist)
- uhs = {'data':np.array(uhs),'bins':bins[:]}
- db_routing['uh_per_hband'] = uhs
-
- #Calculate average hand per height band
- new_hand2 = np.copy(hand)
- for hband in uhbands:
-   mhand = tiles == hband
-   new_hand2[mhand] = np.mean(new_hand[mhand])
-
- #Burn the average bankfull depth into newhand2
- for ubc in ubcs:
-  ubs = np.unique(basins_wob[basin_clusters == ubc])
-  ubs = ubs[ubs != -9999]
-  mnw = (basin_clusters == ubc) & (tile_position != 0)
-  mnw1 = (basin_clusters == ubc) & (tile_position == 1)
-  new_hand2[mnw] = new_hand2[mnw] - np.mean(new_hand2[mnw1]) + np.mean(db_channels['bankfull'][ubs-1])
- new_hand2[np.isnan(new_hand2) == 1] = 0.0
-   
- #Compute the areal coverage of each hand value within the basin
- db_routing['reach_hand_area'] = {}
- db_routing['reach_hand_hband'] = {}
- db_routing['reach_hband_area'] = {}
- for i in range(basins_wob.shape[0]):
-  for j in range(basins_wob.shape[1]):
-   basin = basins_wob[i,j]
-   h = new_hand2[i,j]
-   hband = tiles[i,j]
-   if basin <= 0:continue
-   if basin not in db_routing['reach_hand_area']:db_routing['reach_hand_area'][basin] = collections.OrderedDict()
-   if h not in db_routing['reach_hand_area'][basin]: db_routing['reach_hand_area'][basin][h] = 0.0
-   if basin not in db_routing['reach_hand_hband']:db_routing['reach_hand_hband'][basin] = collections.OrderedDict()
-   db_routing['reach_hand_area'][basin][h] += eares**2
-   db_routing['reach_hand_hband'][basin][h] = hband
- 
- #Compute channel cross section information
- odb = {'Ac':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'Pc':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'Af':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'Pf':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'W':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'M':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'hand':0.0*np.ones((len(db_routing['reach_hand_area'].keys()),100)),
-       'hband':-9999*np.ones((len(db_routing['reach_hand_area'].keys()),100)).astype(np.int32)}
- for b in db_routing['reach_hand_area']:
-  #Define reach length
-  c_length = db_channels['length'][b-1]
-  #Sort from lowest to highest hand
-  c_hand = np.array(list(db_routing['reach_hand_area'][b].keys()))
-  c_area = np.array(list(db_routing['reach_hand_area'][b].values()))
-  c_hband = np.array(list(db_routing['reach_hand_hband'][b].values()))
-  argsort = np.argsort(c_hand)
-  c_hand = c_hand[argsort]
-  c_hband = c_hband[argsort]
-  odb['hband'][b-1,0:c_hband.size] = c_hband[:]
-  #Burn in a channel depth
-  if c_hand.size > 1:
-   #1.first remove existing difference between channel and adjacent hand value
-   c_hand[1:] = c_hand[1:] - (c_hand[1] - c_hand[0])
-   #2.then burn in the channel bankfull depth
-   c_hand[1:] = c_hand[1:] + db_channels['bankfull'][b-1] #m
-  
-  c_area = c_area[argsort]
-  #Calculate widths of each HRU/height band
-  c_width = c_area/c_length
-  if c_width.size > 1:
-   #Correct channel width using provided estimates
-   c_width_diff = db_channels['width'][b-1] - c_width[0]
-   #Ensure that the change of width doesn't cause negative values
-   if (c_width_diff > 0.9*c_width[1]):
-    c_width_diff = 0.9*c_width[1]
-   #Update the channel width
-   c_width[0] = c_width[0] + c_width_diff 
-   #Add the difference to the adjacent HRU
-   c_width[1] = c_width[1] - c_width_diff
-  #Calculate slope
-  c_slope = np.zeros(c_width.size)
-  if c_slope.size > 1:
-   c_slope[1:-1] = (c_hand[2:] - c_hand[1:-1])/(c_width[1:-1]/2)
-   c_slope[-1] = c_slope[-2]
-  #Add the channel depth
-  odb['M'][b-1,0:c_slope.size] = c_slope[:]
-    
-  #Adjust the areal coverage of all the HRUs/bands
-  c_area = c_length*c_width
-  if (np.unique(c_area)[0] <= 0):
-   print(c_width)
-   print(c_area)
-   print(c_length)
-   exit()
-  #Update values in dictionary (due to correcting for channel info)
-  db_routing['reach_hand_area'][b] = collections.OrderedDict()
-  db_routing['reach_hand_hband'][b] = collections.OrderedDict()
-  db_routing['reach_hband_area'][b] = collections.OrderedDict()
-  for ih in range(c_hand.size):
-    db_routing['reach_hand_area'][b][c_hand[ih]] = c_area[ih]
-    db_routing['reach_hand_hband'][b][c_hand[ih]] = c_hband[ih]
-    db_routing['reach_hband_area'][b][c_hband[ih]] = c_area[ih]
-  #Update the channel depth
-  odb['hand'][b-1,0:c_hand.size] = c_hand[:]
-  #Calculate width
-  odb['W'][b-1,0:c_width.size] = c_width[:]
-  #Calculate wetted perimeter at each stage
-  dPc = []
-  dPf = []
-  for iseg in range(c_width.size-1):
-   if iseg == 0:
-    dPc.append(c_width[0] + 2*(c_hand[iseg+1]-c_hand[iseg]))
-    dPf.append(0.0)
-   else:
-    dPc.append(0.0)
-    dPf.append(c_width[iseg-1] + 2*(c_width[iseg]/2**2 + (c_hand[iseg+1]-c_hand[iseg])**2)**0.5)
-  #Compute perimieters for channel and floodplain
-  dPc = np.array(dPc)
-  dPf = np.array(dPf)
-  Pc = np.cumsum(dPc)
-  Pf = np.cumsum(dPf)
-  odb['Pc'][b-1,0] = 0.0
-  odb['Pc'][b-1,1:Pc.size+1] = Pc[:]
-  odb['Pf'][b-1,0] = 0.0
-  odb['Pf'][b-1,1:Pf.size+1] = Pf[:]
-  #Calculate wetted cross sectional area at each stage
-  dAc = []
-  dAf = []
-  dA = []
-  for iseg in range(c_width.size-1):
-   if iseg == 0:
-    dAc.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
-    dAf.append(0.0)
-    dA.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
-   else:
-    dAc.append(c_width[0]*(c_hand[iseg+1]-c_hand[iseg]))
-    pt1 = np.sum(c_width[1:iseg]*(c_hand[iseg+1]-c_hand[iseg]))
-    pt2 = 2*c_width[iseg]/2*(c_hand[iseg+1]-c_hand[iseg])/2
-    tmp = pt1+pt2
-    dAf.append(tmp)
-  #Compute cross sectional areas for channel and floodplain
-  dAc = np.array(dAc)
-  dAf = np.array(dAf)
-  Ac = np.cumsum(dAc)
-  Af = np.cumsum(dAf)
-  odb['Ac'][b-1,0] = 0.0
-  odb['Ac'][b-1,1:Ac.size+1] = Ac[:]
-  odb['Af'][b-1,0] = 0.0
-  odb['Af'][b-1,1:Af.size+1] = Af[:]
-
- #Calculate inundation height at each stage
- db_routing['reach_cross_section'] = copy.deepcopy(odb)
-
- #Create array of areas per reach/hband
- reach2hband = np.zeros((np.unique(list(db_routing['reach_hband_area'].keys())).size,uhbands.size))
- for reach in db_routing['reach_hband_area']:
-  for hband in db_routing['reach_hband_area'][reach]:
-   tmp = db_routing['reach_hband_area'][reach][hband]
-   reach2hband[reach-1,hband] = db_routing['reach_hband_area'][reach][hband]
-
- #Correct the area per grid cell array (and then apply to construct database)
- hband_areas = np.array(np.sum(reach2hband,axis=0))
- area_adj = np.zeros(new_hand.shape)
- area_adj[:] = -9999.0
- for hband in uhbands:
-  m = tiles == hband
-  area_adj[m] = hband_areas[hband]/np.sum(m)
-
- return (db_routing,area_adj,new_hand2)
-
-def Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,dz_data,dz_model):
-
- nhru = hydroblocks_info['nhru']
- #Initialize the arrays
- vars = ['area','area_pct','F11','slope','dem','carea','channel',
-         'land_cover','soil_texture_class','clay','sand','silt',
-         'm','hand','x_aspect','y_aspect','hru','hband','lats','lons'] #laura svp
-
- vars_s = ['BB','DRYSMC','MAXSMC','REFSMC','SATPSI','SATDK','SATDW','WLTSMC',                 'QTZ'] #laura svp
-
- #if hydroblocks_info['water_management']['hwu_agric_flag']:
- # for var in ['centroid_lats', 'centroid_lons', 'irrig_land', 'start_growing_season', 'end_growing_season']:
- #   vars.append(var)
-
- OUTPUT['parameters']={} #laura svp
- OUTPUT['parameters']['hru'] = {} #laura svp
- OUTPUT['soil_properties_model']={} #laura svp
- OUTPUT['soil_properties_model']['hru'] = {} #laura svp
- OUTPUT['soil_properties_data']={} #laura svp
- OUTPUT['soil_properties_data']['hru'] = {} #laura svp
-
- #if hydroblocks_info['water_management']['hwu_flag']: OUTPUT['hru']['hru_min_dist'] = np.zeros((nhru,nhru))
-
- for var in vars:
-   OUTPUT['parameters']['hru'][var] = np.zeros(nhru)
-
- for var in vars_s:
-   OUTPUT['soil_properties_model']['hru'][var] = np.zeros([nhru,len(dz_model)])
-   OUTPUT['soil_properties_data']['hru'][var] = np.zeros([nhru,len(dz_data[var])])
-  
- #Metadata
- for hru in np.arange(nhru):
-  #Set indices
-  idx = np.where(cluster_ids == hru)
-  #Define hru
-  OUTPUT['parameters']['hru']['hru'][hru] = hru
-  #Define height band id
-  OUTPUT['parameters']['hru']['hband'][hru] = np.mean(hbands[idx])
-  #Calculate area per hru
-  OUTPUT['parameters']['hru']['area'][hru] = np.sum(area_adj[idx])
-  #Calculate area percentage per hru
-  OUTPUT['parameters']['hru']['area_pct'][hru] = 100*OUTPUT['parameters']['hru']['area'][hru]/(np.sum(area_adj[area_adj != -9999]))
-
-  #Constant Soil properties laura svp
-  for var in ['F11','clay','sand','silt']:
-   OUTPUT['parameters']['hru'][var][hru] = np.mean(covariates[var][idx])
-
-  #Average Slope
-  OUTPUT['parameters']['hru']['slope'][hru] = np.nanmean(covariates['slope'][idx])
-  #DEM
-  OUTPUT['parameters']['hru']['dem'][hru] = np.nanmean(covariates['dem'][idx])
-  #HAND
-  OUTPUT['parameters']['hru']['hand'][hru] = np.nanmean(covariates['hand'][idx])
-  #Average Catchment Area
-  OUTPUT['parameters']['hru']['carea'][hru] = np.nanmean(covariates['carea'][idx])
-  OUTPUT['parameters']['hru']['x_aspect'][hru] = np.nanmean(covariates['x_aspect'][idx])
-  OUTPUT['parameters']['hru']['y_aspect'][hru] = np.nanmean(covariates['y_aspect'][idx])
-  #Average geographic coordinates
-  OUTPUT['parameters']['hru']['lats'][hru] = np.nanmean(covariates['lats'][idx])
-  OUTPUT['parameters']['hru']['lons'][hru] = np.nanmean(covariates['lons'][idx])
-  #Land cover type 
-  tmp = covariates['lc'][idx]
-  tmp = tmp[tmp>=1]
-  if len(tmp) >= 1 :
-   OUTPUT['parameters']['hru']['land_cover'][hru] = stats.mode(tmp)[0][0]
-  else:
-   OUTPUT['parameters']['hru']['land_cover'][hru] = 17  # if there is no valid value, set to water #Noemi
-
-  #Soil texture class constant in vertical laura svp
-  OUTPUT['parameters']['hru']['soil_texture_class'][hru] = stats.mode(covariates['TEXTURE_CLASS'][idx])[0][0]
-
-  #Define the estimate for the model parameters
-  OUTPUT['parameters']['hru']['m'][hru] = np.nanmean(covariates['dbedrock'][idx]) #0.1 #Form of the exponential decline in conductivity (0.01-1.0)
-
-  #Vertically variable Soil properties laura svp
-  for var in ['BB','DRYSMC','MAXSMC','SATPSI','SATDK','SATDW','QTZ']:
-   #print(var,np.unique(covariates[var][idx]))
-   if var in ['SATDK','SATDW']:
-    i=0
-    for depth in covariates[var]:
-     try:
-      OUTPUT['soil_properties_data']['hru'][var][hru,i] = stats.mstats.hmean(covariates[var][depth][idx])/3600.0/1000.0 #mm/hr -> m/s
-     except:
-      OUTPUT['soil_properties_data']['hru'][var][hru,i] = 1.41E-4
-     i=i+1
-   else:
-    i=0
-    for depth in covariates[var]:
-     OUTPUT['soil_properties_data']['hru'][var][hru,i] = np.mean(covariates[var][depth][idx])
-     i=i+1
-
-  i=0
-  for depth in covariates[var]:
-   OUTPUT['soil_properties_data']['hru']['WLTSMC'][hru,i] = OUTPUT['soil_properties_data']['hru']['MAXSMC'][hru,i]*(OUTPUT['soil_properties_data']['hru']['SATPSI'][hru,i]/150)**(1/OUTPUT['soil_properties_data']['hru']['BB'][hru,i])
-   OUTPUT['soil_properties_data']['hru']['REFSMC'][hru,i] = OUTPUT['soil_properties_data']['hru']['MAXSMC'][hru,i]*(OUTPUT['soil_properties_data']['hru']['SATPSI'][hru,i]/3.3)**(1/OUTPUT['soil_properties_data']['hru']['BB'][hru,i])
-   i=i+1
-
- #Sort data depths and soil properties for vertical interpolation laura svp 
- for var in vars_s:
-  ind=np.argsort(dz_data[var])
-  OUTPUT['soil_properties_data']['hru'][var]=OUTPUT['soil_properties_data']['hru'][var][:,ind[:]]
-  dz_data[var]=np.sort(dz_data[var])
-
- #Vertical interpolation laura svp
- for hru in np.arange(nhru):
-  for var in vars_s:
-   fp=OUTPUT['soil_properties_data']['hru'][var][hru,:]
-   xp=np.array(dz_data[var])
-   x=dz_model
-   if np.sum(fp==-9999.0)>0 and var=='SATDK':
-    fp[fp==-9999.0]=10**-10
-   elif np.sum(fp==-9999.0)>0 and var=='BB':
-    fp[fp==-9999.0]=11.55
-   elif np.sum(fp==-9999.0)>0 and var=='DRYSMC':
-    fp[fp==-9999.0]=0.138
-   elif np.sum(fp==-9999.0)>0 and var=='MAXSMC':
-    fp[fp==-9999.0]=0.468
-   elif np.sum(fp==-9999.0)>0 and var=='REFSMC':
-    fp[fp==-9999.0]=0.412
-   elif np.sum(fp==-9999.0)>0 and var=='SATPSI':
-    fp[fp==-9999.0]=0.468
-   elif np.sum(fp==-9999.0)>0 and var=='SATDW':
-    fp[fp==-9999.0]=1.12E-5
-   elif np.sum(fp==-9999.0)>0 and var=='WLTSMC':
-    fp[fp==-9999.0]=0.030
-   elif np.sum(fp==-9999.0)>0 and var=='QTZ':
-    fp[fp==-9999.0]=0.25
-   OUTPUT['soil_properties_model']['hru'][var][hru,:]=np.interp(x,xp,fp,left=0)
-
- return OUTPUT
-
-@numba.jit(nopython=True,cache=True)
-def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
-
- if (h2 == -9999):return False
- if (h1 == h2):return True
- if ((tp1 == tp2) & (tp1 == 0) & (b1 != b2) & (ivc)):return True
- if (b1 != b2) & (irc == False):return False
- if (np.abs(tp1 - tp2) != 1) & (ibc == False):return False
-
- return True
-
-def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_info):
-#Removed covariates and cluster ids from parameters, replace nhrus for nhbands, laura
- #Add pointers for simplicity
- tile_position = HMC_info['tile_position']
- basins = HMC_info['basins']
- ivc = hydroblocks_info['hmc_parameters']['intervalley_connectivity']
- irc = hydroblocks_info['hmc_parameters']['interridge_connectivity']
- ibc = hydroblocks_info['hmc_parameters']['intraband_connectivity']
-
- #Perform the work
- (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(hbands,dx,tile_position,
-               basins,ivc,irc,ibc) #laura, nhrus replaced with nhbands
-
- #If there're not lateral connections (just diagonal) create a single "fake" connection, laura
- if hdst.size == 0:
-  hdst = np.array([0])
-  horg = np.array([0])
-
- #Prepare the sparse matrix
- cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(int(np.unique(hbands).shape[0]-1),int(np.unique(hbands).shape[0]-1)),dtype=np.float32) #laura, nhrus replaced with hbands
- cmatrix = cmatrix.tocsr()
-
- #Prepare length, width, and ksat matrices
- wmatrix = cmatrix.copy()
- wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
-
- #Prepare output dictionary
- cdata = {'width':wmatrix.T,}
-
- return cdata
-
-@numba.jit(nopython=True,cache=True)
-def Calculate_HRU_Connections_Matrix_HMC_workhorse(cluster_ids,dx,tile_position,basins,
-    ivc,irc,ibc): #laura, removed parameter nhrus 
-
- #Define spatial resolution
- res = dx
- 
- horg = []
- hdst = []
- #Count the connections
- for i in range(cluster_ids.shape[0]):
-  for j in range(cluster_ids.shape[1]):
-   h1 = cluster_ids[i,j]
-   b1 = basins[i,j]
-   tp1 = tile_position[i,j]
-   if h1 == -9999:continue
-   #up
-   if (i+1) < cluster_ids.shape[0]:
-    h2 = cluster_ids[i+1,j]
-    b2 = basins[i+1,j]
-    tp2 = tile_position[i+1,j]
-    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
-     horg.append(h1)
-     hdst.append(h2)
-   #down
-   if (i-1) > 0:
-    h2 = cluster_ids[i-1,j]
-    b2 = basins[i-1,j]
-    tp2 = tile_position[i-1,j]
-    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
-     horg.append(h1)
-     hdst.append(h2)
-   #left
-   if (j-1) > 0:
-    h2 = cluster_ids[i,j-1]
-    b2 = basins[i,j-1]
-    tp2 = tile_position[i,j-1]
-    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
-     horg.append(h1)
-     hdst.append(cluster_ids[i,j-1])
-   #right
-   if (j+1) < cluster_ids.shape[1]:
-    h2 = cluster_ids[i,j+1]
-    b2 = basins[i,j+1]
-    tp2 = tile_position[i,j+1]
-    if Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
-     horg.append(h1)
-     hdst.append(cluster_ids[i,j+1])
- horg = np.array(horg)
- hdst = np.array(hdst)
-
- return (hdst,horg)
-
-def Create_and_Curate_Covariates_svp(wbd,hydroblocks_info):
-
- covariates = {}
- depths={} #laura svp
- #Read in and curate all the covariates
- #Read in soil vertical properties
- for file in wbd['files']: #laura svp
-  if file in ['WLTSMC','MAXSMC','BB','DRYSMC','QTZ','SATDW','REFSMC','SATPSI','SATDK']: #laura svp
-   covariates[file]={} #laura svp
-   d=[] #laura svp
-   for layer in range(0,len(wbd['files'][file])): #laura svp
-    d.append(float((wbd['files'][file][layer].split('latlon_')[1]).split('cm')[0])) #laura svp
-    covariates[file]['d_%scm'%((wbd['files'][file][layer].split('latlon_')[1]).split('cm')[0])]=gdal_tools.read_data(wbd['files'][file][layer]).data #laura svp
-   depths[file]=d #laura svp
-  else: #laura svp 
-   if os.path.isfile(wbd['files'][file]): 
-    covariates[file] = gdal_tools.read_data(wbd['files'][file]).data
-
- # check if lc is a covariates, and disagregate it in classes
- if 'lc' in hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']:
-  for lc in np.unique(covariates['lc'][covariates['mask'].astype(np.bool)]):
-   if lc >= 0 :
-    vnam = u'lc_%i' % lc
-    masklc = (covariates['lc'] == lc)
-    covariates[vnam] = np.zeros(covariates['lc'].shape)
-    covariates[vnam][masklc] = 1.0
-    hydroblocks_info['covariates'][vnam] = 'n'
-    
- #Create lat/lon grids
- lats = np.linspace(wbd['bbox']['minlat']+wbd['bbox']['res']/2,wbd['bbox']['maxlat']-wbd['bbox']['res']/2,covariates['dem'].shape[0])
- lons = np.linspace(wbd['bbox']['minlon']+wbd['bbox']['res']/2,wbd['bbox']['maxlon']-wbd['bbox']['res']/2,covariates['dem'].shape[1])
-
- #Need to fix so that it doesn't suck up all the clustering:
- lats, lons = np.meshgrid(lats, lons)
- covariates['lats'] = lats.T
- covariates['lons'] = lons.T
-
- #Define the mask
- mask = np.copy(covariates['mask']).astype(np.int64)
- mask_all = np.copy(mask)
- mask[mask != hydroblocks_info['cid']] = 0
- mask = mask.astype(np.bool)
- 
- #Set all nans to the mean
- for var in covariates:
-  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
-  if var in ['WLTSMC','MAXSMC','BB','DRYSMC','QTZ','SATDW','REFSMC','SATPSI','SATDK']: #laura svp
-   for depth in covariates[var]: #laura svp
-    mask1 = (np.isinf(covariates[var][depth]) == 0) & (np.isnan(covariates[var][depth]) == 0) #laura svp
-    mask0 = (np.isinf(covariates[var][depth]) == 1) | (np.isnan(covariates[var][depth]) == 1) #laura svp
-    covariates[var][depth][mask0] = -9999.0 #laura svp
-  else: #laura svp
-   #covariates[var][mask <= 0] = -9999.0
-   mask1 = (np.isinf(covariates[var]) == 0) & (np.isnan(covariates[var]) == 0) 
-   mask0 = (np.isinf(covariates[var]) == 1) | (np.isnan(covariates[var]) == 1)
-   covariates[var][mask0] = -9999.0# stats.mode(covariates[var][mask1])[0][0]
-
- #Set everything that is -9999 to the mean
- for var in covariates:
-  if var in ['WLTSMC','MAXSMC','BB','DRYSMC','QTZ','SATDW','REFSMC','SATPSI','SATDK']: #laura svp
-   for depth in covariates[var]: #laura svp
-    m2 = ( mask > 0 ) & (covariates[var][depth] != -9999.0) #laura svp
-    missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask)) #laura svp
-    if missing_ratio > 0.99 : #laura svp
-     print("Warning: Covariate %s in layer %s in catchment %s has %.2f %% of nan's" % (var,depth,hydroblocks_info['cid'],100*missing_ratio)) # laura svp
-    if var not in ['mask',]:
-     covariates[var][depth][covariates[var][depth] == -9999.0] = np.mean(covariates[var][depth][covariates[var][depth] != -9999.0])
-
-  else:
-   m2 = ( mask > 0 ) & (covariates[var] != -9999.0)
-   missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask))
-   if missing_ratio > 0.99 : 
-    print("Warning: Covariate %s in catchment %s has %.2f %% of nan's" % (var,hydroblocks_info['cid'],100*missing_ratio)) # Noemi insert
-    if var == 'lc': 
-     mlc = (covariates[var] == -9999) & mask
-     covariates[var][mlc] = 17  # Water
-    if var in ['dem','fdir','sand','clay','silt','TEXTURE_CLASS','dbedrock']:
-     exit('Error_clustering: %s_full_of_nans %s' % (var,hydroblocks_info['cid']))
-   if var not in ['mask',]:
-    if var in ['nlcd','TEXTURE_CLASS','lc','irrig_land','bare30','water30','tree30','start_growing_season','end_growing_season']: 
-     covariates[var][covariates[var] == -9999.0] = stats.mode(covariates[var][covariates[var] != -9999.0])[0][0]
-    else:
-     covariates[var][covariates[var] == -9999.0] = np.mean(covariates[var][covariates[var] != -9999.0])
-
- #Set everything outside of the mask to -9999
- for var in covariates:
-  if var in hydroblocks_info['hmc_parameters']['subbasin_clustering_covariates']:continue
-  if var in ['dem','fdir','acc']:continue 
-  if var in ['WLTSMC','MAXSMC','BB','DRYSMC','QTZ','SATDW','REFSMC','SATPSI','SATDK']: #laura svp
-   for depth in covariates[var]: #laura svp
-    covariates[var][depth][mask<0]=-9999.0 #laura svp
-  else: #laura svp
-   covariates[var][mask <= 0] = -9999.0
-
- #Add the mask_all to the covariates
- covariates['mask_all'] = np.copy(mask_all)
- 
- return (covariates,mask,depths) #laura svp returns depths for dataset svp
-
-def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hydroblocks_info):
- 
- dz=hydroblocks_info['dz'] #laura svp
- #Retrieve some metadata
- metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
- mask_object = gdal_tools.read_data('%s/mask_latlon.tif' % workspace)
- terrain_tools.calculate_area(mask_object)
- resx = np.mean(mask_object.area**0.5) #all pixels in the subdomain have the same resolution in x and y; still not ideal and needs to be revisited, but much better than resx = 90...
- #resx = 90.0#670.0**0.5#26.0
-
- print("Creating and curating the covariates",flush=True)
- (covariates,mask,z_data)=Create_and_Curate_Covariates_svp(wbd,hydroblocks_info)
- 
- #Determine the HRUs (clustering if semidistributed; grid cell if fully distributed)
- print("Computing the HRUs",flush=True)
- (cluster_ids,nhru,new_hand,HMC_info,covariates,dbc,hand,basins,basin_clusters,hand_org,hbands,area_adj,tile_position) = Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,resx,input_dir)
- #covariates['hand'] = new_hand
- covariates['hand'] = hand
- hydroblocks_info['nhru'] = nhru
-  
- #Create the netcdf file
- file_netcdf = '%s/input_file.nc' % hydroblocks_info['input_dir']#hydroblocks_info['input_file']
- hydroblocks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
-
- #Create the dimensions (netcdf)
- idate = hydroblocks_info['idate']
- fdate = hydroblocks_info['fdate']
- dt = hydroblocks_info['dt']
- ntime = 24*3600*((fdate - idate).days+1)/dt
- nhru = hydroblocks_info['nhru']
- nsoil= len(hydroblocks_info['dz']) #laura svp
- hydroblocks_info['input_fp'].createDimension('hru',nhru)
- hydroblocks_info['input_fp'].createDimension('time',ntime)
- hydroblocks_info['input_fp'].createDimension('nsoil',nsoil) #laura svp 
-
- #Create the groups (netcdf)
- hydroblocks_info['input_fp'].createGroup('meteorology')
- hydroblocks_info['input_fp'].createGroup('water_use')
-
- #Prepare the hru connections matrix (darcy clusters) with laura's modification
- print("Calculating the connections between HRUs",flush=True)
- if (hydroblocks_info['connection_matrix_hbands']==False):
-  cmatrix = Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,resx,HMC_info,hydroblocks_info)
-  #Define the metadata
-  metadata = gdal_tools.retrieve_metadata(wbd['files']['dem'])
-  #Make the output dictionary for the basin
-  OUTPUT = {'hru':{},'metadata':metadata,'mask':mask,'cmatrix':cmatrix}
- 
- else:
-  #Define the metadata
-  metadata = gdal_tools.retrieve_metadata(wbd['files']['dem'])
-  #Make the output dictionary for the basin
-  OUTPUT = {'hru':{},'metadata':metadata,'mask':mask}
-  #Create connection matrix per cluster of watersheds, laura
-  bcu=np.unique(basin_clusters)
-  bcu=bcu[bcu>0]
-  for bc in bcu:
-   masked_hband=np.empty(hbands.shape)
-   if bc==1:
-    masked_hband[basin_clusters==int(bc)]=hbands[basin_clusters==bc]
-   else:
-    masked_hband[basin_clusters==int(bc)]=hbands[basin_clusters==bc]
-    masked_hband=masked_hband-(np.min(hbands[basin_clusters==bc]))
-   masked_hband[~(basin_clusters==int(bc))]=int(-9999)
-   group_name='cmatrix_Basin%s' %bc
-   shape=int(((np.unique(masked_hband)).shape[0])-1)
-   cmatrix=np.empty([shape,shape])
-   cmatrix=Calculate_HRU_Connections_Matrix_HMC_hbands(masked_hband,resx,HMC_info,hydroblocks_info) #laura: removed covariates from the function
-   OUTPUT[group_name]=cmatrix #end of laura's modification
- 
- #Remember the map of hrus
- OUTPUT['hru_map'] = cluster_ids
- OUTPUT['channel_map'] = HMC_info['channel_map']
- OUTPUT['hand_map'] = hand
- OUTPUT['basin_map'] = basins
- OUTPUT['basin_clusters_map'] = basin_clusters
- OUTPUT['hand_org_map'] = hand_org
- OUTPUT['hband_map'] = hbands
-
- #Assign the model parameters
- print("Assigning the model parameters",flush=True)
- #Acumulate soil depths and convert to meters laura svp
- dz2=[]
- for elt in dz:
-  if len(dz2)>0:
-   dz2.append(dz2[-1]+elt)
-  else:
-   dz2.append(elt)
- z_model=np.array(dz2)*100
-
- OUTPUT = Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,z_data,z_model) #laura svp
-
- #Add the new number of clusters
- OUTPUT['nhru'] = nhru
- OUTPUT['mask'] = mask
- OUTPUT['stream_network'] = dbc
-
- return (OUTPUT,covariates)
-
-def Prepare_Meteorology_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info,covariates):
-
- #Define the mapping directory
- mapping_info = {}
- #Calculate the fine to coarse scale mapping
- for data_var in wbd['files_meteorology']:
-  
-  #Define the variable name
-  var = data_var#data_var.split('_')[1]
-  mapping_info[var] = {}
-
-  #Read in the coarse and fine mapping
-  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,data_var)
-  file_fine = '%s/%s_latlon_fine.tif' % (workspace,data_var)
-  mask_coarse = gdal_tools.read_raster(file_coarse)
-  mask_fine = gdal_tools.read_raster(file_fine)
-  nlat = mask_coarse.shape[0]
-  nlon = mask_coarse.shape[1]
-
-  #Compute the mapping for each hru
-  for hru in np.arange(hydroblocks_info['nhru']):
-   idx = OUTPUT['hru_map'] == hru
-   icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
-   counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
-   coords,pcts,dem_coarse = [],[],[] #dem for downscaling
-   for icell in icells:
-    ilat = int(np.floor(icell/mask_coarse.shape[1]))
-    jlat = icell - ilat*mask_coarse.shape[1]
-    pct = float(counts[icell])/float(np.sum(counts))
-    coords.append([ilat,jlat])
-    pcts.append(pct)
-    if var == 'tair':dem_coarse.append(np.mean(covariates['dem'][mask_fine == icell]))
-   pcts = np.array(pcts)
-   coords = list(np.array(coords).T)
-   if var == 'tair':
-    dem_fine = np.mean(covariates['dem'][idx])
-    dem_coarse = np.array(dem_coarse)
-    mapping_info[var][hru] = {'pcts':pcts,'coords':coords,'dem_coarse':dem_coarse,'dem_fine':dem_fine}
-   else:
-    mapping_info[var][hru] = {'pcts':pcts,'coords':coords}
-
- #Iterate through variable creating forcing product per HSU
- #R
- idate = info['time_info']['startdate']
- fdate = info['time_info']['enddate']
- dt = info['time_info']['dt']
- nt = int(3600*24/dt)*((fdate - idate).days+1)
- #Create structured array
- meteorology = {}
- for data_var in wbd['files_meteorology']:
-  meteorology[data_var] = np.zeros((nt,hydroblocks_info['nhru']))
- #Load data into structured array
- db_data = {}
- for data_var in wbd['files_meteorology']:
-  var = data_var#data_var.split('_')[1]
-  date = idate
-  file = wbd['files_meteorology'][data_var]
-  fp = nc.Dataset(file)
-  
-  #Determine the time steps to retrieve
-  nc_step = int(60*float(fp.variables['t'].units.split(' ')[0].split('h')[0]))
-  nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
-  nc_nt = len(fp.variables['t'][:])
-  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),int(nc_idate[2]))]
-  #for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
-  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(minutes=it*nc_step))
-  dates=np.array(dates)
-  startdate = info['time_info']['startdate']
-  enddate = info['time_info']['enddate']
-  mask_dates = (dates >= startdate) & (dates <= enddate)
-  db_data[var] = np.ma.getdata(fp.variables[var][mask_dates,:,:])
-  fp.close()
- 
- #Downscale the variables
- flag_downscale = False
- if flag_downscale == True:db_downscaled_data = Downscale_Meteorology(db_data,mapping_info)
-
- #Finalize data
- for var in db_data:
-  for hru in mapping_info[var]:
-   pcts = mapping_info[var][hru]['pcts']
-   if flag_downscale == False:
-    coords = mapping_info[var][hru]['coords']
-    coords[0][coords[0] >= db_data[var].shape[1]] = db_data[var].shape[1] - 1
-    coords[1][coords[1] >= db_data[var].shape[2]] = db_data[var].shape[2] - 1
-    tmp = db_data[var][:,coords[0],coords[1]]
-   else:
-    tmp = db_downscaled_data[hru][var]
-   tmp = pcts*tmp
-   meteorology[var][:,hru] = np.sum(tmp,axis=1)
-
-  #Write the meteorology to the netcdf file (single chunk for now...)
-  grp = hydroblocks_info['input_fp'].groups['meteorology']
-  grp.createVariable(var,'f4',('time','hru'))#,zlib=True)
-  grp.variables[var][:] = meteorology[var][:]
-
- #Add time information
- dates = []
- date = idate
- while date <= fdate:
-  dates.append(date)
-  date = date + datetime.timedelta(seconds=dt)
- dates = np.array(dates)
- var = grp.createVariable('time','f8',('time',))
- var.units = 'hours since %4d-01-01' % idate.year
- var.calendar = 'standard'
- dates = nc.date2num(dates,units=var.units,calendar=var.calendar)
- var[:] = dates[:]
-
- return
-
-def Downscale_Meteorology(db_data,mapping_info):
- 
- #Iterate per hru
- db_org = {}
- db_ds = {}
- for hru in mapping_info['tair']:
-  db_org[hru] = {}
-  db_ds[hru] = {}
-  #Collect the data
-  for var in db_data:
-   pcts = mapping_info[var][hru]['pcts']
-   coords = mapping_info[var][hru]['coords']
-   coords[0][coords[0] >= db_data[var].shape[1]] = db_data[var].shape[1] - 1
-   coords[1][coords[1] >= db_data[var].shape[2]] = db_data[var].shape[2] - 1
-   db_org[hru][var] = db_data[var][:,coords[0],coords[1]]
-  df = mapping_info['tair'][hru]['dem_fine']
-  dc = mapping_info['tair'][hru]['dem_coarse']
-  #A.Downscale temperature
-  dT = -6.0*10**-3*(df - dc)
-  db_ds[hru]['tair'] = dT[np.newaxis,:] + db_org[hru]['tair']
-  #db_ds[hru]['tair'] = db_org[hru]['tair'][:]
-  #B.Downscale longwave
-  #0.Compute radiative temperature 
-  sigma = 5.67*10**-8
-  emis = 1.0
-  trad = (db_org[hru]['lwdown']/sigma/emis)**0.25
-  #1.Apply lapse rate to trad
-  trad = dT[np.newaxis,:] + trad
-  #2.Compute longwave with new radiative tempearture
-  db_ds[hru]['lwdown'] = emis*sigma*trad**4
-  #db_ds[hru]['lwdown'] = db_org[hru]['lwdown'][:]
-  #C.Downscale pressure
-  psurf = db_org[hru]['psurf'][:]*np.exp(-10**-3*(df-dc)/7.2)
-  db_ds[hru]['psurf'] = psurf[:]
-  #D.Downscale specific humidity
-  #db_ds[hru]['spfh'] = db_org[hru]['spfh'][:]
-  #Convert to vapor pressure
-  e = db_org[hru]['psurf'][:]*db_org[hru]['spfh'][:]/0.622 #Pa
-  esat = 1000*saturated_vapor_pressure(db_org[hru]['tair'][:] - 273.15) #Pa
-  rh = e/esat
-  esat = 1000*saturated_vapor_pressure(db_ds[hru]['tair'][:] - 273.15) #Pa
-  e = rh*esat
-  q = 0.622*e/db_ds[hru]['psurf']
-  db_ds[hru]['spfh'] = q[:]
-  #E.Downscale shortwave radiation
-  db_ds[hru]['swdown'] = db_org[hru]['swdown'][:]
-  #F.Downscale wind speed
-  db_ds[hru]['wind'] = db_org[hru]['wind'][:]
-  #G.Downscale precipitation
-  db_ds[hru]['precip'] = db_org[hru]['precip'][:]
-
- return db_ds
-
-def saturated_vapor_pressure(T):
-    es = 0.6112*np.exp(17.67*T/(T + 243.5))
-    return es
-
-def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydroblocks_info):
-
- #Define the mapping directory
- mapping_info = {}
- 
- #Calculate the fine to coarse scale mapping
- for data_var in wbd['files_water_use']:
-
-  #Define the variable name
-  var = data_var#data_var.split('_')[1]
-  mapping_info[var] = {}
-
-  #Read in the coarse and fine mapping
-  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,data_var)
-  file_fine = '%s/%s_ea_fine.tif' % (workspace,data_var)
-  mask_coarse = gdal_tools.read_raster(file_coarse)
-  mask_fine = gdal_tools.read_raster(file_fine)
-  md = gdal_tools.retrieve_metadata(file_fine)
-  md['nodata'] = -9999.0
-  nlat = mask_coarse.shape[0]
-  nlon = mask_coarse.shape[1]
-
-  # NOAH Land Cover code for each water use sector
-  water_use_land_cover = {'industrial':[13],'domestic':[6,7,8,9,10,13],'livestock':[6,7,8,9,10], "agriculture":[12,14]}
-  
-  # 1. Identify location of each type of water use
-  # HRU lc map
-  hrus_lc = np.copy(OUTPUT['hru_map'])
-  for hru in np.arange(hydroblocks_info['nhru']): 
-   idx = OUTPUT['hru_map'] == hru
-   hrus_lc[idx]= OUTPUT['hru']['land_cover'][hru]
-  m = hrus_lc == -9999.0
-  lc = gdal_tools.read_raster('%s/lc_ea.tif' % (workspace))
-  hrus_lc[m] = lc[m]
- 
-  for l in np.unique(hrus_lc): 
-   idx = hrus_lc == l
-   if l in water_use_land_cover[data_var]:
-    hrus_lc[idx]=1.0
-   else:
-    hrus_lc[idx]=0.0
-  
-  wuse_lc_ea_file = '%s/%s_lc_ea.tif' % (input_dir,data_var)
-  gdal_tools.write_raster(wuse_lc_ea_file,md,hrus_lc)
-  fine_size = hrus_lc.shape
-  #fine_res = abs(md['resx']) #NEED TO UPDATE
-  
-  # Get the coarse water use info and regrid the fine lc to coarser lc
-  wuse_lc_coarse_file = '%s/%s_latlon_coarse.tif' % (workspace,data_var)
-  md = gdal_tools.retrieve_metadata(wuse_lc_coarse_file)
-  minx = md['minx']
-  miny = md['miny']
-  maxx = md['maxx']
-  maxy = md['maxy']
-  res  = abs(md['resx'])
-  lproj = md['proj4']+' +datum=WGS84'
-  file_in = wuse_lc_ea_file
-  file_out = '%s/%s_area_latlon_coarse.tif' % (input_dir,data_var)
-  os.system('gdalwarp -overwrite -t_srs \'%s\' -ot Float32 -dstnodata -9999 -tr %f %f -te %f %f %f %f -r average -q %s %s ' % (lproj,res,res,minx,miny,maxx,maxy,file_in,file_out))
-
-  # Calculate the equivalent area of each grid
-  data = gdal_tools.read_raster(file_out)
-  md['nodata'] = -9999.0
-  data[ data == md['nodata'] ] = 0.0
-  coarse_size = data.shape
-  #print 'res_fine', fine_res  #Should be in meters
-  data_grid_area = fine_res*fine_res*(fine_size[0]/float(coarse_size[0]))*(fine_size[1]/float(coarse_size[1]))
-  data = data*data_grid_area
-  gdal_tools.write_raster(file_out,md,data)
-
-  #hru_map = np.copy(OUTPUT['hru_map'])
-  #hru_map[hru_map<0]=np.nan
-  #plt.imshow(hru_map); plt.show()
-  #plt.imshow(hrus_lc); plt.show()
-  #plt.imshow(data); plt.show()
-  
-  #Compute the mapping for each hru
-  for hru in np.arange(hydroblocks_info['nhru']):
-   idx = OUTPUT['hru_map'] == hru
-   icells = np.unique(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))   # Add != -9999 for unique and bicount - Noemi
-   counts = np.bincount(mask_fine[idx][mask_fine[idx] != -9999.0].astype(np.int))
-   coords,pcts = [],[]
-   for icell in icells:
-    ilat = int(np.floor(icell/mask_coarse.shape[1]))
-    jlat = icell - ilat*mask_coarse.shape[1]
-    #ilat = int(mask_coarse.shape[0] - ilat - 1) #CAREFUL
-    pct = float(counts[icell])/float(np.sum(counts))
-    coords.append([ilat,jlat])
-    pcts.append(pct)
-   pcts = np.array(pcts)
-   coords = list(np.array(coords).T)
-   mapping_info[var][hru] = {'pcts':pcts,'coords':coords}
-
- #Iterate through variable creating water use product per HSU
- idate = info['time_info']['startdate']
- fdate = info['time_info']['enddate']
- dt = info['time_info']['dt']
- nt = int(3600*24/dt)*((fdate - idate).days+1)
-
- #Create structured array
- water_use = {}
- for data_var in wbd['files_water_use']:
-  water_use[data_var] = np.zeros((nt,hydroblocks_info['nhru']))
-
- #Load data into structured array
- for data_var in wbd['files_water_use']:
-  var = data_var
-  date = idate
-  file = wbd['files_water_use'][data_var]
-  fp = nc.Dataset(file)
-  #Determine the time steps to retrieve
-  #fidate = ' '.join(fp.variables['t'].units.split(' ')[2::])
-  #dates = nc.num2date(fp.variables['t'][:],units='hours since %s' % fidate)
-  #mask_dates = (dates >= idate) & (dates <= fdate)
-  nc_step = int(fp.variables['t'].units.split(' ')[0].split('h')[0])
-  nc_idate = np.array(fp.variables['t'].units.split(' ')[2].split('-'))
-  nc_nt = len(fp.variables['t'][:])
-  dates = [datetime.datetime(int(nc_idate[0]),int(nc_idate[1]),int(nc_idate[2]))]
-  for it in range(1,nc_nt): dates.append(dates[0] + datetime.timedelta(hours=it*nc_step))
-  dates=np.array(dates)
-  startdate = info['time_info']['startdate']
-  enddate  = info['time_info']['enddate']
-  mask_dates = (dates >= startdate) & (dates <= enddate)
-  data = np.ma.getdata(fp.variables[var][mask_dates,:,:])
-  fp.close()
-  
-  # convert water use volume from m3 to m3/m2
-  file_out = '%s/%s_area_latlon_coarse.tif' % (input_dir,data_var)
-  wuse_area = gdal_tools.read_raster(file_out)
-  m = ( wuse_area == 0.0 )
-  data[:,m] = 0.0
-  wuse_area[m] = 1.0
-  data = data/wuse_area
- 
-
-  #Assing to hrus
-  for hru in mapping_info[var]:
-   if OUTPUT['hru']['land_cover'][hru] in water_use_land_cover[data_var]:
-    #print data_var,data, data.shape, hru,mapping_info[var][hru]['pcts'],mapping_info[var][hru]['coords'],
-    pcts = mapping_info[var][hru]['pcts']
-    coords = mapping_info[var][hru]['coords']
-    coords[0][coords[0] >= data.shape[1]] = data.shape[1] - 1
-    coords[1][coords[1] >= data.shape[2]] = data.shape[2] - 1
-    tmp = data[:,coords[0],coords[1]]
-    tmp = pcts*tmp
-    water_use[data_var][:,hru] = np.sum(tmp,axis=1)  # final variable m3/m2/s --> m/s of water demand
-    #print hru, data_var, OUTPUT['hru']['land_cover'][hru], water_use[data_var][:,hru]
-   else:
-    water_use[data_var][:,hru] = 0.0
-
-  #Write the water use the netcdf file (single chunk for now...)
-  '''grp = hydroblocks_info['input_fp'].groups['water_use']
-  grp.createVariable(var,'f4',('time','hru'))#,zlib=True)
-  grp.variables[data_var][:] = water_use[data_var][:]'''
-
- '''if hydroblocks_info['water_management']['hwu_flag']:
-  if len(wbd['files_water_use']) > 1 :
-   #Add time information
-   dates = []
-   date = idate
-   while date <= fdate:
-    dates.append(date)
-    date = date + datetime.timedelta(seconds=dt)
-   dates = np.array(dates)
-   var = grp.createVariable('time','f8',('time',))
-   var.units = 'hours since %4d-01-01' % idate.year
-   var.calendar = 'standard'
-   dates = nc.date2num(dates,units=var.units,calendar=var.calendar)
-   var[:] = dates[:]'''
-
- return
+import fiona
+mb = 1024*1024
 
 def driver(comm,metadata_file):
 
  size = comm.Get_size()
  rank = comm.Get_rank()
  #Read in the metadata
- #metadata_file = '%s/metadata.json' % edir
- metadata = Read_Metadata_File(metadata_file)
- info = metadata
- info['covariates'] = {'lats':'n','lons':'n','lc':'n'}
- info['idate'] = datetime.datetime(metadata['startdate']['year'],
-                           metadata['startdate']['month'],
-                           metadata['startdate']['day'],0)
- info['fdate'] = datetime.datetime(metadata['enddate']['year'],
-                           metadata['enddate']['month'],
-                           metadata['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=info['dt'])
- rdir = metadata['rdir']
- edir = '%s/experiments/simulations/%s' % (rdir,metadata['experiment'])
- #Split up the processing across cores
- dfile = '%s/data/shp/domain.shp' % rdir
- fp = fiona.open(dfile,'r')
- cids = np.array(range(1,len(list(fp))+1))
- fp.close()
- for cid in cids[rank::size]:
-  #for cid in [509,]:
-  print(rank,size,cid)
-  metadata['cid'] = cid
-  metadata['input_dir'] = "%s/%d" % (edir,cid)
-  metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
-  #Prepare model data
-  tic = time.time()
-  Prepare_Model_Input_Data(metadata,metadata_file)
-  print("Elapsed time: ",time.time() - tic)
- comm.Barrier()
-
- #Create enhanced input data file
- Connect_Cell_Networks_v2(rank,size,cids,edir)
- comm.Barrier()
-
- #Create downstream channel database for particle tracker routing scheme
- Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
- comm.Barrier()
-
- #Wait until they are all done
- workspace = '%s/workspace' % (edir)
- os.system('mkdir -p %s' % workspace)
- Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
- comm.Barrier()
- 
- #Postprocess the model input 
- Postprocess_Input(rdir,edir,cids,rank,size,comm)
- comm.Barrier()
-
- return
-
-def Postprocess_Input(rdir,edir,cids,rank,size,comm):
-
- sdir = '%s/postprocess' % (edir)
- ddir = '%s/data/cids' % rdir
- os.system('rm -rf %s' % sdir)
- #Create cid, hru, and channel maps
- vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters']
- for var in vars:
-  os.system('mkdir -p %s/postprocess/%s' % (edir,var))
- for cid in cids[rank::size]:
-  print('Copying files for vrt',cid,flush=True)
-  dir = '%s/%s' % (edir,cid)
-  #hru
-  ifile = '%s/hru_mapping_latlon.tif' % dir
-  ofile = '%s/hrus/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #channels
-  ifile = '%s/channel_mapping_latlon.tif' % dir
-  ofile = '%s/channels/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #cid
-  ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
-  ofile = '%s/cids/%d.tif' % (sdir,cid)
-  fpi = rasterio.open(ifile)
-  profile = fpi.profile
-  data = fpi.read(1)
-  data[data!=cid] = -9999.0
-  fpo = rasterio.open(ofile,'w',**profile)
-  fpo.write(data,1)
-  fpi.close()
-  fpo.close()
-  #cid
-  ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
-  ofile = '%s/cids_org/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #dem
-  ifile = '%s/%d/dem_latlon.tif' % (ddir,cid)
-  ofile = '%s/dem/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #hand
-  ifile = '%s/hand_latlon.tif' % dir
-  ofile = '%s/hand/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #basins
-  ifile = '%s/basins_latlon.tif' % dir
-  ofile = '%s/basins/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-  #basin clusters
-  ifile = '%s/basin_clusters_latlon.tif' % dir
-  ofile = '%s/basin_clusters/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
-
- #Create vrts
- comm.Barrier()
+ metadata = json.load(open(metadata_file))
+ #Create the domain decomposition
  if rank == 0:
-  for var in vars:
-   print("creating virtual raster: %s" % var,flush=True)
-   os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
-
- #Create shapefiles
- #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
- #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basin_clusters.vrt %s/basin_clusters_shp' % (sdir,sdir))
- #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/cids.vrt %s/cids_shp' % (sdir,sdir))
+  preprocessing.domain_decomposition(metadata)
+ comm.Barrier()
+ #Correct and finalize the domain decomposition
+ preprocessing.correct_domain_decomposition(pre_metadata)
+ comm.Barrier()
 
  return
 
-def Read_Metadata_File(file):
+def Create_Other_Soil_Properties_Soilgrids_Texture(cdb,workspace,metadata,icatch,log,properties):
 
- import json
- metadata = json.load(open(file))
+ #Create soil texture maps
+ S = properties['sand'] #%w
+ C = properties['clay'] #%w
+ ST = properties['silt'] #%w
+ OM = properties['om'] #%w
+ badvals = (S == -9999.0) | (C == -9999.0) | (ST == -9999.0) | (OM == -9999.0) | np.isnan(S)
+ texture = np.ones(C.shape)*(-9999.0)
+ texture[~badvals] = Texture_Class(C[~badvals],ST[~badvals],S[~badvals],OM[~badvals])
+
+ #Look-up table
+ file = '/home/nc153/soteria/projects/agu2019/data/noah_soils_lookup.pck'
+ lutable = pickle.load(open(file,'rb')) 
+ 
+ #Define unique classes
+ utextures = np.unique(texture)
+ utextures = utextures[utextures != -9999]
+ output  = {'texture_class':texture[:]}
+
+ #Theta saturated
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures: 
+  tmp[texture == txt] = lutable['maxsmc'][int(txt)-1]
+ output['thetas'] = tmp[:]
+
+ #Theta residual
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['drysmc'][int(txt)-1]
+ output['thetar'] = tmp[:]
+
+ #Ksat
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdk'][int(txt)-1]
+ output['ksat'] = 3600.0*1000.0*tmp[:]
+
+ #Theta33  (1kPa ~ 10.197 cm H20)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['refsmc'][int(txt)-1]
+ output['theta33'] = tmp[:]
+
+ #Theta1500
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['wltsmc'][int(txt)-1]
+ output['theta1500'] = tmp[:]
+
+ #Bb
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['bb'][int(txt)-1]
+ output['bb'] = tmp[:]
+   
+ #Bubble pressure
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satpsi'][int(txt)-1]
+ output['psisat'] = tmp[:]
+ 
+ #SATDW
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdw'][int(txt)-1]
+ output['dsat'] = 3600.0*1000.0*tmp[:]
+
+ #F11
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['f11'][int(txt)-1]
+ output['f11'] = tmp[:]
+
+ #QTZ (qtz)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['qtz'][int(txt)-1]
+ output['qtz'] = tmp[:]
+  
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+
+ #Output data
+ md = gdal_tools.retrieve_metadata('%s/sand_latlon.tif' % workspace)
+ md['nodata'] = -9999.0
+ for var in output:
+  file = '%s/%s_latlon.tif' % (workspace,var)
+  gdal_tools.write_raster(file,md,output[var])
+
+ del output
+ gc.collect()
+ return
+
+def Create_Other_Soil_Properties_Polaris_Texture(cdb,workspace,metadata,icatch,log,properties):
+
+ #Create soil texture maps
+ S = properties['sand'] #%w
+ C = properties['clay'] #%w
+ ST = properties['silt'] #%w
+ OM = properties['om'] #%w
+ badvals = (S == -9999.0) | (C == -9999.0) | (ST == -9999.0) | (OM == -9999.0) | np.isnan(S)
+ texture = np.ones(C.shape)*(-9999.0)
+ texture[~badvals] = Texture_Class(C[~badvals],ST[~badvals],S[~badvals],OM[~badvals])
+
+ #Look-up table
+ file = '/home/nc153/soteria/projects/agu2019/data/noah_soils_lookup.pck'
+ lutable = pickle.load(open(file,'rb')) 
+ 
+ #Define unique classes
+ utextures = np.unique(texture)
+ utextures = utextures[utextures != -9999]
+ output  = {'texture_class':texture[:]}
+
+ #Theta saturated
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures: 
+  tmp[texture == txt] = lutable['maxsmc'][int(txt)-1]
+ output['thetas'] = tmp[:]
+
+ #Theta residual
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['drysmc'][int(txt)-1]
+ output['thetar'] = tmp[:]
+
+ #Ksat
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdk'][int(txt)-1]
+ output['ksat'] = 3600.0*1000.0*tmp[:]
+
+ #Theta33  (1kPa ~ 10.197 cm H20)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['refsmc'][int(txt)-1]
+ output['theta33'] = tmp[:]
+
+ #Theta1500
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['wltsmc'][int(txt)-1]
+ output['theta1500'] = tmp[:]
+
+ #Bb
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['bb'][int(txt)-1]
+ output['bb'] = tmp[:]
+   
+ #Bubble pressure
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satpsi'][int(txt)-1]
+ output['psisat'] = tmp[:]
+ 
+ #SATDW
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdw'][int(txt)-1]
+ output['dsat'] = 3600.0*1000.0*tmp[:]
+
+ #F11
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['f11'][int(txt)-1]
+ output['f11'] = tmp[:]
+
+ #QTZ (qtz)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['qtz'][int(txt)-1]
+ output['qtz'] = tmp[:]
+  
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+
+ #Output data
+ md = gdal_tools.retrieve_metadata('%s/sand_latlon.tif' % workspace)
+ md['nodata'] = -9999.0
+ for var in output:
+  file = '%s/%s_latlon.tif' % (workspace,var)
+  gdal_tools.write_raster(file,md,output[var])
+
+ del output
+ gc.collect()
+ return
+
+def Create_Other_Soil_Properties_Conus_Soil(cdb,workspace,metadata,icatch,log,properties):
+
+ #Look-up table
+ file = '/home/nc153/soteria/projects/agu2019/data/noah_soils_lookup.pck'
+ lutable = pickle.load(open(file,'rb')) 
+ 
+ #Set the input properties
+ texture = properties['texture_class'] #%w
+ badvals = (texture == -9999.0) | np.isnan(texture)
+ 
+ #Define unique classes
+ utextures = np.unique(texture)
+ output  = {}
+
+ #Theta saturated
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures: 
+  tmp[texture == txt] = lutable['maxsmc'][int(txt)-1]
+ output['thetas'] = tmp[:]
+
+ #Theta residual
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['drysmc'][int(txt)-1]
+ output['thetar'] = tmp[:]
+
+ #Ksat
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdk'][int(txt)-1]
+ output['ksat'] = 3600.0*1000.0*tmp[:]
+
+ #Theta33  (1kPa ~ 10.197 cm H20)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['refsmc'][int(txt)-1]
+ output['theta33'] = tmp[:]
+
+ #Theta1500
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['wltsmc'][int(txt)-1]
+ output['theta1500'] = tmp[:]
+
+ #Bb
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['bb'][int(txt)-1]
+ output['bb'] = tmp[:]
+   
+ #Bubble pressure
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satpsi'][int(txt)-1]
+ output['psisat'] = tmp[:]
+ 
+ #SATDW
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['satdw'][int(txt)-1]
+ output['dsat'] = 3600.0*1000.0*tmp[:]
+
+ #F11
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['f11'][int(txt)-1]
+ output['f11'] = tmp[:]
+
+ #QTZ (qtz)
+ tmp = -9999*np.ones(texture.shape)
+ for txt in utextures:
+  tmp[texture == txt] = lutable['qtz'][int(txt)-1]
+ output['qtz'] = tmp[:]
+  
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+
+ #Output data
+ md = gdal_tools.retrieve_metadata('%s/sand_latlon.tif' % workspace)
+ md['nodata'] = -9999.0
+ for var in output:
+  file = '%s/%s_latlon.tif' % (workspace,var)
+  gdal_tools.write_raster(file,md,output[var])
+
+ del output
+ gc.collect()
+ return
+
+def Create_Other_Soil_Properties(cdb,workspace,metadata,icatch,log,properties):
+ 
+ #Set the input properties
+ S = properties['sand'] #%w
+ C = properties['clay'] #%w
+ ST = properties['silt'] #%w
+ OM = properties['om'] #%w  
+ badvals = (S == -9999.0) | (C == -9999.0) | (ST == -9999.0) | (OM == -9999.0) | np.isnan(S)
+ 
+
+ # Saxton pedotransfers limited to OM < 8%w and clay <60%
+ #OM[OM > 8.0] = 8.0
+ #C[C > 60.0] = 60.0
+ 
+ output  = {}
+
+ if metadata['soil_database'] == 'soilgrids':
+   #Theta saturated
+   output['thetas'] = pedotransfer.ThetaS_Saxton2006(S/100,C/100,OM/100)
+
+   #Theta residual
+   output['thetar'] = pedotransfer.Residual_Water_Content_Maidment92(output['thetas'],C,S)
+
+   #Ksat
+   output['ksat'] = pedotransfer.Ksat_Saxton2006(S/100,C/100,OM/100) # mm/h
+
+   #Bb -- Brooks and Correy parameter lamba to the distribution of pore sizes  b = 1/lambda
+   output['bb'] = 1.0/pedotransfer.Lambda_Maidment92(output['thetas'],C,S)
+
+   #Bubble pressure
+   output['psisat'] = pedotransfer.Bubbling_Pressure_Maidment92(output['thetas'],C,S)/100.0 # cm -> m
+
+   #Theta33
+   output['theta33'] = pedotransfer.Theta_33_Saxton2006(S/100,C/100,OM/100)
+
+   #Theta1500
+   output['theta1500'] = pedotransfer.Theta_1500_Saxton2006(S/100,C/100,OM/100)
+
+
+ if metadata['soil_database'] == 'polaris':
+   #Theta saturated
+   output['thetas'] = properties['thetas']
+
+   #Theta residual
+   output['thetar'] = properties['thetar']
+
+   #Ksat
+   output['ksat'] = properties['ksat'] * 10  # cm/h --> mm/h
+
+   #Theta33  (1kPa ~ 10.197 cm H20)
+   output['theta33'] = np.power(properties['hb']/33,properties['lambda'])*(output['thetas']-output['thetar'])+output['thetar']
+
+   #Theta1500
+   output['theta1500'] = np.power(properties['hb']/1500,properties['lambda'])*(output['thetas']-output['thetar'])+output['thetar']
+
+   #Convert BC parameters to Campbell
+   lamda_campbell = (np.log(output['theta33'])-np.log(output['theta1500']))/(np.log(15000)-np.log(330))
+   psisat_campbell = (output['theta1500']/output['thetas'])**(1/lamda_campbell)*15000
+
+   #Bb -- Brooks and Corey parameter lamba to the distribution of pore sizes  b = 1/lambda
+   #output['bb'] = 1.0/properties['lambda']
+   output['bb'] = 1.0/lamda_campbell
+   
+   #Bubble pressure
+   #output['psisat'] = properties['hb']/100.0 # cm --> m
+   output['psisat'] = psisat_campbell/100.0 # cm --> m
+ 
+ #SATDW (satdw = bb*satdk*satpsi/maxsmc)
+ output['dsat'] = output['bb']*output['ksat']*output['psisat']/output['thetas'] # mm2/h
+
+ #F11 (f11 = log10(satpsi) + bb*log10(maxsmc) + 2.0)
+ #output['f11'] = np.log10(output['psisat']) + output['bb']*np.log10(output['thetas']) + 2.0
+ output['f11'] = np.copy(output['psisat'])
+ output['f11'][:] = -9999.0
+
+ #QTZ (qtz)
+ #output['qtz'] = np.copy(output['f11'])
+ #output['qtz'][:] = 0.4
+
+
+ S = properties['sand'] #%w
+ C = properties['clay'] #%w
+ ST = properties['silt'] #%w
+ OM = properties['om'] #%w
+ 
+
+ #Soil Texture
+ #print C, ST, S, OM
+ output['texture_class'] = np.ones(C.shape)*(-9999.0)
+ output['texture_class'][~badvals] = Texture_Class(C[~badvals],ST[~badvals],S[~badvals],OM[~badvals])
+
+ #QTZ (qtz)
+ #From NOAH-LSM look-up table
+ output['qtz'] = np.copy(output['psisat'])
+ output['qtz'][output['texture_class'] == 1] = 0.92
+ output['qtz'][output['texture_class'] == 2] = 0.82
+ output['qtz'][output['texture_class'] == 3] = 0.60
+ output['qtz'][output['texture_class'] == 4] = 0.25
+ output['qtz'][output['texture_class'] == 5] = 0.10
+ output['qtz'][output['texture_class'] == 6] = 0.40
+ output['qtz'][output['texture_class'] == 7] = 0.60
+ output['qtz'][output['texture_class'] == 8] = 0.10
+ output['qtz'][output['texture_class'] == 9] = 0.35
+ output['qtz'][output['texture_class'] == 10] = 0.52
+ output['qtz'][output['texture_class'] == 11] = 0.10
+ output['qtz'][output['texture_class'] == 12] = 0.25
+  
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+
+ badvals2 = (output['texture_class'] < 0) | (np.isnan(output['f11'])) | badvals
+ for var in output:
+  output[var][badvals2]=-9999.0
+  m2 = ( mask >= 0 ) & np.invert(badvals2)
+  missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask >= 0))
+  if missing_ratio > 0.95:
+   import sys
+   sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
+   return
+   
+ #Output data
+ if metadata['svp']==False:
+  md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon.tif' % workspace)#laura, svp
+  md['nodata'] = -9999.0
+  for var in output:
+   file = '%s/%s_latlon.tif' % (workspace,var)
+   gdal_tools.write_raster(file,md,output[var])
+ else:
+  md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon_%scm.tif' % (workspace,layer))
+  md['nodata'] = -9999.0
+  for var in output:
+   if var=='f11':
+    file = '%s/%s_latlon.tif' % (workspace,var)
+    gdal_tools.write_raster(file,md,output[var])
+   else:
+    if var in ['bb','dsat','qtz','theta1500','theta33','texture_class','psisat','ksat','thetar','thetas']:
+     if os.path.isdir('%s/%s' %(workspace,var))==False:
+      os.system('mkdir %s/%s' %(workspace,var))
+     file_out='%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,layer)
+     gdal_tools.write_raster(file_out,md,output[var][layer])
+
+ del output
+ gc.collect()
+ return
+
+def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,properties):
+ 
+ for layer in properties['sand']:
+  #Set the input properties
+  S = properties['sand'][layer] #%w
+  C = properties['clay'][layer] #%w
+  ST = properties['silt'][layer] #%w
+  OM = properties['om'][layer] #%w 
+  from numpy import inf 
+  badvals = (S == -9999.0) | (C == -9999.0) | (ST == -9999.0) | (OM == -9999.0) | np.isnan(S) 
+
+ # Saxton pedotransfers limited to OM < 8%w and clay <60%
+ #OM[OM > 8.0] = 8.0
+ #C[C > 60.0] = 60.0
+ 
+  output  = {}
+
+  if metadata['soil_database'] == 'soilgrids':
+   #Theta saturated
+   output['thetas'] = pedotransfer.ThetaS_Saxton2006(S/100,C/100,OM/100)
+
+   #Theta residual
+   output['thetar'] = pedotransfer.Residual_Water_Content_Maidment92(output['thetas'],C,S)
+
+   #Ksat
+   output['ksat'] = pedotransfer.Ksat_Saxton2006(S/100,C/100,OM/100) # mm/h
+
+   #Bb -- Brooks and Correy parameter lamba to the distribution of pore sizes  b = 1/lambda
+   output['bb'] = 1.0/pedotransfer.Lambda_Maidment92(output['thetas'],C,S)
+
+   #Bubble pressure
+   output['psisat'] = pedotransfer.Bubbling_Pressure_Maidment92(output['thetas'],C,S)/100.0 # cm -> m
+
+   #Theta33
+   output['theta33'] = pedotransfer.Theta_33_Saxton2006(S/100,C/100,OM/100)
+
+   #Theta1500
+   output['theta1500'] = pedotransfer.Theta_1500_Saxton2006(S/100,C/100,OM/100)
+
+  if metadata['soil_database'] == 'polaris':
+    #Theta saturated
+    output['thetas']={}
+    output['thetas'][layer] = properties['thetas'][layer]
+
+    #Theta residual
+    output['thetar']={}
+    output['thetar'][layer] = properties['thetar'][layer]
+
+    #Ksat
+    output['ksat']={}
+    output['ksat'][layer] = properties['ksat'][layer] * 10  # cm/h --> mm/h
+
+    #Theta33  (1kPa ~ 10.197 cm H20)
+    output['theta33']={}
+    output['theta33'][layer] = np.float32(np.power(properties['hb'][layer]/33,properties['lambda'][layer])*(output['thetas'][layer]-output['thetar'][layer])+output['thetar'][layer])
+
+    #Theta1500
+    output['theta1500']={}
+    output['theta1500'][layer] = np.power(properties['hb'][layer]/1500,properties['lambda'][layer])*(output['thetas'][layer]-output['thetar'][layer])+output['thetar'][layer]
+
+    #Convert BC parameters to Campbell
+    lamda_campbell = (np.log(output['theta33'][layer])-np.log(output['theta1500'][layer]))/(np.log(15000)-np.log(330))
+    psisat_campbell = (output['theta1500'][layer]/output['thetas'][layer])**(1/lamda_campbell)*15000
+
+    #Bb -- Brooks and Corey parameter lamba to the distribution of pore sizes  b = 1/lambda
+    #output['bb'] = 1.0/properties['lambda']
+    output['bb']={}
+    output['bb'][layer] = 1.0/lamda_campbell
+   
+    #Bubble pressure
+    #output['psisat'] = properties['hb']/100.0 # cm --> m
+    output['psisat']={}
+    output['psisat'][layer] = psisat_campbell/100.0 # cm --> m
+ 
+  #SATDW (satdw = bb*satdk*satpsi/maxsmc)
+  output['dsat']={}
+  output['dsat'][layer] = output['bb'][layer]*output['ksat'][layer]*output['psisat'][layer]/output['thetas'][layer] # mm2/h
+
+ #F11 (f11 = log10(satpsi) + bb*log10(maxsmc) + 2.0)
+ #output['f11'] = np.log10(output['psisat']) + output['bb']*np.log10(output['thetas']) + 2.0
+  output['f11'] = np.copy(output['psisat'][layer])
+  output['f11'][:] = -9999.0
+
+ #QTZ (qtz)
+ #output['qtz'] = np.copy(output['f11'])
+ #output['qtz'][:] = 0.4
+
+  S = properties['sand'][layer] #%w
+  C = properties['clay'][layer] #%w
+  ST = properties['silt'][layer] #%w
+  OM = properties['om'][layer] #%w
+ 
+  #Soil Texture
+  #print C, ST, S, OM
+  output['texture_class']={}
+  output['texture_class'][layer] = np.ones(C.shape)*(-9999.0)
+  output['texture_class'][layer][~badvals] = Texture_Class(C[~badvals],ST[~badvals],S[~badvals],OM[~badvals])
+
+  #QTZ (qtz)
+  #From NOAH-LSM look-up table
+  output['qtz']={}
+  output['qtz'][layer] = np.copy(output['psisat'][layer])
+  output['qtz'][layer][output['texture_class'] == 1] = 0.92
+  output['qtz'][layer][output['texture_class'] == 2] = 0.82
+  output['qtz'][layer][output['texture_class'] == 3] = 0.60
+  output['qtz'][layer][output['texture_class'] == 4] = 0.25
+  output['qtz'][layer][output['texture_class'] == 5] = 0.10
+  output['qtz'][layer][output['texture_class'] == 6] = 0.40
+  output['qtz'][layer][output['texture_class'] == 7] = 0.60
+  output['qtz'][layer][output['texture_class'] == 8] = 0.10
+  output['qtz'][layer][output['texture_class'] == 9] = 0.35
+  output['qtz'][layer][output['texture_class'] == 10] = 0.52
+  output['qtz'][layer][output['texture_class'] == 11] = 0.10
+  output['qtz'][layer][output['texture_class'] == 12] = 0.25
+  
+  mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+
+  badvals2 = (output['texture_class'][layer] < 0) | (np.isnan(output['f11'])) | badvals
+  for var in output:
+   if var=='f11':
+    output[var][badvals2]=-9999.0
+    m2 = ( mask >= 0 ) & np.invert(badvals2)
+    missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask >= 0))
+    if missing_ratio > 0.95:
+     import sys
+     sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
+     return
+   else:
+    output[var][layer][badvals2]=-9999.0
+    m2= (mask >= 0 ) & np.invert(badvals2)
+    missing_ratio = 1.0 - np.sum(m2)/float(np.sum(mask >= 0))
+    if missing_ratio > 0.95:
+     import sys
+     sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
+     return
+   
+ #Output data
+  md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon_%scm.tif' % (workspace,layer))
+  md['nodata'] = -9999.0
+  for var in output:
+   if var=='f11':
+    file = '%s/%s_latlon.tif' % (workspace,var)
+    gdal_tools.write_raster(file,md,output[var])
+   else:
+    if var in ['bb','dsat','qtz','theta1500','theta33','texture_class','psisat','ksat','thetar','thetas']:
+     if os.path.isdir('%s/%s' %(workspace,var))==False:
+      os.system('mkdir %s/%s' %(workspace,var))
+     file_out='%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,layer)
+     gdal_tools.write_raster(file_out,md,output[var][layer])
+
+ del output
+ gc.collect()
+ return
+
+
+def Texture_Class(clay,silt,sand,om):
+ 
+ #r('library("soiltexture")')
+
+ #Ensure sand/silt/clay add up to 100
+ m = (sand != -9999) | (clay != -9999) | (silt != -9999) | (om != -9999)
+ sum = sand[m]+silt[m]+clay[m]
+ sand[m] = 100*sand[m]/sum
+ silt[m] = 100*silt[m]/sum
+ clay[m] = 100*clay[m]/sum
+ 
+ oc = 0.58*om*(1000/100.) # OC=0.58*OM [g/kg]
+ shape = sand.shape
+
+ '''#Pass to R
+ r.assign('clay',FloatVector(clay[m]))
+ r.assign('sand',FloatVector(sand[m]))
+ r.assign('silt',FloatVector(silt[m]))
+ #r.assign('om',FloatVector(om))
+ r.assign('oc',FloatVector(oc[m]))
+ del sum, sand, silt, clay, om ; gc.collect()
+ #Compute the texture class
+ # clay, sand, silt in %, OC=0.58*OM [g/kg]
+ r('my.text <- data.frame("CLAY" = clay,"SILT" = silt,"SAND" = sand,"OC" = oc)')
+ r('rm(clay,sand,silt,om); gc()')
+ # Classify according to the USDA classification
+ r('output <- TT.points.in.classes(tri.data = my.text,class.sys = "USDA.TT")')
+ r('rm(my.text); gc()')
+ #output = csr_matrix(np.array(r("output")))
+ output = np.array(r("output"))
+ r('rm(list=ls()); gc()')
+ #print(output)
+
+ #novals = csr_matrix(np.zeros((output.shape[0],1)))
+ novals = np.zeros((output.shape[0],1))
+ #output = hstack([output,novals]).tocsr()
+ output = np.hstack([output,novals])
+
+ tmp = output.sum(axis=1)
+ mask1 = find(tmp == 0)[0]
+ output[mask1,12] = 1
+
+ mask2 = find(output>1)
+ maskl = mask2[0]
+ maskc = mask2[1]
+ maskl,index = np.unique(maskl,return_index=True)
+ output[maskl,:]=0
+ #output[maskl,maskc[index]]=1
+ output[maskl,12]=1
+
+  
+ #Convert to what NOAH wants
+ #Cl SiCl SaCl ClLo SiClLo SaClLo Lo SiLo SaLo Si LoSa Sa -9999.0
+ mapping = np.array([12,11,10,9,8,7,6,4,3,5,2,1,-9999.0])
+ mask = find(output > 0)[1]
+ soil_texture  = mapping[mask]
+ texture = np.ones(shape)
+ texture[:] = -9999.0
+ texture[m] = soil_texture'''
+ texture = pedotransfer.compute_soil_texture_class(sand,clay)
+ #Set -9999 to Loam
+ texture[texture == -9999] = 6
+
+ #del output, mask, soil_texture; gc.collect()
+ return texture
+
+def domain_decomposition(md):
+ 
+ print("Assembling domain shapefile")
+ #Make new lat/lon domain
+ if md['domain_decomposition']['type'] == 'latlon':
+  #Use to create shapefile of domain
+  create_domain_shapefile(md)
+ if md['domain_decomposition']['type'] == 'gfdl_gridspec': 
+  #Create shapefile from gfdl grid spec file
+  create_domain_shapefile_gfdl_gridspec(md)
+ #Create summary database
+ summarize_domain_decompisition(md)
+
+ return
+
+def create_domain_shapefile_gfdl_gridspec(metadata):
+ 
+ #Extract metadata info
+ tgs = metadata['domain_decomposition']['gs_template']
+ tlm = metadata['domain_decomposition']['lm_template']
+ ntiles = metadata['domain_decomposition']['ntiles']
+ sdir = '%s/general/shp' % metadata['dir']
+ os.system('mkdir -p %s' % sdir)
+ #Create the shapefile
+ driver = ogr.GetDriverByName("ESRI Shapefile")
+ ds = driver.CreateDataSource("%s/grid.shp" % sdir)
+ srs = osr.SpatialReference()
+ srs.ImportFromEPSG(4326)
+ layer = ds.CreateLayer("grid", srs, ogr.wkbPolygon)
+ layer.CreateField(ogr.FieldDefn("ID", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("TILE", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("X", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("Y", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("LFN", ogr.OFTReal))
+ layer.CreateField(ogr.FieldDefn("LFO", ogr.OFTReal))
+
+ count = 0
+ for tile in range(1,ntiles+1):
+  #Extract xs,ys,and lms
+  gs_tile = tgs.replace('$tid',str(tile))
+  lm_tile = tlm.replace('$tid',str(tile))
+  print(gs_tile)
+  fp  = nc.Dataset(gs_tile)
+  fplm = nc.Dataset(lm_tile)
+  #Extract lats/lons
+  xs = fp.variables['x'][:]
+  ys = fp.variables['y'][:]
+  xs[xs > 180.0] = xs[xs > 180.0] - 360.0
+  #Extract mask
+  lm = fplm.variables['mask'][:]
+  fp.close()
+  fplm.close()
+
+ #Iterate through each cell
+ ncells_x = int((xs.shape[1]-1)/2)
+ ncells_y = int((ys.shape[0]-1)/2)
+ for icell in range(ncells_x):
+  imin = icell*2
+  imax = (icell+1)*2
+  for jcell in range(ncells_y):
+   jmin = jcell*2
+   jmax = (jcell+1)*2
+   #Skip 87-90N and 87-90S
+   minlat = np.min(ys[jmin:jmax+1,imin:imax+1])
+   maxlat = np.max(ys[jmin:jmax+1,imin:imax+1])
+   minlon = np.min(xs[jmin:jmax+1,imin:imax+1])
+   maxlon = np.max(xs[jmin:jmax+1,imin:imax+1])
+   if ((minlat >= 86.0) | (maxlat <= -86.0)):continue #Do not deal with poles
+   if ((minlon < -90) & (maxlon > 90)):continue #Do not go over dateline
+   #Update the count
+   count += 1
+   #if (count-1) % size != rank:continue
+   print(tile,minlat,maxlat,minlon,maxlon)
+   #Compute the info
+   compute_info(xs,ys,metadata,count,sdir,imin,imax,jmin,jmax,lm,icell,jcell,layer,tile)#,log)
+
+ # Destroy the data source to free resources
+ ds.Destroy()
+
+ #Memorize domain decomposition file
+ metadata['domain_decomposition']['file'] = "%s/domain.shp" % sdir
 
  return metadata
 
-def Connect_Cell_Networks_v2(rank,size,cids,edir):
+def compute_info(xs,ys,metadata,count,cdir,imin,imax,jmin,jmax,lm,icell,jcell,layer,tile):#,log):
 
- for cid in cids[rank::size]:
+ output = {}
+ #Extract regional boundaries
+ xs_subset = xs[jmin:jmax+1,imin:imax+1]
+ #if (np.max(xs_subset) > 100) and (np.min(xs_subset) < -100):
+ # xs_subset[xs_subset < 0] = xs_subset[xs_subset < 0] + 360.0
 
-  #Change to integer
-  cid1 = int(cid)
+ #Construct list of points
+ mpoint = ogr.Geometry(ogr.wkbMultiPoint)
+ point = ogr.Geometry(ogr.wkbPoint)
+ for i in range(imin,imax+1):
+  for j in range(jmin,jmax+1):
+   point.AddPoint(xs[j,i],ys[j,i])
+   #point.AddPoint(ys[j,i],xs[j,i])
+   mpoint.AddGeometry(point)
+ poly = mpoint.ConvexHull()
 
-  #Read in the routing interconnectivitiy dictionary for the given cid
-  file = '%s/%s/routing_mp_connectivity.pck' % (edir,cid1)
-  db = pickle.load(open(file,'rb'))
-    
-  #Open input_file.nc for cid in append mode
-  file = '%s/%s/input_file.nc' % (edir,cid1)
-  fp = h5py.File(file,'a') 
+ #Calculate land fraction
+ #Retrieve coordinates of envelope
+ bbox = poly.GetEnvelope()
+ metadata['bbox'] = bbox
+ #Calculate the original land fraction
+ lfrac_org = lm[jcell,icell]
+ lfrac = 1.0 #HACK
+ #Calculate the land fraction
+ #if (lfrac_org == 0.0):
+ # return
+ #else:
+ # lfrac = calculate_land_fraction(metadata,count,cdir,poly)#log,poly)
 
-  #Iterate through the outlets to determine the channel id in the target subdomain 
-  db2 = {}
+ #Add to the info
+ # create the feature
+ feature = ogr.Feature(layer.GetLayerDefn())
+ #Set the calculate land fraction
+ feature.SetField("LFN",lfrac)
+ #Set the land fraction from the grid spec
+ feature.SetField("LFO",lfrac_org)
+ #Set the ID
+ feature.SetField("ID",count)
+ #Set the tile
+ feature.SetField("TILE",tile)
+ #Set the i id
+ feature.SetField("X",icell+1)
+ #Set the j id
+ feature.SetField("Y",jcell+1)
+ # Set the feature geometry using the point
+ feature.SetGeometry(poly)
+ # Create the feature in the layer (shapefile)
+ layer.CreateFeature(feature)
+ # Destroy the feature to free resources
+ feature.Destroy()
+
+ return
+
+def create_domain_shapefile(md):
+
+ #Extract parameters
+ minlat = md['boundaries']['minlat']
+ maxlat = md['boundaries']['maxlat']
+ minlon = md['boundaries']['minlon']
+ maxlon = md['boundaries']['maxlon']
+ res = md['domain_decomposition']['res']
+ sdir = '%s/general/shp' % md['dir']
+ os.system('mkdir -p %s' % sdir)
+
+ #Create the shapefile
+ driver = ogr.GetDriverByName("ESRI Shapefile")
+ ds = driver.CreateDataSource("%s/domain.shp" % sdir)
+ srs = osr.SpatialReference()
+ srs.ImportFromEPSG(4326)
+ layer = ds.CreateLayer("grid", srs, ogr.wkbPolygon)
+ layer.CreateField(ogr.FieldDefn("ID", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("X", ogr.OFTInteger))
+ layer.CreateField(ogr.FieldDefn("Y", ogr.OFTInteger))
+
+ #Define lats,lons
+ #print(int(np.round((maxlon-minlon)/res)))
+ #print(int(np.round((maxlat-minlat)/res)))
+ nlat = int(np.round((maxlat-minlat)/res)) + 1
+ nlon = int(np.round((maxlon-minlon)/res)) + 1
+ lats = np.linspace(minlat,maxlat,nlat)
+ lons = np.linspace(minlon,maxlon,nlon)
+ #lats = np.arange(minlat,maxlat+res,res)
+ #lons = np.arange(minlon,maxlon+res,res)
+
+ #Iterate through each cell
+ cid = 1
+ for ilat in range(lats.size-1):
+  for ilon in range(lons.size-1):
+   #Construct list of points
+   mpoint = ogr.Geometry(ogr.wkbMultiPoint)
+   point = ogr.Geometry(ogr.wkbPoint)
+   iss = [0,0,1,1,0]
+   jss = [0,1,1,0,0]
+   for k in range(len(iss)):
+    i = iss[k]
+    j = jss[k]
+    point.AddPoint(lons[ilon+j],lats[ilat+i])
+    mpoint.AddGeometry(point)
+   poly = mpoint.ConvexHull()
+   #Add to the info
+   # create the feature
+   feature = ogr.Feature(layer.GetLayerDefn())
+   #Set the ID
+   feature.SetField("ID",cid)
+   #Set the i id
+   feature.SetField("X",ilat)
+   #Set the j id
+   feature.SetField("Y",ilon)
+   #Set the feature geometry using the point
+   feature.SetGeometry(poly)
+   #Create the feature in the layer (shapefile)
+   layer.CreateFeature(feature)
+   #Destroy the feature to free resources
+   feature.Destroy()
+   #Update cid
+   cid += 1
+
+ #Destroy the data source to free resources
+ ds.Destroy()
+
+ #Memorize domain decomposition file
+ md['domain_decomposition']['file'] = "%s/domain.shp" % sdir
+
+ return md
+
+def summarize_domain_decompisition(md):
+
+ #Get info for the basin from the WBD dataset
+ file_in = md['domain_decomposition']['file']
+ cid = str(md['domain_decomposition']['id'])
+ file_out = '%s/shp' % md['output_data']
+ #minlat = md['boundaries']['minlat']
+ #minlon = md['boundaries']['minlon']
+ #maxlat = md['boundaries']['maxlat']
+ #maxlon = md['boundaries']['maxlon']
+
+ #Prepare the domain directory
+ cdir = '%s/cids' % md['output_data']
+ #os.system('rm -rf %s' % cdir)
+ os.system('mkdir -p %s' % cdir)
+
+ #Extract the region of interest
+ #os.system('rm -rf %s' % file_out)
+ #os.system('ogr2ogr -spat %.16f %.16f %.16f %.16f %s %s' % (minlon,minlat,maxlon,maxlat,file_out,file_in))
+ os.system('cp %s %s' % (file_in,file_out))
+
+ #Open access to the database
+ from osgeo import ogr
+ driver = ogr.GetDriverByName("ESRI Shapefile")
+ ds = driver.Open(file_out,0)
+
+ #Iterate through each feature getting the necessary info
+ layer = ds.GetLayer()
+ output = []
+ for feature in layer:
+   info = {}
+   bbox = feature.GetGeometryRef().GetEnvelope()
+   info['cid'] = feature.GetField(cid)
+   info['bbox'] =  {'minlat':bbox[2],'minlon':bbox[0],'maxlat':bbox[3],'maxlon':bbox[1]}
+   output.append(info)
+
+ #Close the shapefile file
+ del ds, ogr, layer, bbox, info
+ gc.collect()
+
+ #Pickle the database
+ pickle.dump(output,open('%s/cids/domain_database.pck' % md['output_data'],'wb'),pickle.HIGHEST_PROTOCOL)
+ del output
+ gc.collect()
+
+ return
+
+def Create_Mask(cdb,workspace,metadata,icatch,log):
+
+ #Define parameters
+ shp_in = '%s/shp' % metadata['output_data']
+ shp_out = '%s/shp' % workspace
+ cistr = metadata['domain_decomposition']['id']
+ lstr = metadata['domain_decomposition']['layer']
+ ci = cdb['cid']
+ bbox =  cdb['bbox']
+ res_latlon = metadata['res_latlon']
  
-  #Create the output array
-  output_array = -9999*np.ones((db['channel_target_mp'].size,4),dtype=np.int32)
-  output_array[:,0] = cid1
-  output_array[:,1] = db['channel_outlet_id'][:]
-  output_array[:,2] = db['channel_target_mp'][:]
-  for ic in range(db['channel_outlet_id'].size):
-    cid2 = db['channel_target_mp'][ic]
-    if cid2 != -9999:
-     #Read in the database for the target cid
-     if cid2 not in db2:
-      file2 = '%s/%d/routing_mp_connectivity.pck' % (edir,cid2)
-      db2[cid2] = pickle.load(open(file2,'rb'))
-     #channel_#Determine the channel lat/lon that is closest to create a link 
-     lat1 = db['channel_target_crds'][ic][0]
-     lon1 = db['channel_target_crds'][ic][1]
-     lats2 = db2[cid2]['channel_crds'][:,:,0]
-     lons2 = db2[cid2]['channel_crds'][:,:,1]
-     dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
-     print('outlet',np.min(dist))
-     icd = np.where(dist == np.min(dist))[0][0]
-     output_array[ic,3] = icd
-        
-  #Add array to file
-  fp['stream_network']['outlets'] = output_array[:] #out cid, out channel id, in cid, in channel id
+ #Define the files
+ mask_latlon_file = '%s/mask_latlon.tif' % workspace
+ tmp_file = '%s/tmp.tif' % workspace
+ 
+ #Rasterize the area
+ buff = 0.1
+ 
+ print(' buffer size:',buff,' icatch:',ci,flush=True) 
+ minx = bbox['minlon']-buff
+ miny = bbox['minlat']-buff
+ maxx = bbox['maxlon']+buff
+ maxy = bbox['maxlat']+buff
+ cache = int(psutil.virtual_memory().available*0.7/mb)
+ print(minx,maxx,miny,maxy)
 
-  #Iterate through the outlets to determine the channel id in the target subdomain 
-  db2 = {}
+ #Correct coordinates to avoid reprojections
+ #Fix coordinates to the dem vrt to avoid inconsistiences
+ md = gdal_tools.retrieve_metadata(metadata['dem'])
+ res_latlon = np.abs(md['resx'])
+ minx = md['minx'] + np.floor((minx-md['minx'])/res_latlon)*res_latlon
+ miny = md['miny'] + np.floor((miny-md['miny'])/res_latlon)*res_latlon#np.floor(miny/res_latlon)*res_latlon
+ maxx = md['minx'] + np.ceil((maxx-md['minx'])/res_latlon)*res_latlon
+ maxy = md['miny'] + np.ceil((maxy-md['miny'])/res_latlon)*res_latlon
 
-  #Create the output array
-  inlet_array = -9999*np.ones((db['channel_inlet_id'].size,10),dtype=np.int32)
-  inlet_array[:,0] = cid1
-  inlet_array[:,1] = db['channel_inlet_id'][:]
-  inlet_array[:,2:6] = db['channel_inlet_target_mp'][:]
-  for ic in range(db['channel_inlet_id'].size):
-   for j in range(db['channel_inlet_target_mp'].shape[1]):
-    if db['channel_inlet_target_mp'][ic,j] == -9999:break
-    cid2 = db['channel_inlet_target_mp'][ic,j]
-    #Read in the database for the target cid
-    if cid2 not in db2:
-     file2 = '%s/%d/routing_mp_connectivity.pck' % (edir,cid2)
-     db2[cid2] = pickle.load(open(file2,'rb'))
-    #channel_#Determine the channel lat/lon that is closest to create a link 
-    lat1 = db['channel_inlet_target_crds'][ic,j,0]
-    lon1 = db['channel_inlet_target_crds'][ic,j,1]
-    lats2 = db2[cid2]['channel_crds'][:,:,0]
-    lons2 = db2[cid2]['channel_crds'][:,:,1]
-    dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
-    icd = np.where(dist == np.min(dist))[0][0]
-    inlet_array[ic,6+j] = icd 
-    print('inlet',inlet_array[ic,0],inlet_array[ic,1],inlet_array[ic,6+j],np.min(dist))
+ #Rasterize
+ os.system("gdal_rasterize -at -ot Float64 --config GDAL_CACHEMAX %i -a_nodata -9999 -init -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f -a %s -l %s %s %s >> %s 2>&1" % (cache, res_latlon,res_latlon,minx,miny,maxx,maxy,cistr,lstr,shp_in,mask_latlon_file,log))
 
-  #Add array to file
-  fp['stream_network']['inlets'] = inlet_array[:]
-        
-  #Close ammended file
-  fp.close()
+ #del data
+ gc.collect()
 
-  #exit()
+ return
+
+def Correct_Mask(cdb,workspace,metadata,icatch,log):
+
+ bbox =  cdb['bbox']
+ res_latlon = metadata['res_latlon']
+
+ #0. Read in mask
+ mask = gdal_tools.read_data('%s/mask_latlon.tif' % workspace).data
+ mask_org = np.copy(mask)
+
+ #0.25 Read admin boundaries
+ admin = gdal_tools.read_data('%s/admin_latlon.tif' % workspace).data
+
+ #0.5 Copy original mask
+ os.system('cp %s %s' % ('%s/mask_latlon.tif' % workspace,'%s/mask_org_latlon.tif' % workspace))
+
+ #1a. Read in elevation data
+ dem = gdal_tools.read_data('%s/dem_latlon.tif' % workspace).data
+
+ #1b. Read in arcgis flow direction data
+ fdir_arcgis = gdal_tools.read_data('%s/fdir_latlon.tif' % workspace).data
+
+ #1c. Read in accumulation area
+ acc = 10**6*gdal_tools.read_data('%s/acc_latlon.tif' % workspace).data #km2->m2
+
+ #2. Update the mask
+ m2 = np.copy(mask).astype(np.bool)
+ m2[:] = 0
+ m2[dem != -9999] = 1
+ m2[admin <= 0] = 0
+ demns = dem
+
+ #eares = 90 #meter(hack)
+ #Calculate slope and aspect
+ #res_array = np.copy(demns)
+ #res_array[:] = eares
+ #(slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(np.flipud(demns),res_array,res_array)
+ #slope = np.flipud(slope)
+ #aspect = np.flipud(aspect)
+ #Calculate accumulation area
+ fdir = terrain_tools.transform_arcgis_fdir(fdir_arcgis)
+ #area = terrain_tools.ttf.calculate_d8_acc_pfdir(demns,m2,eares,fdir)
+ ##(area,fdir) = terrain_tools.ttf.calculate_d8_acc(demns,m2,eares)
+ #Calculate channel initiation points (2 parameters)
+ #C = area/eares*slope**2
+ #ipoints = ((C > 100) & (area > 10**5)).astype(np.int32)
+ cthrs = metadata['channel_initiation']["athrs"]#Laura #10**6
+ #ipoints = ((area > cthrs)).astype(np.int32)
+ #ipoints[ipoints == 0] = -9999
+ #Create area for channel delineation
+ #ac = terrain_tools.ttf.calculate_d8_acc_wipoints_pfdir(demns,m2,ipoints,eares,fdir)
+ fdc = fdir
+ ac = acc
+ ac[m2 == 0] = -9999
+ #ac[ac != 0] = area[ac != 0]
+ 
+ #Compute the channels
+ (channels,channels_wob,channel_topology,shreve_order) = terrain_tools.ttf.calculate_channels_wocean_wprop(ac,cthrs,cthrs,fdc,m2)
+ basins = terrain_tools.ttf.delineate_basins(channels_wob,m2,fdc)
+ basins[basins == 0] = -9999
+ tmp = gdal_tools.read_data('%s/mask_latlon.tif' % workspace)
+ tmp.data = basins.astype(np.float32)
+ tmp.write_data('%s/basins_latlon.tif' % workspace)
+ #Determine the basins that have the majority in the given area
+ #0.Match up with dem
+ #mask[(mask == -9999) & (basins != -9999)] = np.max(mask) + 1
+ mask_alt = np.copy(mask)
+ #1.Compute the area of each basin in each "coarse grid cell"
+ ubasins = np.unique(basins)
+ ubasins = ubasins[ubasins != -9999]
+ ucatchs = np.unique(mask)
+ ucatchs = ucatchs[ucatchs != -9999]
+ i = 0
+ for uc in ucatchs:
+  mask_alt[mask == uc] = i
+  i += 1 
+ count = np.zeros((ucatchs.size,ubasins.size))
+ channel_count = np.zeros((ucatchs.size,ubasins.size))
+ basin_external = np.ones(ubasins.size)
+ for i in range(basins.shape[0]):
+  for j in range(basins.shape[1]):
+   b = int(basins[i,j])
+   r = int(mask_alt[i,j])
+   if b != -9999:
+    if(mask_alt[i,j] < 0):basin_external[b-1] = 0
+    if r != -9999:
+     if(channels_wob[i,j] > 0):channel_count[r,b-1] += 1
+   if (b == -9999) | (r == -9999):continue
+   count[r,b-1] += 1
+ #Find the basins that have the largest representation in the given cell or catchment
+ argmax = np.argmax(count,axis=0)
+ #If none have a basin then set argmax to nan
+ scount = np.sum(count,axis=0)
+ argmax[scount == 0] = -9999
+ mask_v2 = np.copy(mask)
+ mask_v2[:] = -9999
+ #Remove all basins that are not in the final list
+ for i in range(basins.shape[0]):
+  for j in range(basins.shape[1]):
+   b = basins[i,j]
+   if (b == -9999) | (mask[i,j] == -9999):continue
+   if argmax[b-1] == -9999:continue
+   mask_v2[i,j] = ucatchs[argmax[b-1]]
+ #Set the external to -9999
+ #mask_v2[mask_v2 == np.max(mask_v2)] = -9999
+ #Output the data
+ mask = gdal_tools.read_data('%s/mask_latlon.tif' % workspace)
+ mask.data = mask_v2
+ mask.write_data('%s/mask_latlon.tif' % workspace)
+
+ gc.collect()
  
  return
 
-def create_enhanced_topology(topology,outlets,cid):
-    
- #create enhanced topology by adding outlet information (channel id and cid)
- topology_enhanced = -1*np.ones((topology.size,2),dtype=np.int32)
- topology_enhanced[:,0] = topology
- topology_enhanced[topology != -1,1] = cid
- topology_enhanced[outlets[:,1],0] = outlets[:,3] 
- topology_enhanced[outlets[:,1],1] = outlets[:,2]
- topology_enhanced[topology_enhanced==-9999] = -1
+def Terrain_Analysis(cdb,workspace,metadata,icatch,log):
 
- return topology_enhanced
+ #0. Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ minx = md['minx']
+ miny = md['miny']
+ maxx = md['maxx']
+ maxy = md['maxy']
+ res = abs(md['resx'])
+ dem_region = metadata['dem']
+ acc_region = metadata['acc']
+ fdir_region = metadata['fdir']
+ #acc_region = metadata['acc']
+ lproj = md['proj4']
 
-def read_channel_database(cid,edir):
-    
- db = {}
+ #1. Cutout the region of interest
+ dem_latlon_file = '%s/dem_latlon.tif' % workspace
+ acc_latlon_file = '%s/acc_latlon.tif' % workspace
+ fdir_latlon_file = '%s/fdir_latlon.tif' % workspace
+ cache = int(psutil.virtual_memory().available*0.7/mb)
+ #os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999.0 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,dem_region,dem_latlon_file,log))
+ os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999.0 -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,minx,miny,maxx,maxy,cache,dem_region,dem_latlon_file,log))
+ os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999.0 -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,minx,miny,maxx,maxy,cache,acc_region,acc_latlon_file,log))
+ os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999.0 -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,minx,miny,maxx,maxy,cache,fdir_region,fdir_latlon_file,log))
 
- #Open input_file.nc for cid in append mode
- file = '%s/%s/input_file.nc' % (edir,cid)
- fp = nc.Dataset(file,'r')
+ #1. Cutout the region of interest
+ #acc_latlon_file = '%s/acc_latlon.tif' % workspace
+ #os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999.0 -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,minx,miny,maxx,maxy,cache,acc_region,acc_latlon_file,log))
+
+ data = gdal_tools.read_raster(dem_latlon_file)
+ metadata = gdal_tools.retrieve_metadata(dem_latlon_file)
+ metadata['nodata'] = -9999.0
+ data[data == -32768] = -9999.0
+ gdal_tools.write_raster(dem_latlon_file,metadata,data)
+
+ data = gdal_tools.read_raster(acc_latlon_file)
+ metadata = gdal_tools.retrieve_metadata(acc_latlon_file)
+ metadata['nodata'] = -9999.0
+ #data[data == -32768] = -9999.0
+ gdal_tools.write_raster(acc_latlon_file,metadata,data)
+
+ data = gdal_tools.read_raster(fdir_latlon_file)
+ metadata = gdal_tools.retrieve_metadata(fdir_latlon_file)
+ metadata['nodata'] = -9999.0
+ #data[data == -32768] = -9999.0
+ gdal_tools.write_raster(fdir_latlon_file,metadata,data)
+
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+ m2 = ( mask >= 0 ) & ( data != -9999.0)
+ missing_ratio = 1. - np.sum(m2)/float(np.sum(mask >= 0))
+ if missing_ratio > 0.95 :
+  import sys
+  sys.stderr.write('Error_preprocessing: dem_full_of_nans %s\n' % (icatch))
+  return
+
+ del data
+ gc.collect()
  
- #create enhanced topology by adding outlet information (channel id and cid)
- db['topology_enhanced'] = create_enhanced_topology(fp['stream_network']['topology'][:],fp['stream_network']['outlets'][:],cid)
- db['length'] = fp['stream_network']['length'][:]
+ return
 
- fp.close()
+def Extract_Dbedrock(cdb,workspace,metadata,icatch,log):
+ #0. Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ minx = md['minx']
+ miny = md['miny']
+ maxx = md['maxx']
+ maxy = md['maxy']
+ res = abs( md['resx'])
+ lc_region = metadata['dbedrock']
+ lproj = md['proj4']
+
+ latlon_file = '%s/dbedrock_latlon.tif' % (workspace)
+ cache = int(psutil.virtual_memory().available*0.7/mb)
+ cmd = 'gdalwarp -overwrite -t_srs \'%s\' -te %.16f %.16f %.16f %.16f -tr %.16f %.16f --config GDAL_CACHEMAX %i  %s %s >> %s 2>&1' % (lproj,minx,miny,maxx,maxy,res,res,cache,lc_region,latlon_file,log)
+ os.system(cmd)
+
+ data = gdal_tools.read_raster(latlon_file)
+ m1 = (data == -1) | (data == 255) | (data < 0)
+ data[m1] = -9999.0
+ m = ( data >= 0 ) & (data < 1.0) 
+ data[m] = 1.0 # set the min depth
+ md['nodata'] = -9999.0
+ gdal_tools.write_raster(latlon_file,md,data)
+
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+ m2 = ( mask >= 0 ) & ( data != -9999.0)
+ missing_ratio = 1. - np.sum(m2)/float(np.sum(mask >= 0))
+ if missing_ratio > 0.95 :
+  import sys
+  sys.stderr.write('Error_preprocessing: dbedrock_full_of_nans %s\n' % (icatch))
+  return
+
+ del data
+ gc.collect()
+
+ return
+
+def Extract_Land_Cover(cdb,workspace,metadata,icatch,log):
+
+ #0. Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ minx = md['minx']
+ miny = md['miny']
+ maxx = md['maxx']
+ maxy = md['maxy']
+ res = abs(md['resx'])
+ lc_region = metadata['landcover']['file']
+ lproj = md['proj4']
+ mapping = eval(metadata['landcover']['mapping'])
+
+ #1. Prepare Land cover data
+ lc_latlon_file = '%s/lc_latlon.tif' % workspace
+ cache = int(psutil.virtual_memory().available*0.7/mb)
+ os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r near -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,lc_region,lc_latlon_file,log))
+ data = gdal_tools.read_raster(lc_latlon_file)
+
+ #0.5. Map to final 
+ lcs = np.unique(data)[:]
+ tmp = np.copy(data)
+ for lc in lcs:
+  tmp[data == lc] = mapping[lc]
+ data = tmp
+
+ #2. Export to tif
+ md = gdal_tools.retrieve_metadata(lc_latlon_file)
+ md['nodata'] = -9999.0
+ gdal_tools.write_raster(lc_latlon_file,md,data)
+ tmp = '%s/lc_ea2.tif' % workspace
+ cache = int(psutil.virtual_memory().available*0.7/mb)
+ os.system('gdal_translate --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (cache,lc_latlon_file,tmp,log))
+ os.system('mv %s %s && rm -rf %s >> %s 2>&1' % (tmp,lc_latlon_file,tmp,log))
+
+ del data, tmp
+ gc.collect()
+
+ return
+
+def Extract_Soils(cdb,workspace,metadata,icatch,log):
+
+ #0. Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ minx = md['minx']
+ miny = md['miny']
+ maxx = md['maxx']
+ maxy = md['maxy']
+ res = abs(md['resx'])
+ lproj = md['proj4']
+
+ #CONUS-soil
+ if metadata['soil_database'] == 'conus-soil':
+  vars = ['clay','sand','silt','texture_class']
+  shuffle(vars)
+  properties = {}
+  for var in vars:
+   file_in = metadata['soil'][var]
+   file_out = '%s/%s_latlon.tif' % (workspace,var)
+
+   cache = int(psutil.virtual_memory().available*0.7/mb)
+   os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+   #Get the data
+   properties[var] = gdal_tools.read_raster(file_out)
+
+ # SOILGRIDS
+ if (metadata['soil_database'] == 'soilgrids') | (metadata['soil_database'] == 'soilgrids_texture'):
+  print(metadata['soil_database'])
+  vars = ['clay','sand','silt','om']
+  shuffle(vars)
+  properties = {}
+  for var in vars:
+   file_in = metadata['soil'][var]
+   file_out = '%s/%s_latlon.tif' % (workspace,var)
+   cache = int(psutil.virtual_memory().available*0.7/mb)
+
+   os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+   #Get the data
+   properties[var] = gdal_tools.read_raster(file_out)
+   if var in ['clay','sand','silt']:
+    if metadata['soil_database'] == 'soilgrids': properties[var][(properties[var] == 255)] = -9999.0
+   if var in ['om']:
+    badvals = (properties['om'] == -9999.0)
+    properties['om'] = 100*(properties['om']/1000.0)  # g/kg -> g/g -> %w
+    # soigrids uses organic carbon, which is OC = 0.58*OM
+    properties['om'] = 1.724*properties['om']
+    properties['om'][badvals] = -9999.0
+  
+ # POLARIS
+ if (metadata['soil_database'] == 'polaris') | (metadata['soil_database'] == 'polaris_texture'):
+  vars = ['clay','sand','silt','om','hb','thetar','thetas','ksat','lambda']
+  #shuffle(vars)
+  if metadata['svp']==False: #laura
+   properties = {}
+   for var in vars:
+    if var not in ['thetar','thetas']:
+     file_in = metadata['soil'][var]+'%s_mean_0_5.vrt'%var
+    else:
+     if var=='thetar':
+      file_in = metadata['soil'][var]+'theta_r_mean_0_5.vrt'
+     elif var=='thetas':
+      file_in = metadata['soil'][var]+'theta_s_mean_0_5.vrt'
+    if os.path.exists('%s/%s'%(workspace,var))==False: #laura
+     os.system('mkdir %s/%s' %(workspace,var)) #laura
+    file_out = '%s/%s/%s_latlon.tif' % (workspace,var,var) #laura
+    cache = int(psutil.virtual_memory().available*0.7/mb)
+   
+    os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+  
+    #Get the data 
+    properties[var] = gdal_tools.read_raster(file_out)
+    if var in ['om','ksat','hb']:
+     badvals = (properties[var] == -9999.0)
+     properties[var] = np.power(10.,properties[var]) 
+     properties[var][badvals] = -9999.0
+
+  else: #laura, svp
+   properties = {}
+   for var in vars:
+    dir_in=metadata['soil'][var]
+    if var in ['thetas','thetar']:
+     layers=glob.glob(dir_in+'theta_%s_mean*' %var.split('a')[1])
+    else:
+     layers=glob.glob(dir_in+'%s_mean*' %var)
+    i=0
+    for lay in layers:
+     file_in=lay
+     avrgd=(float(lay.split('mean_')[1].split('.vrt')[0].split('_')[0])+float(lay.split('mean_')[1].split('.vrt')[0].split('_')[1]))/2
+     if i==0:
+      os.system('mkdir %s/%s' %(workspace,var))
+      properties[var]={}
+     i=i+1
+     file_out='%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,avrgd)
+     cache=int(psutil.virtual_memory().available*0.7/mb)
+     os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+     properties[var][str(avrgd)] = gdal_tools.read_raster(file_out)
+     if var in ['om','ksat','hb']:
+      badvals = (properties[var][str(avrgd)] == -9999.0)
+      properties[var][str(avrgd)] = np.power(10.,properties[var][str(avrgd)])
+      properties[var][str(avrgd)][badvals] = -9999.0
+      #end svp block here, laura
+
+ # Write out the data
+ mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
+ if metadata['soil_database'] != 'conus-soil':
+  if metadata['svp']==False:
+   badvals = ((properties['clay']==-9999.0) | (properties['sand']==-9999.0)) | ((properties['silt']==-9999.0) | (properties['om']==-9999.0)) 
+   for var in ['clay','sand','silt','om']:
+    file_out = '%s/%s/%s_latlon.tif' % (workspace,var,var) #laura
+    properties[var][badvals] = -9999.0 
+    m2 = ( mask >= 0 ) & np.invert(badvals)
+    missing_ratio = 1.0 -np.sum(m2)/float(np.sum(mask >= 0))
+    if missing_ratio > 0.95 : 
+     os.system('rm -rf %s' % file_out)
+     import sys
+     sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
+     return
+    if var not in ['hb','lambda','thetas','thetar','ksat']:
+     md = gdal_tools.retrieve_metadata(file_out)
+     md['nodata'] = -9999.0
+     gdal_tools.write_raster(file_out,md,properties[var])
+  else: #laura, svp
+   for layer in properties['clay']: #laura svp
+    badvals = ((properties['clay'][layer]==-9999.0) | (properties['sand'][layer]==-9999.0)) | ((properties['silt'][layer]==-9999.0) | (properties['om'][layer]==-9999.0))
+    for var in ['clay','sand','silt','om']:
+     file_out = '%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,layer) #laura svp
+     properties[var][layer][badvals] = -9999.0
+     
+     m2 = ( mask >= 0 ) & np.invert(badvals)
+     missing_ratio = 1.0 -np.sum(m2)/float(np.sum(mask >= 0))
+     if missing_ratio > 0.95 :
+      #os.system('rm -rf %s' % file_out)
+      import sys
+      sys.stderr.write('Warning_preprocessing: %s_layer_%s_full_of_nans %s\n' % (var,layer,icatch)) #laura svp
+      continue
+      #return
+     if var not in ['hb','lambda','thetas','thetar','ksat']:
+      md = gdal_tools.retrieve_metadata(file_out)
+      md['nodata'] = -9999.0
+      gdal_tools.write_raster(file_out,md,properties[var][layer]) 
+      #end block svp, laura
+
+ else:
+  badvals = ((properties['clay']==-9999.0) | (properties['sand']==-9999.0)) | ((properties['silt']==-9999.0))
+  for var in ['clay','sand','silt']:
+   file_out = '%s/%s_latlon.tif' % (workspace,var)
+   properties[var][badvals] = -9999.0
+   m2 = ( mask >= 0 ) & np.invert(badvals)
+   missing_ratio = 1.0 -np.sum(m2)/float(np.sum(mask >= 0))
+   if missing_ratio > 0.95 :
+    os.system('rm -rf %s' % file_out)
+    import sys
+    sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
+    return
+   md = gdal_tools.retrieve_metadata(file_out)
+   md['nodata'] = -9999.0
+   gdal_tools.write_raster(file_out,md,properties[var])
+
+ #Create the missing properties
+ if metadata['soil_database'] == 'conus-soil':
+  Create_Other_Soil_Properties_Conus_Soil(cdb,workspace,metadata,icatch,log,properties)
+ elif metadata['soil_database'] == 'polaris_texture':
+  Create_Other_Soil_Properties_Polaris_Texture(cdb,workspace,metadata,icatch,log,properties)
+ elif metadata['soil_database'] == 'soilgrids_texture':
+  Create_Other_Soil_Properties_Soilgrids_Texture(cdb,workspace,metadata,icatch,log,properties)
+ else:
+  if metadata['svp']==False:#laura
+   Create_Other_Soil_Properties(cdb,workspace,metadata,icatch,log,properties)
+  else:
+   Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,properties) #modified function svp, laura
+
+ for var in ['hb','lambda']:
+   os.system('rm -rf %s/%s_latlon.tif' % (workspace,var))
+ del properties
+ gc.collect()
+
+ return
+
+def Extract_Meteorology(cdb,workspace,metadata,icatch,log):
+
+ #Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ cminlon = md['minx']
+ cminlat = md['miny']
+ cmaxlon = md['maxx']
+ cmaxlat = md['maxy']
+
+ #Define time info
+ startdate = datetime.datetime.strptime(metadata['meteo']['startdate'],'%d%b%Y')
+ enddate = datetime.datetime.strptime(metadata['meteo']['enddate'],'%d%b%Y')
+  
+ vars = ['tair','spfh','psurf','wind','swdown','lwdown','precip']
+ shuffle(vars)
  
- return db
+ #Process each variable
+ for var in vars:
 
-def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
+  #Get parameters
+  var_name = metadata['meteo']['vars'][var]['name']
 
- #Determine the total distance that can be covered
- dt = 3600 #sec #This should be defined by the dt_routing parameter
- maxu = 2 #m/s #parameter
- maxd = maxu*dt #m
- ncmax = 250 #parameter
- dbout = {}
+  #Get metadata
+  file = metadata['meteo']['vars'][var]['file'] 
+  file = file.replace('$YEAR',str(startdate.year))
+  file = file.replace('$MTH','%02d' % startdate.month)
+  fp = nc.Dataset(file,'r')
+  lats = fp.variables['lat'][:]
+  lons = fp.variables['lon'][:]
+  undef = fp.variables[var_name]._FillValue
+  fp.close()
+  del fp
+  gc.collect()
+  
+  #Set up domain (with buffer)
+  iminlat = np.argmin(np.abs(lats - cminlat)) - 1
+  imaxlat = np.argmin(np.abs(lats - cmaxlat)) + 1
+  iminlon = np.argmin(np.abs(lons - cminlon)) - 1
+  imaxlon = np.argmin(np.abs(lons - cmaxlon)) + 1
+  if iminlat < 0:iminlat = 0
+  if imaxlat >= lats.size:imaxlat = lats.size-1
+  if iminlon < 0:iminlon = 0
+  if imaxlon >= lons.size:imaxlon = lons.size-1
+  minlat = lats[iminlat]
+  maxlat = lats[imaxlat]
+  minlon = lons[iminlon]
+  maxlon = lons[imaxlon]
+  resy = (lats[-1]-lats[0])/len(lats)
+  resx = (lons[-1]-lons[0])/len(lons)
+  res = (resx+resy)/2.
 
- #Iterate per catchment
- for cid in cids[rank::size]:
+  #Determine the box size
+  nlon = int(np.round((maxlon - minlon)/res + 1))
+  nlat = int(np.round((maxlat - minlat)/res + 1))
 
-  #Change to integer
-  cid = int(cid)
+  #Set the metadata
+  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'res':res}
+  md['undef'] = -9999.0
 
-  #Initialize dictionary where information will be held
-  db = {cid:{}}
+  #Read in data and create local copy
+  date = startdate
+  dt = relativedelta(months=1)
+  tstep = metadata['meteo']['tstep']
+  nts = int(((enddate-startdate).days+1)*(24/int(tstep.split('h')[0])))
+  data = np.zeros((nts,nlat,nlon))
+  while date <= enddate:
+
+   #Open access to file
+   file = metadata['meteo']['vars'][var]['file']
+   #print var, date.year
+   file = file.replace('$YEAR',str(date.year))
+   file = file.replace('$MTH','%02d' % date.month)  
+   fp = nc.Dataset(file,'r')
+   tic = time.time()
+   #Extract the data
+   if date == startdate:
+    tmp = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = 0
+    ft = it+tmp.shape[0]
+    data[it:ft,:,:]=tmp
+   else:
+    tmp = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = ft
+    ft = it+tmp.shape[0]
+    data[it:ft,:,:]=tmp
+   print(icatch,var,date,tmp.shape,time.time()-tic,flush=True)
+
+   fp.close()
+   #Update the time step
+   date = date + dt
+
+  del fp, tmp
+  gc.collect()
+  #Correct for undefined values
+  correction = {'precip':0.0,'tair':273.0,'wind':2.0,'spfh':0.01,'lwdown':200.0,'swdown':0.0,'psurf':90000}
+  data[data == undef] = correction[var]
+  data[data < -1000] = correction[var]
+  #Open the output file
+  #Update the units using the conversion factor
+  data = metadata['meteo']['vars'][var]['factor']*data
+  ncfile = '%s/%s.nc' % (workspace,var)
+  md['file']=ncfile
+  md['nt']=data.shape[0]
+  md['tinitial'] = datetime.datetime(startdate.year,startdate.month,1,0)
+  md['tinitial_all'] = md['tinitial']
+  md['tstep'] = tstep
+  md['vars'] = [var]
+  fp = Create_NETCDF_File(md)
+  
+  #Write the data
+  fp.variables[var][:] = data
+  #Close the file
+  fp.close()
+  del fp, data
+  gc.collect()
+
+  #Create a sample grid using the mask
+  mask_latlon_file = '%s/mask_latlon.tif' % (workspace)
+  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (res,res,minlon-res/2,minlat-res/2,maxlon+res/2,maxlat+res/2,cache,mask_latlon_file,file_coarse,log))
+
+  #Define the coarse and fine scale mapping
+  maskij = gdal_tools.read_raster(file_coarse)
+  metadata_maskij = gdal_tools.retrieve_metadata(file_coarse)
+  for i in np.arange(maskij.shape[0]):
+   maskij[i,:] = np.arange(i*maskij.shape[1],(i+1)*maskij.shape[1])
+  metadata_maskij['nodata'] = -9999.0
+  gdal_tools.write_raster(file_coarse,metadata_maskij,np.flipud(maskij))
+  del maskij
+  gc.collect()
+
+  #Get the parameters
+  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+  minx = md['minx']
+  miny = md['miny']
+  maxx = md['maxx']
+  maxy = md['maxy']
+  res = abs(md['resx'])
+  lproj = md['proj4']
+  
+  #Regrid and downscale
+  file_in = file_coarse
+  file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+ return
+
+def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
+
+ #Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ cminlon = md['minx']
+ cminlat = md['miny']
+ cmaxlon = md['maxx']
+ cmaxlat = md['maxy']
+
+ #Define time info
+ startdate = datetime.datetime.strptime(metadata['meteo']['startdate'],'%d%b%Y')
+ enddate = datetime.datetime.strptime(metadata['meteo']['enddate'],'%d%b%Y')
+  
+ vars = ['tair','spfh','psurf','wind','swdown','lwdown','precip']
+ shuffle(vars)
+ 
+ #Process each variable
+ for var in vars:
+
+  #Get parameters
+  var_name = metadata['meteo']['vars'][var]['name']
+
+  #Get metadata
+  file = metadata['meteo']['vars'][var]['file'] 
+  file = file.replace('$YEAR',str(startdate.year))
+  file = file.replace('$MTH','%02d' % startdate.month)
+  file = file.replace('$DAY','%02d' % startdate.day)
+  fp = nc.Dataset(file,'r')
+  lats = fp.variables['lat'][:]
+  lons = fp.variables['lon'][:]
+  undef = fp.variables[var_name]._FillValue
+  fp.close()
+  del fp
+  gc.collect()
+  
+  #Set up domain (with buffer)
+  iminlat = np.argmin(np.abs(lats - cminlat)) - 1
+  imaxlat = np.argmin(np.abs(lats - cmaxlat)) + 1
+  iminlon = np.argmin(np.abs(lons - cminlon)) - 1
+  imaxlon = np.argmin(np.abs(lons - cmaxlon)) + 1
+  if iminlat < 0:iminlat = 0
+  if imaxlat >= lats.size:imaxlat = lats.size-1
+  if iminlon < 0:iminlon = 0
+  if imaxlon >= lons.size:imaxlon = lons.size-1
+  minlat = lats[iminlat]
+  maxlat = lats[imaxlat]
+  minlon = lons[iminlon]
+  maxlon = lons[imaxlon]
+  resy = (lats[-1]-lats[0])/len(lats)
+  resx = (lons[-1]-lons[0])/len(lons)
+  res = (resx+resy)/2.
+
+  #Determine the box size
+  nlon = int(np.round((maxlon - minlon)/res + 1))
+  nlat = int(np.round((maxlat - minlat)/res + 1))
+  
+  #Set the metadata
+  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'res':res}
+  md['undef'] = -9999.0
+
+  #Read in data and create local copy
+  date = startdate
+  dt = relativedelta(days=1)
+  tstep = metadata['meteo']['tstep']
+  nts = int(((enddate-startdate).days+1)*(24/int(tstep.split('h')[0])))
+  data = np.zeros((nts,nlat,nlon))
+  while date <= enddate:
+
+   #Open access to file
+   file = metadata['meteo']['vars'][var]['file']
+   #print var, date.year
+   file = file.replace('$YEAR',str(date.year))
+   file = file.replace('$MTH','%02d' % date.month)  
+   file = file.replace('$DAY','%02d' % date.day)  
+   fp = nc.Dataset(file,'r')
+   #print file 
+   tic = time.time()
+   #Extract the data
+   if date == startdate:
+    tmp = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = 0
+    ft = it+tmp.shape[0]
+    data[it:ft,:,:]=tmp
+   else:
+    tmp = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = ft
+    ft = it+tmp.shape[0]
+    data[it:ft,:,:]=tmp
+   print(icatch,var,date,tmp.shape,time.time()-tic,flush=True)
+
+   fp.close()
+   #Update the time step
+   date = date + dt
+
+  del fp, tmp
+  gc.collect()
+  #Correct for undefined values
+  correction = {'precip':0.0,'tair':273.0,'wind':2.0,'spfh':0.01,'lwdown':200.0,'swdown':0.0,'psurf':90000}
+  data[data == undef] = correction[var]
+  data[data < -1000] = correction[var]
+  #Open the output file
+  #Update the units using the conversion factor
+  data = metadata['meteo']['vars'][var]['factor']*data
+  ncfile = '%s/%s.nc' % (workspace,var)
+  md['file']=ncfile
+  md['nt']=data.shape[0]
+  md['tinitial'] = datetime.datetime(startdate.year,startdate.month,1,0)
+  md['tinitial_all'] = md['tinitial']
+  md['tstep'] = tstep
+  md['vars'] = [var]
+  fp = Create_NETCDF_File(md)
+  
+  #Write the data
+  fp.variables[var][:] = data
+  #Close the file
+  fp.close()
+  del fp, data
+  gc.collect()
+
+  #Create a sample grid using the mask
+  mask_latlon_file = '%s/mask_latlon.tif' % (workspace)
+  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (res,res,minlon-res/2,minlat-res/2,maxlon+res/2,maxlat+res/2,cache,mask_latlon_file,file_coarse,log))
+
+  #Define the coarse and fine scale mapping
+  maskij = gdal_tools.read_raster(file_coarse)
+  metadata_maskij = gdal_tools.retrieve_metadata(file_coarse)
+  for i in np.arange(maskij.shape[0]):
+   maskij[i,:] = np.arange(i*maskij.shape[1],(i+1)*maskij.shape[1])
+  metadata_maskij['nodata'] = -9999.0
+  gdal_tools.write_raster(file_coarse,metadata_maskij,np.flipud(maskij))
+  del maskij
+  gc.collect()
+
+  #Get the parameters
+  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+  minx = md['minx']
+  miny = md['miny']
+  maxx = md['maxx']
+  maxy = md['maxy']
+  res = abs(md['resx'])
+  lproj = md['proj4']
+  
+  #Regrid and downscale
+  file_in = file_coarse
+  file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+ return
+
+
+def Extract_Water_Use(cdb,workspace,metadata,icatch,log):
+
+ #Get the parameters
+ md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+ cminlon = md['minx']
+ cminlat = md['miny']
+ cmaxlon = md['maxx']
+ cmaxlat = md['maxy']
+
+ #Define time info
+ startdate = datetime.datetime.strptime(metadata['water_use']['startdate'],'%d%b%Y')
+ enddate = datetime.datetime.strptime(metadata['water_use']['enddate'],'%d%b%Y')
+
+ vars = ['domestic','industrial','livestock']
+ shuffle(vars)
+
+ #Process each variable
+ for var in vars:
+
+  #Get parameters
+  var_name = metadata['water_use']['vars'][var]['name']
+
+  #Get metadata
+  file = metadata['water_use']['vars'][var]['file']
+  file = file.replace('$YEAR',str(startdate.year))
+  file = file.replace('$MTH','%02d' % startdate.month)
+  fp = nc.Dataset(file,'r')
+  lats = fp.variables['latitude'][:]
+  lons = fp.variables['longitude'][:]
+  times = fp.variables['time']
+  times_date = nc.num2date(times[:],units=times.units,calendar=times.calendar)
+  undef = fp.variables[var_name]._FillValue
+  fp.close()
+  del fp
+  gc.collect()
+
+  flip_lat_flag = False
+  if lats[-1] < lats[0] : # Inverte as latitudes
+    lats = np.sort(lats)
+    flip_lat_flag = True
+    print("Water Use Warning: Inversing Latitude...",flush=True)
+
+  flip_lon_flag = False
+  if lons[-1] < lons[0] : # Inverte as latitudes
+    lons = np.sort(lons)
+    flip_lon_flag = True
+    print("Water Use Warning: Inversing Longitude...",flush=True)
+  
+  #Set up domain (with buffer)
+  iminlat = np.argmin(np.abs(lats - cminlat)) - 1
+  imaxlat = np.argmin(np.abs(lats - cmaxlat)) + 1
+  iminlon = np.argmin(np.abs(lons - cminlon)) - 1
+  imaxlon = np.argmin(np.abs(lons - cmaxlon)) + 1
+  if iminlat < 0: iminlat = 0
+  if imaxlat >= lats.size: imaxlat = lats.size-1
+  if iminlon < 0: iminlon = 0
+  if imaxlon >= lons.size: imaxlon = lons.size-1
+  minlat = lats[iminlat]
+  maxlat = lats[imaxlat]
+  minlon = lons[iminlon]
+  maxlon = lons[imaxlon]
+  res = (lats[-1]-lats[0])/len(lats)
+
+  #Determine the box size
+  nlon = int(np.round((maxlon - minlon)/res +1 ))
+  nlat = int(np.round((maxlat - minlat)/res +1 ))
+   
+  #Determine date range
+  m = (times_date >= startdate) & (times_date <= enddate)
+  idate = np.where(m==True)[0][0]
+  fdate = np.where(m==True)[0][-1]
+  
+  #Set the metadata
+  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'res':res}
+  md['undef'] = -9999.0
+
+  #Read in data and create local copy
+  date = startdate
+  dt = relativedelta(months=1)
+  tstep = metadata['water_use']['tstep']
+  tstep_val = {'3h':3,'24h':24,'daily':24,'day':24,'1h':1}
+  nts = int(((enddate-startdate).days+1)*(24/tstep_val[tstep]))
+  data = np.zeros((nts,nlat,nlon))
+  while date <= enddate:
+
+   #Open access to file
+   file = metadata['water_use']['vars'][var]['file']
+   file = file.replace('$YEAR',str(date.year))
+   file = file.replace('$MTH','%02d' % date.month) 
+   fp = nc.Dataset(file,'r')
+
+   #Extract the data
+   if date == startdate:
+    idata = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = 0
+    ft = it+idata.shape[0]
+    data[it:ft,:,:] = idata
     
-  #create enhanced topology by adding outlet information (channel id and cid)
-  db[cid] = read_channel_database(cid,edir)
+   else:
+    idata = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
+    it = ft
+    ft = it+idata.shape[0]
+    data[it:ft,:,:] = idata
 
-  #Initialize downstream channel array (channel id, cid)
-  downstream_channels = -9999*np.ones((db[cid]['topology_enhanced'].shape[0],2,ncmax),dtype=np.int32)
-                                   
-  #Iterate through each channel
-  for ic in range(db[cid]['topology_enhanced'].shape[0]):
-   d = maxd
-   cid0 = cid
-   ic0 = ic
-   count = -1
-   while (d > 0) & (count < ncmax):
+   fp.close()
+
+   #Update the time step
+   date = date + dt
+
+  del fp, idata
+  gc.collect()
+  #Correct for undefined values
+  correction = {'industrial':0.0,'domestic':0.0,'livestock':0.0}
+  data[data == undef] = correction[var]
+ 
+  #Open the output file
+  #Update the units using the conversion factor
+  data = metadata['water_use']['vars'][var]['factor']*data
+  ncfile = '%s/%s.nc' % (workspace,var)
+  nt = data.shape[0]
+  md['file']=ncfile
+  md['nt']=data.shape[0]
+  md['tinitial'] = datetime.datetime(startdate.year,startdate.month,1,0)
+  md['tinitial_all'] = md['tinitial']
+  md['tstep'] = tstep
+  md['vars'] = [var]
+  fp = Create_NETCDF_File(md)
+  
+  #Write the data
+  fp.variables[var][:] = data
+  #Close the file
+  fp.close()
+  #print data.shape
+  del fp, data
+  gc.collect()
+
+  #Create a sample grid using the mask
+  mask_latlon_file = '%s/mask_latlon.tif' % (workspace)
+  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (res,res,minlon-res/2,minlat-res/2,maxlon+res/2,maxlat+res/2,cache,mask_latlon_file,file_coarse,log))
+  
+  #Define the coarse and fine scale mapping
+  maskij = gdal_tools.read_raster(file_coarse)
+  metadata_maskij = gdal_tools.retrieve_metadata(file_coarse)
+  for i in np.arange(maskij.shape[0]):
+   maskij[i,:] = np.arange(i*maskij.shape[1],(i+1)*maskij.shape[1])
+  metadata_maskij['nodata'] = -9999.0
+  gdal_tools.write_raster(file_coarse,metadata_maskij,np.flipud(maskij))
+  #print np.flipud(maskij).shape
+  del maskij
+  gc.collect()
+
+  #Get the parameters
+  #md = gdal_tools.retrieve_metadata('%s/mask_ea.tif' % workspace)
+  #minx = md['minx']
+  #miny = md['miny']
+  #maxx = md['maxx']
+  #maxy = md['maxy']
+  #res = abs(md['resx'])
+  #lproj = md['proj4']
+
+  #Regrid and downscale
+  #file_in = file_coarse
+  #file_out = '%s/%s_ea_fine.tif' % (workspace,var)
+  #cache = int(psutil.virtual_memory().available*0.7/mb)
+  #os.system('gdalwarp -t_srs \'%s\'  -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+  #Get the parameters
+  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
+  minx = md['minx']
+  miny = md['miny']
+  maxx = md['maxx']
+  maxy = md['maxy']
+  res = abs(md['resx'])
+  lproj = md['proj4']
+
+  #Regrid and downscale
+  file_in = file_coarse
+  file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+ return
+
+def prepare_input_data(cdir,cdb,metadata,rank,icatch):
+ 
+ #Create the workspace
+ #workspace = '%s/workspace' % cdir
+ workspace = cdir
+ #os.system('mkdir -p %s' % workspace)
+
+ #Define the log
+ log = '%s/log.txt' % workspace
+
+ #Create the mask
+ print(rank,'Preparing catchment mask',time.ctime(),icatch,flush=True)
+ Create_Mask(cdb,workspace,metadata,icatch,log)
+
+ #Create the administrative boundaries map
+ print(rank,'Preparing administrative boundaries mask',time.ctime(),icatch,flush=True)
+ Create_Administrative_Boundaries(cdb,workspace,metadata,icatch,log)
+
+ #Terrain analysis
+ print(rank,'Preparing dem products',time.ctime(),icatch,flush=True)
+ Terrain_Analysis(cdb,workspace,metadata,icatch,log)
+ if os.path.isfile('%s/dem_latlon.tif' % workspace) == False: return
+
+ #Correct the mask
+ print(rank,'Correcting catchment mask',time.ctime(),icatch,flush=True)
+ Correct_Mask(cdb,workspace,metadata,icatch,log)
+   
+ #Create land cover product
+ print(rank,'Preparing land cover data',time.ctime(),icatch,flush=True)
+ Extract_Land_Cover(cdb,workspace,metadata,icatch,log)
+ 
+ #Create irrigation map covariate for the clustering 
+ #print(rank,'Preparing irrigation map and crop calendar',time.ctime(),icatch,flush=True)
+ #Extract_Irrigation_Map(cdb,workspace,metadata,icatch,log)
+  
+ #Create soil product
+ print(rank,'Preparing the soil data',time.ctime(),icatch,flush=True)
+ Extract_Soils(cdb,workspace,metadata,icatch,log)
+
+ #Create depth to bedrock product
+ print(rank,'Preparing the depth to the bedrock',time.ctime(),icatch,flush=True)
+ Extract_Dbedrock(cdb,workspace,metadata,icatch,log)
+
+ #Create meteorology product
+ print(rank,'Preparing the meteorological data',time.ctime(),icatch,flush=True)
+ #Extract_Meteorology(cdb,workspace,metadata,icatch,log)
+ Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log)
+
+ return
+
+def Create_NETCDF_File(md):
+
+ nlat = md['nlat']
+ nlon = md['nlon']
+ res = md['res']
+ minlon = md['minlon'] + res/2
+ minlat = md['minlat'] + res/2
+ undef = md['undef']
+ nt = md['nt']
+ tstep = md['tstep']
+ tinitial = md['tinitial']
+ tinitial_all = md['tinitial_all']
+ vars = md['vars']
+ if 'vars_info' in md:vars_info = md['vars_info']
+ else:vars_info = vars
+ file = md['file']
+
+ #Determine the initial it
+ it = int((tinitial-tinitial_all).total_seconds()/3600.0)
+ if nt > 0:t = np.arange(it,nt+it)
+
+ #Prepare the netcdf file
+ #Create file
+ f = nc.Dataset(file, 'w')
+
+ #Define dimensions
+ f.createDimension('lon',nlon)
+ f.createDimension('lat',nlat)
+ if nt > 0:f.createDimension('t',None)#len(t))
+
+ #Longitude
+ f.createVariable('lon','d',('lon',))
+ f.variables['lon'][:] = np.linspace(minlon,minlon+res*(nlon-1),nlon)
+ f.variables['lon'].units = 'degrees_east'
+ f.variables['lon'].long_name = 'Longitude'
+ f.variables['lon'].res = res
+
+ #Latitude
+ f.createVariable('lat','d',('lat',))
+ f.variables['lat'][:] = np.linspace(minlat,minlat+res*(nlat-1),nlat)
+ f.variables['lat'].units = 'degrees_north'
+ f.variables['lat'].long_name = 'Latitude'
+ f.variables['lat'].res = res
+
+ #Time
+ if nt > 0:
+  times = f.createVariable('t','d',('t',))
+  f.variables['t'][:] = t
+  f.variables['t'].units = '%s since %04d-%02d-%02d %02d:00:00.0' % (tstep,tinitial_all.year,tinitial_all.month,tinitial_all.day,tinitial_all.hour)
+  f.variables['t'].long_name = 'Time'
+
+ #Data
+ i = 0
+ for var in vars:
+  if nt > 0:f.createVariable(var,'f',('t','lat','lon'),fill_value=undef)#,zlib=True)
+  else: f.createVariable(var,'f',('lat','lon'),fill_value=undef)#,zlib=True)
+  f.variables[var].long_name = vars_info[i]
+  i = i + 1
+
+ return f
+
+def flip(m, axis):
+    if not hasattr(m, 'ndim'):
+        m = asarray(m)
+    indexer = [slice(None)] * m.ndim
+    try:
+        indexer[axis] = slice(None, None, -1)
+    except IndexError:
+        raise ValueError("axis=%i is invalid for the %i-dimensional input array"
+                         % (axis, m.ndim))
+    return m[tuple(indexer)]
+
+def correct_domain_decomposition(comm,metadata):
+
+ size = comm.Get_size()
+ rank = comm.Get_rank()
+
+ #Read in the catchment summary database
+ pck_file = '%s/cids/domain_database.pck' % metadata['output_data']
+ cdb = pickle.load(open(pck_file,'rb'))
+ crange = range(len(cdb))
+ odb = {}
+ for ic in crange[rank::size]:
+
+  print("Rank:%d, Catchment:%s - Initializing" % (rank,ic),flush=True)
+
+  cid = cdb[ic]['cid']
+
+  #Define the catchment directory
+  cdir = '%s/cids/%d' % (metadata['output_data'],cid)
+  workspace = cdir
+
+  #Define the log
+  log = '%s/log.txt' % cdir
+
+  #Prepare the workspace for the sub-domain
+  os.system('rm -rf %s' % cdir)
+  os.system('mkdir -p %s' % cdir)
+  #Create the mask
+  print(rank,'Preparing catchment mask',time.ctime(),cid,flush=True)
+  Create_Mask(cdb[ic],cdir,metadata,cid,log)
+
+  print(rank,'Preparing administrative boundaries mask',time.ctime(),cid,flush=True)
+  Create_Administrative_Boundaries(cdb[ic],workspace,metadata,cid,log)
+
+  #Terrain analysis
+  print(rank,'Preparing dem products',time.ctime(),cid,flush=True)
+  Terrain_Analysis(cdb[ic],cdir,metadata,cid,log)
+
+  #Correct the mask
+  print(rank,'Correcting catchment mask',time.ctime(),cid,flush=True)
+  Correct_Mask(cdb[ic],cdir,metadata,cid,log)
+
+  #Create land cover product
+  print(rank,'Preparing land cover data',time.ctime(),cid,flush=True)
+  Extract_Land_Cover(cdb[ic],cdir,metadata,cid,log)
+
+  #Create soil product
+  print(rank,'Preparing the soil data',time.ctime(),cid,flush=True)
+  Extract_Soils(cdb[ic],cdir,metadata,cid,log)
+
+  #Create meteo file
+  file_in = '/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/tair.tif'
+  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % cdir)
+  minx = md['minx']
+  miny = md['miny']
+  maxx = md['maxx']
+  maxy = md['maxy']
+  res = abs(md['resx'])
+  lproj = md['proj4']
+  file_out = '%s/meteo_latlon.tif' % cdir
+  cache = int(psutil.virtual_memory().available*0.7/mb)
+  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+
+  #Determine number of pixels
+  file = '%s/mask_latlon.tif' % workspace
+  mask = rasterio.open(file).read(1)
+  if metadata['svp']==False:file = '%s/sand/sand_latlon.tif' % workspace
+  else:file = '%s/sand/sand_latlon_2.5cm.tif' % workspace
+  sand = rasterio.open(file).read(1)
+  file = '%s/meteo_latlon.tif' % workspace
+  meteo = rasterio.open(file).read(1)
+  file = '%s/lc_latlon.tif' % workspace
+  lc = rasterio.open(file).read(1)
+  npx_mask = np.sum(mask == cid)
+  npx_sand = np.sum(sand != -9999)
+  npx_meteo = np.sum(meteo != -9999)
+  npx_lc = np.sum(lc != -9999)
+  odb[cid] = min(npx_mask,npx_sand,npx_meteo,npx_lc)
+  print(npx_mask,npx_sand,npx_meteo,npx_lc,flush=True)
+
+ #Broadcast and collect
+ if rank == 0:
+   print(rank,'Cleaning up cid map',time.ctime(),flush=True)
+   for i in range(1,size):
+    odb2 = comm.recv(source=i, tag=11)
+    for key in odb2:odb[key] = odb2[key]
+ else:
+    comm.send(odb,dest=0, tag=11)
+
+ #Create new shapefile and summary
+ if rank == 0:
+  skeys = np.array(sorted(odb.keys()))
+  count = 1
+  odb2 = collections.OrderedDict()
+  for key in skeys:
+   if odb[key] > 250:
+    odb2[key] = count
     count += 1
-    ic1 = db[cid0]['topology_enhanced'][ic0,0]
-    cid1 = db[cid0]['topology_enhanced'][ic0,1]
-    if ic1 == -1:
-     downstream_channels[ic,0,count] = -1
-     downstream_channels[ic,1,count] = -1
-     break
-    if cid1 not in db:
-     db[cid1]=read_channel_database(cid1,edir)
-    #save information
-    downstream_channels[ic,0,count] = ic1
-    downstream_channels[ic,1,count] = cid1
-    #subtract distance
-    d = d - db[cid1]['length'][ic1]
-    #update ids
-    cid0 = cid1
-    ic0 = ic1
-  dbout[cid] = np.copy(downstream_channels)
-
- comm.Barrier()
-
- for cid in cids[rank::size]:
-  #Add downstream_channels array to input_file.nc
-  file = '%s/%s/input_file.nc' % (edir,cid)
-  fp = h5py.File(file,'a')
-  if 'downstream_channels' in fp['stream_network']:del fp['stream_network']['downstream_channels']
-  fp['stream_network']['downstream_channels'] = dbout[cid][:]
+   
+  '''odb2 = {}
+  count = 1
+  for key in odb:
+   #if odb[key] > 0:
+   if odb[key] > 250:#Minimum number of valid pixels in the cid of the domain to count
+    odb2[key] = count
+    count += 1'''
+    
+  odb = odb2
+  dfile = '%s/shp/domain.shp' % metadata['output_data']
+  dfile2 = '%s/shp/domain2.shp' % metadata['output_data']
+  fp = fiona.open(dfile,'r')
+  fp2 = fiona.open(dfile2,'w',crs=fp.crs,driver='ESRI Shapefile',schema=fp.schema)
+  for poly in fp.values():
+   ID = poly['properties']['ID']
+   if ID in odb:
+    poly['id'] = odb[ID]-1
+    poly['properties']['ID'] = odb[ID]
+    fp2.write(poly)
   fp.close()
+  fp2.close()
+  mdir = metadata['output_data']
+  gdir = '%s/general' % metadata['dir']
+  os.system('mv %s/shp/domain2.shp %s/shp/domain.shp' % (mdir,gdir))
+  os.system('mv %s/shp/domain2.shx %s/shp/domain.shx' % (mdir,gdir))
+  os.system('mv %s/shp/domain2.prj %s/shp/domain.prj' % (mdir,gdir))
+  os.system('mv %s/shp/domain2.cpg %s/shp/domain.cpg' % (mdir,gdir))
+  os.system('mv %s/shp/domain2.dbf %s/shp/domain.dbf' % (mdir,gdir))
+  #perform new summary
+  summarize_domain_decompisition(metadata)
 
- return
-
-def Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size):
-
- core_cids = np.array(cids)[rank::size]
- debug_level = 0
-
- #Prepare data for cids
+ #Wait until rank 0 completes
  comm.Barrier()
- for cid in core_cids:
-  if debug_level >= 0:print(cid,"Assembling the input/output",flush=True)
-  db = prepare_data(rank,cid,edir,debug_level,workspace,cids)
-  cdir = '%s/%d' % (edir,cid)
-  pickle.dump(db,open('%s/octopy.pck' % (cdir,),'wb'),pickle.HIGHEST_PROTOCOL)
+
+ #Remove all cdir
+ for ic in crange[rank::size]:
+
+  cid = cdb[ic]['cid']
+
+  #Define the catchment directory
+  cdir = '%s/cids/%d' % (metadata['output_data'],cid)
+  os.system('rm -rf %s' % cdir)
+
+ comm.Barrier()
 
  return
 
-def prepare_data(rank,cid,edir,debug_level,workspace,cids):
+def Create_Administrative_Boundaries(cdb,workspace,metadata,icatch,log):
 
- #Read in the stream network information
- if debug_level >= 1:print(rank,cid,"Reading in the stream network information",flush=True)
- file = '%s/%d/input_file.nc' % (edir,cid)
- fp = nc.Dataset(file)
- nhband = np.unique(fp['parameters']['hband'][:]).size
- grp = fp['stream_network']
- dbc = {}
- for var in grp.variables:
-  dbc[var] = grp[var][:]
- fp.close()
+ #Define parameters
+ shp_in = '/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/USCENSUS/cb_2018_us_state_500k.shp'#'%s/shp' % metadata['output_data']
+ shp_out = '%s/admin_shp' % workspace
+ ci = cdb['cid']
+ bbox =  cdb['bbox']
+ res_latlon = metadata['res_latlon']
+ 
+ #Define the files
+ admin_latlon_file = '%s/admin_latlon.tif' % workspace
+ tmp_file = '%s/tmp.tif' % workspace
+ 
+ #Rasterize the area
+ buff = 0.1
+ 
+ print(' buffer size:',buff,' icatch:',ci,flush=True) 
+ minx = bbox['minlon']-buff
+ miny = bbox['minlat']-buff
+ maxx = bbox['maxlon']+buff
+ maxy = bbox['maxlat']+buff
+ cache = int(psutil.virtual_memory().available*0.7/mb)
 
- #Read in reach/height band area
- if debug_level >= 1:print(rank,cid,"Reading in reach/height band relationship",flush=True)
- file = '%s/%d/routing_info.pck' % (edir,cid)
- db = pickle.load(open(file,'rb'))['reach_hband_area']
+ #Correct coordinates to avoid reprojections
+ #Fix coordinates to the dem vrt to avoid inconsistiences
+ md = gdal_tools.retrieve_metadata(metadata['dem'])
+ res_latlon = np.abs(md['resx'])
+ minx = md['minx'] + np.floor((minx-md['minx'])/res_latlon)*res_latlon
+ miny = md['miny'] + np.floor((miny-md['miny'])/res_latlon)*res_latlon#np.floor(miny/res_latlon)*res_latlon
+ maxx = md['minx'] + np.ceil((maxx-md['minx'])/res_latlon)*res_latlon
+ maxy = md['miny'] + np.ceil((maxy-md['miny'])/res_latlon)*res_latlon
 
- #Read in the reach/hand database
- if debug_level >= 1:print(rank,cid,"Read reach/hand database for current cell",flush=True)
- file = '%s/%d/routing_info.pck' % (edir,cid)
- #file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,cid)
- hdb = pickle.load(open(file,'rb'))['reach_cross_section']
+ #Rasterize
+ os.system("gdal_rasterize -at -ot Float64 --config GDAL_CACHEMAX %i -a_nodata -9999 -init -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f -burn 1 %s %s >> %s 2>&1" % (cache, res_latlon,res_latlon,minx,miny,maxx,maxy,shp_in,admin_latlon_file,log))
 
- #Read in the unit hydrograph per height band database
- if debug_level >= 1:print(rank,cid,"Read unit hydrograph per height band database",flush=True)
- file = '%s/%d/routing_info.pck' % (edir,cid)
- #file = '%s/input_data/domain/%d/routing_info.pck' % (rdir,cid)
- uhs = pickle.load(open(file,'rb'))['uh_per_hband']
+ #del data
+ gc.collect()
 
- #Create a reach2hband matrix that describes their relationship
- if debug_level >= 1:print(rank,cid,"Creating reach/hband matrix",flush=True)
- #HERE -> Need a nhband parameter
- #Compute hru average per height band -> Feed into routing (Need the mapping of hru to hband)
- #Apply hband inundation to all hru
- #reach2hband = np.zeros((np.sum(odbc[cid]['cid']==cid),nhband))
- reach2hband = np.zeros((dbc['topology'].size,nhband))
- for reach in db:
-  for hband in db[reach]:
-   tmp = db[reach][hband]
-   if tmp == 0:print(reach,hband,db[reach][hband])
-   reach2hband[reach-1,hband] = db[reach][hband]
- reach2hband = sparse.csr_matrix(reach2hband)
+ return
 
- #Initialize arrays
- c_length = dbc['length'][:]
- c_slope = dbc['slope'][:]
- c_width = dbc['width'][:]
- c_bankfull = dbc['bankfull'][:]
- c_n = dbc['manning_channel'][:]
- fp_n = dbc['manning_floodplain'][:]
- Ainit = np.zeros(c_length.size)
- Ainit[:] = 10**-5#0.1
- A0 = np.copy(Ainit)
- A1 = np.copy(Ainit)
- u0 = np.zeros(Ainit.size)
- bcs = np.zeros(c_length.size)
- Qinit = np.zeros(c_length.size)
- Q0 = Qinit[:]
- qin = np.zeros(c_length.size)
- qout = np.zeros(c_length.size)
- dA = np.zeros(c_length.size)
 
- #Initialize diagnostics
- tsolve = 0.0
- tcount = 0.0
-
- #Assemble database for simulation stage
- db = {
-       'u0':copy.deepcopy(u0),
-       'A0':copy.deepcopy(A0),
-       'qin':copy.deepcopy(qin),
-       'qout':copy.deepcopy(qout),
-       'bcs':copy.deepcopy(bcs),
-       'hdb':copy.deepcopy(hdb),
-       'c_slope':copy.deepcopy(c_slope),
-       'c_n':copy.deepcopy(c_n),
-       'fp_n':copy.deepcopy(fp_n),
-       'c_length':copy.deepcopy(c_length),
-       'c_width':copy.deepcopy(c_width),
-       'c_bankfull':copy.deepcopy(c_bankfull),
-       'tsolve':tsolve,'tcount':tcount,
-       'Q0':copy.deepcopy(Q0),
-       'u0':copy.deepcopy(u0),
-       'dA':copy.deepcopy(dA),
-       'uhs':copy.deepcopy(uhs['data']),
-       'uh_travel_time':copy.deepcopy(uhs['bins']),
-       'reach2hband':copy.deepcopy(reach2hband)
-      }
-
- return db
