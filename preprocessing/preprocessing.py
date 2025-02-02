@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import glob
 sys.stdout.flush()
+import json
 
 import geospatialtools.pedotransfer as pedotransfer
 import geospatialtools.gdal_tools as gdal_tools
@@ -37,13 +38,39 @@ def driver(comm,metadata_file):
  rank = comm.Get_rank()
  #Read in the metadata
  metadata = json.load(open(metadata_file))
+ #Define files
+ metadata['output_data'] = '%s/data' % metadata['dir']
+ metadata['dem'] = '%s/%s' % (metadata['elevation']['dir'],metadata['elevation']['vars']['dem'])
+ metadata['acc'] = '%s/%s' % (metadata['elevation']['dir'],metadata['elevation']['vars']['acc'])
+ metadata['fdir'] = '%s/%s' % (metadata['elevation']['dir'],metadata['elevation']['vars']['fdir'])
+ metadata['svp'] = True
  #Create the domain decomposition
  if rank == 0:
-  preprocessing.domain_decomposition(metadata)
+  domain_decomposition(metadata)
  comm.Barrier()
  #Correct and finalize the domain decomposition
- preprocessing.correct_domain_decomposition(pre_metadata)
+ correct_domain_decomposition(comm,metadata)
  comm.Barrier()
+
+ #Read in the catchment summary database
+ pck_file = '%s/cids/domain_database.pck' % metadata['output_data']
+ cdb = pickle.load(open(pck_file,'rb'))
+ crange = range(len(cdb))
+ 
+ for ic in crange[rank::size]:
+
+  print("Rank:%d, Catchment:%s - Initializing" % (rank,ic),flush=True)
+
+  cid = cdb[ic]['cid']
+  #cid = 1
+
+  #Define the catchment directory
+  cdir = '%s/cids/%d' % (metadata['output_data'],cid)
+
+  #Prepare the workspace for the sub-domain
+  os.system('rm -rf %s' % cdir)
+  os.system('mkdir -p %s' % cdir)
+  prepare_input_data(cdir,cdb[ic],metadata,rank,ic)
 
  return
 
@@ -481,7 +508,7 @@ def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,propertie
  
   output  = {}
 
-  if metadata['soil_database'] == 'soilgrids':
+  if metadata['soil']['dataset'] == 'soilgrids':
    #Theta saturated
    output['thetas'] = pedotransfer.ThetaS_Saxton2006(S/100,C/100,OM/100)
 
@@ -503,7 +530,7 @@ def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,propertie
    #Theta1500
    output['theta1500'] = pedotransfer.Theta_1500_Saxton2006(S/100,C/100,OM/100)
 
-  if metadata['soil_database'] == 'polaris':
+  if metadata['soil']['dataset'] == 'polaris':
     #Theta saturated
     output['thetas']={}
     output['thetas'][layer] = properties['thetas'][layer]
@@ -703,14 +730,15 @@ def domain_decomposition(md):
 def create_domain_shapefile_gfdl_gridspec(metadata):
  
  #Extract metadata info
- tgs = metadata['domain_decomposition']['gs_template']
- tlm = metadata['domain_decomposition']['lm_template']
+ gridspec_dir = metadata['domain_decomposition']['gridspec_dir']
+ tgs = '%s/%s' % (gridspec_dir,metadata['domain_decomposition']['gridspec_name'])
+ tlm = '%s/%s' % (gridspec_dir,metadata['domain_decomposition']['landmask_name'])
  ntiles = metadata['domain_decomposition']['ntiles']
- sdir = '%s/general/shp' % metadata['dir']
+ sdir = '%s/data/shp' % metadata['dir']
  os.system('mkdir -p %s' % sdir)
  #Create the shapefile
  driver = ogr.GetDriverByName("ESRI Shapefile")
- ds = driver.CreateDataSource("%s/grid.shp" % sdir)
+ ds = driver.CreateDataSource("%s/domain.shp" % sdir)
  srs = osr.SpatialReference()
  srs.ImportFromEPSG(4326)
  layer = ds.CreateLayer("grid", srs, ogr.wkbPolygon)
@@ -726,7 +754,6 @@ def create_domain_shapefile_gfdl_gridspec(metadata):
   #Extract xs,ys,and lms
   gs_tile = tgs.replace('$tid',str(tile))
   lm_tile = tlm.replace('$tid',str(tile))
-  print(gs_tile)
   fp  = nc.Dataset(gs_tile)
   fplm = nc.Dataset(lm_tile)
   #Extract lats/lons
@@ -827,12 +854,12 @@ def compute_info(xs,ys,metadata,count,cdir,imin,imax,jmin,jmax,lm,icell,jcell,la
 def create_domain_shapefile(md):
 
  #Extract parameters
- minlat = md['boundaries']['minlat']
- maxlat = md['boundaries']['maxlat']
- minlon = md['boundaries']['minlon']
- maxlon = md['boundaries']['maxlon']
+ minlat = md['domain_decomposition']['boundaries']['minlat']
+ maxlat = md['domain_decomposition']['boundaries']['maxlat']
+ minlon = md['domain_decomposition']['boundaries']['minlon']
+ maxlon = md['domain_decomposition']['boundaries']['maxlon']
  res = md['domain_decomposition']['res']
- sdir = '%s/general/shp' % md['dir']
+ sdir = '%s/data/shp' % md['dir']
  os.system('mkdir -p %s' % sdir)
 
  #Create the shapefile
@@ -915,7 +942,8 @@ def summarize_domain_decompisition(md):
  #Extract the region of interest
  #os.system('rm -rf %s' % file_out)
  #os.system('ogr2ogr -spat %.16f %.16f %.16f %.16f %s %s' % (minlon,minlat,maxlon,maxlat,file_out,file_in))
- os.system('cp %s %s' % (file_in,file_out))
+ #os.system('cp %s %s' % (file_in,file_out))
+ file_in = file_out
 
  #Open access to the database
  from osgeo import ogr
@@ -1207,7 +1235,8 @@ def Extract_Land_Cover(cdb,workspace,metadata,icatch,log):
  res = abs(md['resx'])
  lc_region = metadata['landcover']['file']
  lproj = md['proj4']
- mapping = eval(metadata['landcover']['mapping'])
+ #mapping = eval(metadata['landcover']['mapping'])
+ mapping = {0:-9999.0,11:17,12:15,21:10,22:13,23:13,24:13,31:16,41:4,42:2,43:5,45:5,46:5,51:7,52:6,71:10,72:19,73:19,74:19,81:12,82:12,90:11,95:11,-9999.0:-9999.0}
 
  #1. Prepare Land cover data
  lc_latlon_file = '%s/lc_latlon.tif' % workspace
@@ -1247,83 +1276,22 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
  res = abs(md['resx'])
  lproj = md['proj4']
 
- #CONUS-soil
- if metadata['soil_database'] == 'conus-soil':
-  vars = ['clay','sand','silt','texture_class']
-  shuffle(vars)
-  properties = {}
-  for var in vars:
-   file_in = metadata['soil'][var]
-   file_out = '%s/%s_latlon.tif' % (workspace,var)
-
-   cache = int(psutil.virtual_memory().available*0.7/mb)
-   os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
-
-   #Get the data
-   properties[var] = gdal_tools.read_raster(file_out)
-
- # SOILGRIDS
- if (metadata['soil_database'] == 'soilgrids') | (metadata['soil_database'] == 'soilgrids_texture'):
-  print(metadata['soil_database'])
-  vars = ['clay','sand','silt','om']
-  shuffle(vars)
-  properties = {}
-  for var in vars:
-   file_in = metadata['soil'][var]
-   file_out = '%s/%s_latlon.tif' % (workspace,var)
-   cache = int(psutil.virtual_memory().available*0.7/mb)
-
-   os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
-
-   #Get the data
-   properties[var] = gdal_tools.read_raster(file_out)
-   if var in ['clay','sand','silt']:
-    if metadata['soil_database'] == 'soilgrids': properties[var][(properties[var] == 255)] = -9999.0
-   if var in ['om']:
-    badvals = (properties['om'] == -9999.0)
-    properties['om'] = 100*(properties['om']/1000.0)  # g/kg -> g/g -> %w
-    # soigrids uses organic carbon, which is OC = 0.58*OM
-    properties['om'] = 1.724*properties['om']
-    properties['om'][badvals] = -9999.0
-  
  # POLARIS
- if (metadata['soil_database'] == 'polaris') | (metadata['soil_database'] == 'polaris_texture'):
+ if (metadata['soil']['dataset'] == 'polaris'):
   vars = ['clay','sand','silt','om','hb','thetar','thetas','ksat','lambda']
-  #shuffle(vars)
-  if metadata['svp']==False: #laura
-   properties = {}
-   for var in vars:
-    if var not in ['thetar','thetas']:
-     file_in = metadata['soil'][var]+'%s_mean_0_5.vrt'%var
-    else:
-     if var=='thetar':
-      file_in = metadata['soil'][var]+'theta_r_mean_0_5.vrt'
-     elif var=='thetas':
-      file_in = metadata['soil'][var]+'theta_s_mean_0_5.vrt'
-    if os.path.exists('%s/%s'%(workspace,var))==False: #laura
-     os.system('mkdir %s/%s' %(workspace,var)) #laura
-    file_out = '%s/%s/%s_latlon.tif' % (workspace,var,var) #laura
-    cache = int(psutil.virtual_memory().available*0.7/mb)
-   
-    os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
-  
-    #Get the data 
-    properties[var] = gdal_tools.read_raster(file_out)
-    if var in ['om','ksat','hb']:
-     badvals = (properties[var] == -9999.0)
-     properties[var] = np.power(10.,properties[var]) 
-     properties[var][badvals] = -9999.0
 
-  else: #laura, svp
+  if metadata['svp']==True:  #laura, svp
    properties = {}
    for var in vars:
-    dir_in=metadata['soil'][var]
+    #dir_in=metadata['soil'][var]
+    dir_in = metadata['soil']['directory']
     if var in ['thetas','thetar']:
      layers=glob.glob(dir_in+'theta_%s_mean*' %var.split('a')[1])
     else:
      layers=glob.glob(dir_in+'%s_mean*' %var)
     i=0
     for lay in layers:
+     #if '30_60' not in lay:continue
      file_in=lay
      avrgd=(float(lay.split('mean_')[1].split('.vrt')[0].split('_')[0])+float(lay.split('mean_')[1].split('.vrt')[0].split('_')[1]))/2
      if i==0:
@@ -1342,24 +1310,8 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
 
  # Write out the data
  mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
- if metadata['soil_database'] != 'conus-soil':
-  if metadata['svp']==False:
-   badvals = ((properties['clay']==-9999.0) | (properties['sand']==-9999.0)) | ((properties['silt']==-9999.0) | (properties['om']==-9999.0)) 
-   for var in ['clay','sand','silt','om']:
-    file_out = '%s/%s/%s_latlon.tif' % (workspace,var,var) #laura
-    properties[var][badvals] = -9999.0 
-    m2 = ( mask >= 0 ) & np.invert(badvals)
-    missing_ratio = 1.0 -np.sum(m2)/float(np.sum(mask >= 0))
-    if missing_ratio > 0.95 : 
-     os.system('rm -rf %s' % file_out)
-     import sys
-     sys.stderr.write('Error_preprocessing: %s_full_of_nans %s\n' % (var,icatch))
-     return
-    if var not in ['hb','lambda','thetas','thetar','ksat']:
-     md = gdal_tools.retrieve_metadata(file_out)
-     md['nodata'] = -9999.0
-     gdal_tools.write_raster(file_out,md,properties[var])
-  else: #laura, svp
+ if metadata['soil']['dataset'] != 'conus-soil':
+  if metadata['svp']==True:
    for layer in properties['clay']: #laura svp
     badvals = ((properties['clay'][layer]==-9999.0) | (properties['sand'][layer]==-9999.0)) | ((properties['silt'][layer]==-9999.0) | (properties['om'][layer]==-9999.0))
     for var in ['clay','sand','silt','om']:
@@ -1397,17 +1349,7 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
    gdal_tools.write_raster(file_out,md,properties[var])
 
  #Create the missing properties
- if metadata['soil_database'] == 'conus-soil':
-  Create_Other_Soil_Properties_Conus_Soil(cdb,workspace,metadata,icatch,log,properties)
- elif metadata['soil_database'] == 'polaris_texture':
-  Create_Other_Soil_Properties_Polaris_Texture(cdb,workspace,metadata,icatch,log,properties)
- elif metadata['soil_database'] == 'soilgrids_texture':
-  Create_Other_Soil_Properties_Soilgrids_Texture(cdb,workspace,metadata,icatch,log,properties)
- else:
-  if metadata['svp']==False:#laura
-   Create_Other_Soil_Properties(cdb,workspace,metadata,icatch,log,properties)
-  else:
-   Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,properties) #modified function svp, laura
+ Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,properties) #modified function svp, laura
 
  for var in ['hb','lambda']:
    os.system('rm -rf %s/%s_latlon.tif' % (workspace,var))
@@ -1585,10 +1527,12 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
  for var in vars:
 
   #Get parameters
-  var_name = metadata['meteo']['vars'][var]['name']
+  #var_name = metadata['meteo']['vars'][var]['name']
+  var_name = var
 
   #Get metadata
-  file = metadata['meteo']['vars'][var]['file'] 
+  #file = metadata['meteo']['vars'][var]['file'] 
+  file = '%s/%s' % (metadata['meteo']['dir'],metadata['meteo']['file_template'])
   file = file.replace('$YEAR',str(startdate.year))
   file = file.replace('$MTH','%02d' % startdate.month)
   file = file.replace('$DAY','%02d' % startdate.day)
@@ -1634,7 +1578,8 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   while date <= enddate:
 
    #Open access to file
-   file = metadata['meteo']['vars'][var]['file']
+   file = '%s/%s' % (metadata['meteo']['dir'],metadata['meteo']['file_template'])
+   #file = metadata['meteo']['vars'][var]['file']
    #print var, date.year
    file = file.replace('$YEAR',str(date.year))
    file = file.replace('$MTH','%02d' % date.month)  
@@ -1667,7 +1612,8 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   data[data < -1000] = correction[var]
   #Open the output file
   #Update the units using the conversion factor
-  data = metadata['meteo']['vars'][var]['factor']*data
+  #data = metadata['meteo']['vars'][var]['factor']*data
+  data = 1.0*data
   ncfile = '%s/%s.nc' % (workspace,var)
   md['file']=ncfile
   md['nt']=data.shape[0]
@@ -1709,192 +1655,6 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   res = abs(md['resx'])
   lproj = md['proj4']
   
-  #Regrid and downscale
-  file_in = file_coarse
-  file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
-  cache = int(psutil.virtual_memory().available*0.7/mb)
-  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
-
- return
-
-
-def Extract_Water_Use(cdb,workspace,metadata,icatch,log):
-
- #Get the parameters
- md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
- cminlon = md['minx']
- cminlat = md['miny']
- cmaxlon = md['maxx']
- cmaxlat = md['maxy']
-
- #Define time info
- startdate = datetime.datetime.strptime(metadata['water_use']['startdate'],'%d%b%Y')
- enddate = datetime.datetime.strptime(metadata['water_use']['enddate'],'%d%b%Y')
-
- vars = ['domestic','industrial','livestock']
- shuffle(vars)
-
- #Process each variable
- for var in vars:
-
-  #Get parameters
-  var_name = metadata['water_use']['vars'][var]['name']
-
-  #Get metadata
-  file = metadata['water_use']['vars'][var]['file']
-  file = file.replace('$YEAR',str(startdate.year))
-  file = file.replace('$MTH','%02d' % startdate.month)
-  fp = nc.Dataset(file,'r')
-  lats = fp.variables['latitude'][:]
-  lons = fp.variables['longitude'][:]
-  times = fp.variables['time']
-  times_date = nc.num2date(times[:],units=times.units,calendar=times.calendar)
-  undef = fp.variables[var_name]._FillValue
-  fp.close()
-  del fp
-  gc.collect()
-
-  flip_lat_flag = False
-  if lats[-1] < lats[0] : # Inverte as latitudes
-    lats = np.sort(lats)
-    flip_lat_flag = True
-    print("Water Use Warning: Inversing Latitude...",flush=True)
-
-  flip_lon_flag = False
-  if lons[-1] < lons[0] : # Inverte as latitudes
-    lons = np.sort(lons)
-    flip_lon_flag = True
-    print("Water Use Warning: Inversing Longitude...",flush=True)
-  
-  #Set up domain (with buffer)
-  iminlat = np.argmin(np.abs(lats - cminlat)) - 1
-  imaxlat = np.argmin(np.abs(lats - cmaxlat)) + 1
-  iminlon = np.argmin(np.abs(lons - cminlon)) - 1
-  imaxlon = np.argmin(np.abs(lons - cmaxlon)) + 1
-  if iminlat < 0: iminlat = 0
-  if imaxlat >= lats.size: imaxlat = lats.size-1
-  if iminlon < 0: iminlon = 0
-  if imaxlon >= lons.size: imaxlon = lons.size-1
-  minlat = lats[iminlat]
-  maxlat = lats[imaxlat]
-  minlon = lons[iminlon]
-  maxlon = lons[imaxlon]
-  res = (lats[-1]-lats[0])/len(lats)
-
-  #Determine the box size
-  nlon = int(np.round((maxlon - minlon)/res +1 ))
-  nlat = int(np.round((maxlat - minlat)/res +1 ))
-   
-  #Determine date range
-  m = (times_date >= startdate) & (times_date <= enddate)
-  idate = np.where(m==True)[0][0]
-  fdate = np.where(m==True)[0][-1]
-  
-  #Set the metadata
-  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'res':res}
-  md['undef'] = -9999.0
-
-  #Read in data and create local copy
-  date = startdate
-  dt = relativedelta(months=1)
-  tstep = metadata['water_use']['tstep']
-  tstep_val = {'3h':3,'24h':24,'daily':24,'day':24,'1h':1}
-  nts = int(((enddate-startdate).days+1)*(24/tstep_val[tstep]))
-  data = np.zeros((nts,nlat,nlon))
-  while date <= enddate:
-
-   #Open access to file
-   file = metadata['water_use']['vars'][var]['file']
-   file = file.replace('$YEAR',str(date.year))
-   file = file.replace('$MTH','%02d' % date.month) 
-   fp = nc.Dataset(file,'r')
-
-   #Extract the data
-   if date == startdate:
-    idata = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
-    it = 0
-    ft = it+idata.shape[0]
-    data[it:ft,:,:] = idata
-    
-   else:
-    idata = fp.variables[var_name][:,iminlat:imaxlat+1,iminlon:imaxlon+1]
-    it = ft
-    ft = it+idata.shape[0]
-    data[it:ft,:,:] = idata
-
-   fp.close()
-
-   #Update the time step
-   date = date + dt
-
-  del fp, idata
-  gc.collect()
-  #Correct for undefined values
-  correction = {'industrial':0.0,'domestic':0.0,'livestock':0.0}
-  data[data == undef] = correction[var]
- 
-  #Open the output file
-  #Update the units using the conversion factor
-  data = metadata['water_use']['vars'][var]['factor']*data
-  ncfile = '%s/%s.nc' % (workspace,var)
-  nt = data.shape[0]
-  md['file']=ncfile
-  md['nt']=data.shape[0]
-  md['tinitial'] = datetime.datetime(startdate.year,startdate.month,1,0)
-  md['tinitial_all'] = md['tinitial']
-  md['tstep'] = tstep
-  md['vars'] = [var]
-  fp = Create_NETCDF_File(md)
-  
-  #Write the data
-  fp.variables[var][:] = data
-  #Close the file
-  fp.close()
-  #print data.shape
-  del fp, data
-  gc.collect()
-
-  #Create a sample grid using the mask
-  mask_latlon_file = '%s/mask_latlon.tif' % (workspace)
-  file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,var)
-  cache = int(psutil.virtual_memory().available*0.7/mb)
-  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (res,res,minlon-res/2,minlat-res/2,maxlon+res/2,maxlat+res/2,cache,mask_latlon_file,file_coarse,log))
-  
-  #Define the coarse and fine scale mapping
-  maskij = gdal_tools.read_raster(file_coarse)
-  metadata_maskij = gdal_tools.retrieve_metadata(file_coarse)
-  for i in np.arange(maskij.shape[0]):
-   maskij[i,:] = np.arange(i*maskij.shape[1],(i+1)*maskij.shape[1])
-  metadata_maskij['nodata'] = -9999.0
-  gdal_tools.write_raster(file_coarse,metadata_maskij,np.flipud(maskij))
-  #print np.flipud(maskij).shape
-  del maskij
-  gc.collect()
-
-  #Get the parameters
-  #md = gdal_tools.retrieve_metadata('%s/mask_ea.tif' % workspace)
-  #minx = md['minx']
-  #miny = md['miny']
-  #maxx = md['maxx']
-  #maxy = md['maxy']
-  #res = abs(md['resx'])
-  #lproj = md['proj4']
-
-  #Regrid and downscale
-  #file_in = file_coarse
-  #file_out = '%s/%s_ea_fine.tif' % (workspace,var)
-  #cache = int(psutil.virtual_memory().available*0.7/mb)
-  #os.system('gdalwarp -t_srs \'%s\'  -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
-
-  #Get the parameters
-  md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % workspace)
-  minx = md['minx']
-  miny = md['miny']
-  maxx = md['maxx']
-  maxy = md['maxy']
-  res = abs(md['resx'])
-  lproj = md['proj4']
-
   #Regrid and downscale
   file_in = file_coarse
   file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
@@ -1934,10 +1694,6 @@ def prepare_input_data(cdir,cdb,metadata,rank,icatch):
  print(rank,'Preparing land cover data',time.ctime(),icatch,flush=True)
  Extract_Land_Cover(cdb,workspace,metadata,icatch,log)
  
- #Create irrigation map covariate for the clustering 
- #print(rank,'Preparing irrigation map and crop calendar',time.ctime(),icatch,flush=True)
- #Extract_Irrigation_Map(cdb,workspace,metadata,icatch,log)
-  
  #Create soil product
  print(rank,'Preparing the soil data',time.ctime(),icatch,flush=True)
  Extract_Soils(cdb,workspace,metadata,icatch,log)
@@ -2075,7 +1831,8 @@ def correct_domain_decomposition(comm,metadata):
   Extract_Soils(cdb[ic],cdir,metadata,cid,log)
 
   #Create meteo file
-  file_in = '/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/tair.tif'
+  #file_in = '/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/tair.tif'
+  file_in = '%s/tair.tif' % (metadata['meteo']['dir'],)
   md = gdal_tools.retrieve_metadata('%s/mask_latlon.tif' % cdir)
   minx = md['minx']
   miny = md['miny']
@@ -2090,8 +1847,7 @@ def correct_domain_decomposition(comm,metadata):
   #Determine number of pixels
   file = '%s/mask_latlon.tif' % workspace
   mask = rasterio.open(file).read(1)
-  if metadata['svp']==False:file = '%s/sand/sand_latlon.tif' % workspace
-  else:file = '%s/sand/sand_latlon_2.5cm.tif' % workspace
+  file = '%s/sand/sand_latlon_2.5cm.tif' % workspace
   sand = rasterio.open(file).read(1)
   file = '%s/meteo_latlon.tif' % workspace
   meteo = rasterio.open(file).read(1)
@@ -2102,7 +1858,9 @@ def correct_domain_decomposition(comm,metadata):
   npx_meteo = np.sum(meteo != -9999)
   npx_lc = np.sum(lc != -9999)
   odb[cid] = min(npx_mask,npx_sand,npx_meteo,npx_lc)
+  #odb[cid] = min(npx_mask,npx_meteo,npx_lc)
   print(npx_mask,npx_sand,npx_meteo,npx_lc,flush=True)
+  #print(npx_mask,npx_meteo,npx_lc,flush=True)
 
  #Broadcast and collect
  if rank == 0:
@@ -2145,7 +1903,8 @@ def correct_domain_decomposition(comm,metadata):
   fp.close()
   fp2.close()
   mdir = metadata['output_data']
-  gdir = '%s/general' % metadata['dir']
+  gdir = mdir
+  #gdir = '%s/general' % metadata['dir']
   os.system('mv %s/shp/domain2.shp %s/shp/domain.shp' % (mdir,gdir))
   os.system('mv %s/shp/domain2.shx %s/shp/domain.shx' % (mdir,gdir))
   os.system('mv %s/shp/domain2.prj %s/shp/domain.prj' % (mdir,gdir))
@@ -2173,7 +1932,7 @@ def correct_domain_decomposition(comm,metadata):
 def Create_Administrative_Boundaries(cdb,workspace,metadata,icatch,log):
 
  #Define parameters
- shp_in = '/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/USCENSUS/cb_2018_us_state_500k.shp'#'%s/shp' % metadata['output_data']
+ shp_in = metadata['administrative_boundaries']
  shp_out = '%s/admin_shp' % workspace
  ci = cdb['cid']
  bbox =  cdb['bbox']

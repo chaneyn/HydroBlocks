@@ -555,7 +555,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
  real,dimension(nhru),intent(in) :: xlat,xlong
  real,dimension(nhru),intent(inout) :: coszin
  real,intent(in) :: zlvl,dt
- real,intent(in) :: julian
+ real,intent(inout) :: julian
  CHARACTER(LEN=19), INTENT(IN)  :: NOWDATE
 ! IN only
 
