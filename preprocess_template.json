@@ -1,68 +1,29 @@
 {
-"dir":"/ncrc/home2/Nathaniel.Chaney/Predefined_Tiles_2025/GFDL_TEST",
-"domain_decomposition":{"type":"gfdl_gridspec",
-	                "lm_template":"/ncrc/home2/Anthony.Preucil/apscratch/HydroBlocks/gs_tests/pnw/grid_spec/land_mask.nc",
-                        "gs_template":"/ncrc/home2/Anthony.Preucil/apscratch/HydroBlocks/gs_tests/pnw/grid_spec/horizontal_grid.nc",
+"dir":"/scratch/TEST",
+"domain_decomposition":{"type":"latlon",
+                        "boundaries":{"minlat":36.0,"maxlat":36.2,"minlon":-100.0,"maxlon":-99.8},
+                        "res":0.1,
                         "layer":"domain",
-			"ntiles":1,
                         "id":"ID"},
-"output_data":"/ncrc/home2/Nathaniel.Chaney/Predefined_Tiles_2025/GFDL_TEST/data",
-"ncores":128,
 "res_latlon":0.0008333333333333467,
 "res_ea":90,
-"dem":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/MERIT/elv/elv.vrt",
-"acc":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/MERIT/upa/upa.vrt",
-"fdir":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/MERIT/dir/dir.vrt",
 "channel_initiation":{"athrs":1000000},
-"svp":true,
-"landcover":{"file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/NLCD/nlcd.tif",
-             "mapping":"{0:-9999.0,11:17,12:15,21:10,22:13,23:13,24:13,31:16,41:4,42:2,43:5,45:5,46:5,51:7,52:6,71:10,72:19,73:19,74:19,81:12,82:12,90:11,95:11,-9999.0:-9999.0}"},
-"soil_database": "polaris",
-"soil": {
-        "clay": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "sand": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "silt": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "om": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "ksat": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "thetar": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "thetas": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "hb": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/",
-        "lambda": "/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/polaris/Sep2018/vrt/"},
-"dbedrock":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/Global_Soil_Regolith_Sediment/data/average_soil_and_sedimentary-deposit_thickness.tif",
+"elevation":{"dataset":"MERIT-HYDRO",
+             "dir":"/stor/soteria/hydro/shared/data/MERIT",
+             "vars":{"dem":"elv/elv.vrt",
+                     "acc":"upa/upa.vrt",
+                     "fdir":"dir/dir.vrt"}},
+"landcover":{"dataset":"NLCD",
+             "file":"/stor/soteria/hydro/shared/NLCD/nlcd.tif"},
+"soil":{"dataset":"polaris",
+        "directory":"/stor/soteria/hydro/shared/dSSURGO/PROPERTIES/Sep2018/vrt/"},
+"dbedrock":"/stor/soteria/hydro/shared/data/Global_Soil_Regolith_Sediment/data/average_soil_and_sedimentary-deposit_thickness.tif",
+"administrative_boundaries":"/home/nc153/soteria/data/USCENSUS/cb_2018_us_state_500k.shp",
 "meteo":{
         "startdate":"01Jan2013",
         "enddate":"31Dec2013",
         "tstep":"1hr",
-        "vars":{
-               "lwdown":{"name":"lwdown",
-                         "factor":1.0,
-                         "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "swdown":{"name":"swdown",
-                         "factor":1.0,
-                         "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "tair":{"name":"tair",
-                       "factor":1.0,
-                       "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "spfh":{"name":"spfh",
-                       "factor":1.0,
-                       "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "psurf":{"name":"psurf",
-                        "factor":1.0,
-                        "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "wind":{"name":"wind",
-                       "factor":1.0,
-                       "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       },
-               "precip":{"name":"precip",
-                         "factor":1.0,
-                         "file":"/gpfs/f5/gfdl_b/proj-shared/Nathaniel.Chaney/datasets/PCF/1hr/daily/$YEAR$MTH$DAY.nc"
-                       }
-               }
-        }
+        "dir":"/home/nc153/soteria/data/PCF/1hr/daily",
+        "file_template":"$YEAR$MTH$DAY.nc"}
 }
 
