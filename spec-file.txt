@@ -3,7 +3,7 @@
 # platform: linux-64
 @EXPLICIT
 https://conda.anaconda.org/conda-forge/linux-64/_libgcc_mutex-0.1-conda_forge.tar.bz2
-https://conda.anaconda.org/anaconda/linux-64/ca-certificates-2020.10.14-0.tar.bz2
+https://repo.anaconda.com/pkgs/main/linux-64/ca-certificates-2023.08.22-h06a4308_0.conda
 https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.35-h769bd43_9.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libgfortran4-7.5.0-hae1eefd_17.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-ng-9.3.0-h2ae2ef3_17.tar.bz2
@@ -33,7 +33,7 @@ https://conda.anaconda.org/conda-forge/linux-64/libwebp-base-1.1.0-h516909a_3.ta
 https://conda.anaconda.org/conda-forge/linux-64/lz4-c-1.9.2-he1b5a44_3.tar.bz2
 https://repo.anaconda.com/pkgs/main/linux-64/mpich-3.3.2-hc856adb_0.conda
 https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.2-he1b5a44_1.tar.bz2
-https://conda.anaconda.org/anaconda/linux-64/openssl-1.1.1h-h7b6447c_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/linux-64/openssl-1.1.1w-h7f8727e_0.conda
 https://conda.anaconda.org/conda-forge/linux-64/pcre-8.44-he1b5a44_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/pixman-0.38.0-h516909a_1003.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/pthread-stubs-0.4-h14c3975_1001.tar.bz2
@@ -57,7 +57,6 @@ https://conda.anaconda.org/conda-forge/linux-64/libllvm10-10.0.1-he513fc3_3.tar.
 https://conda.anaconda.org/conda-forge/linux-64/libnghttp2-1.41.0-h8cfc5f6_2.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libpng-1.6.37-hed695b0_2.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libssh2-1.9.0-hab1572f_5.tar.bz2
-https://conda.anaconda.org/conda-forge/linux-64/libtiff-4.1.0-hc7e4089_6.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libxcb-1.13-h14c3975_1002.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libxml2-2.9.10-h68273f3_2.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/readline-8.0-he28a2e2_2.tar.bz2
@@ -72,20 +71,21 @@ https://conda.anaconda.org/conda-forge/linux-64/kealib-1.4.13-h33137a7_1.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/krb5-1.17.1-hfafb76e_3.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.8.0-17_openblas.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/liblapack-3.8.0-17_openblas.tar.bz2
-https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.3.1-h981e76c_3.tar.bz2
+https://conda.anaconda.org/anaconda/linux-64/libtiff-4.2.0-h85742a9_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/sqlite-3.33.0-h4cf870e_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/xorg-libx11-1.6.12-h516909a_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/fontconfig-2.13.1-h1056068_1002.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libcurl-7.71.1-hcdd3856_8.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libkml-1.3.0-h74f7ee3_1012.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/libpq-12.3-h5513abc_0.tar.bz2
+https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.3.1-h981e76c_3.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/python-3.8.5-h1103e12_9_cpython.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/xorg-libxext-1.3.4-h516909a_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/xorg-libxrender-0.9.10-h516909a_1002.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/affine-2.3.0-py_0.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/attrs-20.2.0-pyh9f0ad1d_0.tar.bz2
 https://conda.anaconda.org/anaconda/noarch/backcall-0.2.0-py_0.tar.bz2
-https://conda.anaconda.org/anaconda/linux-64/certifi-2020.6.20-py38_0.tar.bz2
+https://repo.anaconda.com/pkgs/main/linux-64/certifi-2023.7.22-py38h06a4308_0.conda
 https://conda.anaconda.org/conda-forge/linux-64/cfitsio-3.470-hce51eda_6.tar.bz2
 https://conda.anaconda.org/conda-forge/noarch/click-7.1.2-pyh9f0ad1d_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/curl-7.71.1-he644dc0_8.tar.bz2
@@ -93,6 +93,7 @@ https://conda.anaconda.org/anaconda/noarch/decorator-4.4.2-py_0.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/glib-2.66.1-h680cd38_0.tar.bz2
 https://conda.anaconda.org/anaconda/linux-64/ipython_genutils-0.2.0-py38_0.tar.bz2
 https://repo.anaconda.com/pkgs/main/linux-64/mpi4py-3.0.3-py38h028fd6f_0.conda
+https://repo.anaconda.com/pkgs/main/noarch/networkx-2.6.3-pyhd3eb1b0_0.conda
 https://conda.anaconda.org/anaconda/noarch/parso-0.8.0-py_0.tar.bz2
 https://conda.anaconda.org/anaconda/linux-64/pickleshare-0.7.5-py38_1000.tar.bz2
 https://conda.anaconda.org/conda-forge/linux-64/postgresql-12.3-h8573dbc_0.tar.bz2

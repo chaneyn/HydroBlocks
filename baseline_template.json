@@ -1,30 +1,33 @@
 {
-  "rdir": "/stor/tyche/hydro/private/lpt14/projects/HBupdate2023/FD_test",
-  "experiment": "CMHB_ON_svp_ON",
+  "rdir": "/stor/tyche/hydro/private/lpt14/projects/routing_clustering/Fall2023/CONUS",
+  "experiment": "Abst-ShreveTree_SGRN_2015-2019_No2WC",
   "startdate": {
-    "year": 2018,
+    "year": 2015,
     "month": 1,
     "day": 1
   },
   "enddate": {
-    "year": 2018,
-    "month": 3,
+    "year": 2019,
+    "month": 12,
     "day": 31
   },
-  "dt": 3600.0,
+  "dt": 3600,
   "channel_initiation": {
-    "athrs": 1000000
+    "athrs": 1000000,
+    "flag_subgrid":true,
+    "athrs_subgrid": 150000,
+    "var_pca":0.5
   },
   "connection_matrix_hbands": true,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
-    "average_height_difference_between_bands": 80,
+    "average_height_difference_between_bands": 5,
     "number_of_intraband_clusters": 5,
     "subbasin_clustering_covariates": [
-      "dem",
-      "lats",
-      "lons"
+      "shreve",
+      "large_scale_basins",
+      "dem"
     ],
     "intraband_clustering_covariates": [
       "lc",
@@ -66,23 +69,13 @@
     "Tsoil": [
       266.1,
       274.0,
-      276.9,
-      279.9,
-      279.9,
-      279.9,
-      279.9,
       279.9,
       279.9,
       279.9
     ],
     "soilM": [
       0.298,
-      0.294,
-      0.271,
-      0.307,
-      0.307,
-      0.307,
-      0.307,
+      0.284,
       0.307,
       0.307,
       0.307
@@ -91,24 +84,35 @@
     "Tbot": 285.0
   },
   "segment": {
-    "years_per_segment": 1
+    "years_per_segment": 5
   },
   "dz": [
-    0.05,
-    0.1,
-    0.1,
-    0.1,
+    0.15,
     0.2,
-    0.2,
-    0.25,
-    0.25,
-    0.25,
-    0.5
+    0.4,
+    0.5,
+    0.75
   ],
   "routing_module": {
-    "type": "kinematic",
+    "flag": true,
+    "type": "particle_tracker",
     "surface_coupling": true,
-    "dt_routing":100
+    "dt_routing":3600
+  },
+  "network_abstraction": {
+    "flag": true,
+    "number_of_characteristic_main_subbasins":3,
+    "number_of_characteristic_secondary_subbasins":5,
+    "main_subbasin_clustering_covariates": [
+      "shreve",
+      "dem"],
+    "secondary_subbasin_clustering_covariates": [
+      "dem",
+      "shreve",
+      "lats",
+      "lons"],
+    "var": "acc",
+    "percentile": 80
   },
   "subsurface_module": "richards",
   "restart": {
