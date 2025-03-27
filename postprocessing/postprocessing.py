@@ -20,7 +20,7 @@ def driver(comm,metadata_file):
  #Read in the metadata
  #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
- metadata['idate'] = datetime.datetime(metadata['startdate']['year'],
+ metadata['idate'] = datetime.datetime(2018, #laura
                            metadata['startdate']['month'],
                            metadata['startdate']['day'],0)
  metadata['fdate'] = datetime.datetime(metadata['enddate']['year'],
@@ -32,9 +32,9 @@ def driver(comm,metadata_file):
  edir = '%s/experiments/simulations/%s' % (rdir,metadata['experiment'])
 
  #Create the upscale template
- if rank == 0:
-  upscaling_python.Create_Upscale_Template(metadata) #laura, uncommented
- comm.Barrier()
+ #if rank == 0:
+ # upscaling_python.Create_Upscale_Template(metadata) #laura, uncommented
+ #comm.Barrier()
 
  #Determine the sites box
  print(rank,"Determing the bounding box",flush=True)
@@ -48,27 +48,28 @@ def driver(comm,metadata_file):
  vars = metadata['upscaling']['vars']
  #metadata['nt_in'] = 365*24
  #metadata['nt_out'] = 365*24
- for year in range(metadata['idate'].year,metadata['fdate'].year+1):
-  if year == metadata['idate'].year:
-   startdate = metadata['idate']
-   enddate = datetime.datetime(year,12,31,23)
-  elif year == metadata['fdate'].year:
-   startdate = datetime.datetime(year,1,1,0)
-   enddate = metadata['fdate']
-  else:
-   startdate = datetime.datetime(year,1,1,0)
-   enddate = datetime.datetime(year,12,31,23)
+ #for year in range(metadata['idate'].year,metadata['fdate'].year+1):
+ # if year == metadata['idate'].year:
+ #  startdate = metadata['idate']
+ #  enddate = datetime.datetime(year,12,31,23)
+ # elif year == metadata['fdate'].year:
+ #  startdate = datetime.datetime(year,1,1,0)
+ #  enddate = metadata['fdate']
+ # else:
+ #  startdate = datetime.datetime(year,1,1,0)
+ #  enddate = datetime.datetime(year,12,31,23)
+ startdate = metadata['idate']
+ enddate = metadata['fdate']
+ upscaling_python.Map_Model_Output(metadata,vars,rank,bbox_metadata,startdate,enddate)
+ #print('upscale_python_map',flush=True)
+ #Pause until all files have been processed
+ comm.Barrier()
 
-  upscaling_python.Map_Model_Output(metadata,vars,rank,bbox_metadata,startdate,enddate)
-  #print('upscale_python_map',flush=True)
-  #Pause until all files have been processed
-  comm.Barrier()
-
-  #Create files
-  print(rank,"Creating the output files (%d)" % year,flush=True)
-  upscaling_python.Create_Output_Files(metadata,rank,size,vars,startdate,enddate)
-  #Pause until all files have been processed
-  comm.Barrier()
+ #Create files
+ print(rank,"Creating the output files",flush=True)
+ upscaling_python.Create_Output_Files(metadata,rank,size,vars,startdate,enddate)
+ #Pause until all files have been processed
+ comm.Barrier()
 
  return
 
@@ -79,7 +80,7 @@ def Determine_Bounding_Box(metadata,rank,size):
  file_mapping = '%s/experiments/simulations/%s/postprocess/mapping.tif' % (rdir,metadata['experiment'])
  #Retrieve metadata for entire region
  metadata_upscale = gdal_tools.retrieve_metadata(file_mapping)
- res_upscale = metadata_upscale['resx']
+ res_upscale = 0.024097619990787 #metadata_upscale['resx'] #laura, replace by goes resolution
  lats_upscale = np.linspace(metadata_upscale['miny']+res_upscale/2,metadata_upscale['maxy']-res_upscale/2,metadata_upscale['ny'])
  lons_upscale = np.linspace(metadata_upscale['minx']+res_upscale/2,metadata_upscale['maxx']-res_upscale/2,metadata_upscale['nx'])
  lats_upscale_flipped = np.flipud(lats_upscale)

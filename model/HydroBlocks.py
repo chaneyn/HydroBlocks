@@ -178,7 +178,8 @@ class HydroBlocks:
   self.noahmp.flxhumb_urb2d[:] = fp['flxhumb_urb2d'][:]
   self.noahmp.flxhumg_urb2d[:] = fp['flxhumg_urb2d'][:]
   #routing
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    self.routing.Q0[:] = fp['Q0'][:]
    self.routing.u0[:] = fp['u0'][:]
    self.routing.A0[:] = fp['A0'][:]
@@ -213,6 +214,7 @@ class HydroBlocks:
   self.nhru = len(self.input_fp.dimensions['hru'])
   self.subsurface_module = info['subsurface_module']
   self.routing_module = info['routing_module']['type']
+  self.routing_flag = info['routing_module']['flag']
   self.routing_surface_coupling = info['routing_module']['surface_coupling']
   #self.hwu_flag = info['water_management']['hwu_flag']
   self.area = self.input_fp.groups['parameters'].variables['area'][:]
@@ -224,10 +226,10 @@ class HydroBlocks:
   #elif (info['fully_distributed']==True) and (info['connection_matrix_hbands']==False): #laura
    #self.ncsbasins=self.nhru #laura
   #else: #laura
-  if info['network_abstraction']['flag']==False:
-   self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
-  else:
-   self.ncsbasins=info['network_abstraction']['number_of_characteristic_main_subbasins']+info['network_abstraction']['number_of_characteristic_secondary_subbasins']
+
+  list_groups=list(self.input_fp.groups.keys())
+  self.ncsbasins=int(sum(1 for element in list_groups if "wmatrix" in element))
+
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m
@@ -594,31 +596,6 @@ class HydroBlocks:
 
  def initialize_routing(self,):
 
-  '''#Determine what rank has which cid
-  self.comm = self.MPI.COMM_WORLD
-  self.size = self.comm.Get_size()
-  self.rank = self.comm.Get_rank()
-  if self.rank != 0:
-   dest = 0
-   db_ex = {self.cid:self.rank}
-   self.comm.send(db_ex,dest=dest,tag=11)
-  elif self.rank == 0:
-   db = {}
-   db[self.cid] = 0
-   for i in range(1,self.size):
-    db_ex = self.comm.recv(source=i,tag=11)
-    db[list(db_ex.keys())[0]] = db_ex[list(db_ex.keys())[0]]
-  #Wait until completed
-  self.comm.Barrier()
-  #Send the list to all the cores now
-  if self.rank == 0:
-   for i in range(1,self.size):
-    self.comm.send(db,dest=i,tag=11)
-  if self.rank != 0:
-   db = self.comm.recv(source=0,tag=11)
-  #Memorize links
-  self.cid_rank_mapping = db'''
-
   if self.routing_module == 'kinematic':self.initialize_kinematic()
 
   if self.routing_module == 'particle_tracker':self.initialize_particle_tracker()
@@ -630,8 +607,9 @@ class HydroBlocks:
   from model.pyRouting import routing
 
   #Initialize kinematic wave routing
-  self.routing = routing.particle_tracker(self)
-
+  self.routing = routing.particle_tracker(self.MPI,self.cid,self.dt,self.nhband,self.nhru,
+                                   self.cdir,self.dt_routing,self)
+  
   #Add numba functions
   self.routing.calculate_inundation_height_per_hband = routing.calculate_inundation_height_per_hband
   self.routing.compute_qss = routing.compute_qss
@@ -672,7 +650,8 @@ class HydroBlocks:
 
  def update_channel_source_sink(self,):
 
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
 
    #Clean up runoff
    self.noahmp.runsf[self.noahmp.runsf < 0] = 0.0
@@ -720,12 +699,8 @@ class HydroBlocks:
 
    #Apply convolution to the runoff of each hband
    qr = runoff_hband[:,np.newaxis]*self.routing.IRF['uh']
-   #QC to ensure we are conserving mass
-   m = np.sum(qr,axis=1) > 0
-   if np.sum(m) > 0:
-    qr[m,:] = runoff_hband[m,np.newaxis]*qr[m,:]/np.sum(qr[m,:],axis=1)[:,np.newaxis]
    #Add corresponding qfuture to this time step
-   crunoff = self.routing.IRF['qfuture'][:,0]
+   crunoff = np.copy(self.routing.IRF['qfuture'][:,0])
    #Update qfuture
    self.routing.IRF['qfuture'][:,0:-1] = self.routing.IRF['qfuture'][:,1:]
    self.routing.IRF['qfuture'][:,-1] = 0.0
@@ -736,20 +711,13 @@ class HydroBlocks:
 
    #Aggregate the hband runoff at the reaches
    self.routing.qss[:] = self.routing.compute_qss(self.routing.reach2hband,crunoff,self.routing.c_length,self.routing.qss) #m2/s
+   if np.max(self.routing.qss[:])>10**2:
+    print(self.cid,np.unique(self.routing.qss[:]))
  
    if self.routing_surface_coupling == True:
     #Add changes between Ac1 and Ac0 to qss term
     self.routing.qss[:] += (A - self.routing.A0[:])/self.dt
 
-   #Update routing module
-   #self.routing.itime = self.itime
-   #self.routing.update(self.dt)
-
-   #Update the hru inundation values
-   #for hru in self.hrus:
-   # #Only allow fct of the inundated height to infiltrate
-   # self.routing.hru_inundation[hru] = self.routing.hband_inundation[self.hbands[hru]]
-   
   return
 
  def initialize_subsurface(self,vsp_flag):
@@ -885,8 +853,9 @@ class HydroBlocks:
   self.itime = self.itime + 1
 
   #Output some statistics
-  string = '|%s|%s|%s|%s|%s|%s|%s|' % \
-        ('Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
+  string = '|%d|%s|%s|%s|%s|%s|%s|%s|' % \
+        ('CID:%d' % self.cid,\
+         'Date:%s' % date.strftime("%Y-%m-%d_%H:%M"),\
          'Runtime:%.2f(s)'%(self.runtime),\
          'Acc_ET:%.2f(mm)'%self.acc_et,\
          'Acc_P:%.2f(mm)'%self.acc_prcp,\
@@ -1059,7 +1028,7 @@ class HydroBlocks:
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
-   if self.routing_module == 'kinematic':
+   if (self.routing_flag == True) & (self.routing_surface_coupling == True):
      self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
      m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
      self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
@@ -1089,7 +1058,8 @@ class HydroBlocks:
 
    #Update subsurface module
    #0.Update hand value to account for hru inundation (This is a hack to facilitate a non-flooding stream to influence its surrounding hrus)
-   if self.routing_module == 'kinematic': #laura kept the inundation computation at a HRU level
+   #if self.routing_module == 'kinematic': #laura kept the inundation computation at a HRU level
+   if (self.routing_flag == True) & (self.routing_surface_coupling == True):
     self.richards.dem1 = self.richards.dem+self.routing.hru_inundation
     m = self.richards.dem1[0:-1] > self.richards.dem1[1:]
     self.richards.dem1[0:-1][m] = self.richards.dem1[1:][m]
@@ -1140,7 +1110,8 @@ class HydroBlocks:
   else:
    tmp = np.copy(self.end_wb - self.beg_wb - NOAH.dt*(NOAH.prcp-NOAH.ecan-
          NOAH.etran-NOAH.edir-NOAH.runsf-NOAH.runsb))
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    tmp = tmp - np.copy(NOAH.sfcheadrt) + np.copy(self.routing.hru_runoff_inundation)*dt
   self.acc_errwat += np.sum(self.pct*tmp)
   self.acc_q += dt*np.sum(self.pct*NOAH.runsb) + dt*np.sum(self.pct*NOAH.runsf)
@@ -1288,7 +1259,8 @@ class HydroBlocks:
   tmp['cm'] = np.copy(NOAH.cm)
   tmp['ch'] = np.copy(NOAH.ch)
   #routing
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
    tmp['inundation'] = np.copy(self.routing.hru_inundation)
 
@@ -1349,13 +1321,15 @@ class HydroBlocks:
     grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
 
   #Output routing variables
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    grp = self.output_fp.groups['data_routing']
    tmp = {}
    tmp['A'] = self.routing.A1[:]
-   tmp['Q'] = self.routing.Q1[:]
+   tmp['Q'] = self.routing.Q0[:]
    tmp['Qc'] = self.routing.Qc[:]
    tmp['Qf'] = self.routing.Qf[:]
+   tmp['Qin_overland'] = self.routing.c_length*self.routing.qss[:] 
    tmp['reach_inundation'] = self.routing.reach2hband_inundation[:]
    sep = 100
    if itime == 0:
@@ -1523,6 +1497,7 @@ class HydroBlocks:
              'Q':{'description':'Discharge','units':'m3/s','dims':('time','channel',),'precision':4},
              'Qc':{'description':'Discharge (channel)','units':'m3/s','dims':('time','channel',),'precision':4},
              'Qf':{'description':'Discharge (floodplain)','units':'m3/s','dims':('time','channel',),'precision':4},
+             'Qin_overland':{'description':'Discharge into channel from overland flow','units':'m3/s','dims':('time','channel',),'precision':4},
              'reach_inundation':{'description':'Inundation height (reach level)','units':'m','dims':('time','channel','hband'),'precision':3},
              'A':{'description':'Cross section','units':'m2','dims':('time','channel',),'precision':4},
              'inundation':{'description':'Inundation height','units':'m','dims':('time','hru',),'precision':4},
@@ -1538,7 +1513,8 @@ class HydroBlocks:
   fp_out.createDimension('soil',self.nsoil)
   fp_out.createDimension('snow',self.noahmp.nsnow)
   fp_out.createDimension('hband',self.nhband)
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    fp_out.createDimension('channel',self.routing.nchannel)
 
   #Create the output
@@ -1550,7 +1526,8 @@ class HydroBlocks:
    ncvar.units = metadata[var]['units']
 
   #Create the routing output
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    #print('Creating the routing group',flush=True)
    grp = fp_out.createGroup('data_routing')
    for var in self.metadata['output']['routing_vars']:
@@ -1689,7 +1666,8 @@ class HydroBlocks:
   fp['flxhumb_urb2d'] = self.noahmp.flxhumb_urb2d[:]
   fp['flxhumg_urb2d'] = self.noahmp.flxhumg_urb2d[:]
   #routing
-  if self.routing_module == 'kinematic':	
+  #if self.routing_module == 'kinematic':	
+  if self.routing_flag == True:	
    fp['Q0'] = self.routing.Q0[:]
    fp['u0'] = self.routing.u0[:]
    fp['A0'] = self.routing.A0[:]
@@ -1711,7 +1689,8 @@ class HydroBlocks:
   #subprocess.Popen('rm -f %s/pyNoahMP%d' % (mdir,info['cid']), shell=True).wait()
  
   #Close the routing module
-  if self.routing_module == 'kinematic':
+  #if self.routing_module == 'kinematic':
+  if self.routing_flag == True:
    del self.routing
 
   #Close the files

@@ -62,6 +62,7 @@ def Create_Output_Files(metadata,rank,size,vars,startdate,enddate):
 
   #Define the file
   ncfile = '%s/%04d%02d%02d.nc' % (output_dir,date.year,date.month,date.day)
+  print(date.year,date.month,date.day,flush=True)
 
   #Create the netcdf file
   #nlat = md['nlat']
@@ -177,7 +178,9 @@ def Create_Upscale_Template(metadata):
  file = '%s/experiments/simulations/%s/postprocess/mapping.tif' % (rdir,metadata['experiment'])
  os.system('rm -rf %s' % file)
  #Create the upscaled grid -> summary per cell info
- os.system('gdalwarp %s -srcnodata -9999 -dstnodata -9999 -tr %.16f %.16f %s' % (file_cid,res,res,file))
+ #Make compatible with GOES-16 resolution for ESTCFs, laura
+ os.system('gdalwarp %s -srcnodata -9999 -dstnodata -9999 -t_srs /stor/soteria/hydro/private/lpt14/projects/ESTCF_HB_CONUS/goes_target_srs.wkt -tr 0.024097619990787 0.024097619990787 -te -125.12024091023 24.89169198521852 -66.8762933925069 50.1218999825418 %s'% (file_cid,file))
+ #os.system('gdalwarp %s -srcnodata -9999 -dstnodata -9999 -tr %.16f %.16f %s' % (file_cid,res,res,file))
 
  return
 
@@ -360,11 +363,14 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
  fps = {}
  for cid in icatchs:
   #file_output = '%s/catch_%d/output.nc' % (dir,icatch)
-  file_output = '%s/experiments/simulations/%s/output_data/%d/%04d-%02d-%02d.nc' % (rdir,metadata['experiment'],cid,startdate.year,startdate.month,startdate.day)
+  file_output = '%s/experiments/simulations/%s/output_data/%d/%04d-%02d-%02d.nc' % (rdir,metadata['experiment'],cid,2015,startdate.month,startdate.day) #laura
   fps[cid] = nc.Dataset(file_output)
 
  #Determine nt_out
- nt_out = fps[cid]['data'].variables['trad'].shape[0]
+ #nt_out = fps[cid]['data'].variables['trad'].shape[0]
+ #print(fps.keys())
+ #nt_out = fps[cid]['data'].variables['trad'].shape[0]
+ nt_out = 17520 #laura
 
  #Initialize the output
  output = {}
@@ -379,7 +385,7 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
   for var in vars:
    #try:
    #data_catchment[var] = fps[icatch].groups['catchment'].variables[var][:,:]
-   data_catchment[var] = fps[icatch]['data'].variables['%s' % var][:,:]
+   data_catchment[var] = fps[icatch]['data'].variables['%s' % var][26304:,:] #laura
    #except:
    # flag_catchment = False
   #if flag_catchment == False:continue

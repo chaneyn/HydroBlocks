@@ -13,6 +13,115 @@ import time
 import sys
 import h5py
 
+class particle_tracker:
+
+ def __init__(self,MPI,cid,dt,nhband,nhru,cdir,dt_routing,HB):
+
+  self.itime = 0
+  self.comm = MPI.COMM_WORLD
+  self.size = self.comm.Get_size()
+  self.rank = self.comm.Get_rank()
+  self.name = MPI.Get_processor_name()
+
+  #Read in all the relevant data (this should be moved to the preprocessor)
+  self.db = pickle.load(open('%s/octopy.pck' % cdir ,'rb'))
+
+  #Define the variables
+  self.dt = dt
+  self.dt_routing = dt_routing
+  self.cid = cid
+  self.uhs = self.db['uhs'][:] #unit hydrograph
+  self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hband (travel time is bug)
+  self.c_length = self.db['c_length'][:]
+  self.c_n = self.db['c_n'][:]
+  self.fp_n = self.db['c_n'][:] #NWC - 10/2023 -> set to the same for now, model too "jumpy"
+  m =  self.fp_n < self.c_n
+  self.fp_n[m] = self.c_n[m]
+  self.c_slope = self.db['c_slope'][:]
+  self.c_slope[self.c_slope < 10**-3] = 10**-3
+  self.c_bankfull = self.db['c_bankfull'][:]
+  self.nchannel = self.c_length.size
+  self.A0 = 10**-5*np.ones(self.c_length.size)
+  self.u0 = 10**-5*np.ones(self.c_length.size)
+  self.A1 = np.zeros(self.c_length.size)
+  self.A1[:] = self.A0[:]
+  self.bcs = np.zeros(self.c_length.size)
+  self.qss = np.zeros(self.c_length.size)
+  self.qss_remainder = np.zeros(self.c_length.size)
+  self.dA = np.zeros(self.c_length.size)
+  self.Q0 = np.zeros(self.c_length.size)
+  self.Q1 = np.zeros(self.c_length.size)
+  self.Vin = np.zeros(self.c_length.size)
+  self.Vout = np.zeros(self.c_length.size)
+  self.Qin = np.zeros(self.c_length.size)
+  self.Qout = np.zeros(self.c_length.size)
+  self.Kvn0 = np.zeros(self.c_length.size)
+  self.reach2hband = np.asarray(self.db['reach2hband'].todense())
+  self.reach2hband_inundation = np.copy(self.reach2hband)
+  self.reach2hband_inundation[:] = 0.0
+  #self.hdw = self.db['hdw']
+  fp = nc.Dataset('%s/input_file.nc' % cdir)
+  #Read in downstream channels database
+  self.downstream_channels = fp['stream_network']['downstream_channels'][:]
+  #self.downstream_channels[:,:,5:] = -9999
+  '''if cid == 5:
+   ucids = np.unique(self.downstream_channels[:,1,:])
+   ucids = ucids[(ucids > 0) & (ucids != cid)]
+   for ucid in ucids:
+    m = self.downstream_channels[:,1,:] == ucid
+    channels = np.unique(self.downstream_channels[:,0,:][m])
+    print(ucid,channels.size)
+  exit()'''
+  #cids to send to 
+  tmp = np.unique(fp['stream_network']['outlets'][:,2])
+  tmp = tmp[tmp != -9999]
+  self.scids_hdw = tmp
+  #cids to receive from
+  tmp = np.unique(fp['stream_network']['inlets'][:,2:6])
+  tmp = tmp[tmp != -9999]
+  self.rcids_hdw = tmp
+  self.outlets_array = fp['stream_network']['outlets'][:]
+  self.inlets_array = fp['stream_network']['inlets'][:]
+  #topology
+  topology = fp['stream_network']['topology'][:]
+  tmp = -9999*np.ones((topology.size,5),dtype=np.int32)
+  for i in range(topology.size):
+   m = topology == i
+   if np.sum(m) >= 1:
+    tmp[i,:np.sum(m)] = np.where(m)[0]
+  self.topology = tmp[:]
+  fp.close()
+  self.hdb = self.db['hdb']
+  self.hdb['hband'] = self.hdb['hband'].astype(np.int64)
+  self.hdb['M'][self.hdb['M'] == 0] = 10**-5
+  self.c_width = self.hdb['W'][:,0]#self.db['c_width'][:]
+  self.A0_org = np.copy(self.A0)
+  self.u0_org = np.copy(self.u0)
+  self.Ac0 = np.zeros(self.c_length.size)
+  self.Ac1 = np.zeros(self.c_length.size)
+  self.dAc0 = np.zeros(self.c_length.size)
+  self.dAc1 = np.zeros(self.c_length.size)
+  self.Af0 = np.zeros(self.c_length.size)
+  self.Af1 = np.zeros(self.c_length.size)
+  self.dAf0 = np.zeros(self.c_length.size)
+  self.dAf1 = np.zeros(self.c_length.size)
+  self.Ac = np.zeros(self.c_length.size)
+  self.Af = np.zeros(self.c_length.size)
+  self.Qc = np.zeros(self.c_length.size)
+  self.Qf = np.zeros(self.c_length.size)
+  self.hru_inundation = np.zeros(nhru)
+  self.hru_runoff_inundation = np.zeros(nhru)
+  self.hband_inundation = np.zeros(nhband)
+  self.hband_inundation1 = np.zeros(nhband)
+  self.fct_infiltrate = 0.1
+
+  #Define channel hbands per reach
+  self.hband_channel = np.zeros(self.c_length.size).astype(np.int32)
+  m = (self.hdb['hand'] == 0) & (self.hdb['W'] > 0)
+  self.hband_channel[:] = self.hdb['hband'][m]
+
+  return
+
 class kinematic:
 
  def __init__(self,MPI,cid,dt,nhband,nhru,cdir,dt_routing,HB):
@@ -35,7 +144,8 @@ class kinematic:
   self.uh_travel_distance = self.db['uh_travel_time'] #travel distance per hband (travel time is bug)
   self.c_length = self.db['c_length'][:]
   self.c_n = self.db['c_n'][:]
-  self.fp_n = self.db['fp_n'][:]
+  #self.fp_n = self.db['fp_n'][:]
+  self.fp_n = self.db['c_n'][:] #NWC - 10/2023 -> set to the same for now, model too "jumpy"
   #self.c_n[:] = 0.035#0.05#1#0.05#0.03
   #self.fp_n[:] = 0.15#0.15#25#0.15#0.15
   m =  self.fp_n < self.c_n
@@ -55,6 +165,7 @@ class kinematic:
   self.dA = np.zeros(self.c_length.size)
   self.Q0 = np.zeros(self.c_length.size)
   self.Q1 = np.zeros(self.c_length.size)
+  self.Kvn0 = np.zeros(self.c_length.size)
   self.reach2hband = np.asarray(self.db['reach2hband'].todense())
   self.reach2hband_inundation = np.copy(self.reach2hband)
   self.reach2hband_inundation[:] = 0.0
@@ -71,9 +182,10 @@ class kinematic:
   tmp = tmp[tmp != -9999]
   self.rcids_hdw = tmp
   self.outlets_array = fp['stream_network']['outlets'][:]
+  self.inlets_array = fp['stream_network']['inlets'][:]
   #topology
   topology = fp['stream_network']['topology'][:]
-  tmp = -9999*np.ones((topology.size,3),dtype=np.int32)
+  tmp = -9999*np.ones((topology.size,5),dtype=np.int32)
   for i in range(topology.size):
    m = topology == i
    if np.sum(m) >= 1:
@@ -110,7 +222,7 @@ class kinematic:
   self.hband_channel[:] = self.hdb['hband'][m]
 
   #Pause until all cores have all their data
-  self.comm.Barrier()
+  #self.comm.Barrier()
 	
   return
 
@@ -118,7 +230,7 @@ class kinematic:
 
   #Explicit solution
   #self.dt_routing = 100 #seconds
-  flag_constant_Kvn = True
+  flag_constant_Kvn = False#True
   dt_routing = self.dt_routing
   nt = int(dt/dt_routing)
   A0_org = np.copy(self.A0)
@@ -128,15 +240,15 @@ class kinematic:
    #self.exchange_bcs_v2()
    #Update solution
    (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
-   self.A0[:] = self.A1[:]
-   self.Q1[:] = self.Q0[:]
+   #self.A0[:] = self.A1[:]
+   #self.Q1[:] = self.Q0[:]
 
   #Zero out qss
   self.qss[:] = 0.0
   #Calculate area-weighted average inundation height per hband
   A = self.hdb['Af'] + self.hdb['Ac']
   #Add channel and flood cross sectional area
-  A1 = self.A0[:]
+  A1 = self.A1[:]
   W = self.hdb['W']
   M = self.hdb['M']
   hand = self.hdb['hand']
@@ -150,7 +262,7 @@ class kinematic:
 
   #Calculate Qc and Qf
   self.Ac[:] = self.reach2hband[range(self.nchannel),self.hband_channel]*self.reach2hband_inundation[range(self.nchannel),self.hband_channel]/self.c_length
-  self.Af[:] = self.A0 - self.Ac
+  self.Af[:] = self.A1 - self.Ac
   self.Qc[:] = self.u0*self.Ac
   self.Qf[:] = self.u0*self.Af
   self.Qc[self.Qc < 0.0] = 0.0
@@ -197,42 +309,48 @@ class kinematic:
 
 @numba.jit(nopython=True,cache=True)
 def update_solution_explicit(c_slope,c_n,u0,A0,topology,c_length,qss,bcs,dt_routing,
-     fp_n,Ac,Af,Pc,Pf,W,M,A0_org,flag_constant_Kvn):
+     fp_n,Ac,Af,Pc,Pf,W,M,A0_org,flag_constant_Kvn,Kvn0):
 
  #Extract info
- bcs_c = bcs/c_length
+ #bcs_c = bcs/c_length
  maxu = 10.0
  minu = 10**-5
  dt = dt_routing
 
  if flag_constant_Kvn == True:
   #Determine velocity
-  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0_org,c_n,fp_n)
+  #Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0_org,c_n,fp_n)
+  Kvn = A0_org**(5.0/3.0)/(W[:,0])**(2.0/3.0)/c_n
+  #Kvn = (0.2*Kvn + 0.8*Kvn0) #Time smooth conveyance to avoid jumpiness
   u0 = np.zeros(Kvn.size)
   u0[A0_org > 0.0] = Kvn[A0_org > 0.0]*c_slope[A0_org > 0.0]**0.5/A0_org[A0_org > 0.0]
  else:
   #Determine velocity
-  Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+  #Kvn = calculate_compound_convenyance(Ac,Af,Pc,Pf,W,M,A0,c_n,fp_n)
+  Kvn = A0**(5.0/3.0)/(W[:,0])**(2.0/3.0)/c_n
+  #Kvn = (0.2*Kvn + 0.8*Kvn0) #Time smooth conveyance to avoid jumpiness
   u0 = np.zeros(Kvn.size)
   u0[A0 > 0.0] = Kvn[A0 > 0.0]*c_slope[A0 > 0.0]**0.5/A0[A0 > 0.0]
+
 
  #Constrain velocity
  u0[u0 > maxu] = maxu
  u0[u0 < minu] = minu
+ u0[:] = 2.0
 
  #Compute Q0in
  Q0in = Compute_Q0in(topology,u0,A0)
 
+ #Compute Q0out
+ Q0out = A0*u0
+
  #A1 = A0 + source/sink + boundary conditions - Qout + Qin
- A1 = A0 + dt*qss + dt*bcs_c - dt*(u0*A0)/c_length + dt*Q0in/c_length
+ A1 = A0 + dt*qss + dt*bcs/c_length - dt*(u0*A0)/c_length + dt*Q0in/c_length
 
  #Curate A1 (issues with conservation of mass)
- A1[A1 < 0] = 0.0
+ #A1[A1 < 0] = 0.0
 
- #Calculate Q0
- Q0 = A0*u0
-
- return (Q0,u0,A1)
+ return (Q0out,u0,A1,Kvn,Q0in)
 
 
 @numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
@@ -359,10 +477,14 @@ def compute_qss(reach2hband,crunoff,c_length,qss):
 
 def exchange_bcs_v3(cids,hbdb,rank,size):
 
+  cids_core = cids
+  db_ex_local = {} #exchange between cids on the same process (minimize MPI overhead)
+
   #Send headwater data
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
-   crm = self.cid_rank_mapping #Where each cid resides
+   crm = hbdb[cid].cid_rank_mapping #Where each cid resides
+   db_ex_local[cid] = {}
    for ucid in self.scids_hdw:
     dest = crm[ucid]
     m = self.outlets_array[:,2] == ucid
@@ -372,59 +494,64 @@ def exchange_bcs_v3(cids,hbdb,rank,size):
     db_ex = {'cid':self.cid,'scid_hdw':ucid,
            'channels_ucid':channels_ucid,
            'Q0_bcs_ucid':Q0_bcs_ucid}
-    tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
-    self.comm.send(db_ex,dest=dest,tag=tag)
+    if ucid in cids_core:
+     db_ex_local[cid][ucid] = copy.deepcopy(db_ex)
+    else:
+     tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+     self.comm.send(db_ex,dest=dest,tag=tag)
 
   #Wait until all are done
-  self.comm.Barrier()
+  #self.comm.Barrier()
   
   #Receive headwater data
   recv = {}
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
-   crm = self.cid_rank_mapping #Where each cid resides
+   crm = hbdb[cid].cid_rank_mapping #Where each cid resides
    recv[cid] = {}
    for ucid in self.rcids_hdw:
     if ucid not in recv[cid]:recv[cid][ucid] = {}
     source = crm[ucid]
-    tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
-    db_ex = self.comm.recv(source=source,tag=tag)
+    if ucid not in cids_core:
+     tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+     db_ex = self.comm.recv(source=source,tag=tag)
+    else:
+     db_ex = db_ex_local[ucid][cid]
     for var in db_ex:
      recv[cid][ucid][var] = db_ex[var]
 
   #Update the boundary conditions
-  for cid in cids[rank::size]:
+  for cid in cids_core:
    self = hbdb[cid].routing
    bcs = self.bcs
    self.bcs[:] = 0.0
    for ucid in self.rcids_hdw:
     channels_ucid = recv[cid][ucid]['channels_ucid']
     Q0_bcs_ucid = recv[cid][ucid]['Q0_bcs_ucid']
-    self.bcs[channels_ucid] += Q0_bcs_ucid
-
-  #Wait until all are done
-  self.comm.Barrier()
+    for ic in range(channels_ucid.size):
+     self.bcs[channels_ucid[ic]] += Q0_bcs_ucid[ic]
 
   return
 
-def update_macroscale_polygon_routing(cids,HBdb,rank,size,flag_constant_Kvn):
+def update_macroscale_polygon_routing(cids,HBdb,flag_constant_Kvn):
 
-  for cid in cids[rank::size]:
+  for cid in cids:
    self = HBdb[cid].routing
    A0_org = self.A0_org
-   #Update solution
-   (self.Q0,self.u0,self.A1) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn)
    self.A0[:] = self.A1[:]
-   self.Q1[:] = self.Q0[:]
+   #Update solution
+   (self.Q0,self.u0,self.A1,self.Kvn0,self.Q0in) = update_solution_explicit(self.c_slope,self.c_n,self.u0,self.A0,self.topology,self.c_length,self.qss,self.bcs,self.dt_routing,self.fp_n,self.hdb['Ac'],self.hdb['Af'],self.hdb['Pc'],self.hdb['Pf'],self.hdb['W'],self.hdb['M'],A0_org,flag_constant_Kvn,self.Kvn0)
+   #self.A0[:] = self.A1[:]
+   #self.Q1[:] = self.Q0[:]
 
   return
 
-def calculate_routing_inundation(cids,HBdb,rank,size):
+def calculate_routing_inundation(cids,HBdb):
 
-  for cid in cids[rank::size]:
+  for cid in cids:
    self = HBdb[cid].routing
    #Zero out qss
-   self.qss[:] = 0.0
+   #self.qss[:] = 0.0
    #Calculate area-weighted average inundation height per hband
    A = self.hdb['Af'] + self.hdb['Ac']
    #Add channel and flood cross sectional area
@@ -449,3 +576,303 @@ def calculate_routing_inundation(cids,HBdb,rank,size):
    self.Qf[self.Qf < 0.0] = 0.0
 
   return
+
+def exchange_velocity_fields(cids,HBdb):
+
+ #Compute velocities on all reaches
+ db_send = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  self.u0[:] = 2.0 #m/s (Set to 2.0 m/s on all reaches for now)
+  #Send velocities
+  for ucid in self.particle_tracker_db_send:
+   if ucid in cids:continue
+   dest = HBdb[cid].cid_rank_mapping[ucid]
+   if dest == rank:continue
+   if dest not in db_send:db_send[dest] = {}
+   if cid not in db_send[dest]:db_send[dest][cid] = {}
+   #tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+   #print('send',cid,ucid,dest,tag,flush=True)
+   tmp = self.u0[self.particle_tracker_db_send[ucid]]
+   #self.comm.send(tmp,dest=dest,tag=tag)
+   db_send[dest][cid][ucid] = tmp.astype(np.float32)
+
+ #Assemble send tags
+ tags_send = []
+ ns = 0
+ for dest in db_send:
+  tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+  tags_send.append([tag,dest])
+ if len(tags_send) > 0:
+  tags_send = np.array(tags_send)
+  argsort = np.argsort(tags_send[:,0])
+  tags_send = tags_send[argsort,:]
+  ns = tags_send.shape[0]
+
+ #Receive from all corresponding ranks
+ db_receive = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  for ucid in self.particle_tracker_db_receive:
+   source = HBdb[cid].cid_rank_mapping[ucid]
+   if source == rank:continue
+   if source not in db_receive:db_receive[source] = {}
+
+ #Assemble receive tags
+ tags_receive = []
+ nr = 0
+ for source in db_receive:
+  tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+  tags_receive.append([tag,source])
+ if len(tags_receive) > 0:
+  tags_receive = np.array(tags_receive)
+  argsort = np.argsort(tags_receive[:,0])
+  tags_receive = tags_receive[argsort,:]
+  nr = tags_receive.shape[0]
+
+ #Send/receive
+ for i in range(ns):
+  dest = tags_send[i,1]
+  tag = tags_send[i,0]
+  comm.send(db_send[dest],dest=dest,tag=tag)
+ for i in range(nr):
+  source = tags_receive[i,1]
+  tag = tags_receive[i,0]
+  db_receive[source] = comm.recv(source=source,tag=tag)
+ #nsr = max(nr,ns)
+ #for i in range(nsr):
+ # if i < ns:
+ #  dest = tags_send[i,1]
+ #  tag = tags_send[i,0]
+ #  comm.send(db_send[dest],dest=dest,tag=tag)
+ # if i < nr:
+ #  source = tags_receive[i,1] 
+ #  tag = tags_receive[i,0]
+ #  db_receive[source] = comm.recv(source=source,tag=tag)
+  
+ #Send to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0'))) 
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # comm.issend(db_send[dest],dest=dest,tag=tag)
+
+
+ #Send/receive to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # comm.issend(db_send[dest],dest=dest,tag=tag)
+
+ #for source in db_receive:
+ # tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+ # #print('receive',tag,flush=True)
+ # #db_receive[source] = comm.recv(source=source,tag=tag)
+ # db_receive[source] = comm.irecv(source=source,tag=tag).wait()
+
+ #Receive velocities for the downstream reaches
+ for cid in cids:
+  self = HBdb[cid].routing
+  for ucid in self.particle_tracker_db_receive:
+   if ucid in cids:
+    self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = HBdb[ucid].routing.u0[HBdb[ucid].routing.particle_tracker_db_send[cid]]
+   else:
+    source = HBdb[cid].cid_rank_mapping[ucid]
+    #tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    #print('receive',cid,ucid,source,tag,flush=True)
+    #tmp = self.comm.recv(source=source,tag=tag)
+    tmp = db_receive[source][ucid][cid]
+    self.downstream_u0[self.cid_mapping[ucid-1],self.particle_tracker_db_receive[ucid]] = tmp
+  
+ #Wait
+ #self.comm.Barrier()
+
+ return
+
+def update_particle_tracker_macroscale_polygon(cids,HBdb):
+
+ #Push water downstream using u0 fields
+ for cid in cids:
+  HBr = HBdb[cid].routing
+  dt = HBr.dt_routing
+  HBr.Vin[:] = 0.0
+  #Determine how much water in the channel leaves a given channel
+  cl = dt*HBr.u0# HBr.c_length/HBr.u0
+  m = cl < HBr.c_length
+  f = np.ones(HBr.c_length.size)
+  f[m] = cl[m]/HBr.c_length[m]
+  Vc = f*(HBr.A0*HBr.c_length)#+dt*HBr.qss*HBr.c_length)
+  snake_length = f*HBr.c_length
+  HBr.Vout[:] = Vc[:]#0.0
+  HBr.downstream_Vin[:] = 0.0
+  HBr.downstream_Vout[:] = 0.0
+  (HBr.Vin,HBr.Vout,HBr.downstream_Vin,HBr.downstream_Vout) = push_water_downstream(HBr.downstream_u0,HBr.downstream_channels,HBr.dt_routing,HBr.cid_mapping,HBr.u0,cid,HBr.c_length,HBr.downstream_c_length,HBr.Vin,HBr.Vout,HBr.downstream_Vin,HBr.downstream_Vout,Vc,snake_length)
+
+ return
+
+@numba.jit(nopython=True,cache=True,nogil=True,fastmath=True)
+def push_water_downstream(downstream_u0,downstream_channels,dt,cid_mapping,u0,cid,c_length,downstream_c_length,Vin,Vout,downstream_Vin,downstream_Vout,Vc,snake_length):
+
+ for ic in range(downstream_channels.shape[0]):
+  t = 0.0
+  for jc in range(downstream_channels.shape[2]):
+   cid1 = downstream_channels[ic,1,jc]
+   if ((cid1 == -9999) | (cid1 == -1)):break
+   channel = downstream_channels[ic,0,jc]
+   if cid1 == cid:
+    u = u0[channel]
+    cl = c_length[channel]
+   else:
+    u = downstream_u0[cid_mapping[cid1-1],channel]
+    cl = downstream_c_length[cid_mapping[cid1-1],channel]
+   t += cl/u
+   if t >= dt:
+    #Determine fraction that ends up in the last channel
+    cc = cl-(t - dt)*u
+    f = cc/snake_length[ic]
+    if (f > 1) | (jc == 0):
+     if cid1 == cid: 
+      Vin[channel] += Vc[ic]
+     else:
+      downstream_Vin[cid_mapping[cid1-1],channel] += Vc[ic]
+    else:
+     #Split between channels (probably necessary to make possible to split into multiple channels instead; should be ok for now)
+     #bottom channel
+     if cid1 == cid:
+       Vin[channel] += f*Vc[ic]
+     else:
+      downstream_Vin[cid_mapping[cid1-1],channel] += f*Vc[ic]
+     #top channel
+     cid2 = downstream_channels[ic,1,jc-1]
+     channel2 = downstream_channels[ic,0,jc-1]
+     if cid2 == cid:
+      Vin[channel2] += (1-f)*Vc[ic]
+     else:
+      downstream_Vin[cid_mapping[cid2-1],channel2] += (1-f)*Vc[ic]
+    break
+     
+   else:
+    if cid1 == cid:
+     Vin[channel] += Vc[ic]
+     Vout[channel] += Vc[ic]
+    else:
+     downstream_Vin[cid_mapping[cid1-1],channel] += Vc[ic]
+     downstream_Vout[cid_mapping[cid1-1],channel] += Vc[ic]
+
+ return (Vin,Vout,downstream_Vin,downstream_Vout)
+
+def exchange_water_volumes(cids,HBdb):
+
+ #Send computed Vin/Vout to the corresponding cid
+ db_send = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  #Send Vin/Vout
+  for ucid in self.particle_tracker_db_receive:
+   if ucid in cids:continue
+   dest = HBdb[cid].cid_rank_mapping[ucid]
+   if dest not in db_send:db_send[dest] = {}
+   if cid not in db_send[dest]:db_send[dest][cid] = {}
+   #tag = int('%s%s' % (str(cid).ljust(4,'0'),str(ucid).ljust(4,'0')))
+   ics = self.particle_tracker_db_receive[ucid]
+   iucid = self.cid_mapping[ucid-1]
+   db_send[dest][cid][ucid] = {'Vin':self.downstream_Vin[iucid,ics].astype(np.float32),
+          'Vout':self.downstream_Vout[iucid,ics].astype(np.float32)}
+   #self.comm.send(db,dest=dest,tag=tag)
+
+ #Assemble send tags
+ tags_send = []
+ ns = 0
+ for dest in db_send:
+  tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+  tags_send.append([tag,dest])
+ if len(tags_send) > 0:
+  tags_send = np.array(tags_send)
+  argsort = np.argsort(tags_send[:,0])
+  tags_send = tags_send[argsort,:]
+  ns = tags_send.shape[0]
+
+ #Send to all corresponding ranks
+ #for dest in db_send:
+ # tag = int('1%s%s' % (str(rank).rjust(3,'0'),str(dest).rjust(3,'0')))
+ # #print('send',tag,flush=True)
+ # #comm.send(db_send[dest],dest=dest,tag=tag)
+ # #comm.issend(db_send[dest],dest=dest,tag=tag)
+ # comm.send(db_send[dest],dest=dest,tag=tag)
+
+ #Receive from all corresponding ranks
+ db_receive = {}
+ for cid in cids:
+  self = HBdb[cid].routing
+  rank = self.rank
+  comm = self.comm
+  for ucid in self.particle_tracker_db_send:
+   source = HBdb[cid].cid_rank_mapping[ucid]
+   if source == rank:continue
+   if source not in db_receive:db_receive[source] = {}
+
+ #Assemble receive tags
+ tags_receive = []
+ nr = 0
+ for source in db_receive:
+  tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+  tags_receive.append([tag,source])
+ if len(tags_receive) > 0:
+  tags_receive = np.array(tags_receive)
+  argsort = np.argsort(tags_receive[:,0])
+  tags_receive = tags_receive[argsort,:]
+  nr = tags_receive.shape[0]
+
+ #Send/receive
+ for i in range(ns):
+  dest = tags_send[i,1]
+  tag = tags_send[i,0]
+  comm.send(db_send[dest],dest=dest,tag=tag)
+ for i in range(nr):
+  source = tags_receive[i,1]
+  tag = tags_receive[i,0]
+  db_receive[source] = comm.recv(source=source,tag=tag)
+
+ #for source in db_receive:
+ # tag = int('1%s%s' % (str(source).rjust(3,'0'),str(rank).rjust(3,'0')))
+ # #print('receive',tag,flush=True)
+ # db_receive[source] = comm.recv(source=source,tag=tag)
+ # #db_receive[source] = comm.irecv(source=source,tag=tag).wait()
+
+ #Receive computed Vin/Vout
+ for cid in cids:
+  self = HBdb[cid].routing
+  for ucid in self.particle_tracker_db_send:
+   ics = self.particle_tracker_db_send[ucid]
+   if ucid in cids:
+    iucid2 = HBdb[ucid].routing.cid_mapping[cid-1]
+    ics2 = HBdb[ucid].routing.particle_tracker_db_receive[cid]
+    HBdb[cid].routing.Vin[ics] += HBdb[ucid].routing.downstream_Vin[iucid2,ics2]
+    HBdb[cid].routing.Vout[ics] += HBdb[ucid].routing.downstream_Vout[iucid2,ics2]
+   else:
+    source = HBdb[cid].cid_rank_mapping[ucid]
+    #tag = int('%s%s' % (str(ucid).ljust(4,'0'),str(cid).ljust(4,'0')))
+    #db = self.comm.recv(source=source,tag=tag)
+    db = db_receive[source][ucid][cid]
+    HBdb[cid].routing.Vin[ics] += db['Vin'][:]
+    HBdb[cid].routing.Vout[ics] += db['Vout'][:]
+
+ #Calculate Qin,Qout,A
+ for cid in cids:
+  HBr = HBdb[cid].routing
+  dt = HBr.dt_routing
+  HBr.Qin[:] = HBr.Vin/dt
+  HBr.Qout[:] = HBr.Vout/dt
+  #qss should probable be before pushing water
+  HBr.A1[:] = HBr.A0[:] - dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length + dt*HBr.qss
+  #HBr.A1[:] = -dt*HBr.Qout/HBr.c_length + dt*HBr.Qin/HBr.c_length 
+  #A1 = A0 + dt*qss + dt*bcs/c_length - dt*(u0*A0)/c_length + dt*Q0in/c_length
+
+ return

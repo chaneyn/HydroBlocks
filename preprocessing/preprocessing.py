@@ -43,7 +43,7 @@ def plot_data(data):
 
  return
 
-def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
+def Prepare_Model_Input_Data(hydroblocks_info):
 
  #Prepare the info dictionary
  info = {}
@@ -62,9 +62,9 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  os.system('mkdir -p %s' % input_dir)
 
  #Create soft link to HydroBlocks from within the directory
- if os.path.isdir('%s/experiments/simulations/%s/workspace'%(hydroblocks_info['rdir'],hydroblocks_info['experiment'])) == False:
-  HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
-  HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
+ HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
+ HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
+ if os.path.exists(HBedir) == False:
   os.system('ln -s %s %s' % (HBdir,HBedir))
 
  #Create the dictionary to hold all of the data
@@ -82,6 +82,7 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  wbd['bbox'] = {'minlat':md['miny'],'maxlat':md['maxy'],
                 'minlon':md['minx'],'maxlon':md['maxx'],
                 'res':abs(md['resx'])}
+ #print(wbd['bbox'],flush=True)
  wbd['files'] = {
   'WLTSMC':glob.glob('%s/theta1500/*'%workspace), #laura svp
   'TEXTURE_CLASS':'%s/texture_class/texture_class_latlon_2.5cm.tif' % workspace,
@@ -161,8 +162,11 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  lon = (wbd['bbox']['minlon'] + wbd['bbox']['maxlon'])/2 
  if lon < 0:lon += 360
  grp.longitude = lon
- metadata = gdal_tools.retrieve_metadata(wbd['files']['mask']) 
- grp.dx = 90.0#26.0#25.0#metadata['resx'] #UPDATE WITH DEM!
+ metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
+ mask_object = gdal_tools.read_data(wbd['files']['mask'])
+ terrain_tools.calculate_area(mask_object)
+ grp.dx = np.mean(mask_object.area**0.5)
+
 
  if (hydroblocks_info['network_abstraction']['flag']==False) and (flag_mod_hmc == False):#laura
   #Write out the mapping
@@ -223,7 +227,7 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
   if (hydroblocks_info['connection_matrix_hbands']==False):
    wmatrix = output['cmatrix']['width']
    nconnections = wmatrix.data.size
-   grp = fp.createGroup('wmatrix')
+   grp = fp.createGroup(text)
    grp.createDimension('connections_columns',wmatrix.indices.size)
    grp.createDimension('connections_rows',wmatrix.indptr.size)
    grp.createVariable('data','f4',('connections_columns',))
@@ -233,7 +237,6 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
    grp.variables['indices'][:] = wmatrix.indices
    grp.variables['indptr'][:] = wmatrix.indptr
   elif (hydroblocks_info['connection_matrix_hbands']==True): #and (hydroblocks_info['fully_distributed']==False):
-   #for i in range(1,(int(hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins"]+1))):
    for i in range(1,int(n_cluster_basins+1)):
     text='wmatrix_Basin%s' %int(i)
     wmatrix=output['cmatrix_Basin%s' %int(i)]['width']
@@ -264,6 +267,12 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  for var in vars:
   if var in ['slope','area_pct','land_cover','channel','dem','soil_texture_class','ti','carea','area','F11','clay','m','hand','y_aspect','x_aspect','hru','hband','lats','lons']: #laura svp
    grp.createVariable(var,'f4',('hru',))#,zlib=True)
+   #laura, fix water balance error in subdomains containing glaciers replacing the glacier land cover by bare soil
+   if var == 'land_cover':
+    glc_lc = 15
+    bs_lc = 16
+    if glc_lc in data['parameters']['hru'][var]:
+        data['parameters']['hru'][var][data['parameters']['hru'][var]==glc_lc] = bs_lc
    grp.variables[var][:] = data['parameters']['hru'][var] #laura svp
   else: #laura svp
    grp.createVariable(var,'f4',('hru','nsoil'))#,zlib=True) #laura svp
@@ -322,6 +331,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  print("Calculating slope and aspect",flush=True)
  res_array = np.copy(demns)
  res_array[:] = eares
+ #res_array = terrain_tools.calculate_area(mask_object)
  (slope,aspect) = terrain_tools.ttf.calculate_slope_and_aspect(np.flipud(demns),res_array,res_array)
  slope = np.flipud(slope)
  aspect = np.flipud(aspect)
@@ -339,10 +349,10 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Calculate channel initiation points (2 parameters)
  C = area/eares*slope**2
  cthrs = hydroblocks_info['channel_initiation']["athrs"]#laura
- ipoints = ((area > cthrs)).astype(np.int32)
- ipoints[ipoints == 0] = -9999
+ #ipoints = ((area > cthrs)).astype(np.int32)
+ #ipoints[ipoints == 0] = -9999
     
- #Calculate channel initiation points subgrid, laura
+ #Calculate channel initiation subgrid, laura
  if hydroblocks_info['channel_initiation']['flag_subgrid']==True:
   cthrs_sg = hydroblocks_info['channel_initiation']["athrs_subgrid"]
   #Ensure that threshold for subgrid network is smaller than main network
@@ -357,7 +367,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  fdc_all = fdir
 
  #Compute the channels
- print("Defining channels",flush=True)
+ print("Defining channels",flush=True)	
  (channels,channels_wob,channel_topology,tmp1,crds,channel_outlet_id,channel_target_mp,channel_target_crds,channel_inlet_id,channel_inlet_target_mp,channel_inlet_target_crds) = terrain_tools.ttf.calculate_channels_wocean_wprop_wcrds(ac,ac_all,cthrs,cthrs,fdc,mask,mask_all,np.flipud(covariates['lats']),covariates['lons'])
 
  #Curate list output
@@ -375,6 +385,12 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Convert channel ids to start from 0 (instead of 1)
  channel_outlet_id[channel_outlet_id>0] = channel_outlet_id[channel_outlet_id>0] - 1
  channel_inlet_id[channel_inlet_id>0] = channel_inlet_id[channel_inlet_id>0] - 1
+ ###
+ '''tcid = int(input_dir.split('/')[-1])
+ if tcid == 1:
+  for i in range(channel_inlet_id.size):
+   print(tcid,channel_inlet_id[i],channel_inlet_target_mp[i,:])
+ exit()'''
  
  #If the dem is undefined then set to undefined
  channels[dem == -9999] = -9999
@@ -388,10 +404,13 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
                                   'channel_inlet_id':channel_inlet_id,
                                   'channel_inlet_target_mp':channel_inlet_target_mp,
                                   'channel_inlet_target_crds':channel_inlet_target_crds}
- db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels_wob,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
+ #print("got here 3",flush=True)
+ #exit()
+ #db_routing['i/o'] = terrain_tools.calculate_inlets_oulets(channels,fdir,area_all,mask,np.flipud(covariates['lats']),covariates['lons'],mask_all,area_all)
 
  #Compute and output the list of the channel positions
- lst_crds = []
+ '''lst_crds = []
  for icrd in range(crds.shape[0]):
    mcrd = crds[icrd,:,0] != -9999
    if (np.sum(mcrd) == 0):break
@@ -400,7 +419,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
        lst_crds.append(shapely.geometry.LineString(np.fliplr(crds_i)))
    else:
        lst_crds.append(shapely.geometry.Point(np.flipud(crds_i[0,:])))
- db_routing['crds'] = lst_crds
+ db_routing['crds'] = lst_crds'''
 
  #Compute the basins
  print("Defining basins",flush=True)
@@ -439,7 +458,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
                                          channel_topology_sg,
                                          basins_wob,
                                          db_channels_sg,
-                                         thr_var)
+                                         thr_var,
+                                         hydroblocks_info['cid'])
   
   dict['principal_components'] = principal_components
   #Save pickle channel_subgrid
@@ -488,8 +508,8 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  else: #laura
   basins1 = np.copy(basins)
-  basins[basins!=-9999]=basins[basins!=-9999]
-  hrus = np.copy(basins1) #laura
+  basins[basins!=-9999]=basins[basins!=-9999]-np.min(np.unique(basins[basins!=-9999]))
+  hrus = np.copy(basins) #laura
   nhru = np.unique(hrus[hrus!=-9999]).size #laura
   new_hand = np.copy(hrus) #laura
   new_hand2 = np.copy(hrus) #laura
@@ -501,13 +521,11 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  #Save the channel info
  if os.path.isfile('%s/routing_info.pck' % input_dir):
   os.system('rm %s/routing_info.pck' % input_dir)
- if os.path.isfile('%s/routing_io.pck' % input_dir):
-  os.system('rm %s/routing_io.pck' % input_dir)
  if os.path.isfile('%s/routing_mp_connectivity' % input_dir):
   os.system('rm %s/routing_mp_connectivity' % input_dir)
 
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
- pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
+ #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
  pickle.dump(db_routing['mp_connectivity'],open('%s/routing_mp_connectivity.pck' % input_dir,'wb'))
 
  #Construct HMC info for creating connections matrix
@@ -550,7 +568,8 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  cov = pickle.load(open(cov_path,'rb'))
  z_data = cov['z_data']
  basins_wob = cov['output']['basin_map']
- basins_wob[basins_wob!=-9999] = basins_wob[basins_wob!=-9999] - 1
+ if np.min(basins_wob[basins_wob!=-9999])!=0:
+  basins_wob[basins_wob!=-9999] = basins_wob[basins_wob!=-9999] - np.min(basins_wob[basins_wob!=-9999])
  basins = basins_wob
  covariates = cov['covariates']
  db_channels = cov['output']['stream_network']
@@ -570,7 +589,10 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  #bring in channel variables
  for var in ['width','bankfull','length','area','shreve','large_scale_basins']:
   if var in ['width','bankfull','length','area','shreve']:
-   hp_in[var] = [0]
+   if len(db_channels['length']) < len(np.unique(basins_wob[basins_wob!=-9999])):
+    hp_in[var] = [0]
+   else:
+    hp_in[var] = []
    hp_in[var].extend(input_file['stream_network'][var][:])
    hp_in[var] = np.array(hp_in[var])
   if var in ['large_scale_basins']:
@@ -582,14 +604,22 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
    hp_in['lsb_lons'] = np.array(hp_in['lsb_lons'])
  
  if hydroblocks_info['network_abstraction']['flag'] == True:
-  m_main = np.array(hp_in['shreve'],dtype=bool)
-  m_main[:] = 0
-  m_main[1:] = input_file['stream_network']['explicit_reach'][:] == 1
-  m_abst = np.array(hp_in['shreve'],dtype=bool)
-  m_abst[:] = 1
-  m_abst[1:] = input_file['stream_network']['explicit_reach'][:] == 0
+  if len(db_channels['length']) < len(np.unique(basins_wob[basins_wob!=-9999])):
+   m_main = np.array(np.unique(basins_wob[basins_wob!=-9999]),dtype=bool)
+   m_main[:] = 0
+   m_main[1:] = input_file['stream_network']['explicit_reach'][:] == 1
+   m_abst = np.array(np.unique(basins_wob[basins_wob!=-9999]),dtype=bool)
+   m_abst[:] = 1
+   m_abst[1:] = input_file['stream_network']['explicit_reach'][:] == 0
+  else:
+   m_main = np.array(hp_in['shreve'],dtype=bool)
+   m_main[:] = 0
+   m_main[:] = input_file['stream_network']['explicit_reach'][:] == 1
+   m_abst = np.array(hp_in['shreve'],dtype=bool)
+   m_abst[:] = 1
+   m_abst[:] = input_file['stream_network']['explicit_reach'][:] == 0
  input_file.close()
- 
+    
  #If subgrid network flag is true, modify hp_in and subbasin_clustering_cov, main_subbasin_cov, and abst_subbasin_cov laura
  if hydroblocks_info['channel_initiation']['flag_subgrid'] == True:
   y = pickle.load(open('%s/pca_subgrid_basins.pck'%(hydroblocks_info['input_dir']),'rb'))['principal_components']
@@ -603,30 +633,58 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  print("Clustering the basins",flush=True)
  #Mask hp_in for main river basins and secondary basins
  if hydroblocks_info['network_abstraction']['flag'] == True:
-  hp_in_main = {}
-  hp_in_abst = {}
-  for key in list(hp_in.keys()):
-   hp_in_main[key] = []
-   hp_in_abst[key] = []         
-   for i in range(0,m_main.shape[0]):
-    if m_main[i]==True:
-     hp_in_main[key].append(hp_in[key][i])
-    elif m_abst[i]==True:
-     hp_in_abst[key].append(hp_in[key][i])
-   hp_in_main[key]=np.array(hp_in_main[key])
-   hp_in_abst[key]=np.array(hp_in_abst[key])
-  basins_main = np.copy(basins_wob)
-  basins_abst = np.copy(basins_wob)
-  basins_main[:]=-9999
-  basins_abst[:]=-9999
-  for main in hp_in_main['bid']:
-   basins_main[basins_wob==main]=1
-  for abst in hp_in_abst['bid']:
-   basins_abst[basins_wob==abst]=1
+  if (np.sum(m_main) != 0) and (np.sum(m_abst) != 0):
+   hp_in_main = {}
+   hp_in_abst = {}
+   for key in list(hp_in.keys()):
+    hp_in_main[key] = []
+    hp_in_abst[key] = []         
+    for i in range(0,m_main.shape[0]):
+     if m_main[i]==True:
+      hp_in_main[key].append(hp_in[key][i])
+     elif m_abst[i]==True:
+      hp_in_abst[key].append(hp_in[key][i])
+    hp_in_main[key]=np.array(hp_in_main[key])
+    hp_in_abst[key]=np.array(hp_in_abst[key])
+   basins_main = np.copy(basins_wob)
+   basins_abst = np.copy(basins_wob)
+   basins_main[:]=-9999
+   basins_abst[:]=-9999
+   for main in hp_in_main['bid']:
+    basins_main[basins_wob==main]=1
+   for abst in hp_in_abst['bid']:
+    basins_abst[basins_wob==abst]=1
 
+  elif (np.sum(m_main) != 0) and (np.sum(m_abst) == 0):
+   hp_in_main = {}
+   for key in list(hp_in.keys()):
+    hp_in_main[key] = []
+    for i in range(0,m_main.shape[0]):
+     if m_main[i]==True:
+      hp_in_main[key].append(hp_in[key][i])
+    hp_in_main[key]=np.array(hp_in_main[key])
+   basins_main = np.copy(basins_wob)
+   basins_main[:]=-9999
+   for main in hp_in_main['bid']:
+    basins_main[basins_wob==main]=1
+
+  elif (np.sum(m_main) == 0) and (np.sum(m_abst) != 0):
+   hp_in_abst = {}
+   for key in list(hp_in.keys()):
+    hp_in_abst[key] = []
+    for i in range(0,m_abst.shape[0]):
+     if m_abst[i]==True:
+      hp_in_abst[key].append(hp_in[key][i])
+    hp_in_abst[key]=np.array(hp_in_abst[key])
+   basins_abst = np.copy(basins_wob)
+   basins_abst[:]=-9999
+   for abst in hp_in_abst['bid']:
+    basins_abst[basins_wob==abst]=1
+    
   #Set the ncatchments to be at least the number of basins
   ncatchments_main = min(ncatchments_main,np.sum(m_main))
   ncatchments_abst = min(ncatchments_abst,np.sum(m_abst))
+  ncatchments = ncatchments_main + ncatchments_abst #laura fix
     
   #Assign centroid of large scale basin to covariates for clustering
   if 'large_scale_basins' in main_subbasin_clustering_cov:#laura
@@ -637,106 +695,124 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
    abst_subbasin_clustering_cov=abst_subbasin_clustering_cov+['lsb_lats','lsb_lons']
 
   #Assemble input data
-  cvs1 = {}
-  cvs2 = {}
-  for var in main_subbasin_clustering_cov: #laura
-   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
-    if var=='lc_w_now': #laura
-     lc_mask=covariates['lc_17'] #laura
-    elif var=='lc_urb_nourb': #laura
-     lc_mask=covariates['lc_13'] #laura
-    elif var=='lc_grass_forest': #laura
+  if (np.sum(m_main) != 0):
+   cvs1 = {}
+   for var in main_subbasin_clustering_cov: #laura
+    if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
      lc_mask=np.copy(dem)
      lc_mask[:] = 0.0
-     if 'lc_4' in covariates:
-      lc_mask[covariates['lc_4']==1]=1 #deciduous forest
-     if 'lc_2' in covariates: #laura
-      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
-     if 'lc_5' in covariates: #laura
-      lc_mask[covariates['lc_5']==1]=1 #mixed_forest #laura
-     if 'lc_6' in covariates: #laura
-      lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub #laura
-     if 'lc_11' in covariates: #laura
-      lc_mask[covariates['lc_11']==1]=0.66 #wetlands #laura
-     if 'lc_12' in covariates: #laura
-      lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops #laura
-     if 'lc_10' in covariates: #laura
-      lc_mask[covariates['lc_10']==1]=0.33 #grassland #laura
-     if 'lc_16' in covariates: #laura
-      lc_mask[covariates['lc_16']==1]=0.01 #barren_land #laura
-    cvs1[var] = {'min':0, #laura
-                 'max':1, #laura
-                 't':-9999, #laura
-                 'd':lc_mask} #laura
-   else: #laura
-    tmp1 = np.copy(hp_in_main[var])
-    cvs1[var] = {'min':np.min(tmp1),
-                 'max':np.max(tmp1),
-                 't':-9999,
-                 'd':tmp1}
-    
-  for var in abst_subbasin_clustering_cov: #laura
-   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
-    if var=='lc_w_now': #laura
-     lc_mask=covariates['lc_17'] #laura
-    elif var=='lc_urb_nourb': #laura
-     lc_mask=covariates['lc_13'] #laura
-    elif var=='lc_grass_forest': #laura
+     if var=='lc_w_now': #laura
+      lc_mask=covariates['lc_17'] #laura
+     elif var=='lc_urb_nourb': #laura
+      lc_mask=covariates['lc_13'] #laura
+     elif var=='lc_grass_forest': #laura
+      if 'lc_4' in covariates:
+       lc_mask[covariates['lc_4']==1]=1 #deciduous forest
+      if 'lc_2' in covariates: #laura
+       lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
+      if 'lc_5' in covariates: #laura
+       lc_mask[covariates['lc_5']==1]=1 #mixed_forest #laura
+      if 'lc_6' in covariates: #laura
+       lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub #laura
+      if 'lc_11' in covariates: #laura
+       lc_mask[covariates['lc_11']==1]=0.66 #wetlands #laura
+      if 'lc_12' in covariates: #laura
+       lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops #laura
+      if 'lc_10' in covariates: #laura
+       lc_mask[covariates['lc_10']==1]=0.33 #grassland #laura
+      if 'lc_16' in covariates: #laura
+       lc_mask[covariates['lc_16']==1]=0.01 #barren_land #laura
+     cvs1[var] = {'min':0, #laura
+                  'max':1, #laura
+                  't':-9999, #laura
+                  'd':lc_mask} #laura
+    else: #laura
+     tmp1 = np.copy(hp_in_main[var])
+     cvs1[var] = {'min':np.min(tmp1),
+                  'max':np.max(tmp1),
+                  't':-9999,
+                  'd':tmp1}
+        
+  if (np.sum(m_abst) != 0):
+   cvs2 = {}
+   for var in abst_subbasin_clustering_cov: #laura
+    if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
      lc_mask=np.copy(dem)
      lc_mask[:] = 0.0
-     if 'lc_4' in covariates:
-      lc_mask[covariates['lc_4']==1]=1 #deciduous forest
-     if 'lc_2' in covariates: #laura
-      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
-     if 'lc_5' in covariates: #laura
-      lc_mask[covariates['lc_5']==1]=1 #mixed_forest #laura
-     if 'lc_6' in covariates: #laura
-      lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub #laura
-     if 'lc_11' in covariates: #laura
-      lc_mask[covariates['lc_11']==1]=0.66 #wetlands #laura
-     if 'lc_12' in covariates: #laura
-      lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops #laura
-     if 'lc_10' in covariates: #laura
-      lc_mask[covariates['lc_10']==1]=0.33 #grassland #laura
-     if 'lc_16' in covariates: #laura
-      lc_mask[covariates['lc_16']==1]=0.01 #barren_land #laura
-    cvs2[var] = {'min':0, #laura
-                 'max':1, #laura
-                 't':-9999, #laura
-                 'd':lc_mask} #laura
-   else: #laura
-    tmp2 = np.copy(hp_in_abst[var])
-    cvs2[var] = {'min':np.min(tmp2),
-                 'max':np.max(tmp2),
-                 't':-9999,
-                 'd':tmp2}
+     if var=='lc_w_now': #laura
+      lc_mask=covariates['lc_17'] #laura
+     elif var=='lc_urb_nourb': #laura
+      lc_mask=covariates['lc_13'] #laura
+     elif var=='lc_grass_forest': #laura
+      if 'lc_4' in covariates:
+       lc_mask[covariates['lc_4']==1]=1 #deciduous forest
+      if 'lc_2' in covariates: #laura
+       lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
+      if 'lc_5' in covariates: #laura
+       lc_mask[covariates['lc_5']==1]=1 #mixed_forest #laura
+      if 'lc_6' in covariates: #laura
+       lc_mask[covariates['lc_6']==1]=0.66 #shrub/scrub #laura
+      if 'lc_11' in covariates: #laura
+       lc_mask[covariates['lc_11']==1]=0.66 #wetlands #laura
+      if 'lc_12' in covariates: #laura
+       lc_mask[covariates['lc_12']==1]=0.66 #pasture/hay/cultivated_crops #laura
+      if 'lc_10' in covariates: #laura
+       lc_mask[covariates['lc_10']==1]=0.33 #grassland #laura
+      if 'lc_16' in covariates: #laura
+       lc_mask[covariates['lc_16']==1]=0.01 #barren_land #laura
+     cvs2[var] = {'min':0, #laura
+                  'max':1, #laura
+                  't':-9999, #laura
+                  'd':lc_mask} #laura
+    else: #laura
+     tmp2 = np.copy(hp_in_abst[var])
+     cvs2[var] = {'min':np.min(tmp2),
+                  'max':np.max(tmp2),
+                  't':-9999,
+                  'd':tmp2}
   
   #If subgrid network flag is true, ensure that topological principal components don't overwhelm clustering of basins, laura
-  keys2 = list(cvs2.keys())
-  keys1 = list(cvs1.keys())
+  if (np.sum(m_abst) != 0):
+   keys2 = list(cvs2.keys())
+  if (np.sum(m_main) != 0):
+   keys1 = list(cvs1.keys())
+
   if hydroblocks_info['channel_initiation']['flag_subgrid'] == True:
    #cvs1
-   for var in keys1:
-    cvs1[var]['w'] = 1
-   #cvs2
-   n_pc = 0
-   n_no_pc = 0
-   for var in keys2:
-    if 'pc_' in var:n_pc += 1
-    else:n_no_pc += 1
-   for var in keys2:
-    if 'pc_' in var:cvs2[var]['w'] = (1/(n_no_pc+1))/n_pc
-    else:cvs2[var]['w'] = (1/(n_no_pc+1))
-  else:
-   for var in keys1:cvs1[var]['w'] = 1
-   for var in keys2:cvs2[var]['w'] = 1
+   if (np.sum(m_main) != 0):
+    for var in keys1:
+     cvs1[var]['w'] = 1
     
-  (basin_clusters_main,) = terrain_tools.cluster_basins_hmc_2(basins_wob,cvs1,hp_in_main,ncatchments_main,1)
-  (basin_clusters_abst,) = terrain_tools.cluster_basins_hmc_2(basins_wob,cvs2,hp_in_abst,ncatchments_abst,ncatchments_main+1)
+   #cvs2
+   if (np.sum(m_abst) != 0):
+    n_pc = 0
+    n_no_pc = 0
+    for var in keys2:
+     if 'pc_' in var:n_pc += 1
+     else:n_no_pc += 1
+    for var in keys2:
+     if 'pc_' in var:cvs2[var]['w'] = (1/(n_no_pc+1))/n_pc
+     else:cvs2[var]['w'] = (1/(n_no_pc+1))
+
+  else:
+   if (np.sum(m_main) != 0):
+    for var in keys1:cvs1[var]['w'] = 1
+   if (np.sum(m_abst) != 0):
+    for var in keys2:cvs2[var]['w'] = 1
+    
+  if (np.sum(m_main) != 0):  
+   (basin_clusters_main,) = terrain_tools.cluster_basins_hmc_2(basins_wob,cvs1,hp_in_main,ncatchments_main,1)
+  if (np.sum(m_abst) != 0):
+   (basin_clusters_abst,) = terrain_tools.cluster_basins_hmc_2(basins_wob,cvs2,hp_in_abst,ncatchments_abst,ncatchments_main+1)
             
-  basin_clusters = np.copy(basin_clusters_abst)
-  basin_clusters[basin_clusters_main!=-9999] = basin_clusters_main[basin_clusters_main!=-9999]
-  basins_wob[basins_wob!=-9999] = basins_wob[basins_wob!=-9999] + 1
+  if (np.sum(m_abst) != 0) and (np.sum(m_main) != 0):
+   basin_clusters = np.copy(basin_clusters_abst)
+   basin_clusters[basin_clusters_main!=-9999] = basin_clusters_main[basin_clusters_main!=-9999]
+  elif (np.sum(m_abst)!=0) and (np.sum(m_main)==0):
+   basin_clusters = np.copy(basin_clusters_abst)
+  else:
+   basin_clusters = np.copy(basin_clusters_main)
+    
  else:
   #Set the ncatchments to be at least the number of basins
   ncatchments = min(ncatchments,np.unique(basins_wob)[1:].size)
@@ -753,13 +829,13 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
   cvs = {}
   for var in subbasin_clustering_cov: #laura
    if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
+    lc_mask=np.copy(dem)
+    lc_mask[:] = 0.0
     if var=='lc_w_now': #laura
      lc_mask=covariates['lc_17'] #laura
     elif var=='lc_urb_nourb': #laura
      lc_mask=covariates['lc_13'] #laura
     elif var=='lc_grass_forest': #laura
-     lc_mask=np.copy(dem)
-     lc_mask[:] = 0.0
      if 'lc_4' in covariates:
       lc_mask[covariates['lc_4']==1]=1 #deciduous forest
      if 'lc_2' in covariates: #laura
@@ -801,8 +877,19 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
    for var in keys:cvs[var]['w'] = 1
     
   (basin_clusters,) = terrain_tools.cluster_basins_hmc_2(basins_wob,cvs,hp_in,ncatchments,1)
-  basins_wob[basins_wob!=-9999] = basins_wob[basins_wob!=-9999] + 1
  
+ if np.min(basin_clusters[basin_clusters!=-9999])==0:
+  basin_clusters[basin_clusters!=-9999]=basin_clusters[basin_clusters!=-9999] + 1
+
+ if len(db_channels['length']) == len(np.unique(basins_wob[basins_wob!=-9999])):
+  basins_wob[basins_wob!=-9999]=basins_wob[basins_wob!=-9999] + 1
+
+ if len(np.unique(basin_clusters[basin_clusters!=-9999]))<ncatchments:
+  nbcl = 1
+  for bcl in np.unique(basin_clusters[basin_clusters!=-9999]):
+   basin_clusters[basin_clusters==bcl]=nbcl
+   nbcl += 1
+    
  #Calculate the height above nearest drainage area
  print("Computing height above nearest drainage area",flush=True)
  hand = terrain_tools.ttf.calculate_depth2channel(channels_wob,
@@ -814,6 +901,7 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  #Calculate average bankfull depth per basin cluster
  ubcs = np.unique(basin_clusters)
  ubcs = ubcs[ubcs != -9999]
+ 
  for ubc in ubcs:
   ubs = np.unique(basins_wob[basin_clusters == ubc])
   ubs = ubs[ubs != -9999]
@@ -821,7 +909,8 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
   db_channels['width'][ubs-1] = np.mean(db_channels['width'][ubs-1])
   db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
  #Divide each subbasin into height bands
- print("Discretizing clusters of basins (hbands)",flush=True) #laura
+ print("%s Discretizing clusters of basins (hbands)"%cid,flush=True) #laura
+ print(cid,np.unique(basin_clusters),len(np.unique(basin_clusters[basin_clusters!=-9999])),flush=True) #laura fix
  n_binning = dh #HACK 
  max_nbins = 100
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins_wob,n_binning,cid,max_nbins)#con HBnew2 entre n_binning y max_nbins va cid
@@ -847,13 +936,16 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  cvs = {}
  for var in intraband_clust_vars:
   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
+   lc_mask=np.copy(dem)
+   lc_mask[:] = 0.0
    if var=='lc_w_now':
     lc_mask=covariates['lc_17']
    elif var=='lc_urb_nourb':
-    lc_mask=covariates['lc_13']
-   elif var=='lc_grass_forest':
     lc_mask=np.copy(dem)
     lc_mask[:] = 0.0
+    if 'lc_13' in covariates:
+     lc_mask=covariates['lc_13']
+   elif var=='lc_grass_forest':
     if 'lc_4' in covariates:
      lc_mask[covariates['lc_4']==1]=1 #deciduous forest
     if 'lc_2' in covariates:
@@ -892,10 +984,10 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
 
  #Save the channel info
  os.system('rm %s/routing_info.pck'%input_dir)
- os.system('rm %s/routing_io.pck'%input_dir)
+ #os.system('rm %s/routing_io.pck'%input_dir)
  os.system('rm %s/routing_mp_connectivity.pck'%input_dir)
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
- pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
+ #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
  pickle.dump(db_routing['mp_connectivity'],open('%s/routing_mp_connectivity.pck' % input_dir,'wb'))
 
  #Construct HMC info for creating connections matrix
@@ -922,6 +1014,7 @@ def regular_HMC(hydroblocks_info,basins_wob,eares,dh,covariates,ncatchments,nclu
  for var in vars1:
   if var not in ['width','bankfull','length','area','shreve']:
    vars.append(var)
+
  hp_in = terrain_tools.calculate_basin_properties_updated(basins_wob,eares,covariates,vars)
  #sort hp_in (should go in geospatialtools)
  argsort = np.argsort(hp_in['bid'])
@@ -948,14 +1041,17 @@ def regular_HMC(hydroblocks_info,basins_wob,eares,dh,covariates,ncatchments,nclu
  cvs = {}
  for var in subbasin_clustering_cov: #laura
   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']: #laura
+   lc_mask=np.copy(dem)
+   lc_mask[:] = 0.0
    if var=='lc_w_now': #laura
-    lc_mask=covariates['lc_17'] #laura
+    if 'lc_17' in covariates:
+     lc_mask=covariates['lc_17'] #laura
    elif var=='lc_urb_nourb': #laura
-    lc_mask=covariates['lc_13'] #laura
+    if 'lc_13' in covariates:
+     lc_mask=covariates['lc_13'] #laura
    elif var=='lc_grass_forest': #laura
-    lc_mask=np.copy(dem)
-    lc_mask[:] = 0.0
-    lc_mask=covariates['lc_4'] #deciduous_forest #laura
+    if 'lc_4' in covariates:
+     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
     if 'lc_2' in covariates: #laura
      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest #laura
     if 'lc_5' in covariates: #laura
@@ -1009,7 +1105,7 @@ def regular_HMC(hydroblocks_info,basins_wob,eares,dh,covariates,ncatchments,nclu
   db_channels['bankfull'][ubs-1] = np.mean(db_channels['bankfull'][ubs-1])
  
  #Divide each subbasin into height bands
- print("Discretizing clusters of basins (hbands)",flush=True) #laura
+ print("%s Discretizing clusters of basins (hbands)"%cid,flush=True) #laura
  n_binning = dh #HACK 
  max_nbins = 100
  (tiles,new_hand,tile_position) = terrain_tools.create_basin_tiles_updated(basin_clusters,hand,basins_wob,n_binning,hydroblocks_info['cid'],max_nbins)
@@ -1031,20 +1127,25 @@ def regular_HMC(hydroblocks_info,basins_wob,eares,dh,covariates,ncatchments,nclu
  intraband_clust_vars = hydroblocks_info['hmc_parameters']['intraband_clustering_covariates']
  if 'lc' in intraband_clust_vars: 
   intraband_clust_vars.remove('lc')
+  ##disag = [i for i in covariates.keys() if 'lc_' in i] #laura, commented out so lc not overwhelms clustering
+  ##intraband_clust_vars = intraband_clust_vars + disag #laura, commented out so lc not overwhelms clustering
   intraband_clust_vars=intraband_clust_vars+['lc_w_now','lc_urb_nourb','lc_grass_forest'] #laura, divide land cover in water_vs_no_water, urban_vs_no_urban, and grass_vs_forest (including grass and shrubs as intermediate values)
 
  #Calculate the hrus (kmeans on each tile of each basin)
  cvs = {}
  for var in intraband_clust_vars:
   if var in ['lc_w_now','lc_urb_nourb','lc_grass_forest']:
+   lc_mask=np.copy(dem)
+   lc_mask[:] = 0.0
    if var=='lc_w_now':
-    lc_mask=covariates['lc_17']
+    if 'lc_17' in covariates:
+     lc_mask=covariates['lc_17']
    elif var=='lc_urb_nourb':
-    lc_mask=covariates['lc_13']
+    if 'lc_13' in covariates:
+     lc_mask=covariates['lc_13'] #laura
    elif var=='lc_grass_forest':
-    lc_mask=np.copy(dem)
-    lc_mask[:] = 0.0
-    lc_mask=covariates['lc_4'] #deciduous_forest
+    if 'lc_4' in covariates:
+     lc_mask[covariates['lc_4']==1]=1 #deciduous forest
     if 'lc_2' in covariates:
      lc_mask[covariates['lc_2']==1]=1 #evergreen_forest
     if 'lc_5' in covariates:
@@ -1081,8 +1182,7 @@ def regular_HMC(hydroblocks_info,basins_wob,eares,dh,covariates,ncatchments,nclu
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,hydroblocks_info['cid']) #laura
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
  nhru = np.unique(hrus[hrus!=-9999]).size
- #print(' CID',hydroblocks_info['cid'],'#HRUs          ',nhru,flush=True)
- #print(' CID',hydroblocks_info['cid'],'#Total pixels  ',np.sum(basin_clusters!=-9999))
+
  return (hrus.astype(np.float32),nhru,new_hand,covariates,db_channels,new_hand2,
          basin_clusters,hand,tiles,area_adj,tile_position)
 
@@ -1413,37 +1513,6 @@ def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
 
  return True
 
-def Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,dx,HMC_info,hydroblocks_info):
-
- #Add pointers for simplicity
- tile_position = HMC_info['tile_position']
- basins = HMC_info['basins']
- ivc = hydroblocks_info['hmc_parameters']['intervalley_connectivity']
- irc = hydroblocks_info['hmc_parameters']['interridge_connectivity']
- ibc = hydroblocks_info['hmc_parameters']['intraband_connectivity']
- 
- #Perform the work
- (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(cluster_ids,dx,tile_position,
-               basins,ivc,irc,ibc)
-
- #If there're not lateral connections (just diagonal) create a single "fake" connection, laura
- if hdst.size == 0:
-  hdst = np.array([0])
-  horg = np.array([0])
-    
- #Prepare the sparse matrix
- cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(nhru,nhru),dtype=np.float32)
- cmatrix = cmatrix.tocsr()
-
- #Prepare length, width, and ksat matrices
- wmatrix = cmatrix.copy()
- wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
-
- #Prepare output dictionary
- cdata = {'width':wmatrix.T,}
-
- return cdata
-
 def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_info):
 #Removed covariates and cluster ids from parameters, replace nhrus for nhbands, laura
  #Add pointers for simplicity
@@ -1464,6 +1533,15 @@ def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_i
 
  #Prepare the sparse matrix
  cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(int(np.unique(hbands).shape[0]-1),int(np.unique(hbands).shape[0]-1)),dtype=np.float32) #laura, nhrus replaced with hbands
+    
+ # Retrieve the diagonal elements, laura
+ diagonal_sparse = cmatrix.diagonal()
+ #If hband is not connected to itself for more than 1 hband in the cluster of basins, add a single "fake" connection, laura
+ if np.sum(diagonal_sparse==0)>=1:
+  new_diagonal = np.copy(diagonal_sparse)
+  new_diagonal[new_diagonal==0] = 1
+  cmatrix.setdiag(new_diagonal)
+
  cmatrix = cmatrix.tocsr()
 
  #Prepare length, width, and ksat matrices
@@ -1634,7 +1712,9 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  dz=hydroblocks_info['dz'] #laura svp
  #Retrieve some metadata
  metadata = gdal_tools.retrieve_metadata(wbd['files']['mask'])
- resx = 90.0#670.0**0.5#26.0
+ mask_object = gdal_tools.read_data('%s/mask_latlon.tif' % workspace)
+ terrain_tools.calculate_area(mask_object)
+ resx = np.mean(mask_object.area**0.5) #all pixels in the subdomain have the same resolution in x and y; still not ideal and needs to be revisited, but much better than resx = 90...
 
  if os.path.isdir('%s/experiments/simulations/%s/workspace'%(hydroblocks_info['rdir'],hydroblocks_info['experiment'])) == False:
   print("Creating and curating the covariates",flush=True)
@@ -1711,7 +1791,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  else: #laura
   #Make the output dictionary for the basin
   OUTPUT = {'hru':{},'metadata':metadata,'mask':mask}
-    
+
+ 
  #Remember the map of hrus
  OUTPUT['hru_map'] = cluster_ids
  OUTPUT['channel_map'] = HMC_info['channel_map']
@@ -2082,20 +2163,12 @@ def Prepare_Water_Use_Semidistributed(workspace,wbd,OUTPUT,input_dir,info,hydrob
  return
 
 def driver(comm,metadata_file):
-
+ flag_debug = False
  size = comm.Get_size()
  rank = comm.Get_rank()
  #Read in the metadata
  #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
- info = metadata
- info['covariates'] = {'lats':'n','lons':'n','lc':'n'}
- info['idate'] = datetime.datetime(metadata['startdate']['year'],
-                           metadata['startdate']['month'],
-                           metadata['startdate']['day'],0)
- info['fdate'] = datetime.datetime(metadata['enddate']['year'],
-                           metadata['enddate']['month'],
-                           metadata['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=info['dt'])
  rdir = metadata['rdir']
     
  #If connected channel network properties are in covariates for basins, set flag_mod_hmc to True, laura
@@ -2103,7 +2176,6 @@ def driver(comm,metadata_file):
   flag_mod_hmc = True
  elif 'large_scale_basins' in metadata['hmc_parameters']['subbasin_clustering_covariates']:
   flag_mod_hmc = True
- #NEED TO ADD CONDITION FOR TOPOLOGICAL INDICES, laura
  else:
   flag_mod_hmc = False
 
@@ -2114,82 +2186,109 @@ def driver(comm,metadata_file):
  cids = np.array(range(1,len(list(fp))+1))
  fp.close()
  for cid in cids[rank::size]:
+  metadataa = Read_Metadata_File(metadata_file)
+  metadataa['covariates'] = {'lats':'n','lons':'n','lc':'n'}
+  metadataa['idate'] = datetime.datetime(metadataa['startdate']['year'],
+                                         metadataa['startdate']['month'],
+                                         metadataa['startdate']['day'],0)
+  metadataa['fdate'] = datetime.datetime(metadataa['enddate']['year'],
+                                         metadataa['enddate']['month'],
+                                         metadataa['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=metadataa['dt'])
   print(rank,size,cid)
-  metadata['cid'] = cid
-  metadata['input_dir'] = "%s/%d" % (edir,cid)
-  metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
-  metadata['flag_mod_hmc'] = flag_mod_hmc
+  metadataa['cid'] = cid
+  metadataa['input_dir'] = "%s/%d" % (edir,cid)
+  metadataa['workspace'] = "%s/data/cids/%d" % (rdir,cid)
+  metadataa['flag_mod_hmc'] = flag_mod_hmc
   #Prepare model data
   tic = time.time()
-  Prepare_Model_Input_Data(metadata,metadata_file)
-  flag_network_abst = metadata['network_abstraction']['flag']
-  if (flag_network_abst==False) and (flag_mod_hmc==False):
-   print("Elapsed time: ",time.time() - tic)
+  if flag_debug == False:
+   Prepare_Model_Input_Data(metadataa)
+   flag_network_abst = metadataa['network_abstraction']['flag']
+   if (flag_network_abst==False) and (flag_mod_hmc==False):
+    print("CID",cid,"Elapsed time: ",time.time() - tic)
+  else:
+   flag_network_abst = metadataa['network_abstraction']['flag']
  comm.Barrier()
 
- #Create enhanced input data file
- #Connect_Cell_Networks(rank,size,cids,edir)
- print('Connect cell networks',flush=True)
- Connect_Cell_Networks_v2(rank,size,cids,edir)
- comm.Barrier()
-
- #Create downstream channel database for particle tracker routing scheme
- #Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
- #comm.Barrier()
-
- #Wait until they are all done
- workspace = '%s/workspace' % (edir)
- os.system('mkdir -p %s' % workspace)
-    
- #Create topology with connections to other cids, laura
- print('Connect topology',flush=True)
- Topology_Connected(rank,size,cids,edir,comm)
- comm.Barrier()
-
- #Create self-contained trees of reaches for the domain, laura
- print('Compute large-scale watersheds',flush=True)
- Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst)
- comm.Barrier()
-    
- #Correct Shreve order (domain-wise), laura
- print('Correct Shreve order',flush=True)
- Correct_Shreve(rank,size,cids,edir)
- comm.Barrier()
-
- #River network abstraction, laura
- if metadata['network_abstraction']['flag']==True: #laura
-  Network_Abstraction(rank,size,cids,edir,comm,metadata)
+ if flag_debug == False:
+  #Create enhanced input data file
+  print('Connect cell networks',flush=True)
+  Connect_Cell_Networks_v2(rank,size,cids,edir)
   comm.Barrier()
-        
- #With all the domain-wise variables computed, perform HMC-2step, laura
- if (metadata['network_abstraction']['flag']== True) or (flag_mod_hmc == True): #laura
-  flag_replace=True
-  for cid in cids[rank::size]:
-   metadata['cid'] = cid
-   metadata['input_dir'] = "%s/%d" % (edir,cid)
-   metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
-   metadata['flag_mod_hmc'] = flag_mod_hmc
-   #Prepare model data
-   Prepare_Model_Input_Data(metadata,metadata_file)
+
+ if flag_debug == False:
+  #Wait until they are all done
+  workspace = '%s/workspace' % (edir)
+  os.system('mkdir -p %s' % workspace)
+    
+  #Create topology with connections to other cids, laura
+  print('Connect topology',flush=True)
+  Topology_Connected(rank,size,cids,edir,comm)
+  comm.Barrier()
+
+  #Create self-contained trees of reaches for the domain, laura
+  print('Compute large-scale watersheds',flush=True)
+  Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst)
+  comm.Barrier()
+    
+  #Correct Shreve order (domain-wise), laura
+  print('Correct Shreve order',flush=True)
+  Correct_Shreve(rank,size,cids,edir,comm)
+  comm.Barrier()
+
+ if flag_debug == False:
+  #River network abstraction, laura
+  Network_Abstraction(rank,size,cids,edir,comm,metadataa)
+  comm.Barrier()
+
+ if flag_debug == False:
+  #With all the domain-wise variables computed, perform HMC-2step, laura
+  if (metadataa['network_abstraction']['flag']== True) or (flag_mod_hmc == True): #laura
+   flag_replace=True
+   for cid in cids[rank::size]:
+    metadataa = Read_Metadata_File(metadata_file)
+    metadataa['covariates'] = {'lats':'n','lons':'n','lc':'n'}
+    metadataa['idate'] = datetime.datetime(metadataa['startdate']['year'],
+                                           metadataa['startdate']['month'],
+                                           metadataa['startdate']['day'],0)
+    metadataa['fdate'] = datetime.datetime(metadataa['enddate']['year'],
+                                           metadataa['enddate']['month'],
+                                           metadataa['enddate']['day'],0) + datetime.timedelta(days=1) - datetime.timedelta(seconds=metadataa['dt'])
+    metadataa['cid'] = cid
+    metadataa['input_dir'] = "%s/%d" % (edir,cid)
+    metadataa['workspace'] = "%s/data/cids/%d" % (rdir,cid)
+    metadataa['flag_mod_hmc'] = flag_mod_hmc
+    #Prepare model data
+    Prepare_Model_Input_Data(metadataa)
    comm.Barrier()
- else:
-  flag_replace=False
+  else:
+   flag_replace=False
 
  #Function that replaces stream_network of input_file2.nc by input_file.nc if HMC2 happened, laura
- if flag_replace == True:
-  for cid in cids[rank::size]:
-   metadata['cid'] = cid
-   metadata['input_dir'] = "%s/%d" % (edir,cid)
-   metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
-   Replace_Stream_Network(metadata)
-   print("Elapsed time: ",time.time() - tic)
+ if flag_debug == False:
+  if flag_replace == True:
+   for cid in cids[rank::size]:
+    metadata3 = Read_Metadata_File(metadata_file)
+    metadata3['cid'] = cid
+    metadata3['input_dir'] = "%s/%d" % (edir,cid)
+    metadata3['workspace'] = "%s/data/cids/%d" % (rdir,cid)
+    Replace_Stream_Network(metadata3)
+    print("CID",cid,"Elapsed time: ",time.time() - tic)
    comm.Barrier()
  
+ if flag_debug == False:
+  #Create downstream channel database for particle tracker routing scheme
+  Create_Downstream_Channels_Database(edir,rank,size,cids,comm)
+  comm.Barrier()
+
+ if flag_debug == False:
+  workspace = '%s/workspace' % (edir)
  Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
  comm.Barrier() 
  
  #Postprocess the model input 
- if rank == 0:Postprocess_Input(rdir,edir,cids)
+ Postprocess_Input(rdir,edir,cids,rank,size,comm)
+ comm.Barrier()
 
  return
 
@@ -2217,310 +2316,213 @@ def Topology_Connected(rank,size,cids,edir,comm):
      topo_new.append('-1')
   pickle.dump(topo_new,open('%s/workspace/topology_connected_%s.pck'%(edir,cid),'wb'))
  comm.Barrier()
-
- #Creates a single array of headwaters to use in the tree_creation, laura
- #Outlets part
- list_cids=glob.glob('%s/workspace/topology_connected_*'%edir)
- cids=[]
- for i in list_cids:
-  cids.append(int(i.split('/')[-1].split('_')[2].split('.pck')[0]))
- inlets_all=[]
- outlets_all=[]
- for cid in cids:
-  fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'r')
-  outlets=np.ravel(fp['stream_network']['outlets'][:])
-  fp.close()
-  outlets_all.extend(outlets)
- outlets_all=np.array(outlets_all)
- outlets_all=np.reshape(outlets_all,(int(len(outlets_all)/4),4))
- outlets_all=outlets_all[outlets_all[:,2]!=-9999]
- 
- #Correction of inlets,laura
- un=[]
- for i in range(0,outlets_all.shape[0]):
-  string='%s-%s'%(int(outlets_all[i,2]),int(outlets_all[i,3]))
-  if string not in un:
-   un.append(string)
- inlets=np.zeros((len(un),10),dtype=int)
- inlets[:]=-9999
- for u in range(0,len(un)):
-  inlets[u,0]=int(un[u].split('-')[0])
-  inlets[u,1]=int(un[u].split('-')[1])
-  for o in range(0,outlets_all.shape[0]):
-   strng2='%s-%s'%(int(outlets_all[o,2]),(outlets_all[o,3]))
-   if strng2==un[u]:
-    for col in range(2,6):
-     if inlets[u,col]==-9999:
-      inlets[u,col]=int(outlets_all[o,0])
-      inlets[u,col+4]=int(outlets_all[o,1])
-      break
- dict_hdw={}
- dict_hdw['out']=outlets_all
- dict_hdw['in']=inlets
- pickle.dump(dict_hdw,open('%s/workspace/hdw.pck' %(edir),'wb'))
-    
- #Replace wrong inlets with corrected ones based on outlets, laura
- for cid in cids[rank::size]:
-  inlets_cid=inlets[inlets[:,0]==int(cid)]
-  fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'a')
-  del fp['stream_network']['inlets']
-  fp['stream_network']['inlets']=inlets_cid
-  fp.close()
   
  return
 
 #Creates trees of reaches draining outside of the domain, laura
 def Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst):
- dict_trees_domain={}
- for cid in cids[rank::size]:
-  hdw=pickle.load(open('%s/workspace/hdw.pck'%edir,'rb'))
-  topo=pickle.load(open('%s/workspace/topology_connected_%s.pck'%(edir,cid),'rb'))
-  indices = [i for i, item in enumerate(topo) if item == '-1']
-  for rid in indices:
-   dict_trees_domain['%s-%s'%(cid,rid)]=[]
-   dict_trees_domain['%s-%s'%(cid,rid)].append('%s-%s'%(cid,rid))
-   (dict_trees_domain['%s-%s'%(cid,rid)])=go_upstream(edir,cid,topo,rid,hdw,dict_trees_domain['%s-%s'%(cid,rid)])
-
- reaches=[]
- for key in list(dict_trees_domain.keys()):
-  reaches.extend(dict_trees_domain[key])
- for hdwo in range(0,hdw['out'].shape[0]):#Check if all outlets are correctly included
-  if hdw['out'][hdwo,2]==-9999:
-   continue
-  string='%s-%s'%(int(hdw['out'][hdwo,2]),int(hdw['out'][hdwo,3]))
-  if string in reaches:
-   string2='%s-%s'%(int(hdw['out'][hdwo,0]),int(hdw['out'][hdwo,1]))
-   if string2 not in reaches:
-    cid2=int(hdw['out'][hdwo,0])
-    rid2=int(hdw['out'][hdwo,1])
-    topo2=pickle.load(open('%s/workspace/topology_connected_%s.pck' % (edir,cid2),'rb'))
-    for key2 in list(dict_trees_domain.keys()):
-     if string in dict_trees_domain[key2]:
-      dict=dict_trees_domain[key2]
-      break
-    (dict)=go_upstream(edir,cid2,topo2,rid2,hdw,dict)
-    dict_trees_domain[key2]=dict
- pickle.dump(dict_trees_domain,open('%s/workspace/trees_%s.pck' %(edir,cid),'wb'))
- comm.Barrier()
+ topo_all = []
+ for cid in cids:
+    topo_file = '%s/workspace/topology_connected_%s.pck'%(edir,cid)
+    data = pickle.load(open(topo_file,'rb'))
+    topo_all.append(data)
  
- #Diagnose if trees need to be corrected further
- reaches=[]
- topo=[]
- tree_files=glob.glob('%s/workspace/trees_*'%edir)
- topo_files=glob.glob('%s/workspace/topology_connected*'%edir)
- for file in tree_files:
-  data_tree=pickle.load(open(file,'rb'))
-  for key in data_tree:
-   reaches.extend(data_tree[key])
- for file in topo_files:
-  data_topo=pickle.load(open(file,'rb'))
-  topo.extend(data_topo)
- if (len(reaches)!=len(topo)) or (len(np.unique(reaches))!=len(topo)):
-  print('WARNING: Trees need to be corrected!!!',len(reaches),len(topo),flush=True)
+ for cid in cids[rank::size]:
+  tree_cid = [-9999] * len(topo_all[int(cid)-1])
+  for i in range(0,len(tree_cid)):
+   lista = []
+   fchid = '%s-%s'%(cid,i)
+   fcid = fchid.split('-')[0]
+   chid = fchid.split('-')[1]
+   lista.append(fchid)
+   while topo_all[int(fcid)-1][int(chid)] != '-1':
+    fchid = topo_all[int(fcid)-1][int(chid)]
+    lista.append(fchid)
+    fcid = fchid.split('-')[0]
+    chid = fchid.split('-')[1]
+   a = lista[-1]
+   tree_cid[i] = a
+  pickle.dump(tree_cid,open('%s/workspace/trees_%s.pck' %(edir,cid),'wb'))
+ #comm.Barrier()
 
- #Assign number to trees
+ #Number trees
+ trees = []
  list_cids=glob.glob('%s/workspace/trees_*'%edir)
- cids=[]
- count=1
- dict_numb={}
  for i in list_cids:
-  cids.append(int(i.split('/')[-1].split('_')[1].split('.pck')[0]))
   data=pickle.load(open(i,'rb'))
-  for key in list(data.keys()):
-   dict_numb[count]=data[key]
-   count+=1
- comm.Barrier()
+  trees.extend(data)
+ un_trees = np.unique(trees)
+ n_trees = np.linspace(1,len(un_trees),len(un_trees))
 
+ #Assign tree numbers to input_file
  for cid in cids[rank::size]:
   fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'a')
-  trees_mp=[]
+  data_trees = pickle.load(open('%s/workspace/trees_%s.pck'%(edir,cid),'rb'))
+  trees_mp = []
   for i in range(0,fp['stream_network']['topology'][:].shape[0]):
-   string='%s-%s'%(int(cid),int(i))
-   for key in list(dict_numb.keys()):
-    if string in dict_numb[key]:
-     trees_mp.append(key)
-     break
+   tree = data_trees[i]
+   indices = [j for j, item in enumerate(un_trees) if item == tree]
+   if len(indices)!=1:
+    print('WARNING: Error in unique trees',cid,i,len(indices))
+   trees_mp.append(n_trees[indices[0]])
   if 'trees_domain' in fp['stream_network'].keys():
    del fp['stream_network']['trees_domain']
   fp['stream_network']['trees_domain']=np.array(trees_mp)
   fp.close()
 
- #Save data used for abstraction per cid
+ #Save data used for shreve correction and abstraction per cid
  data={}
  for cid in cids[rank::size]:
-  fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'a')
+  fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'r')
   data['acc']=fp['stream_network']['acc'][:]
   data['shreve']=fp['stream_network']['shreve'][:]
   data['length']=fp['stream_network']['length'][:]
+  data['topology']=fp['stream_network']['topology'][:]
   data['tree']=fp['stream_network']['trees_domain'][:]
-  data['lat_basin']=fp['parameters']['lats'][1:]
-  data['lon_basin']=fp['parameters']['lons'][1:]
+  data['inlets']=fp['stream_network']['inlets'][:]
+  data['outlets']=fp['stream_network']['outlets'][:]
+  if (flag_mod_hmc == True) or (flag_network_abst==True):
+   if fp['parameters']['lats'][:].shape[0] == fp['stream_network']['shreve'][:].shape[0]:
+    data['lat_basin']=fp['parameters']['lats'][:]
+    data['lon_basin']=fp['parameters']['lons'][:]
+   else:
+    data['lat_basin']=fp['parameters']['lats'][1:]
+    data['lon_basin']=fp['parameters']['lons'][1:]
   fp.close()
   pickle.dump(data,open('%s/workspace/data_channels_%s.pck' %(edir,cid),'wb'))
-  comm.Barrier()
-    
+ comm.Barrier() 
+
  if (flag_mod_hmc == True) or (flag_network_abst==True):
   #Computes the mean lat and lon per tree to perform clustering instead of tree number
-  list_cids=glob.glob('%s/workspace/data_channels_*'%edir)
-  dict={}
-  dict['lats']=[]
-  dict['lons']=[]
-  dict['tree']=[]
-  dict['mean_lat']=[]
-  dict['mean_lon']=[]
-  dict['index']=[]
-  dict['cid']=[]
-  count=0
-  dict['index'].append(count)
-  for i in list_cids:
-   d=pickle.load(open(i,'rb'))
-   cid=i.split('/')[-1].split('data_channels_')[-1].split('.pck')[0]
-   dict['lats'].extend(d['lat_basin'])
-   dict['lons'].extend(d['lon_basin'])
-   dict['tree'].extend(d['tree'])
-   dict['cid'].append(cid)
-   count+=len(d['lat_basin'])
+  if rank == 0:
+   list_cids=glob.glob('%s/workspace/data_channels_*'%edir)
+   dict={}
+   dict['lats']=[]
+   dict['lons']=[]
+   dict['tree']=[]
+   dict['mean_lat']=[]
+   dict['mean_lon']=[]
+   dict['index']=[]
+   dict['cid']=[]
+   count=0
    dict['index'].append(count)
-  dict['lats']=np.array(dict['lats'])
-  dict['lons']=np.array(dict['lons'])
-  dict['tree']=np.array(dict['tree'])
+   for i in list_cids:
+    d=pickle.load(open(i,'rb'))
+    cid=i.split('/')[-1].split('data_channels_')[-1].split('.pck')[0]
+    dict['lats'].extend(d['lat_basin'])
+    dict['lons'].extend(d['lon_basin'])
+    dict['tree'].extend(d['tree'])
+    dict['cid'].append(cid)
+    count+=len(d['lat_basin'])
+    dict['index'].append(count)
+   dict['lats']=np.array(dict['lats'])
+   dict['lons']=np.array(dict['lons'])
+   dict['tree']=np.array(dict['tree'])
   
-  dict['mean_lat']=np.copy(dict['lats'])
-  dict['mean_lon']=np.copy(dict['lons'])
-  for t in np.unique(dict['tree']):
-   mean_lat=np.mean(dict['lats'][dict['tree']==t])
-   mean_lon=np.mean(dict['lons'][dict['tree']==t])
-   dict['mean_lat'][dict['tree']==t]=mean_lat
-   dict['mean_lon'][dict['tree']==t]=mean_lon
+   dict['mean_lat']=np.copy(dict['lats'])
+   dict['mean_lon']=np.copy(dict['lons'])
+   for t in np.unique(dict['tree']):
+    mean_lat=np.mean(dict['lats'][dict['tree']==t])
+    mean_lon=np.mean(dict['lons'][dict['tree']==t])
+    dict['mean_lat'][dict['tree']==t]=mean_lat
+    dict['mean_lon'][dict['tree']==t]=mean_lon
    
-  dict['CID_info']={}
-  dict['CID_info']['lats']={}
-  dict['CID_info']['lons']={}
-  count2=0
-  for cid in dict['cid']:
-   cid=int(cid)
-   dict['CID_info']['lats'][cid]=dict['mean_lat'][dict['index'][count2]:int(dict['index'][count2+1])]
-   dict['CID_info']['lons'][cid]=dict['mean_lon'][dict['index'][count2]:int(dict['index'][count2+1])]
-   count2+=1
-  pickle.dump(dict,open('%s/workspace/mean_lats-lons_trees.pck' %(edir),'wb'))
+   dict['CID_info']={}
+   dict['CID_info']['lats']={}
+   dict['CID_info']['lons']={}
+   count2=0
+   for cid in dict['cid']:
+    cid=int(cid)
+    dict['CID_info']['lats'][cid]=dict['mean_lat'][dict['index'][count2]:int(dict['index'][count2+1])]
+    dict['CID_info']['lons'][cid]=dict['mean_lon'][dict['index'][count2]:int(dict['index'][count2+1])]
+    count2+=1
+   pickle.dump(dict,open('%s/workspace/mean_lats-lons_trees.pck' %(edir),'wb'))
+  comm.Barrier()
  return
 
-#Goes upstream to determine reaches belonging to the same tree
-def go_upstream(edir,cid,topo,channel_id,hdw,lista):
- string='%s-%s'%(int(cid),int(channel_id))
- if string not in lista:
-  lista.append(string)
- if string in topo: #if analyzed channel has channels draining to it
-  indices = [i for i, item in enumerate(topo) if item == string] #finds all the reaches that drain to string
-  if indices:#if there're reaches draining to string, continue going upstream one by one
-   for ind in indices:
-    channel_id=ind
-    (lista)=go_upstream(edir,cid,topo,channel_id,hdw,lista)
- for hdwi in range(0,hdw['in'].shape[0]):#check if string is part of headwaters inlets
-  string2='%s-%s'%(int(hdw['in'][hdwi,0]),int(hdw['in'][hdwi,1]))
-  if string==string2: #If analyzed channel is inlet
-   indices_hdw = [i for i, item in enumerate(hdw['in'][hdwi,2:6]) if item != -9999]
-   for ind_h in indices_hdw:
-    cid2=int(hdw['in'][hdwi,ind_h+2])
-    channel_id2=int(hdw['in'][hdwi,ind_h+6])
-    topo2=pickle.load(open('%s/workspace/topology_connected_%s.pck' % (edir,cid2),'rb'))
-    (lista)=go_upstream(edir,cid2,topo2,channel_id2,hdw,lista)
- return lista
-
 #Function that corrects Shreve order of macroscale polygons accounting for connections, laura
-def Correct_Shreve(rank,size,cids,edir):
+def Correct_Shreve(rank,size,cids,edir,comm):
+ shreve_all = []
+ topo_all = []
+ for cid in cids:
+  file = '%s/workspace/data_channels_%s.pck'%(edir,cid)
+  data = pickle.load(open(file,'rb'))
+  shreve_pck = data['shreve']
+  file = '%s/workspace/topology_connected_%s.pck'%(edir,cid)
+  topo = pickle.load(open(file,'rb'))
+  shreve_all.append(shreve_pck)
+  topo_all.append(topo)
+
  for cid in cids[rank::size]:
-  #Change to integer
-  cid = int(cid)
-  fp = h5py.File('%s/%s/input_file.nc' % (edir,cid),'r')
-  shreve=fp['stream_network']['shreve'][:]
-  topology=fp['stream_network']['topology'][:]
-  inlets=fp['stream_network']['inlets'][:]
-  fp.close()
-  inlets_cids=inlets[:,2:6]
-  inlet_cids=np.unique(inlets_cids)[np.unique(inlets_cids)!=-9999]
-  for cid2 in inlet_cids:
-   cid2=int(cid2)
-   fp2 = h5py.File('%s/%s/input_file.nc' % (edir,cid2),'r')
-   shreve2=fp2['stream_network']['shreve'][:]
-   fp2.close()
-   for i in range(0,inlets.shape[0]):
-    sequence=[]
-    a=np.unique(inlets[i,2:6])[np.unique(inlets[i,2:6])!=-9999]
-    if a!=cid2: continue
-    sequence.append(inlets[i,1])
-    (sequence)=go_downstream_shreve_full(int(inlets[i,1]),topology,sequence)
-    id_channel_in=np.unique(inlets[i,6:])[np.unique(inlets[i,6:])!=-9999]
-    add_shreve=0
-    for idchin in id_channel_in:
-     add_shreve+=shreve2[idchin]
-    if shreve[sequence[0]]==1:
-     for s in sequence:
-      shreve[int(s)]=shreve[int(s)]-1+add_shreve
-    else:
-     for s in sequence:
-      shreve[int(s)]=shreve[int(s)]+add_shreve
-  ##Update input_file with corrected Shreve order
+  shreve_all2 = shreve_all.copy()
+  file = '%s/workspace/data_channels_%s.pck'%(edir,cid)
+  data = pickle.load(open(file,'rb'))
+  outlets = data['outlets']
+  out = outlets[outlets[:,2]!=-9999]
+  for i in cids:
+   if i == cid:
+    shreve_all2[i-1] = data['shreve']
+   else:
+    shreve_all2[i-1][:] = 0
+  for o in range(0,out.shape[0]):
+   lista = []
+   add_shreve = shreve_all2[int(cid-1)][out[o,1]]
+   fchid2 = '%s-%s'%(int(out[o,2]),int(out[o,3]))
+   fcid2 = fchid2.split('-')[0]
+   chid2 = fchid2.split('-')[1]
+   lista.append(fchid2)
+   while topo_all[int(fcid2)-1][int(chid2)] != '-1':
+    fchid2 = topo_all[int(fcid2)-1][int(chid2)]
+    lista.append(fchid2)
+    fcid2 = fchid2.split('-')[0]
+    chid2 = fchid2.split('-')[1]
+   for s in lista:
+    fcid = int(s.split('-')[0])
+    chid = int(s.split('-')[1])
+    shreve_all2[int(fcid)-1][chid] = shreve_all2[int(fcid)-1][chid]+add_shreve
+  pickle.dump(shreve_all2,open('%s/workspace/fix_shreve_%s.pck' %(edir,cid),'wb'))
+    
+ if rank == 0:
+  shreve_final = shreve_all.copy()
+  for i in cids:
+   shreve_final[i-1][:] = 0
+  for cid in cids:
+   shreve_cid = pickle.load(open('%s/workspace/fix_shreve_%s.pck' %(edir,cid),'rb'))
+   for i in cids:
+    shreve_final[i-1][:] = shreve_final[i-1][:] + shreve_cid[i-1][:]
+  pickle.dump(shreve_final,open('%s/workspace/fix_shreve_all.pck' %(edir),'wb'))
+ comm.Barrier()
+
+ ##Update input_file with corrected Shreve order
+ shreve_final = pickle.load(open('%s/workspace/fix_shreve_all.pck' %(edir),'rb'))
+ for cid in cids[rank::size]:
   with h5py.File('%s/%s/input_file.nc' % (edir,cid),'r+') as fp3:
    if 'shreve' in fp3['stream_network'].keys():
     del fp3['stream_network']['shreve']
-   fp3['stream_network']['shreve'] = shreve  
+   fp3['stream_network']['shreve'] = shreve_final[cid-1]
    fp3.close()
+ 
  return
-
-#Determines the sequence of channels from upstream all the way down to the end of the path, laura
-def go_downstream_shreve_full(channel,topo,sequence):
- if topo[channel]!=-1:
-  sequence.append(topo[channel])
-  (sequence)=go_downstream_shreve_full(int(topo[channel]),topo,sequence)
- return sequence
 
 #Separates channels into explicit and abstracted based on shreve order or acc. area, laura
 def Network_Abstraction(rank,size,cids,edir,comm,metadata):
  #Evaluates percentiles of selected variable depending on type of abstraction
- list_cids=glob.glob('%s/workspace/data_channels_*'%edir)
- dict={}
  var=metadata['network_abstraction']['var']
- dict['var']=[]
- if metadata['network_abstraction']['subreaches']['flag']==True:
-  dict['lenght']=[]
- for i in list_cids:
-  d=pickle.load(open(i,'rb'))
-  dict['var'].extend(d[var])
-  if metadata['network_abstraction']['subreaches']['flag']==True:
-   dict['lenght'].extend(d['length'])
- n=[]   
- lim_var=[]
- percentiles=[]
- for p in range(60,100,1):
-  perc=np.percentile(dict['var'],p)
-  lim_var.append(perc)
-  percentiles.append(p)
-  if metadata['network_abstraction']['subreaches']['flag']==True:
-   n_thr=float(metadata['network_abstraction']['subreaches']['max_nmb_subreaches'])
-   dx=metadata['network_abstraction']['subreaches']['dx']
-   nsr=(np.sum(np.array(dict['lenght'])[np.array(dict['var'])>perc]))/dx
-   n.append(nsr)
-  elif (metadata['network_abstraction']['nmb_reaches']['flag']==True) or (metadata['network_abstraction']['subreaches']['flag']==False):
-   n_thr=float(metadata['network_abstraction']['nmb_reaches']['max_nmb_reaches'])
-   nr=np.sum(np.array(dict['var'])>perc)
-   n.append(nr)
- dict['percentile']=percentiles
- dict['lim_var']=lim_var
- if metadata['network_abstraction']['subreaches']['flag']==True:
-  dict['nmb_subreaches']=n
- else:
-  dict['nmb_reaches']=n
- for a in range(0,len(n)):
-  if n[a] > n_thr:continue
-  else:
-   thr=lim_var[a]
-   break
- dict['threshold_var']=thr
- pickle.dump(dict,open('%s/workspace/percentile_analysis.pck' %(edir),'wb'))
+ if rank ==0:
+  list_cids=glob.glob('%s/workspace/data_channels_*'%edir)
+  var_values=[]
+  for i in list_cids:
+   d=pickle.load(open(i,'rb'))
+   var_values.extend(d[var])
 
- abst_mask=[] #0=abstracted, 1=explicit
+  p=metadata['network_abstraction']['percentile']   
+  thr=np.percentile(var_values,p)
+  pickle.dump(thr,open('%s/workspace/percentile_analysis.pck' %(edir),'wb'))
+ comm.Barrier()
+
+ thr = pickle.load(open('%s/workspace/percentile_analysis.pck' %(edir),'rb')) 
  for cid in cids[rank::size]:
+  abst_mask=[] #0=abstracted, 1=explicit
   fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'a')
   if 'explicit_reach' in fp['stream_network'].keys():
    del fp['stream_network']['explicit_reach']
@@ -2531,62 +2533,37 @@ def Network_Abstraction(rank,size,cids,edir,comm,metadata):
   abst_mask=np.array(abst_mask,dtype=int)
   fp['stream_network']['explicit_reach']=abst_mask
   fp.close()    
-    
- #This part is determining the drainage network for each reach (needs to be checked), laura
- dict_drainage={}
- for cid in cids[rank::size]:
-  hdw=pickle.load(open('%s/workspace/hdw.pck'%edir,'rb'))
-  topo=pickle.load(open('%s/workspace/topology_connected_%s.pck'%(edir,cid),'rb'))
-  indices = np.linspace(0,len(topo)-1,len(topo))
-  for rid in indices:
-   dict_drainage['%s-%s'%(int(cid),int(rid))]=[]
-   dict_drainage['%s-%s'%(int(cid),int(rid))].append('%s-%s'%(int(cid),int(rid)))
-   (dict_drainage['%s-%s'%(int(cid),int(rid))])=go_upstream(edir,cid,topo,rid,hdw,dict_drainage['%s-%s'%(int(cid),int(rid))])
-
- reaches=[]
- for key in list(dict_drainage.keys()):
-  reaches.extend(dict_drainage[key])
- for hdwo in range(0,hdw['out'].shape[0]):#Check if all outlets are correctly included
-  if hdw['out'][hdwo,2]==-9999:
-   continue
-  string='%s-%s'%(int(hdw['out'][hdwo,2]),int(hdw['out'][hdwo,3]))
-  if string in reaches:
-   string2='%s-%s'%(int(hdw['out'][hdwo,0]),int(hdw['out'][hdwo,1]))
-   if string2 not in reaches:
-    cid2=int(hdw['out'][hdwo,0])
-    rid2=int(hdw['out'][hdwo,1])
-    topo2=pickle.load(open('%s/workspace/topology_connected_%s.pck' % (edir,cid2),'rb'))
-    for key2 in list(dict_drainage.keys()):
-     if string in dict_drainage[key2]:
-      dict=dict_drainage[key2]
-      break
-    (dict)=go_upstream(edir,cid2,topo2,rid2,hdw,dict)
-    dict_drainage[key2]=dict
- pickle.dump(dict_drainage,open('%s/workspace/drainage_full_%s.pck' %(edir,cid),'wb'))
- comm.Barrier()
  return
 
-
-def Postprocess_Input(rdir,edir,cids):
+def Postprocess_Input(rdir,edir,cids,rank,size,comm):
 
  sdir = '%s/postprocess' % (edir)
  ddir = '%s/data/cids' % rdir
- os.system('rm -rf %s' % sdir)
- #Create cid, hru, and channel maps
- vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters']
- for var in vars:
-  os.system('mkdir -p %s/postprocess/%s' % (edir,var))
- for cid in cids:
+ vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters'] 
+
+ if rank == 0:
+  os.system('rm -rf %s' % sdir)
+
+  #Create cid, hru, and channel maps
+  for var in vars:
+   if os.path.isdir('%s/postprocess/%s'% (edir,var)) == True:
+    os.system('rm -r %s/postprocess/%s'% (edir,var))
+   os.system('mkdir -p %s/postprocess/%s' % (edir,var))
+ comm.Barrier()   
+    
+ for cid in cids[rank::size]:
+  sdir = '%s/postprocess' % (edir)
+  ddir = '%s/data/cids' % rdir
   print('Copying files for vrt',cid,flush=True)
   dir = '%s/%s' % (edir,cid)
   #hru
   ifile = '%s/hru_mapping_latlon.tif' % dir
   ofile = '%s/hrus/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #channels
   ifile = '%s/channel_mapping_latlon.tif' % dir
   ofile = '%s/channels/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #cid
   ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
   ofile = '%s/cids/%d.tif' % (sdir,cid)
@@ -2601,28 +2578,30 @@ def Postprocess_Input(rdir,edir,cids):
   #cid
   ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
   ofile = '%s/cids_org/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #dem
   ifile = '%s/%d/dem_latlon.tif' % (ddir,cid)
   ofile = '%s/dem/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #hand
   ifile = '%s/hand_latlon.tif' % dir
   ofile = '%s/hand/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #basins
   ifile = '%s/basins_latlon.tif' % dir
   ofile = '%s/basins/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
   #basin clusters
   ifile = '%s/basin_clusters_latlon.tif' % dir
   ofile = '%s/basin_clusters/%d.tif' % (sdir,cid)
-  os.system('cp %s %s' % (ifile,ofile))
+  os.system('ln -s %s %s' % (ifile,ofile))
 
  #Create vrts
- for var in vars:
-  print("creating virtual raster: %s" % var,flush=True)
-  os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
+ comm.Barrier()
+ if rank == 0:
+  for var in vars:
+   print("creating virtual raster: %s" % var,flush=True)
+   os.system('gdalbuildvrt %s/%s.vrt %s/%s/*.tif' % (sdir,var,sdir,var))
 
  #Create shapefiles
  #os.system('gdal_polygonize.py -f "ESRI Shapefile" -8 %s/basins.vrt %s/basins_shp' % (sdir,sdir))
@@ -2634,7 +2613,7 @@ def Postprocess_Input(rdir,edir,cids):
 def Read_Metadata_File(file):
 
  import json
- metadata = json.load(open(file))
+ metadata = json.load(open(file , 'rb'))
 
  return metadata
 
@@ -2674,6 +2653,7 @@ def Connect_Cell_Networks_v2(rank,size,cids,edir):
      lats2 = db2[cid2]['channel_crds'][:,:,0]
      lons2 = db2[cid2]['channel_crds'][:,:,1]
      dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
+     #print('outlet',np.min(dist))
      icd = np.where(dist == np.min(dist))[0][0]
      output_array[ic,3] = icd
         
@@ -2704,12 +2684,15 @@ def Connect_Cell_Networks_v2(rank,size,cids,edir):
     dist = ((lats2-lat1)**2 + (lons2-lon1)**2)**0.5
     icd = np.where(dist == np.min(dist))[0][0]
     inlet_array[ic,6+j] = icd 
+    #print('inlet',inlet_array[ic,0],inlet_array[ic,1],inlet_array[ic,6+j],np.min(dist))
 
   #Add array to file
   fp['stream_network']['inlets'] = inlet_array[:]
         
   #Close ammended file
   fp.close()
+
+  #exit()
  
  return
 
@@ -2747,7 +2730,8 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
  dt = 3600 #sec #This should be defined by the dt_routing parameter
  maxu = 2 #m/s #parameter
  maxd = maxu*dt #m
- ncmax = 20 #parameter
+ ncmax = 250 #parameter
+ dbout = {}
 
  #Iterate per catchment
  for cid in cids[rank::size]:
@@ -2788,13 +2772,17 @@ def Create_Downstream_Channels_Database(edir,rank,size,cids,comm):
     #update ids
     cid0 = cid1
     ic0 = ic1
+  dbout[cid] = np.copy(downstream_channels)
 
  comm.Barrier()
- #Add downstream_channels array to input_file.nc
- file = '%s/%s/input_file.nc' % (edir,cid)
- fp = h5py.File(file,'a')
- fp['stream_network']['downstream_channels'] = downstream_channels[:]
- fp.close()
+
+ for cid in cids[rank::size]:
+  #Add downstream_channels array to input_file.nc
+  file = '%s/%s/input_file.nc' % (edir,cid)
+  fp = h5py.File(file,'a')
+  if 'downstream_channels' in fp['stream_network']:del fp['stream_network']['downstream_channels']
+  fp['stream_network']['downstream_channels'] = dbout[cid][:]
+  fp.close()
 
  return
 
@@ -2908,7 +2896,7 @@ def prepare_data(rank,cid,edir,debug_level,workspace,cids):
 #Function that computes topological, morphologic, graph-theory, and channel-feature indices for subgrid network
 #Function also reduces dimensionality by using PCA that accounts for user-defined fraction of the total variance
 #laura
-def Subgrid_Indices(channels_wob_sg,topology_sg,basins_wob,db_channels_sg,thr_var):
+def Subgrid_Indices(channels_wob_sg,topology_sg,basins_wob,db_channels_sg,thr_var,cid):
  length_sg = db_channels_sg['length']
  width_sg = db_channels_sg['width']
  slope_sg = db_channels_sg['slope']
@@ -2953,105 +2941,170 @@ def Subgrid_Indices(channels_wob_sg,topology_sg,basins_wob,db_channels_sg,thr_va
      G.add_node(topology_sg[nd])
      G.add_edge(nd,topology_sg[nd],length=length_sg[nd],width=width_sg[nd],ilength=1/length_sg[nd],slope=slope_sg[nd],acc=acc_sg[nd],bf=bankfull_sg[nd])
         
-   list_nchannels.append(len(G.edges))
-   id_ilngth=(G.degree(weight='ilength'))
-   id_width=(G.degree(weight='width'))
-   id_slope=(G.degree(weight='slope'))
-        
-   list_id_ilngth=([val for (node, val) in id_ilngth])
-   list_id_width=([val for (node, val) in id_width])
-   list_id_slope=([val for (node, val) in id_slope])
-        
-   avrg_id_ilngth=sum(list_id_ilngth)/G.number_of_nodes()
-   avrg_id_wdth=sum(list_id_width)/G.number_of_nodes()
-   avrg_id_slp=sum(list_id_slope)/G.number_of_nodes()
-
-   list_avrg_id_ilngth.append(avrg_id_ilngth)
-   list_avrg_id_wdth.append(avrg_id_wdth)
-   list_avrg_id_slp.append(avrg_id_slp)
-        
-   if nx.is_weakly_connected(G)==True:
-    avrg_shrtst_pth_wdth=nx.average_shortest_path_length(G,weight='width')
-    avrg_shrtst_pth_slp=nx.average_shortest_path_length(G,weight='slope')
-    avrg_shrtst_pth_lngth=nx.average_shortest_path_length(G,weight='lenght')
-    list_avrg_shrtst_pth_wdth.append(avrg_shrtst_pth_wdth)
-    list_avrg_shrtst_pth_slp.append(avrg_shrtst_pth_slp)
-    list_avrg_shrtst_pth_lngth.append(avrg_shrtst_pth_lngth)
-   else:
-    shrtst_pth_lnght_w = []
-    shrtst_pth_lnght_s = []
-    shrtst_pth_lnght_l = []
-    sub_graphs = nx.weakly_connected_components(G)
-    for i, sg in enumerate(sub_graphs):
-     SG = G.subgraph(sg).copy()
-     shrtst_pth_lnght_w.append(nx.average_shortest_path_length(SG,weight='width'))
-     shrtst_pth_lnght_s.append(nx.average_shortest_path_length(SG,weight='slope'))
-     shrtst_pth_lnght_l.append(nx.average_shortest_path_length(SG,weight='lenght'))
-    list_avrg_shrtst_pth_wdth.append(np.mean(shrtst_pth_lnght_w))
-    list_avrg_shrtst_pth_slp.append(np.mean(shrtst_pth_lnght_s))
-    list_avrg_shrtst_pth_lngth.append(np.mean(shrtst_pth_lnght_l))
-            
-   grc_uw=nx.global_reaching_centrality(G)
-   list_grc_uw.append(grc_uw)
-        
-   #convert to undirected graph to compute sprectral properties on a symmetrical matrix              
-   Gud=G.to_undirected()
-   #compute spectrum of adjacency matrix
-   spctrm_uw=nx.adjacency_spectrum(Gud)
-   spctrm_ilngth=nx.adjacency_spectrum(Gud, weight='ilength')
-   spctrm_wdth=nx.adjacency_spectrum(Gud, weight='width')
-   spctrm_slp=nx.adjacency_spectrum(Gud, weight='slope')
-                
-   #Spectral properties
-   ##Spectral gap
-   g_uw=abs(np.max(spctrm_uw))
-   g_ilngth=abs(np.max(spctrm_ilngth))
-   g_wdth=abs(np.max(spctrm_wdth))
-   g_slp=abs(np.max(spctrm_slp))
-        
-   list_g_uw.append(g_uw)
-   list_g_ilngth.append(g_ilngth)
-   list_g_wdth.append(g_wdth)
-   list_g_slp.append(g_slp)
-                
-   #Non-spectral properties
-   ##Global efficiency
-   g_eff=nx.global_efficiency(Gud)
-   list_g_eff.append(g_eff)
-        
-   #Channel features
-   list_total_lngth.append(G.size(weight="length"))
-   list_total_acc.append(G.size(weight="acc"))
-   list_avrg_lngth.append(list_total_lngth[-1]/len(G.edges))
-   list_avrg_acc.append(list_total_acc[-1]/len(G.edges))
-   list_avrg_wdth.append((G.size(weight="width"))/len(G.edges))
-   list_avrg_slpe.append((G.size(weight="slope"))/len(G.edges))
-   list_avrg_bnkfll.append((G.size(weight="bf"))/len(G.edges))
-        
-   #River Network morphology
-   list_drng_dnsty.append(list_total_lngth[-1]/list_total_acc[-1])
+   if G.number_of_nodes() == 0:
+    list_nchannels.append(-100)
+    list_avrg_id_ilngth.append(-100)
+    list_avrg_id_wdth.append(-100)
+    list_avrg_id_slp.append(-100)
+    list_avrg_shrtst_pth_wdth.append(-100)
+    list_avrg_shrtst_pth_slp.append(-100)
+    list_avrg_shrtst_pth_lngth.append(-100)
+    list_grc_uw.append(-100)
+    list_g_uw.append(-100)
+    list_g_ilngth.append(-100)
+    list_g_wdth.append(-100)
+    list_g_slp.append(-100)
+    list_g_eff.append(-100)
+    list_total_lngth.append(-100)
+    list_total_acc.append(-100)
+    list_avrg_lngth.append(-100)
+    list_avrg_acc.append(-100)
+    list_avrg_wdth.append(-100)
+    list_avrg_slpe.append(-100)
+    list_avrg_bnkfll.append(-100)
+    list_drng_dnsty.append(-100)
     
-   list_nchannels[0] = np.mean(list_nchannels[1:])
-   list_avrg_id_ilngth[0] = np.mean(list_avrg_id_ilngth[1:])
-   list_avrg_id_wdth[0] = np.mean(list_avrg_id_wdth[1:])
-   list_avrg_id_slp[0] = np.mean(list_avrg_id_slp[1:])
-   list_avrg_shrtst_pth_wdth[0] = np.mean(list_avrg_shrtst_pth_wdth[1:])
-   list_avrg_shrtst_pth_slp[0] = np.mean(list_avrg_shrtst_pth_slp[1:])
-   list_avrg_shrtst_pth_lngth[0] = np.mean(list_avrg_shrtst_pth_lngth[1:])
-   list_grc_uw[0] = np.mean(list_grc_uw[1:])
-   list_g_uw[0] = np.mean(list_g_uw[1:])
-   list_g_ilngth[0] = np.mean(list_g_ilngth[1:])
-   list_g_wdth[0] = np.mean(list_g_wdth[1:])
-   list_g_slp[0] = np.mean(list_g_slp[1:])
-   list_g_eff[0] = np.mean(list_g_eff[1:])
-   list_total_lngth[0] = np.mean(list_total_lngth[1:])
-   list_total_acc[0] = np.mean(list_total_acc[1:])
-   list_avrg_lngth[0] = np.mean(list_avrg_lngth[1:])
-   list_avrg_acc[0] = np.mean(list_avrg_acc[1:])
-   list_avrg_wdth[0] = np.mean(list_avrg_wdth[1:])
-   list_avrg_slpe[0] = np.mean(list_avrg_slpe[1:])
-   list_avrg_bnkfll[0] = np.mean(list_avrg_bnkfll[1:])
-   list_drng_dnsty[0] = np.mean(list_drng_dnsty[1:])
+   else:
+    list_nchannels.append(len(G.edges))
+    id_ilngth=(G.degree(weight='ilength'))
+    id_width=(G.degree(weight='width'))
+    id_slope=(G.degree(weight='slope'))
+        
+    list_id_ilngth=([val for (node, val) in id_ilngth])
+    list_id_width=([val for (node, val) in id_width])
+    list_id_slope=([val for (node, val) in id_slope])
+        
+    avrg_id_ilngth=sum(list_id_ilngth)/G.number_of_nodes()
+    avrg_id_wdth=sum(list_id_width)/G.number_of_nodes()
+    avrg_id_slp=sum(list_id_slope)/G.number_of_nodes()
+
+    list_avrg_id_ilngth.append(avrg_id_ilngth)
+    list_avrg_id_wdth.append(avrg_id_wdth)
+    list_avrg_id_slp.append(avrg_id_slp)
+        
+    if nx.is_weakly_connected(G)==True:
+     avrg_shrtst_pth_wdth=nx.average_shortest_path_length(G,weight='width')
+     avrg_shrtst_pth_slp=nx.average_shortest_path_length(G,weight='slope')
+     avrg_shrtst_pth_lngth=nx.average_shortest_path_length(G,weight='lenght')
+     list_avrg_shrtst_pth_wdth.append(avrg_shrtst_pth_wdth)
+     list_avrg_shrtst_pth_slp.append(avrg_shrtst_pth_slp)
+     list_avrg_shrtst_pth_lngth.append(avrg_shrtst_pth_lngth)
+    else:
+     shrtst_pth_lnght_w = []
+     shrtst_pth_lnght_s = []
+     shrtst_pth_lnght_l = []
+     sub_graphs = nx.weakly_connected_components(G)
+     for i, sg in enumerate(sub_graphs):
+      SG = G.subgraph(sg).copy()
+      shrtst_pth_lnght_w.append(nx.average_shortest_path_length(SG,weight='width'))
+      shrtst_pth_lnght_s.append(nx.average_shortest_path_length(SG,weight='slope'))
+      shrtst_pth_lnght_l.append(nx.average_shortest_path_length(SG,weight='lenght'))
+     list_avrg_shrtst_pth_wdth.append(np.mean(shrtst_pth_lnght_w))
+     list_avrg_shrtst_pth_slp.append(np.mean(shrtst_pth_lnght_s))
+     list_avrg_shrtst_pth_lngth.append(np.mean(shrtst_pth_lnght_l))
+            
+    grc_uw=nx.global_reaching_centrality(G)
+    list_grc_uw.append(grc_uw)
+        
+    #convert to undirected graph to compute sprectral properties on a symmetrical matrix              
+    Gud=G.to_undirected()
+    #compute spectrum of adjacency matrix
+    spctrm_uw=nx.adjacency_spectrum(Gud)
+    spctrm_ilngth=nx.adjacency_spectrum(Gud, weight='ilength')
+    spctrm_wdth=nx.adjacency_spectrum(Gud, weight='width')
+    spctrm_slp=nx.adjacency_spectrum(Gud, weight='slope')
+                
+    #Spectral properties
+    ##Spectral gap
+    g_uw=abs(np.max(spctrm_uw))
+    g_ilngth=abs(np.max(spctrm_ilngth))
+    g_wdth=abs(np.max(spctrm_wdth))
+    g_slp=abs(np.max(spctrm_slp))
+        
+    list_g_uw.append(g_uw)
+    list_g_ilngth.append(g_ilngth)
+    list_g_wdth.append(g_wdth)
+    list_g_slp.append(g_slp)
+                
+    #Non-spectral properties
+    ##Global efficiency
+    g_eff=nx.global_efficiency(Gud)
+    list_g_eff.append(g_eff)
+        
+    #Channel features
+    list_total_lngth.append(G.size(weight="length"))
+    list_total_acc.append(G.size(weight="acc"))
+    list_avrg_lngth.append(list_total_lngth[-1]/len(G.edges))
+    list_avrg_acc.append(list_total_acc[-1]/len(G.edges))
+    list_avrg_wdth.append((G.size(weight="width"))/len(G.edges))
+    list_avrg_slpe.append((G.size(weight="slope"))/len(G.edges))
+    list_avrg_bnkfll.append((G.size(weight="bf"))/len(G.edges))
+        
+    #River Network morphology
+    list_drng_dnsty.append(list_total_lngth[-1]/list_total_acc[-1])
+
+ list_nchannels = np.array(list_nchannels)
+ list_nchannels[list_nchannels==-100] = np.mean(list_nchannels[list_nchannels!=-100])
+    
+ list_avrg_id_ilngth = np.array(list_avrg_id_ilngth)
+ list_avrg_id_ilngth[list_avrg_id_ilngth==-100] = np.mean(list_avrg_id_ilngth[list_avrg_id_ilngth!=-100])
+
+ list_avrg_id_wdth = np.array(list_avrg_id_wdth)
+ list_avrg_id_wdth[list_avrg_id_wdth==-100] = np.mean(list_avrg_id_wdth[list_avrg_id_wdth!=-100])
+    
+ list_avrg_id_slp = np.array(list_avrg_id_slp)
+ list_avrg_id_slp[list_avrg_id_slp==-100] = np.mean(list_avrg_id_slp[list_avrg_id_slp!=-100])
+    
+ list_avrg_shrtst_pth_wdth = np.array(list_avrg_shrtst_pth_wdth)
+ list_avrg_shrtst_pth_wdth[list_avrg_shrtst_pth_wdth==-100] = np.mean(list_avrg_shrtst_pth_wdth[list_avrg_shrtst_pth_wdth!=-100])
+    
+ list_avrg_shrtst_pth_slp = np.array(list_avrg_shrtst_pth_slp) 
+ list_avrg_shrtst_pth_slp[list_avrg_shrtst_pth_slp==-100] = np.mean(list_avrg_shrtst_pth_slp[list_avrg_shrtst_pth_slp!=-100])
+    
+ list_avrg_shrtst_pth_lngth = np.array(list_avrg_shrtst_pth_lngth)
+ list_avrg_shrtst_pth_lngth[list_avrg_shrtst_pth_lngth==-100] = np.mean(list_avrg_shrtst_pth_lngth[list_avrg_shrtst_pth_lngth!=-100])
+    
+ list_grc_uw = np.array(list_grc_uw) 
+ list_grc_uw[list_grc_uw==-100] = np.mean(list_grc_uw[list_grc_uw!=-100])
+    
+ list_g_uw = np.array(list_g_uw) 
+ list_g_uw[list_g_uw==-100] = np.mean(list_g_uw[list_g_uw!=-100])
+    
+ list_g_ilngth = np.array(list_g_ilngth) 
+ list_g_ilngth[list_g_ilngth==-100] = np.mean(list_g_ilngth[list_g_ilngth!=-100])
+    
+ list_g_wdth = np.array(list_g_wdth) 
+ list_g_wdth[list_g_wdth==-100] = np.mean(list_g_wdth[list_g_wdth!=-100])
+    
+ list_g_slp = np.array(list_g_slp) 
+ list_g_slp[list_g_slp==-100] = np.mean(list_g_slp[list_g_slp!=-100])
+    
+ list_g_eff = np.array(list_g_eff) 
+ list_g_eff[list_g_eff==-100] = np.mean(list_g_eff[list_g_eff!=-100])
+    
+ list_total_lngth = np.array(list_total_lngth) 
+ list_total_lngth[list_total_lngth==-100] = np.mean(list_total_lngth[list_total_lngth!=-100])
+    
+ list_total_acc = np.array(list_total_acc) 
+ list_total_acc[list_total_acc==-100] = np.mean(list_total_acc[list_total_acc!=-100])
+    
+ list_avrg_lngth = np.array(list_avrg_lngth) 
+ list_avrg_lngth[list_avrg_lngth==-100] = np.mean(list_avrg_lngth[list_avrg_lngth!=-100])
+    
+ list_avrg_acc = np.array(list_avrg_acc) 
+ list_avrg_acc[list_avrg_acc==-100] = np.mean(list_avrg_acc[list_avrg_acc!=-100])
+    
+ list_avrg_wdth = np.array(list_avrg_wdth)
+ list_avrg_wdth[list_avrg_wdth==-100] = np.mean(list_avrg_wdth[list_avrg_wdth!=-100])
+    
+ list_avrg_slpe = np.array(list_avrg_slpe) 
+ list_avrg_slpe[list_avrg_slpe==-100] = np.mean(list_avrg_slpe[list_avrg_slpe!=-100])
+    
+ list_avrg_bnkfll = np.array(list_avrg_bnkfll) 
+ list_avrg_bnkfll[list_avrg_bnkfll==-100] = np.mean(list_avrg_bnkfll[list_avrg_bnkfll!=-100])
+    
+ list_drng_dnsty = np.array(list_drng_dnsty) 
+ list_drng_dnsty[list_drng_dnsty==-100] = np.mean(list_drng_dnsty[list_drng_dnsty!=-100])
 
  #Create array of inidices
  metrics=np.zeros((len(list_nchannels),21))
@@ -3077,11 +3130,12 @@ def Subgrid_Indices(channels_wob_sg,topology_sg,basins_wob,db_channels_sg,thr_va
  metrics[:,19]=list_avrg_bnkfll
  metrics[:,20]=list_drng_dnsty
 
+ n_components = min(metrics.shape[0],metrics.shape[1])
  #Standardize the data
  X_std = (metrics - np.mean(metrics,axis=0))/np.std(metrics,axis=0)
     
  #Define the parameters for PCA
- pca = sklearn.decomposition.PCA(n_components=21)
+ pca = sklearn.decomposition.PCA(n_components=n_components)
  #Fit the model
  pca.fit(X_std)
 
@@ -3092,7 +3146,7 @@ def Subgrid_Indices(channels_wob_sg,topology_sg,basins_wob,db_channels_sg,thr_va
   if explained_variance[i] > threshold_variance:
    n_comp = i+1
    break
-            
+
  #Define the parameters for PCA with n_comp accounting for threshold of variance
  pca = sklearn.decomposition.PCA(n_components=n_comp)
  #Fit the model
