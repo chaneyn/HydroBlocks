@@ -6,7 +6,7 @@ The following steps walk through how to install HydroBlocks
 **1. Clone the HydroBlocks repository.**
 
 ```
-git clone https://github.com/chaneyn/HydroBlocks.git
+git clone -b dev_daniel https://github.com/chaneyn/HydroBlocks.git
 cd HydroBlocks
 ```
 
