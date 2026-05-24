@@ -1,13 +1,13 @@
 {
-  "rdir": "/stor/tyche/hydro/private/lpt14/projects/HBupdate2023/FD_test",
-  "experiment": "CMHB_ON_svp_ON",
+  "rdir": "/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test",
+  "experiment": "baseline_test",
   "startdate": {
-    "year": 2018,
+    "year": 2013,
     "month": 1,
     "day": 1
   },
   "enddate": {
-    "year": 2018,
+    "year": 2013,
     "month": 3,
     "day": 31
   },
@@ -19,7 +19,7 @@
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
-    "average_height_difference_between_bands": 80,
+    "average_height_difference_between_bands": 5,
     "number_of_intraband_clusters": 5,
     "subbasin_clustering_covariates": [
       "dem",
@@ -95,20 +95,16 @@
   },
   "dz": [
     0.05,
-    0.1,
-    0.1,
-    0.1,
-    0.2,
-    0.2,
-    0.25,
-    0.25,
-    0.25,
-    0.5
+    0.15,
+    0.3,
+    0.5,
+    1.0
   ],
   "routing_module": {
-    "type": "kinematic",
+    "flag": true,
+    "type": "particle_tracker",
     "surface_coupling": true,
-    "dt_routing":100
+    "dt_routing":3600
   },
   "subsurface_module": "richards",
   "restart": {
@@ -120,24 +116,20 @@
       "trad",
       "sh",
       "lh",
-      "runoff",
-      "prcp",
-      "cm",
-      "emissi",
-      "salb"
+      "runoff"
     ],
     "routing_vars": [
       "Q",
       "A",
       "Qc",
-      "Qf"
+      "reach_inundation"
     ]
   },
   "upscaling": {
     "res": 0.0166666666667,
     "vars": [
-      "trad",
-      "smc1"
+      "runoff",
+      "smc"
     ]
   }
 }
