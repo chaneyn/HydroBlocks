@@ -1113,7 +1113,7 @@ def Correct_Mask(cdb,workspace,metadata,icatch,log):
  for i in range(basins.shape[0]):
   for j in range(basins.shape[1]):
    b = basins[i,j]
-   if (b == -9999) | (mask[i,j] == -9999):continue
+   if b == -9999 :continue
    if argmax[b-1] == -9999:continue
    mask_v2[i,j] = ucatchs[argmax[b-1]]
  #Set the external to -9999
