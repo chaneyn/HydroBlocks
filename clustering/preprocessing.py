@@ -941,6 +941,32 @@ def Determine_HMC_Connectivity(h1,h2,b1,b2,tp1,tp2,ivc,irc,ibc):
 
  return True
 
+def Calculate_HRU_Connections_Matrix_HMC(cluster_ids,nhru,dx,HMC_info,hydroblocks_info):
+
+ #Add pointers for simplicity
+ tile_position = HMC_info['tile_position']
+ basins = HMC_info['basins']
+ ivc = hydroblocks_info['hmc_parameters']['intervalley_connectivity']
+ irc = hydroblocks_info['hmc_parameters']['interridge_connectivity']
+ ibc = hydroblocks_info['hmc_parameters']['intraband_connectivity']
+ 
+ #Perform the work
+ (hdst,horg) = Calculate_HRU_Connections_Matrix_HMC_workhorse(cluster_ids,dx,tile_position,
+               basins,ivc,irc,ibc)
+
+ #Prepare the sparse matrix
+ cmatrix = sparse.coo_matrix((np.ones(hdst.size),(horg,hdst)),shape=(nhru,nhru),dtype=np.float32)
+ cmatrix = cmatrix.tocsr()
+
+ #Prepare length, width, and ksat matrices
+ wmatrix = cmatrix.copy()
+ wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
+
+ #Prepare output dictionary
+ cdata = {'width':wmatrix.T,}
+
+ return cdata
+
 def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_info):
 #Removed covariates and cluster ids from parameters, replace nhrus for nhbands, laura
  #Add pointers for simplicity
@@ -1166,7 +1192,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  #Prepare the hru connections matrix (darcy clusters) with laura's modification
  print("Calculating the connections between HRUs",flush=True)
  if (hydroblocks_info['connection_matrix_hbands']==False):
-  cmatrix = Calculate_HRU_Connections_Matrix_HMC(covariates,cluster_ids,nhru,resx,HMC_info,hydroblocks_info)
+  cmatrix = Calculate_HRU_Connections_Matrix_HMC(cluster_ids,nhru,resx,HMC_info,hydroblocks_info)
   #Define the metadata
   metadata = gdal_tools.retrieve_metadata(wbd['files']['dem'])
   #Make the output dictionary for the basin
