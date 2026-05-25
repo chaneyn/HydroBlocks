@@ -1333,7 +1333,7 @@ class HydroBlocks:
     self.output_routing = {}
     for var in self.metadata['output']['routing_vars']:
      shp = grp.variables[var].shape
-     self.output_routing[var] = np.zeros((sep,shp[1]))
+     self.output_routing[var] = np.zeros((sep,*shp[1:]))
    #Fill the data (MISSING!)
    val = itime % sep
    for var in self.metadata['output']['routing_vars']:
