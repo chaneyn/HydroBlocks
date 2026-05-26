@@ -13,9 +13,12 @@
   },
   "dt": 3600.0,
   "channel_initiation": {
-    "athrs": 1000000
+    "athrs": 1000000,
+    "flag_subgrid":false,
+    "athrs_subgrid": 150000,
+    "var_pca":0.5
   },
-  "connection_matrix_hbands": false,
+  "connection_matrix_hbands": true,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
@@ -33,6 +36,21 @@
     "interridge_connectivity": false,
     "intervalley_connectivity": false,
     "intraband_connectivity": false
+  },
+  "network_abstraction": {
+    "flag": true,
+    "number_of_characteristic_main_subbasins":3,
+    "number_of_characteristic_secondary_subbasins":5,
+    "main_subbasin_clustering_covariates": [
+      "shreve",
+      "dem"],
+    "secondary_subbasin_clustering_covariates": [
+      "dem",
+      "shreve",
+      "lats",
+      "lons"],
+    "var": "acc",
+    "percentile": 80
   },
   "parameter_scaling": {
     "bankfull_depth": 1.0,
