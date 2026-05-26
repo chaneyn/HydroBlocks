@@ -129,8 +129,7 @@
     "routing_vars": [
       "Q",
       "A",
-      "Qc",
-      "reach_inundation"
+      "Qc"
     ]
   },
   "upscaling": {

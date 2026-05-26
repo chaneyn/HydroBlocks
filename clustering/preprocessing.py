@@ -146,6 +146,7 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  #Determine whether modified HMC / network abstraction behavior is requested
  network_abst_cfg = hydroblocks_info.get('network_abstraction')
  network_abst_flag = bool(network_abst_cfg.get('flag', False)) if isinstance(network_abst_cfg, dict) else False
+ second_pass_flag = bool(hydroblocks_info.get('second_pass', False))
 
  #If network abstraction or modified HMC is active, persist first-pass covariates/output
  if network_abst_flag:
@@ -155,8 +156,8 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
    except Exception as e:
      print('Warning: could not save covariates.pck: %s' % str(e), flush=True)
 
- #Extract the meteorological forcing (skip when running two-pass abstraction workflow)
- if network_abst_flag:
+ #Extract meteorological forcing immediately for one-pass runs, or during second pass in two-pass runs
+ if (not network_abst_flag) or second_pass_flag:
    print("Preparing the meteorology",flush=True)
    Prepare_Meteorology_Semidistributed(workspace,wbd,output,input_dir,info,hydroblocks_info,covariates)
 
@@ -181,10 +182,6 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
  grp.dx = np.mean(mask_object.area**0.5)
 
  #Write out the basin cluster map (defer when running two-pass abstraction/mod-HMC)
- try:
-  second_pass_flag = hydroblocks_info.get('second_pass', False)
- except Exception:
-  second_pass_flag = False
 
  #Write out the mapping and hand map
  if (not network_abst_flag) or second_pass_flag:
@@ -774,7 +771,7 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir):
     hp_in['lsb_lats'] = np.array(lsb_lats)
     hp_in['lsb_lons'] = np.array(lsb_lons)
 
- if hydroblocks_info['network_abstraction']['flag'] == True:
+ if hydroblocks_info['network_abstraction']['flag'] == True: # 2-Step-HMC
   if len(db_channels['length']) < len(np.unique(basins_wob[basins_wob!=-9999])):
    m_main = np.array(np.unique(basins_wob[basins_wob!=-9999]),dtype=bool)
    m_main[:] = 0
@@ -805,7 +802,7 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir):
    print('Warning: flag_subgrid is enabled but pca_subgrid_basins.pck is missing', flush=True)
 
  print('Clustering the basins',flush=True)
- if hydroblocks_info['network_abstraction']['flag'] == True:
+ if hydroblocks_info['network_abstraction']['flag'] == True: # 2-Step-HMC
   if (np.sum(m_main) != 0) and (np.sum(m_abst) != 0):
    hp_in_main = {}
    hp_in_abst = {}
@@ -1879,8 +1876,8 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  terrain_tools.calculate_area(mask_object)
  resx = np.mean(mask_object.area**0.5) #all pixels in the subdomain have the same resolution in x and y; still not ideal and needs to be revisited, but much better than resx = 90...
 
- second_pass_flag = hydroblocks_info.get('second_pass', False)
- network_abst_cfg = hydroblocks_info.get('network_abstraction')
+ second_pass_flag = hydroblocks_info.get('second_pass', False) # 2-Step-HMC
+ network_abst_cfg = hydroblocks_info.get('network_abstraction') # 2-Step-HMC
  network_abst_flag = bool(network_abst_cfg.get('flag', False)) if isinstance(network_abst_cfg, dict) else False
 
  #Determine the HRUs
