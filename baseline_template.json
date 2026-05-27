@@ -18,7 +18,7 @@
     "athrs_subgrid": 150000,
     "var_pca":0.5
   },
-  "connection_matrix_hbands": true,
+  "connection_matrix_hbands": false,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
