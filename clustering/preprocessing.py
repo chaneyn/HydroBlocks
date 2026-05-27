@@ -47,7 +47,7 @@ def plot_data(data):
 
  return
 
-def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
+def Prepare_Model_Input_Data(hydroblocks_info):
 
  #Prepare the info dictionary
  info = {}
@@ -215,8 +215,10 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
   file_ca = '%s/basin_clusters_latlon.tif' % input_dir
   metadata['nodata'] = -9999.0
   gdal_tools.write_raster(file_ca,metadata,basin_clusters_map)
+  n_cluster_basins = int(len(np.unique(basin_clusters_map)))
  else:
   print('Deferring write of basin_clusters_latlon.tif (abstraction/mod-HMC active)',flush=True)
+  n_cluster_basins = int(hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins"]+1)
 
  #Write out the hand org and height-band maps
  if (not network_abst_flag) or second_pass_flag:
@@ -257,8 +259,9 @@ def Prepare_Model_Input_Data(hydroblocks_info,metadata_file):
   grp.variables['indices'][:] = wmatrix.indices
   grp.variables['indptr'][:] = wmatrix.indptr
  elif (hydroblocks_info['connection_matrix_hbands']==True): #and (hydroblocks_info['fully_distributed']==False):
-  for i in range(1,(int(hydroblocks_info['hmc_parameters']["number_of_characteristic_subbasins"]+1))):
+  for i in range(1,n_cluster_basins):
    text='wmatrix_Basin%s' %int(i)
+   print('Basins in cid %s: %s' %(cid, text),flush=True)
    wmatrix=output['cmatrix_Basin%s' %int(i)]['width']
    nconnections = wmatrix.data.size
    grp = fp.createGroup(text)
@@ -2343,7 +2346,7 @@ def driver(comm,metadata_file):
   metadata['workspace'] = "%s/data/cids/%d" % (rdir,cid)
   #Prepare model data
   tic = time.time()
-  Prepare_Model_Input_Data(metadata,metadata_file)
+  Prepare_Model_Input_Data(metadata)
   print("Elapsed time: ",time.time() - tic)
  comm.Barrier()
 
@@ -2387,7 +2390,7 @@ def driver(comm,metadata_file):
      os.system('cp %s/input_file.nc %s/input_file3.nc' % (metadata['input_dir'], metadata['input_dir']))
      # Indicate this is the second pass so Prepare_Model_Input_Data will write final TIFFs
      metadata['second_pass'] = True
-     Prepare_Model_Input_Data(metadata,metadata_file)
+     Prepare_Model_Input_Data(metadata)
      Replace_Stream_Network(metadata)
      # Clean up the second_pass flag to avoid side effects
      metadata.pop('second_pass', None)
