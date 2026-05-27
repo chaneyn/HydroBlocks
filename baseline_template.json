@@ -18,7 +18,7 @@
     "athrs_subgrid": 150000,
     "var_pca":0.5
   },
-  "connection_matrix_hbands": false,
+  "connection_matrix_hbands": true,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
@@ -130,7 +130,8 @@
     "routing_vars": [
       "Q",
       "A",
-      "Qc"
+      "Qc",
+      "reach_inundation"
     ]
   },
   "upscaling": {
