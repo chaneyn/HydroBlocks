@@ -221,12 +221,11 @@ class HydroBlocks:
   self.pct = self.input_fp.groups['parameters'].variables['area_pct'][:]/100
   self.pct = self.pct/np.sum(self.pct)
   self.metadata = info
-  #if (info['fully_distributed']==True) and (info['connection_matrix_hbands']==True): #laura
-   #self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins_CID_%s'%info['cid']]#laura
-  #elif (info['fully_distributed']==True) and (info['connection_matrix_hbands']==False): #laura
-   #self.ncsbasins=self.nhru #laura
-  #else: #laura
-  self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
+
+  #self.ncsbasins=info['hmc_parameters']['number_of_characteristic_subbasins'] #laura
+  list_groups=list(self.input_fp.groups.keys())
+  self.ncsbasins=int(sum(1 for element in list_groups if "wmatrix" in element))
+
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.m = self.input_fp.groups['parameters'].variables['m'][:]  #Noemi
   self.m[:] = 10.0 #m
