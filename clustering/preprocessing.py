@@ -28,6 +28,8 @@ import shapely.geometry
 import rasterio
 import networkx as nx #laura, for topological indices
 import sklearn.decomposition #laura, for pca of subgrid indices
+from pathlib import Path
+import shutil
 
 def plot_data(data):
 
@@ -40,7 +42,23 @@ def plot_data(data):
 
  return
 
-def Prepare_Model_Input_Data(hydroblocks_info):
+def _remove_path(path):
+
+ path = Path(path)
+ if path.is_dir() and not path.is_symlink():
+  shutil.rmtree(path)
+ elif path.exists() or path.is_symlink():
+  path.unlink()
+
+def _safe_symlink(source, target):
+
+ target = Path(target)
+ target.parent.mkdir(parents=True, exist_ok=True)
+ if target.exists() or target.is_symlink():
+  _remove_path(target)
+ target.symlink_to(Path(source))
+
+def Prepare_Model_Input_Data(hydroblocks_info,write_rasters=True):
 
  #Prepare the info dictionary
  info = {}
@@ -56,13 +74,13 @@ def Prepare_Model_Input_Data(hydroblocks_info):
 
  #Define the model input data directory
  input_dir = hydroblocks_info['input_dir']
- os.system('mkdir -p %s' % input_dir)
+ Path(input_dir).mkdir(parents=True, exist_ok=True)
 
  #Create soft link to HydroBlocks from within the directory
  HBdir = '%s/model/pyNoahMP' % (("/").join(__file__.split('/')[:-2]))
  HBedir = '%s/pyNoahMP%d' % (input_dir,hydroblocks_info['cid'])
  if os.path.exists(HBedir) == False:
-  os.system('ln -s %s %s' % (HBdir,HBedir))
+  _safe_symlink(HBdir, HBedir)
 
  #Create the dictionary to hold all of the data
  output = {}
@@ -164,8 +182,9 @@ def Prepare_Model_Input_Data(hydroblocks_info):
  terrain_tools.calculate_area(mask_object)
  grp.dx = np.mean(mask_object.area**0.5)
 
+ n_cluster_basins = int(len(np.unique(output['basin_clusters_map'])) - 1)
 
- if (hydroblocks_info['network_abstraction']['flag']==False) and (flag_mod_hmc == False):#laura
+ if write_rasters == True:
   #Write out the mapping
   hru_map = np.copy(output['hru_map'])
   hru_map[np.isnan(hru_map) == 1] = -9999.0
@@ -180,21 +199,19 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   metadata['nodata'] = -9999.0
   gdal_tools.write_raster(file_ca,metadata,hand_map)
 
- #Write out the basin map
- basin_map = np.copy(output['basin_map'])
- basin_map[np.isnan(basin_map) == 1] = -9999.0
- file_ca = '%s/basins_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,basin_map)
+  #Write out the basin map
+  basin_map = np.copy(output['basin_map'])
+  basin_map[np.isnan(basin_map) == 1] = -9999.0
+  file_ca = '%s/basins_latlon.tif' % input_dir
+  metadata['nodata'] = -9999.0
+  gdal_tools.write_raster(file_ca,metadata,basin_map)
 
- if (hydroblocks_info['network_abstraction']['flag']==False) and (flag_mod_hmc == False):#laura
   #Write out the basin cluster map
   basin_clusters_map = np.copy(output['basin_clusters_map'])
   basin_clusters_map[np.isnan(basin_clusters_map) == 1] = -9999.0
   file_ca = '%s/basin_clusters_latlon.tif' % input_dir
   metadata['nodata'] = -9999.0
   gdal_tools.write_raster(file_ca,metadata,basin_clusters_map)
-  n_cluster_basins = int(len(np.unique(basin_clusters_map)) - 1)
 
   #Write out the hand org map
   hand_org_map = np.copy(output['hand_org_map'])
@@ -210,12 +227,12 @@ def Prepare_Model_Input_Data(hydroblocks_info):
   metadata['nodata'] = -9999.0
   gdal_tools.write_raster(file_ca,metadata,hband_map)
 
- #Write out the channels
- channel_map = np.copy(output['channel_map'])
- channel_map[np.isnan(channel_map) == 1] = -9999.0
- file_ca = '%s/channel_mapping_latlon.tif' % input_dir
- metadata['nodata'] = -9999.0
- gdal_tools.write_raster(file_ca,metadata,channel_map)
+  #Write out the channels
+  channel_map = np.copy(output['channel_map'])
+  channel_map[np.isnan(channel_map) == 1] = -9999.0
+  file_ca = '%s/channel_mapping_latlon.tif' % input_dir
+  metadata['nodata'] = -9999.0
+  gdal_tools.write_raster(file_ca,metadata,channel_map)
 
  #Write the connection matrices
  #width
@@ -517,9 +534,9 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
 
  #Save the channel info
  if os.path.isfile('%s/routing_info.pck' % input_dir):
-  os.system('rm %s/routing_info.pck' % input_dir)
+  _remove_path('%s/routing_info.pck' % input_dir)
  if os.path.isfile('%s/routing_mp_connectivity' % input_dir):
-  os.system('rm %s/routing_mp_connectivity' % input_dir)
+  _remove_path('%s/routing_mp_connectivity' % input_dir)
 
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
  #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
@@ -980,9 +997,9 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir,flag_mod_
  nhru = np.unique(hrus[hrus!=-9999]).size
 
  #Save the channel info
- os.system('rm %s/routing_info.pck'%input_dir)
+ _remove_path('%s/routing_info.pck'%input_dir)
  #os.system('rm %s/routing_io.pck'%input_dir)
- os.system('rm %s/routing_mp_connectivity.pck'%input_dir)
+ _remove_path('%s/routing_mp_connectivity.pck'%input_dir)
  pickle.dump(db_routing,open('%s/routing_info.pck' % input_dir,'wb'))
  #pickle.dump(db_routing['i/o'],open('%s/routing_io.pck' % input_dir,'wb'))
  pickle.dump(db_routing['mp_connectivity'],open('%s/routing_mp_connectivity.pck' % input_dir,'wb'))
@@ -2222,15 +2239,14 @@ def driver(comm,metadata_file):
   metadataa['input_dir'] = "%s/%d" % (edir,cid)
   metadataa['workspace'] = "%s/data/cids/%d" % (rdir,cid)
   metadataa['flag_mod_hmc'] = flag_mod_hmc
+  flag_network_abst = metadataa['network_abstraction']['flag']
+  needs_two_pass_input_prep = flag_network_abst or flag_mod_hmc
   #Prepare model data
   tic = time.time()
   if flag_debug == False:
-   Prepare_Model_Input_Data(metadataa)
-   flag_network_abst = metadataa['network_abstraction']['flag']
+   Prepare_Model_Input_Data(metadataa,write_rasters=not needs_two_pass_input_prep)
    if (flag_network_abst==False) and (flag_mod_hmc==False):
     print("CID",cid,"Elapsed time: ",time.time() - tic)
-  else:
-   flag_network_abst = metadataa['network_abstraction']['flag']
  comm.Barrier()
 
  if flag_debug == False:
@@ -2242,7 +2258,7 @@ def driver(comm,metadata_file):
  if flag_debug == False:
   #Wait until they are all done
   workspace = '%s/workspace' % (edir)
-  os.system('mkdir -p %s' % workspace)
+  Path(workspace).mkdir(parents=True, exist_ok=True)
     
   #Create topology with connections to other cids, laura
   print('Connect topology',flush=True)
@@ -2251,7 +2267,7 @@ def driver(comm,metadata_file):
 
   #Create self-contained trees of reaches for the domain, laura
   print('Compute large-scale watersheds',flush=True)
-  Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst)
+  Create_Trees(rank,size,cids,edir,comm,needs_two_pass_input_prep)
   comm.Barrier()
     
   #Correct Shreve order (domain-wise), laura
@@ -2266,7 +2282,7 @@ def driver(comm,metadata_file):
 
  if flag_debug == False:
   #With all the domain-wise variables computed, perform HMC-2step, laura
-  if (metadataa['network_abstraction']['flag']== True) or (flag_mod_hmc == True): #laura
+  if needs_two_pass_input_prep == True: #laura
    flag_replace=True
    for cid in cids[rank::size]:
     metadataa = Read_Metadata_File(metadata_file)
@@ -2282,7 +2298,7 @@ def driver(comm,metadata_file):
     metadataa['workspace'] = "%s/data/cids/%d" % (rdir,cid)
     metadataa['flag_mod_hmc'] = flag_mod_hmc
     #Prepare model data
-    Prepare_Model_Input_Data(metadataa)
+    Prepare_Model_Input_Data(metadataa,write_rasters=True)
    comm.Barrier()
   else:
    flag_replace=False
@@ -2343,7 +2359,7 @@ def Topology_Connected(rank,size,cids,edir,comm):
  return
 
 #Creates trees of reaches draining outside of the domain, laura
-def Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst):
+def Create_Trees(rank,size,cids,edir,comm,needs_two_pass_input_prep):
  topo_all = []
  for cid in cids:
     topo_file = '%s/workspace/topology_connected_%s.pck'%(edir,cid)
@@ -2404,7 +2420,7 @@ def Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst):
   data['tree']=fp['stream_network']['trees_domain'][:]
   data['inlets']=fp['stream_network']['inlets'][:]
   data['outlets']=fp['stream_network']['outlets'][:]
-  if (flag_mod_hmc == True) or (flag_network_abst==True):
+  if needs_two_pass_input_prep == True:
    if fp['parameters']['lats'][:].shape[0] == fp['stream_network']['shreve'][:].shape[0]:
     data['lat_basin']=fp['parameters']['lats'][:]
     data['lon_basin']=fp['parameters']['lons'][:]
@@ -2415,7 +2431,7 @@ def Create_Trees(rank,size,cids,edir,comm,flag_mod_hmc,flag_network_abst):
   pickle.dump(data,open('%s/workspace/data_channels_%s.pck' %(edir,cid),'wb'))
  comm.Barrier() 
 
- if (flag_mod_hmc == True) or (flag_network_abst==True):
+ if needs_two_pass_input_prep == True:
   #Computes the mean lat and lon per tree to perform clustering instead of tree number
   if rank == 0:
    list_cids=glob.glob('%s/workspace/data_channels_*'%edir)
@@ -2565,13 +2581,12 @@ def Postprocess_Input(rdir,edir,cids,rank,size,comm):
  vars = ['cids','cids_org','dem','hrus','channels','hand','basins','basin_clusters'] 
 
  if rank == 0:
-  os.system('rm -rf %s' % sdir)
+  _remove_path(sdir)
 
   #Create cid, hru, and channel maps
   for var in vars:
-   if os.path.isdir('%s/postprocess/%s'% (edir,var)) == True:
-    os.system('rm -r %s/postprocess/%s'% (edir,var))
-   os.system('mkdir -p %s/postprocess/%s' % (edir,var))
+   _remove_path('%s/postprocess/%s'% (edir,var))
+   Path('%s/postprocess/%s' % (edir,var)).mkdir(parents=True, exist_ok=True)
  comm.Barrier()   
     
  for cid in cids[rank::size]:
@@ -2582,11 +2597,11 @@ def Postprocess_Input(rdir,edir,cids,rank,size,comm):
   #hru
   ifile = '%s/hru_mapping_latlon.tif' % dir
   ofile = '%s/hrus/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #channels
   ifile = '%s/channel_mapping_latlon.tif' % dir
   ofile = '%s/channels/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #cid
   ifile = '%s/%d/mask_latlon.tif' % (ddir,cid)
   ofile = '%s/cids/%d.tif' % (sdir,cid)
@@ -2601,23 +2616,23 @@ def Postprocess_Input(rdir,edir,cids,rank,size,comm):
   #cid
   ifile = '%s/%d/mask_org_latlon.tif' % (ddir,cid)
   ofile = '%s/cids_org/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #dem
   ifile = '%s/%d/dem_latlon.tif' % (ddir,cid)
   ofile = '%s/dem/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #hand
   ifile = '%s/hand_latlon.tif' % dir
   ofile = '%s/hand/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #basins
   ifile = '%s/basins_latlon.tif' % dir
   ofile = '%s/basins/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
   #basin clusters
   ifile = '%s/basin_clusters_latlon.tif' % dir
   ofile = '%s/basin_clusters/%d.tif' % (sdir,cid)
-  os.system('ln -s %s %s' % (ifile,ofile))
+  _safe_symlink(ifile, ofile)
 
  #Create vrts
  comm.Barrier()
@@ -3201,8 +3216,16 @@ def Replace_Stream_Network(metadata):
 
  source_file.close()
  destination_file.close()
-    
- os.system('mv %s/input_file.nc %s/input_file3.nc'%(metadata['input_dir'],metadata['input_dir']))
- os.system('mv %s/input_file2.nc %s/input_file.nc'%(metadata['input_dir'],metadata['input_dir']))
+
+ input_dir = Path(metadata['input_dir'])
+ source_input = input_dir / 'input_file.nc'
+ staged_input = input_dir / 'input_file2.nc'
+ backup_input = input_dir / 'input_file3.nc'
+ if backup_input.exists() or backup_input.is_symlink():
+  _remove_path(backup_input)
+ if source_input.exists() or source_input.is_symlink():
+  shutil.move(str(source_input), str(backup_input))
+ if staged_input.exists() or staged_input.is_symlink():
+  shutil.move(str(staged_input), str(source_input))
     
  return
