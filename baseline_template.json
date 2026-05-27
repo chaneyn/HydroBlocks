@@ -43,9 +43,10 @@
     "number_of_characteristic_secondary_subbasins":5,
     "main_subbasin_clustering_covariates": [
       "shreve",
-      "dem"],
-    "secondary_subbasin_clustering_covariates": [
       "dem",
+      "large_scale_basins"],
+    "secondary_subbasin_clustering_covariates": [
+      "large_scale_basins",
       "shreve",
       "lats",
       "lons"],

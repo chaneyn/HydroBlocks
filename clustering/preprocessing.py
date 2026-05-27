@@ -693,6 +693,7 @@ def Compute_HRUs_Semidistributed_HMC(covariates,mask,hydroblocks_info,wbd,eares,
  
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,hydroblocks_info['cid']) #laura
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
+ hrus = compact_hru_labels(hrus)
  nhru = np.unique(hrus[hrus!=-9999]).size
  #print(' CID',hydroblocks_info['cid'],'#HRUs          ',nhru,flush=True)
  #print(' CID',hydroblocks_info['cid'],'#Total pixels  ',np.sum(basin_clusters!=-9999))
@@ -765,14 +766,24 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir):
    hp_in[var].extend(input_file['stream_network'][var][:])
    hp_in[var] = np.array(hp_in[var])
   if var in ['large_scale_basins']:
-    lsb_lats = []
-    lsb_lons = []
-    for basin_id in hp_in['bid']:
-     basin_mask = basins_wob == basin_id
-     lsb_lats.append(np.nanmean(covariates['lats'][basin_mask]))
-     lsb_lons.append(np.nanmean(covariates['lons'][basin_mask]))
-    hp_in['lsb_lats'] = np.array(lsb_lats)
-    hp_in['lsb_lons'] = np.array(lsb_lons)
+    tree_info_path = '%s/experiments/simulations/%s/workspace/mean_lats-lons_trees.pck' % (hydroblocks_info['rdir'],hydroblocks_info['experiment'])
+    if os.path.isfile(tree_info_path):
+     tree_info = pickle.load(open(tree_info_path,'rb'))
+     hp_in['lsb_lats'] = [input_file['parameters']['lats'][0]]
+     hp_in['lsb_lons'] = [input_file['parameters']['lons'][0]]
+     hp_in['lsb_lats'].extend(tree_info['CID_info']['lats'][cid][:])
+     hp_in['lsb_lons'].extend(tree_info['CID_info']['lons'][cid][:])
+     hp_in['lsb_lats'] = np.array(hp_in['lsb_lats'])
+     hp_in['lsb_lons'] = np.array(hp_in['lsb_lons'])
+    else:
+     lsb_lats = []
+     lsb_lons = []
+     for basin_id in hp_in['bid']:
+      basin_mask = basins_wob == basin_id
+      lsb_lats.append(np.nanmean(covariates['lats'][basin_mask]))
+      lsb_lons.append(np.nanmean(covariates['lons'][basin_mask]))
+     hp_in['lsb_lats'] = np.array(lsb_lats)
+     hp_in['lsb_lons'] = np.array(lsb_lons)
 
  if hydroblocks_info['network_abstraction']['flag'] == True: # 2-Step-HMC
   if len(db_channels['length']) < len(np.unique(basins_wob[basins_wob!=-9999])):
@@ -1117,6 +1128,7 @@ def Compute_HRUs_Semidistributed_HMC2(hydroblocks_info,eares,input_dir):
 
  hrus = terrain_tools.create_hrus_hydroblocks(basin_clusters,tiles,cvs,nclusters,cid)
  hrus[hrus!=-9999] = hrus[hrus!=-9999] - 1
+ hrus = compact_hru_labels(hrus)
  nhru = np.unique(hrus[hrus!=-9999]).size
 
  os.system('rm %s/routing_info.pck' % input_dir)
@@ -1309,6 +1321,16 @@ def Build_Hillslope_River_Database(channels_wob,mask,fdir,eares,tiles,hand,basin
   area_adj[m] = hband_areas[hband]/np.sum(m)
 
  return (db_routing,area_adj,new_hand2)
+
+def compact_hru_labels(hrus):
+
+ normalized = np.full(hrus.shape, -9999, dtype=np.int32)
+ valid_labels = np.sort(np.unique(hrus[hrus != -9999]).astype(np.int32))
+ hrus_int = hrus.astype(np.int32)
+ for new_label, old_label in enumerate(valid_labels):
+  normalized[hrus_int == old_label] = new_label
+
+ return normalized.astype(np.float32)
 
 def Assign_Parameters_Semidistributed_svp(covariates,metadata,hydroblocks_info,OUTPUT,cluster_ids,mask,hbands,area_adj,dz_data,dz_model):
 
