@@ -2323,7 +2323,15 @@ def driver(comm,metadata_file):
  if flag_debug == False:
   workspace = '%s/workspace' % (edir)
  Finalize_River_Network_Database(rdir,edir,cids,workspace,comm,rank,size)
- comm.Barrier() 
+ comm.Barrier()
+
+ #Create files for multiscale subsurface -- Daniel
+ if metadata['multiscale_subsurface']['flag']==True:
+  print(f'Initiating multiscale subsurface preprocessing for {cids}',flush=True)
+  import clustering.multiscale_subsurface as multiscale_subsurface
+  multiscale_subsurface.multiscale_subsurface_preprocessing(comm,edir,rdir,metadata,cids)
+  comm.Barrier()
+  print(f'Completed multiscale subsurface preprocessing for {cids}',flush=True)
  
  #Postprocess the model input 
  Postprocess_Input(rdir,edir,cids,rank,size,comm)

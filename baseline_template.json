@@ -18,7 +18,7 @@
     "athrs_subgrid": 150000,
     "var_pca":0.5
   },
-  "connection_matrix_hbands": false,
+  "connection_matrix_hbands": true,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
@@ -77,7 +77,8 @@
     "iopt_crop": 0,
     "sf_urban_physics": 0,
     "z_ml": 10.0,
-    "nsnow": 3
+    "nsnow": 3,
+    "no_runsub_op12": 1
   },
   "noahmp_ics": {
     "swe": 0.0,
@@ -110,15 +111,20 @@
     1.0
   ],
   "routing_module": {
-    "flag": true,
+    "flag": false,
     "type": "particle_tracker",
-    "surface_coupling": true,
+    "surface_coupling": false,
     "dt_routing":3600
   },
   "subsurface_module": "richards",
-  "restart": {
-    "flag": false
-  },
+  "heat_advection": true,
+  "multiscale_subsurface": {
+  "flag":true,
+  "flag_saturatedflux": true,
+  "RISFU_type": "clusters",
+  "anisotropy_lateral":2.0,
+  "anisotropy_lateral_local":2.0
+ },
   "output": {
     "vars": [
       "smc",
