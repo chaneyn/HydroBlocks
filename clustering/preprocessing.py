@@ -1898,7 +1898,7 @@ def Create_Clusters_And_Connections(workspace,wbd,output,input_dir,nhru,info,hyd
  hydroblocks_info['nhru'] = nhru
   
  #Create the netcdf file
- file_netcdf = '%s/input_file.nc' % hydroblocks_info['input_dir']#hydroblocks_info['input_file']
+ file_netcdf = '%s/input_file2.nc' % hydroblocks_info['input_dir'] if second_pass_flag else '%s/input_file.nc' % hydroblocks_info['input_dir']
  hydroblocks_info['input_fp'] = nc.Dataset(file_netcdf, 'w', format='NETCDF4')
 
  #Create the dimensions (netcdf)
@@ -2661,31 +2661,23 @@ def Replace_Stream_Network(metadata):
   if not source_path.exists():
     raise FileNotFoundError('Source input_file.nc not found: %s' % str(source_path))
 
-  # Ensure destination exists by copying source if missing
+  # In the second-pass flow, destination should already exist because Prepare_Model_Input_Data writes input_file2.nc.
+  # Keep a fallback for non-second-pass callers.
   if not destination_path.exists():
+    if metadata.get('second_pass', False):
+      raise FileNotFoundError('Second-pass input_file2.nc not found: %s' % str(destination_path))
     shutil.copy2(str(source_path), str(destination_path))
 
-  # Read source and (optional) backup, write into destination safely
+  # Read the source file and write its stream-network datasets into the second-pass file.
   explicit = None
   with h5py.File(str(source_path), 'r') as src, h5py.File(str(destination_path), 'a') as dst:
     shreve = src['stream_network']['shreve'][:]
-
-    if backup_path.exists():
-      with h5py.File(str(backup_path), 'r') as bck:
-        inlets = bck['stream_network']['inlets'][:]
-        outlets = bck['stream_network']['outlets'][:]
-        trees = bck['stream_network']['trees_domain'][:]
-        if metadata.get('network_abstraction', {}).get('flag', False):
-          if 'explicit_reach' in bck['stream_network'].keys():
-            explicit = bck['stream_network']['explicit_reach'][:]
-    else:
-      # Fallback to reading from source if no backup is present
-      inlets = src['stream_network']['inlets'][:]
-      outlets = src['stream_network']['outlets'][:]
-      trees = src['stream_network']['trees_domain'][:]
-      if metadata.get('network_abstraction', {}).get('flag', False):
-        if 'explicit_reach' in src['stream_network'].keys():
-          explicit = src['stream_network']['explicit_reach'][:]
+    inlets = src['stream_network']['inlets'][:]
+    outlets = src['stream_network']['outlets'][:]
+    trees = src['stream_network']['trees_domain'][:]
+    if metadata.get('network_abstraction', {}).get('flag', False):
+      if 'explicit_reach' in src['stream_network'].keys():
+        explicit = src['stream_network']['explicit_reach'][:]
 
     grp_dst = dst['stream_network']
     # Replace datasets in destination (delete existing then write)
