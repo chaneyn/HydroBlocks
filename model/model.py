@@ -185,7 +185,7 @@ def update_statistics(cids,HBdb,date):
          'Acc_Q:%.2f(mm)'%HBdb[cid].acc_q,\
          'Acc_WBE:%.2f(mm)' % HBdb[cid].acc_errwat,\
          'Acc_EBE:%.2f(J/m2)' % HBdb[cid].acc_erreng)
-  print(string,flush=True)
+   print(string,flush=True)
 
   return
 

@@ -18,7 +18,7 @@
     "athrs_subgrid": 150000,
     "var_pca":0.5
   },
-  "connection_matrix_hbands": true,
+  "connection_matrix_hbands": false,
   "soil_vertical_properties": true,
   "hmc_parameters": {
     "number_of_characteristic_subbasins": 5,
@@ -111,9 +111,9 @@
     1.0
   ],
   "routing_module": {
-    "flag": false,
+    "flag": true,
     "type": "particle_tracker",
-    "surface_coupling": false,
+    "surface_coupling": true,
     "dt_routing":3600
   },
   "subsurface_module": "richards",
@@ -125,6 +125,9 @@
   "anisotropy_lateral":2.0,
   "anisotropy_lateral_local":2.0
  },
+  "restart": {
+    "flag": true
+  },
   "output": {
     "vars": [
       "smc",
