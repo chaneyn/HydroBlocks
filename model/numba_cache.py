@@ -8,7 +8,7 @@ def _iter_numba_cache_files(root_path):
  if not root_path.exists():
   return
 
- for suffix in ('*.nbc', '*.nbi'):
+ for suffix in ('*.nbc', '*.nbi', '*.pyc'):
   for cache_file in root_path.rglob(suffix):
    yield cache_file
 

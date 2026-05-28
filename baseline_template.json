@@ -117,7 +117,7 @@
     "dt_routing":3600
   },
   "subsurface_module": "richards",
-  "heat_advection": true,
+  "heat_advection": false,
   "multiscale_subsurface": {
   "flag":true,
   "flag_saturatedflux": true,
@@ -130,10 +130,10 @@
   },
   "output": {
     "vars": [
-      "smc",
-      "trad",
-      "sh",
-      "lh",
+      "hdiv",
+      "hdiv_int",
+      "hdiv_loc",
+      "hdiv_reg",
       "runoff"
     ],
     "routing_vars": [

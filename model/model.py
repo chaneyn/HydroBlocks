@@ -11,6 +11,7 @@ import model.HydroBlocks as HydroBlocks
 import netCDF4 as nc
 from model.pyRouting import routing as HBrouting
 from model.numba_cache import clear_numba_cache
+from model.pyRichards import mssubsurface as mssubsurface
 
 def Read_Metadata_File(file):
 
@@ -50,8 +51,22 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
   info['restart'] = {"flag":info['restart']['flag'],
                      "dir":"%s/restart_data/%d" % (edir,cid)}
   os.system('mkdir -p %s' % (info['restart']['dir']))
-
-  #Define idate and fdate
+  #------------------------for Multiscale Scheme Subsurface flow-----------------
+  if info['multiscale_subsurface']['flag'] == True:
+   info['gw_area_file'] = '%s/%s/groundwater/area_hrus.pck' % (edir,cid); 
+   info['gw_wreg_file'] = '%s/%s/groundwater/w_reg.pck' % (edir,cid);
+   info['gw_dxrg_file'] = '%s/%s/groundwater/dx_reg.pck' % (edir,cid);
+   info['gw_elev_file'] = '%s/%s/groundwater/elv.pck' % (edir,cid);
+   info['gw_areg_file'] = '%s/%s/groundwater/area.pck' % (edir,cid); 
+   info['gw_conx_file'] = '%s/%s/groundwater/conx_reg.pck' % (edir,cid);
+   info['gw_parm_file'] = '%s/%s/groundwater/param_aggregation.pck' % (edir,cid);
+   info['gw_ccid_file'] = '%s/%s/groundwater/conx_cids.pck' % (edir,cid);
+   info['gw_dxcd_file'] = '%s/%s/groundwater/dx_cids.pck' % (edir,cid);
+   info['gw_wcid_file'] = '%s/%s/groundwater/w_cids.pck' % (edir,cid);
+   info['gw_rids_file'] = '%s/%s/groundwater/reg_ids.pck' % (edir,cid)
+  #-------------------------------------------------------------------------------
+  
+    #Define idate and fdate
   idate = datetime.datetime(metadata['startdate']['year'],metadata['startdate']['month'],metadata['startdate']['day'],0)
   fdate = datetime.datetime(metadata['enddate']['year'],metadata['enddate']['month'],metadata['enddate']['day'],0) + datetime.timedelta(days=1)
   
@@ -75,6 +90,11 @@ def Run_HydroBlocks(metadata,edir,cids,rdir):
  if (metadata["routing_module"]["flag"] == True) & (metadata["routing_module"]["type"] == 'particle_tracker'):
   print('Determine particle tracker mapping',flush=True)
   determine_particle_tracker_mapping(MPdb,edir)
+
+ if MPdb.HBdb[cid].multiscale_flag == True:
+  print(f'Detemine risfu mapping for cid: {cid} in cids: {MPdb.cids}',flush=True)
+  determine_subsurface_connections(MPdb.cids,rank,size,MPdb.HBdb) #inform each cid where to send data
+  comm.Barrier()
 
  #Run the segments for the model
  sidate = idate
@@ -241,6 +261,11 @@ def update_model(cids,rank,size,date,HBdb):
   #Update NoahMP
   for cid in cids:
    HBdb[cid].update_noahmp(date)
+
+  #Update multiscale subsurface flow
+  if HBdb[cid].multiscale_flag == True:
+   update_subdomains_subsurface(cids,rank,size,HBdb)
+   #_diagnostic_global_mass_balance(HBdb)
   
   #Update routing
   if HBdb[cid].routing_flag == True:update_routing(cids,rank,size,HBdb)
@@ -522,6 +547,20 @@ def determine_particle_tracker_mapping(MPdb,edir):
 
  return
 
+def determine_subsurface_connections(cids,rank,size,HBdb):
+  
+ mssubsurface.risfu_connections_regional(cids,rank,size,HBdb)
+ mssubsurface.exchange_dz_regional_units(cids,rank,HBdb)
+ return
+
+def update_subdomains_subsurface(cids,rank,size,HBdb):
+ 
+ #Update subsurface regional scheme
+ mssubsurface.exchange_smc_regional_units(cids,rank,HBdb)
+ #if HBdb[cids[0]].heat_advection == True:
+  #mssubsurface.exchange_temperature_regional_units(cids,rank,HBdb)
+ #return
+
 def run(comm,metadata_file):
 
  #Get some general info
@@ -544,3 +583,24 @@ def run(comm,metadata_file):
  #os.system('mkdir -p %s/output_data/%d' % (edir,cid))
  #Run_HydroBlocks(metadata,edir,cid,rdir)
  Run_HydroBlocks(metadata,edir,cids,rdir)
+
+ return
+
+def _diagnostic_global_mass_balance(hbdb):
+ # Automatic global regional mass-balance check of hdiv_reg.
+ total_net = 0.0
+ total_abs = 0.0
+ for hb in hbdb.values():
+  try:
+   s = hb.mssubsurface
+  except Exception:
+   continue
+  flows = getattr(s, 'regional_inter_unit_flow_m3s_cross', None)
+  if flows is None:
+   continue
+  net_flow = np.sum(flows*10e12)
+  abs_flow = np.sum(np.abs(flows*10e12))
+  total_net += net_flow
+  total_abs += abs_flow
+
+ print('GLOBAL cross-CID exchange (mm/s): net=%.6e abs=%.6e' % (total_net, total_abs), flush=True)

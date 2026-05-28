@@ -723,6 +723,92 @@ class HydroBlocks:
    print('Subsurface module does not include lateral flow.',flush=True)
 
   return
+ 
+ def _diagnose_subsurface_balance(self,smw_before,ms_diag=None):
+
+  smw_after = np.sum(1000.0*self.noahmp.sldpth*self.noahmp.smois,axis=1)
+  smw_delta_max = np.max(np.abs(smw_after - smw_before))
+  hdiv_col = np.sum(self.noahmp.hdiv,axis=1)
+  hdiv_domain_net = np.sum(self.pct*hdiv_col)
+
+  bad_hdiv = (not np.all(np.isfinite(self.noahmp.hdiv))) or (not np.all(np.isfinite(hdiv_col)))
+  net_hdiv_loc = np.nan
+  net_hdiv_int = np.nan
+  net_hdiv_reg = np.nan
+  net_hdiv_reg_same = np.nan
+  ms_recon_err = np.nan
+  net_hdiv_heat_loc = np.nan
+  net_hdiv_heat_int = np.nan
+  net_hdiv_heat_reg = np.nan
+  net_hdiv_heat = np.nan
+  ms_heat_recon_err = np.nan
+  heat_recon_tol = 1e-8
+  bad_ms = False
+  if ms_diag is not None:
+   hdiv_loc = ms_diag['hdiv_loc']
+   hdiv_int = ms_diag['hdiv_int']
+   hdiv_reg = ms_diag['hdiv_reg']
+   hdiv_reg_same = ms_diag.get('hdiv_reg_same_cid')
+   net_hdiv_loc = np.sum(self.pct*np.sum(hdiv_loc,axis=1))
+   net_hdiv_int = np.sum(self.pct*np.sum(hdiv_int,axis=1))
+   net_hdiv_reg = np.sum(self.pct*np.sum(hdiv_reg,axis=1))
+   if hdiv_reg_same is not None:
+    net_hdiv_reg_same = np.sum(self.pct*np.sum(hdiv_reg_same,axis=1))
+    ms_recon_err = (net_hdiv_loc + net_hdiv_int + net_hdiv_reg) - hdiv_domain_net
+   if 'hdiv_heat_loc' in ms_diag and 'hdiv_heat_int' in ms_diag and 'hdiv_heat_reg' in ms_diag:
+    hdiv_heat_loc = ms_diag['hdiv_heat_loc']
+    hdiv_heat_int = ms_diag['hdiv_heat_int']
+    hdiv_heat_reg = ms_diag['hdiv_heat_reg']
+    pct64 = np.asarray(self.pct,dtype=np.float64)
+    sldpth64 = np.asarray(self.noahmp.sldpth,dtype=np.float64)
+    hdiv_heat64 = np.asarray(self.noahmp.hdiv_heat,dtype=np.float64)
+    hdiv_heat_loc64 = np.asarray(hdiv_heat_loc,dtype=np.float64)
+    hdiv_heat_int64 = np.asarray(hdiv_heat_int,dtype=np.float64)
+    hdiv_heat_reg64 = np.asarray(hdiv_heat_reg,dtype=np.float64)
+    net_hdiv_heat = np.sum(pct64*np.sum(hdiv_heat64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
+    net_hdiv_heat_loc = np.sum(pct64*np.sum(hdiv_heat_loc64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
+    net_hdiv_heat_int = np.sum(pct64*np.sum(hdiv_heat_int64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
+    net_hdiv_heat_reg = np.sum(pct64*np.sum(hdiv_heat_reg64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
+    ms_heat_recon_err = (net_hdiv_heat_loc + net_hdiv_heat_int + net_hdiv_heat_reg) - net_hdiv_heat
+   bad_ms = (
+    (not np.all(np.isfinite(hdiv_loc))) or
+    (not np.all(np.isfinite(hdiv_int))) or
+    (not np.all(np.isfinite(hdiv_reg))) or
+    (not np.isfinite(ms_recon_err)) or
+    (np.abs(ms_recon_err) > 1e-16) or
+    (np.isfinite(ms_heat_recon_err) and np.abs(ms_heat_recon_err) > heat_recon_tol)
+   )
+  # Storage in this routine should remain unchanged; hdiv net near zero indicates internal closure.
+  bad_storage = smw_delta_max > 1e-16
+  if bad_hdiv or bad_storage or bad_ms:
+   loc_str = 'na' if not np.isfinite(net_hdiv_loc) else '%.3e' % net_hdiv_loc
+   int_str = 'na' if not np.isfinite(net_hdiv_int) else '%.3e' % net_hdiv_int
+   reg_str = 'na' if not np.isfinite(net_hdiv_reg) else '%.3e' % net_hdiv_reg
+   reg_same_str = 'na' if not np.isfinite(net_hdiv_reg_same) else '%.3e' % net_hdiv_reg_same
+   recon_str = 'na' if not np.isfinite(ms_recon_err) else '%.3e' % ms_recon_err
+   heat_loc_str = 'na' if not np.isfinite(net_hdiv_heat_loc) else '%.3e' % net_hdiv_heat_loc
+   heat_int_str = 'na' if not np.isfinite(net_hdiv_heat_int) else '%.3e' % net_hdiv_heat_int
+   heat_reg_str = 'na' if not np.isfinite(net_hdiv_heat_reg) else '%.3e' % net_hdiv_heat_reg
+   heat_recon_str = 'na' if not np.isfinite(ms_heat_recon_err) else '%.3e' % ms_heat_recon_err
+   print(
+    '  Subsurface|cid:%s|itime:%s|dSMmax_mm:%.3e|net_hdiv_mmps:%.3e|net_hdiv_loc_mmps:%s|net_hdiv_int_mmps:%s|net_hdiv_reg_mmps:%s|net_hdiv_reg_same_mmps:%s|ms_recon_err_mmps:%s|net_hdiv_heat_loc_wm2:%s|net_hdiv_heat_int_wm2:%s|net_hdiv_heat_reg_wm2:%s|ms_heat_recon_err_wm2:%s'\
+    % (
+     self.cid,
+     self.itime,
+     smw_delta_max,
+     hdiv_domain_net,
+     loc_str,
+     int_str,
+     reg_str,
+     reg_same_str,
+     recon_str,
+     heat_loc_str,
+     heat_int_str,
+     heat_reg_str,
+     heat_recon_str
+    ),
+    flush=True
+   )
 
  def initialize_richards(self,ncsbasins):
    
@@ -795,6 +881,13 @@ class HydroBlocks:
   self.richards.ncsbasins=int(ncsbasins) #number of characteristic subbasins, laura
   self.richards.nhru = self.nhru
   self.richards.dem[:] = self.input_fp.groups['parameters'].variables['hand'][:]
+  #--------------------------Multiscale Subsurface Scheme-------------------------------
+  if self.multiscale_flag == True:
+   from model.pyRichards import mssubsurface
+   self.mssubsurface = mssubsurface.mssubsurface(self.metadata,self.MPI.COMM_WORLD,self.cid)
+   #Define anisotropic factor
+   self.mssubsurface.af = float(self.metadata['multiscale_subsurface']['anisotropy_lateral'])
+  #-------------------------------------------------------------------------------------
   
   return
 
@@ -1107,7 +1200,56 @@ class HydroBlocks:
     m = self.hbands == h_band
     self.noahmp.hdiv[m,:]=self.richards.hdiv[aux,:]
     aux=aux+1
- 
+  #------------------------------Multiscale Subsurface Scheme ----------------------------------------
+  if use_multiscale:
+   #Reshape soil moisturefor regional units flow
+   self.mssubsurface.th_gw = self.mssubsurface.aggregate_variable(self.noahmp.smois[:])
+   #Local Lateral Flow
+   'Computed in Richards update_numba and assigned to noahmp.hdiv'
+   hdiv_loc = np.copy(self.noahmp.hdiv)
+   #Intermediate Lateral Flow
+   self.mssubsurface.compute_intermediate_hdiv(self.area)
+   hdiv_int = np.copy(self.mssubsurface.hdiv_int)
+   #Regional Lateral Flow
+   self.mssubsurface.compute_regional_hdiv(self.area)
+   hdiv_reg = np.copy(self.mssubsurface.hdiv_reg)
+   hdiv_reg_same = np.copy(self.mssubsurface.hdiv_reg_same_cid)
+   
+   #Compute hru hdiv (local, intermediate, regional)
+   self.noahmp.hdiv[:] = hdiv_loc + hdiv_int + hdiv_reg
+   self.mssubsurface.hdiv_loc = np.copy(hdiv_loc)
+   self.mssubsurface.hdiv_total = np.copy(self.noahmp.hdiv)
+
+   if use_heat_advection:
+    #Reshape soil temperature for regional units flow
+    self.mssubsurface.temp_gw =self.mssubsurface.aggregate_variable(self.noahmp.tslb[:])
+    #Compute heat advection for local, intermediate, and regional flow components
+    hdiv_heat_loc = np.copy(self.noahmp.hdiv_heat)
+    hdiv_heat_int = self.mssubsurface.compute_intermediate_hdiv_heat(self.area, self.noahmp.sldpth)
+    hdiv_heat_reg = self.mssubsurface.compute_regional_hdiv_heat(self.area, self.noahmp.sldpth)
+    self.noahmp.hdiv_heat[:] = hdiv_heat_loc + hdiv_heat_int + hdiv_heat_reg
+    self.mssubsurface.hdiv_heat_loc = np.copy(hdiv_heat_loc)
+    self.mssubsurface.hdiv_heat_total = np.copy(self.noahmp.hdiv_heat)
+
+    ms_diag = {
+      'hdiv_loc':hdiv_loc,
+      'hdiv_int':hdiv_int,
+      'hdiv_reg':hdiv_reg,
+      'hdiv_reg_same_cid':hdiv_reg_same,
+      'hdiv_heat_loc':hdiv_heat_loc,
+      'hdiv_heat_int':hdiv_heat_int,
+      'hdiv_heat_reg':hdiv_heat_reg,
+    }
+   else:
+    ms_diag = {
+      'hdiv_loc':hdiv_loc,
+      'hdiv_int':hdiv_int,
+      'hdiv_reg':hdiv_reg,
+      'hdiv_reg_same_cid':hdiv_reg_same,
+    }
+
+   self._diagnose_subsurface_balance(smw_before,ms_diag=ms_diag)
+  
   return
 
  def initialize_water_balance(self,):
@@ -1290,8 +1432,16 @@ class HydroBlocks:
   if self.routing_flag == True:
    tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
    tmp['inundation'] = np.copy(self.routing.hru_inundation)
-
-
+  #----------Multiscale Subsurface Scheme ------------------
+  if self.multiscale_flag == True:
+   tmp['hdiv_loc'] = np.copy(self.mssubsurface.hdiv_loc)
+   tmp['hdiv_int'] = np.copy(self.mssubsurface.hdiv_int)
+   tmp['hdiv_reg'] = np.copy(self.mssubsurface.hdiv_reg)
+  else:
+   tmp['hdiv_loc'] = np.copy(self.noahmp.hdiv)
+   tmp['hdiv_int'] = np.zeros(self.noahmp.hdiv.shape)
+   tmp['hdiv_reg'] = np.zeros(self.noahmp.hdiv.shape)
+  #--------------------------------------------------------
   # root zone
   cs = np.cumsum(NOAH.sldpth[0,:])
   mask = cs <= 0.5
@@ -1502,6 +1652,10 @@ class HydroBlocks:
              'errwat':{'description':'errwat','units':'mm','dims':('time','hru',),'precision':4},
              'totsmc':{'description':'totsmc','units':'m3/m3','dims':('time','hru',),'precision':2},
              'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':4},
+             'hdiv_int':{'description':'hdiv_int','units':'mm/s','dims':('time','hru','soil'),'precision':16},
+             'hdiv_loc':{'description':'hdiv_loc','units':'mm/s','dims':('time','hru','soil'),'precision':16},
+             'hdiv_reg':{'description':'hdiv_reg','units':'mm/s','dims':('time','hru','soil'),'precision':16},
+             'hdiv_heat':{'description':'hdiv_heat','units':'J/m3/s','dims':('time','hru','soil'),'precision':16},
 
              'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
              'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
