@@ -10,6 +10,7 @@ import copy
 import model.HydroBlocks as HydroBlocks
 import netCDF4 as nc
 from model.pyRouting import routing as HBrouting
+from model.numba_cache import clear_numba_cache
 
 def Read_Metadata_File(file):
 
@@ -525,6 +526,7 @@ def run(comm,metadata_file):
 
  #Get some general info
  metadata = Read_Metadata_File(metadata_file)
+ clear_numba_cache(comm, metadata, [os.path.dirname(__file__)], 'Model')
  rdir = metadata['rdir']
  edir = '%s/experiments/simulations/%s' % (rdir,metadata['experiment'])
  size = int(comm.Get_size())

@@ -149,5 +149,8 @@
       "runoff",
       "smc"
     ]
+  },
+    "numba_cache": {
+    "clear_at_start": true
   }
 }

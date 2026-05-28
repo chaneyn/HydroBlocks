@@ -30,6 +30,7 @@ import networkx as nx #laura, for topological indices
 import sklearn.decomposition #laura, for pca of subgrid indices
 from pathlib import Path
 import shutil
+from model.numba_cache import clear_numba_cache
 
 def plot_data(data):
 
@@ -2209,6 +2210,7 @@ def driver(comm,metadata_file):
  #Read in the metadata
  #metadata_file = '%s/metadata.json' % edir
  metadata = Read_Metadata_File(metadata_file)
+ clear_numba_cache(comm, metadata, [Path(__file__).resolve().parent], 'Clustering')
  rdir = metadata['rdir']
     
  #If connected channel network properties are in covariates for basins, set flag_mod_hmc to True, laura
