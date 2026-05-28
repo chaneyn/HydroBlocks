@@ -418,7 +418,7 @@ contains
 !#ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
 !#endif
-                   ,HDIV                                                       & !#HB
+                   ,HDIV , NO_RUNSUB_OP12                                      & !#HB mssbu: turn-off layer drainage
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -472,6 +472,7 @@ contains
   REAL                           , INTENT(IN)    :: DX
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
   REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV ! #HB
+  INTEGER, INTENT(IN)                  :: NO_RUNSUB_OP12 !mssub 
 !jref:end
 
 !#ifdef WRF_HYDRO
@@ -803,7 +804,7 @@ contains
                  FICEOLD,PONDING,TG     ,IST    ,FVEG   ,iloc,jloc , SMCEQ , & !in
                  BDFALL ,FP     ,RAIN   ,SNOW   ,                 & !in  MB/AN: v3.7
 		 QSNOW  ,QRAIN  ,SNOWHIN,LATHEAV,LATHEAG,frozen_canopy,frozen_ground,  & !in  MB
-                 HDIV   , &!in #HB
+                 HDIV   , NO_RUNSUB_OP12 , & !in #HB mssub
                  ISNOW  ,CANLIQ ,CANICE ,TV     ,SNOWH  ,SNEQV  , & !inout
                  SNICE  ,SNLIQ  ,STC    ,ZSNSO  ,SH2O   ,SMC    , & !inout
                  SICE   ,ZWT    ,WA     ,WT     ,DZSNSO ,WSLAKE , & !inout
@@ -5721,7 +5722,7 @@ ENDIF   ! CROPTYPE == 0
                     FICEOLD,PONDING,TG     ,IST    ,FVEG   ,ILOC   ,JLOC ,SMCEQ , & !in
                     BDFALL ,FP     ,RAIN   ,SNOW,                    & !in  MB/AN: v3.7
 		    QSNOW  ,QRAIN  ,SNOWHIN,LATHEAV,LATHEAG,frozen_canopy,frozen_ground,    & !in  MB
-                    HDIV, & !in #HB
+                    HDIV, NO_RUNSUB_OP12 , & !in #HB
                     ISNOW  ,CANLIQ ,CANICE ,TV     ,SNOWH  ,SNEQV  , & !inout
                     SNICE  ,SNLIQ  ,STC    ,ZSNSO  ,SH2O   ,SMC    , & !inout
                     SICE   ,ZWT    ,WA     ,WT     ,DZSNSO ,WSLAKE , & !inout
@@ -5775,6 +5776,7 @@ ENDIF   ! CROPTYPE == 0
   REAL                           , INTENT(IN)    :: QRAIN   !rain at ground srf (mm) [+]
   REAL                           , INTENT(IN)    :: SNOWHIN !snow depth increasing rate (m/s)
   REAL, DIMENSION(       1:NSOIL), INTENT(IN)    :: HDIV   !horizontal divergence (mm/s) [+] #HB
+  INTEGER,                         INTENT(IN)    :: NO_RUNSUB_OP12 !mssub: turn-off layer drainage
 
 ! input/output
   INTEGER,                         INTENT(INOUT) :: ISNOW   !actual no. of snow layers
@@ -5918,17 +5920,23 @@ ENDIF   ! CROPTYPE == 0
     ELSE                                                      ! soil
        CALL      SOILWATER (parameters,NSOIL  ,NSNOW  ,DT     ,ZSOIL  ,DZSNSO , & !in
                             QINSUR ,QSEVA  ,ETRANI ,SICE   ,ILOC   , JLOC , & !in
-                            HDIV , & !in #HB
+                            HDIV , NO_RUNSUB_OP12, & !in #HB
                             SH2O   ,SMC    ,ZWT    ,VEGTYP , & !inout
                            SMCWTD, DEEPRECH                       , & !inout
                             RUNSRF ,QDRAIN ,RUNSUB ,WCND   ,FCRMAX )   !out
  
-       IF(OPT_RUN == 1) THEN 
+       IF(OPT_RUN == 1) THEN
+         IF (NO_RUNSUB_OP12 == 1) THEN
+           QIN    = 0.0
+           QDIS   = 0.0
+           RUNSUB = 0.0
+         ELSE 
           CALL GROUNDWATER (parameters,NSNOW  ,NSOIL  ,DT     ,SICE   ,ZSOIL  , & !in
                             STC    ,WCND   ,FCRMAX ,ILOC   ,JLOC   , & !in
                             SH2O   ,ZWT    ,WA     ,WT     ,         & !inout
                             QIN    ,QDIS   )                           !out
           RUNSUB       = QDIS          !mm/s
+         END IF
        END IF
 
        IF(OPT_RUN == 3 .or. OPT_RUN == 4) THEN 
@@ -5952,6 +5960,7 @@ ENDIF   ! CROPTYPE == 0
     ENDIF
 
     RUNSUB       = RUNSUB + SNOFLOW         !mm/s
+    IF (NO_RUNSUB_OP12 == 1 .AND. (OPT_RUN == 1 .OR. OPT_RUN == 2)) RUNSUB = 0.0
 
   END SUBROUTINE WATER
 
@@ -6919,7 +6928,7 @@ ENDIF   ! CROPTYPE == 0
 
   SUBROUTINE SOILWATER (parameters,NSOIL  ,NSNOW  ,DT     ,ZSOIL  ,DZSNSO , & !in
                         QINSUR ,QSEVA  ,ETRANI ,SICE   ,ILOC   , JLOC, & !in
-                        HDIV, & !in #HB
+                        HDIV, NO_RUNSUB_OP12, & !in #HB
                         SH2O   ,SMC    ,ZWT    ,VEGTYP ,& !inout
                         SMCWTD, DEEPRECH                       ,& !inout
                         RUNSRF ,QDRAIN ,RUNSUB ,WCND   ,FCRMAX )   !out
@@ -6944,6 +6953,7 @@ ENDIF   ! CROPTYPE == 0
   REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN) :: DZSNSO !snow/soil layer depth [m]
   REAL, DIMENSION(1:NSOIL), INTENT(IN)   :: SICE   !soil ice content [m3/m3]
   REAL, DIMENSION(1:NSOIL), INTENT(IN)   :: HDIV   !#HB
+  INTEGER,                  INTENT(IN) :: NO_RUNSUB_OP12 !mssub: turn-off layer drainage
 
   INTEGER,                     INTENT(IN) :: VEGTYP
 
@@ -7031,6 +7041,7 @@ ENDIF   ! CROPTYPE == 0
         RSBMX = 4.0
         CALL ZWTEQ (parameters,NSOIL  ,NSNOW  ,ZSOIL  ,DZSNSO ,SH2O   ,ZWT)
         RUNSUB = (1.0-FCRMAX) * RSBMX * EXP(-parameters%TIMEAN) * EXP(-FFF*ZWT)   ! mm/s
+        IF (NO_RUNSUB_OP12 == 1) RUNSUB = 0.0
     END IF
 
 !surface runoff and infiltration rate using different schemes
@@ -7140,7 +7151,7 @@ ENDIF   ! CROPTYPE == 0
 
 ! removal of soil water due to groundwater flow (option 2)
 
-    IF(OPT_RUN == 2) THEN
+    IF(OPT_RUN == 2 .AND. NO_RUNSUB_OP12 /= 1) THEN
          WTSUB = 0.
          DO K = 1, NSOIL
            WTSUB = WTSUB + WCND(K)*DZSNSO(K)

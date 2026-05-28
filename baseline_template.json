@@ -1,5 +1,5 @@
 {
-  "rdir": "/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test",
+  "rdir": "/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test2cids",
   "experiment": "baseline_test",
   "startdate": {
     "year": 2013,
@@ -8,7 +8,7 @@
   },
   "enddate": {
     "year": 2013,
-    "month": 3,
+    "month": 12,
     "day": 31
   },
   "dt": 3600.0,
@@ -78,7 +78,7 @@
     "sf_urban_physics": 0,
     "z_ml": 10.0,
     "nsnow": 3,
-    "no_runsub_op12": 1
+    "no_runsub_op12": 0
   },
   "noahmp_ics": {
     "swe": 0.0,

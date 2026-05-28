@@ -498,7 +498,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   PLANTING,  HARVEST,SEASON_GDD,&
                   IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,  &
                   IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC, &
-                  IOPT_GLA, IOPT_RSF, IOPT_CROP,            &
+                  IOPT_GLA, IOPT_RSF, IOPT_CROP, NO_RUNSUB_OP12, &
                   IZ0TLND, SF_URBAN_PHYSICS,&
                   TSK,      HFX,      QFX,        LH,   GRDFLX,    SMSTAV, &
                   SMSTOT,SFCRUNOFF, UDRUNOFF,    ALBEDO,    SNOWC,     SMOIS, &
@@ -577,7 +577,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
     REAL,    DIMENSION(nhru), INTENT(IN   ) ::  TMN       ! deep soil temperature [K]
     !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  XLAND     ! =2 ocean; =1 land/seaice
     !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  XICE      ! fraction of grid that is seaice
-    !REAL,                                            INTENT(IN   ) ::  XICE_THRES! fraction of grid determining seaice
+    !REAL,                                           INTENT(IN   ) ::  XICE_THRES! fraction of grid determining seaice
     INTEGER,                                         INTENT(IN   ) ::  IDVEG     ! dynamic vegetation (1 -> off ; 2 -> on) with opt_crs = 1      
     INTEGER,                                         INTENT(IN   ) ::  IOPT_CRS  ! canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_BTR  ! soil moisture factor for stomatal resistance (1-> Noah; 2-> CLM; 3-> SSiB)
@@ -593,6 +593,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
     INTEGER,                                         INTENT(IN   ) ::  IOPT_GLA  ! glacier option (1->phase change; 2->simple)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_RSF  ! surface resistance (1->Sakaguchi/Zeng; 2->Seller; 3->mod Sellers; 4->1+snow)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_CROP ! crop model option (0->none; 1->Liu et al.; 2->Gecros)
+    INTEGER,                                         INTENT(IN   ) ::  NO_RUNSUB_OP12 ! turn-off layer drainage for mssub when (1->SIMGM; 2->SIMTOP) are selected. 0 is default.
     INTEGER,                                         INTENT(IN   ) ::  IZ0TLND   ! option of Chen adjustment of Czil (not used)
     INTEGER,                                         INTENT(IN   ) ::  sf_urban_physics   ! urban physics option
     !REAL,    DIMENSION(nhru,8), INTENT(IN   ) ::  SOILCOMP  ! soil sand and clay percentage
@@ -609,6 +610,8 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
     !REAL,    DIMENSION(nhru,2), INTENT(IN   ) ::  P8W3D     ! 3D pressure, valid at interface [Pa]
     !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  PRECIP_IN ! total input precipitation [mm]
     !REAL,    DIMENSION(nhru), INTENT(IN   ) ::  SR        ! frozen precipitation ratio [-]
+
+
 
 !Optional Detailed Precipitation Partitioning Inputs
     !REAL,    DIMENSION(nhru), INTENT(IN   ), OPTIONAL ::  MP_RAINC  ! convective precipitation entering land model [mm] ! MB/AN : v3.7
@@ -1167,7 +1170,7 @@ endif
 	       PLANTING,  HARVEST,SEASON_GDD,                               &
                  IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,  & ! IN : User options
               IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC,  & ! IN : User options
-              IOPT_GLA, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP,            & ! IN : User options
+              IOPT_GLA, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP, NO_RUNSUB_OP12, & ! IN : User options mssub: turn-off drainage from layers.
               IZ0TLND, SF_URBAN_PHYSICS,                                    & ! IN : User options
 	      SOILCOMP,  SOILCL1,  SOILCL2,   SOILCL3,  SOILCL4,            & ! IN : User options
                    T_PHY,     QV_CURR,     U_PHY,    V_PHY,   SWDOWN,      GLW,  & ! IN : Forcing

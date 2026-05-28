@@ -1,7 +1,7 @@
 {
-"dir":"/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test",
+"dir":"/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test2cids",
 "domain_decomposition":{"type":"latlon",
-                        "boundaries":{"minlat":38.05,"maxlat":38.25,"minlon":-107.2,"maxlon":-107.0},
+                        "boundaries":{"minlat":38.05,"maxlat":38.15,"minlon":-107.2,"maxlon":-107.0},
                         "res":0.1,
                         "layer":"domain",
                         "id":"ID"},

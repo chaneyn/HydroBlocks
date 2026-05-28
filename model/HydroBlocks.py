@@ -489,6 +489,7 @@ class HydroBlocks:
   self.noahmp.mptable_file = MPTABLE
   self.noahmp.urbtable_file = URBTABLE
   #Define the noahmp options
+  self.noahmp.no_runsub_op12 = int(self.metadata['noahmp_options'].get('no_runsub_op12', 0)) #option to turn off subsurface runoff, respectively (1->no subsurface runoff; 0->default)
   self.noahmp.idveg = self.metadata['noahmp_options']['idveg'] # dynamic vegetation [Look at noahmp .F files for opts]
   self.noahmp.iopt_crs = self.metadata['noahmp_options']['iopt_crs'] #canopy stomatal resistance (1-> Ball-Berry; 2->Jarvis)
   self.noahmp.iopt_btr = self.metadata['noahmp_options']['iopt_btr'] # sm factor for st. resistance (1-> Noah; 2-> CLM; 3-> SSiB)
@@ -1049,7 +1050,7 @@ class HydroBlocks:
            n.planting,n.harvest,n.season_gdd,\
            n.idveg,n.iopt_crs,n.iopt_btr,n.iopt_run,n.iopt_sfc,n.iopt_frz,\
            n.iopt_inf,n.iopt_rad,n.iopt_alb,n.iopt_snf,n.iopt_tbot,n.iopt_stc,\
-           n.iopt_gla,n.iopt_rsf,n.iopt_crop,\
+           n.iopt_gla,n.iopt_rsf,n.iopt_crop,n.no_runsub_op12,\
            n.iz0tlnd,n.sf_urban_physics,\
            n.tsk,n.hfx,n.qfx,n.lh,n.grdflx,n.smstav,\
            n.smstot,n.sfcrunoff,n.udrunoff,n.albedo,n.snowc,n.smois,\
