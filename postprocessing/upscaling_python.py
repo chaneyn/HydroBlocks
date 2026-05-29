@@ -1,3 +1,4 @@
+import h5py
 import netCDF4 as nc
 import glob
 import geospatialtools.netcdf_tools as netcdf_tools
@@ -128,7 +129,7 @@ def Create_Virtual_Rasters(metadata):
  #Create the virtual raster of the hsus
  os.system('rm -f %s/workspace/files.txt' % output_dir)
  files = []
- for icatch in xrange(ncatch):
+ for icatch in range(ncatch):
   #file = '%s/catch_%d/workspace/hsu_mapping_latlon.tif' % (dir,icatch)
   file = '%s/hru/%d.tif' % (dir,icatch)
   os.system('echo %s >> %s/files.txt' % (file,dir))
@@ -137,7 +138,7 @@ def Create_Virtual_Rasters(metadata):
  #Create the virtual raster of the catchment ids
  os.system('rm -f %s/workspace/files.txt' % output_dir)
  files = []
- for icatch in xrange(ncatch):
+ for icatch in range(ncatch):
   #file = '%s/catch_%d/workspace/icatch_latlon.tif' % (dir,icatch)
   file = '%s/cid/%d.tif' % (dir,icatch)
   os.system('echo %s >> %s/files.txt' % (file,output_dir))
@@ -203,6 +204,11 @@ def Create_Upscale_Mapping(metadata,rank,bbox):
  ilats_finescale = bbox['ilats_finescale']
  ilons_finescale = bbox['ilons_finescale']
  res_finescale = bbox['res_finescale']
+
+ if (lons_upscale.size == 0) or (lats_upscale.size == 0) or (lons_finescale.size == 0) or (lats_finescale.size == 0):
+  print(rank,"No local cells for mapping",flush=True)
+  pickle.dump({},open('%s/mapping_%d.pck' % (workspace,rank),'wb'),pickle.HIGHEST_PROTOCOL)
+  return
  
  #Read in the fine scale data
  dims = {'nx':lons_finescale.size,'ny':lats_finescale.size,
@@ -337,6 +343,14 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
  print("Reading in the mapping info",flush=True)
  mapping = pickle.load(open('%s/mapping_%d.pck' % (workspace,rank),'rb'))
 
+ if (bbox['lons_upscale'].size == 0) or (bbox['lats_upscale'].size == 0) or (bbox['lons_finescale'].size == 0) or (bbox['lats_finescale'].size == 0):
+  print(rank,"No local cells for output mapping",flush=True)
+  return
+
+ if len(mapping) == 0:
+  print(rank,"Empty mapping for local domain",flush=True)
+  return
+
  #Determine the unique catchments in the box
  #Read in the fine scale data
  dims = {'nx':bbox['lons_finescale'].size,'ny':bbox['lats_finescale'].size,
@@ -346,6 +360,10 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
  window = rasterio.windows.Window(dims['ixmin'],dims['iymin'],dims['nx'],dims['ny'])
  icatch_finescale = rasterio.open(file_cid).read(1,window=window)
  icatchs = np.unique(icatch_finescale[icatch_finescale >= 0]).astype(np.int)
+
+ if icatchs.size == 0:
+  print(rank,"No catchments found in local domain",flush=True)
+  return
 
  nlat = bbox['lats_upscale'].size#-1#metadata_upscale['ny']
  nlon = bbox['lons_upscale'].size#-1#metadata_upscale['nx']
@@ -364,7 +382,8 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
   fps[cid] = nc.Dataset(file_output)
 
  #Determine nt_out
- nt_out = fps[cid]['data'].variables['trad'].shape[0]
+ sample_cid = int(icatchs[0])
+ nt_out = fps[sample_cid]['data'].variables[vars[0]].shape[0]
 
  #Initialize the output
  output = {}
@@ -373,17 +392,16 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
 
  #Iterate through all the cachments
  print(rank,"Begin: Reading and preparing the output",time.ctime(),flush=True)
+ layers = np.array(metadata['dz']) #read layers
  for icatch in icatchs:
-  #flag_catchment = True
   data_catchment = {}
   for var in vars:
-   #try:
-   #data_catchment[var] = fps[icatch].groups['catchment'].variables[var][:,:]
-   data_catchment[var] = fps[icatch]['data'].variables['%s' % var][:,:]
-   #except:
-   # flag_catchment = False
-  #if flag_catchment == False:continue
-
+   if var in ['smc','hdiv','hdiv_heat','zsnso_sn','snice','snliq','soil_m','soil_w','soil_t',]:
+    var_data = fps[icatch]['data'].variables['%s' % var][:,:,:]
+    data_catchment[var] = np.average(var_data, axis=2, weights=layers/layers.sum()) #compute weighted average for soil layers
+   else:
+    data_catchment[var] = fps[icatch]['data'].variables['%s' % var][:,:]
+   
   #Iterate through all the cell ids
   #cid = 0
   cids = mapping.keys()

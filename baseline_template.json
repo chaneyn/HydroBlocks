@@ -1,5 +1,5 @@
 {
-  "rdir": "/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test2cids",
+  "rdir": "/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/test",
   "experiment": "baseline_test",
   "startdate": {
     "year": 2013,
@@ -119,7 +119,7 @@
   "subsurface_module": "richards",
   "heat_advection": false,
   "multiscale_subsurface": {
-  "flag":true,
+  "flag":false,
   "flag_saturatedflux": true,
   "RISFU_type": "clusters",
   "anisotropy_lateral":2.0,
@@ -134,7 +134,8 @@
       "hdiv_int",
       "hdiv_loc",
       "hdiv_reg",
-      "runoff"
+      "runoff",
+      "smc"
     ],
     "routing_vars": [
       "Q",
