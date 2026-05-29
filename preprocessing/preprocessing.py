@@ -467,25 +467,11 @@ def Create_Other_Soil_Properties(cdb,workspace,metadata,icatch,log,properties):
    return
    
  #Output data
- if metadata['svp']==False:
-  md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon.tif' % workspace)#laura, svp
-  md['nodata'] = -9999.0
-  for var in output:
-   file = '%s/%s_latlon.tif' % (workspace,var)
-   gdal_tools.write_raster(file,md,output[var])
- else:
-  md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon_%scm.tif' % (workspace,layer))
-  md['nodata'] = -9999.0
-  for var in output:
-   if var=='f11':
-    file = '%s/%s_latlon.tif' % (workspace,var)
-    gdal_tools.write_raster(file,md,output[var])
-   else:
-    if var in ['bb','dsat','qtz','theta1500','theta33','texture_class','psisat','ksat','thetar','thetas']:
-     if os.path.isdir('%s/%s' %(workspace,var))==False:
-      os.system('mkdir %s/%s' %(workspace,var))
-     file_out='%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,layer)
-     gdal_tools.write_raster(file_out,md,output[var][layer])
+ md = gdal_tools.retrieve_metadata('%s/sand/sand_latlon.tif' % workspace)#laura, svp
+ md['nodata'] = -9999.0
+ for var in output:
+  file = '%s/%s_latlon.tif' % (workspace,var)
+  gdal_tools.write_raster(file,md,output[var])
 
  del output
  gc.collect()
@@ -501,34 +487,36 @@ def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,propertie
   OM = properties['om'][layer] #%w 
   from numpy import inf 
   badvals = (S == -9999.0) | (C == -9999.0) | (ST == -9999.0) | (OM == -9999.0) | np.isnan(S) 
-
- # Saxton pedotransfers limited to OM < 8%w and clay <60%
- #OM[OM > 8.0] = 8.0
- #C[C > 60.0] = 60.0
- 
+  
   output  = {}
-
   if metadata['soil']['dataset'] == 'soilgrids':
    #Theta saturated
-   output['thetas'] = pedotransfer.ThetaS_Saxton2006(S/100,C/100,OM/100)
+   output['thetas'] = {}
+   output['thetas'][layer] = pedotransfer.ThetaS_Saxton2006(S/100,C/100,OM/100)
 
    #Theta residual
-   output['thetar'] = pedotransfer.Residual_Water_Content_Maidment92(output['thetas'],C,S)
+   output['thetar'] = {}
+   output['thetar'][layer] = pedotransfer.Residual_Water_Content_Maidment92(output['thetas'][layer],C,S)
 
    #Ksat
-   output['ksat'] = pedotransfer.Ksat_Saxton2006(S/100,C/100,OM/100) # mm/h
+   output['ksat'] = {}
+   output['ksat'][layer] = pedotransfer.Ksat_Saxton2006(S/100,C/100,OM/100) # mm/h
 
    #Bb -- Brooks and Correy parameter lamba to the distribution of pore sizes  b = 1/lambda
-   output['bb'] = 1.0/pedotransfer.Lambda_Maidment92(output['thetas'],C,S)
+   output['bb'] = {}
+   output['bb'][layer] = 1.0/pedotransfer.Lambda_Maidment92(output['thetas'][layer],C,S)
 
    #Bubble pressure
-   output['psisat'] = pedotransfer.Bubbling_Pressure_Maidment92(output['thetas'],C,S)/100.0 # cm -> m
+   output['psisat'] = {}
+   output['psisat'][layer] = pedotransfer.Bubbling_Pressure_Maidment92(output['thetas'][layer],C,S)/100.0 # cm -> m
 
    #Theta33
-   output['theta33'] = pedotransfer.Theta_33_Saxton2006(S/100,C/100,OM/100)
+   output['theta33'] = {}
+   output['theta33'][layer] = pedotransfer.Theta_33_Saxton2006(S/100,C/100,OM/100)
 
    #Theta1500
-   output['theta1500'] = pedotransfer.Theta_1500_Saxton2006(S/100,C/100,OM/100)
+   output['theta1500'] = {}
+   output['theta1500'][layer] = pedotransfer.Theta_1500_Saxton2006(S/100,C/100,OM/100)
 
   if metadata['soil']['dataset'] == 'polaris':
     #Theta saturated
@@ -584,7 +572,6 @@ def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,propertie
   OM = properties['om'][layer] #%w
  
   #Soil Texture
-  #print C, ST, S, OM
   output['texture_class']={}
   output['texture_class'][layer] = np.ones(C.shape)*(-9999.0)
   output['texture_class'][layer][~badvals] = Texture_Class(C[~badvals],ST[~badvals],S[~badvals],OM[~badvals])
@@ -607,8 +594,8 @@ def Create_Other_Soil_Properties_svp(cdb,workspace,metadata,icatch,log,propertie
   output['qtz'][layer][output['texture_class'] == 12] = 0.25
   
   mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
-
   badvals2 = (output['texture_class'][layer] < 0) | (np.isnan(output['f11'])) | badvals
+  
   for var in output:
    if var=='f11':
     output[var][badvals2]=-9999.0
@@ -1235,9 +1222,16 @@ def Extract_Land_Cover(cdb,workspace,metadata,icatch,log):
  res = abs(md['resx'])
  lc_region = metadata['landcover']['file']
  lproj = md['proj4']
- #mapping = eval(metadata['landcover']['mapping'])
- mapping = {0:-9999.0,11:17,12:15,21:10,22:13,23:13,24:13,31:16,41:4,42:2,43:5,45:5,46:5,51:7,52:6,71:10,72:19,73:19,74:19,81:12,82:12,90:11,95:11,-9999.0:-9999.0}
-
+ if metadata['landcover']['dataset'] == 'NLCD':
+  mapping = {0:-9999.0,11:17,12:15,21:10,22:13,23:13,24:13,31:16,41:4,42:2,43:5,45:5,46:5,51:7,52:6,71:10,72:19,73:19,74:19,81:12,82:12,90:11,95:11,-9999.0:-9999.0}
+ else:
+  try:
+   mapping_file = metadata['landcover']['mapping_lc_file']
+   with open(mapping_file, 'r') as f:
+    mapping = eval(json.load(f))
+  except:
+   mapping = None
+   print('Error: No mapping file provided for land cover dataset %s' % metadata['landcover']['dataset'])
  #1. Prepare Land cover data
  lc_latlon_file = '%s/lc_latlon.tif' % workspace
  cache = int(psutil.virtual_memory().available*0.7/mb)
@@ -1279,7 +1273,6 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
  # POLARIS
  if (metadata['soil']['dataset'] == 'polaris'):
   vars = ['clay','sand','silt','om','hb','thetar','thetas','ksat','lambda']
-
   if metadata['svp']==True:  #laura, svp
    properties = {}
    for var in vars:
@@ -1307,7 +1300,83 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
       properties[var][str(avrgd)] = np.power(10.,properties[var][str(avrgd)])
       properties[var][str(avrgd)][badvals] = -9999.0
       #end svp block here, laura
+ 
+ # SOILGRIDS
+ elif metadata['soil']['dataset'] == 'soilgrids':
+  if metadata['svp']==False:
+   print('Error: SoilGrids dataset only supported for svp flag set to True.')
+   exit()
+  if metadata['svp']==True:
+   depth_soilgrids = np.array([0,5,15,30,60,100,200]) #SoilGrids
+   depth_soilgrids_centers = (depth_soilgrids[:-1] + depth_soilgrids[1:]) / 2
+   #Standard depths / standard thicknesses are based on the GlobalSoilMap project recommendations: only applies former version of SoilGrids (2017)
+   #                        name 	sl1 	sl2 	sl3 	  sl4 	  sl5 	  sl6 	  sl7
+   #Standard depth (in meters): 	0.0 	-0.05 -0.15 	-0.30 	-0.60 	-1.0 	  -2.0
+   #Standard depth (in cm):     	0 cm 	5 cm 	15 cm 	30 cm 	60 cm 	100 cm 	200 cm
+   
+  vars = ['clay','sand','silt', 'om', 'ksat']
+  properties = {}
+  for var in vars:
+   files = sorted(glob.glob(metadata['soil'][var] + '/*.tif'))
+   if len(files) != 7:
+    print(f'Error: SoilGrids files incomplete. Number of files {len(files)}; should be 7 (former version)',flush=True)
+    exit()
+   os.makedirs('%s/%s' % (workspace,var),exist_ok=True)
+   
+   sg_md = gdal_tools.retrieve_metadata(files[0])
+   window_md = build_window_metadata(md, sg_md)
+   #output temp raster metadata
+   with rasterio.open(files[i]) as src:
+    nodata = src.nodata # get original nodata value
+   sg_gt = sg_md["gt"]
+   ixmin = window_md["ixmin"]
+   iymin = window_md["iymin"]
+   out_gt = (sg_gt[0] + ixmin * sg_gt[1],sg_gt[1],0.0,sg_gt[3] + iymin * sg_gt[5],0.0,sg_gt[5])
+   out_md = {'nx':window_md["nx"],
+             'ny':window_md["ny"],
+             'gt':out_gt,
+             'proj':sg_md['proj'],
+             'nodata':nodata}
+   
+   properties[var]={}
+   # Interpolate to the center of the layer
+   for i in range(len(files) - 1):
+    # Read the top and bottom layers for interpolation
+    index = files[i].find('_sl') #name code in former version
+    if index == -1: 
+     print('SoilGrids file does not follow naming convetion of the former version',flush=True)
+     exit()
+    layer_id = int(files[i][index + 3]) - 1 #String: 3 spaces right --> (_sl1)
+    
+    top = gdal_tools.read_raster_subarea(layer_id, window_md)
+    bottom = gdal_tools.read_raster_subarea(layer_id + 1, window_md)
 
+    out = np.full(top.shape, -9999.0, dtype=np.float32)
+    valid = (top != nodata) & (bottom != nodata)
+    out[valid] = 0.5 * top[valid] + 0.5 * bottom[valid]
+
+    center = depth_soilgrids_centers[layer_id]
+    file_out_tmp  = '%s/%s/coarse_%s_latlon_%scm.tif' % (workspace,var,var,center)
+    gdal_tools.write_raster(file_out_tmp, out_md, out)
+    
+    # Reproject
+    file_out = '%s/%s/%s_latlon_%scm.tif' % (workspace,var,var,center)
+    cache=int(psutil.virtual_memory().available*0.7/mb)
+    os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -r bilinear -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' %
+              (lproj,res,res,minx,miny,maxx,maxy,cache,file_out_tmp,file_out,log))
+    os.system('rm -rf %s' % file_out_tmp)
+    
+    #Get the data, replace nodata 255 
+    properties[var][center] = gdal_tools.read_raster(file_out)
+    if var in ['clay','sand','silt']:
+     properties[var][center][(properties[var][center] == 255)] = -9999.0  
+    if var in ['om']:
+     badvals = (properties[var][center] == -9999.0)
+     properties[var][center] = 100*(properties[var][center]/1000.0)  # g/kg -> g/g -> %w
+     # soigrids uses organic carbon, which is OC = 0.58*OM
+     properties[var][center] = 1.724*properties[var][center]
+     properties[var][center][badvals] = -9999.0
+ 
  # Write out the data
  mask = gdal_tools.read_raster('%s/mask_latlon.tif' % workspace)
  if metadata['soil']['dataset'] != 'conus-soil':
@@ -1559,14 +1628,14 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   maxlon = lons[imaxlon]
   resy = (lats[-1]-lats[0])/len(lats)
   resx = (lons[-1]-lons[0])/len(lons)
-  res = (resx+resy)/2.
+  #res = (resx+resy)/2. [commented out to allow for different resolution in lat and lon]
 
   #Determine the box size
-  nlon = int(np.round((maxlon - minlon)/res + 1))
-  nlat = int(np.round((maxlat - minlat)/res + 1))
+  nlon = int(np.round((maxlon - minlon)/resx + 1))
+  nlat = int(np.round((maxlat - minlat)/resy + 1))
   
   #Set the metadata
-  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'res':res}
+  md = {'nlat':nlat,'nlon':nlon,'minlat':minlat,'minlon':minlon,'maxlat':maxlat,'maxlon':maxlon,'resx':resx,'resy':resy}
   md['undef'] = -9999.0
 
   #Read in data and create local copy
@@ -1634,7 +1703,7 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   mask_latlon_file = '%s/mask_latlon.tif' % (workspace)
   file_coarse = '%s/%s_latlon_coarse.tif' % (workspace,var)
   cache = int(psutil.virtual_memory().available*0.7/mb)
-  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (res,res,minlon-res/2,minlat-res/2,maxlon+res/2,maxlat+res/2,cache,mask_latlon_file,file_coarse,log))
+  os.system('gdalwarp -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (resx,resy,minlon-resx/2,minlat-resy/2,maxlon+resx/2,maxlat+resy/2,cache,mask_latlon_file,file_coarse,log))
 
   #Define the coarse and fine scale mapping
   maskij = gdal_tools.read_raster(file_coarse)
@@ -1652,14 +1721,15 @@ def Extract_Meteorology_Daily(cdb,workspace,metadata,icatch,log):
   miny = md['miny']
   maxx = md['maxx']
   maxy = md['maxy']
-  res = abs(md['resx'])
+  resx = abs(md['resx'])
+  resy = abs(md['resy'])
   lproj = md['proj4']
   
   #Regrid and downscale
   file_in = file_coarse
   file_out = '%s/%s_latlon_fine.tif' % (workspace,var)
   cache = int(psutil.virtual_memory().available*0.7/mb)
-  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,res,res,minx,miny,maxx,maxy,cache,file_in,file_out,log))
+  os.system('gdalwarp -t_srs \'%s\' -dstnodata -9999 -tr %.16f %.16f -te %.16f %.16f %.16f %.16f --config GDAL_CACHEMAX %i %s %s >> %s 2>&1' % (lproj,resx,resy,minx,miny,maxx,maxy,cache,file_in,file_out,log))
 
  return
 
@@ -1713,9 +1783,10 @@ def Create_NETCDF_File(md):
 
  nlat = md['nlat']
  nlon = md['nlon']
- res = md['res']
- minlon = md['minlon'] + res/2
- minlat = md['minlat'] + res/2
+ resx = md['resx']
+ resy = md['resy']
+ minlon = md['minlon'] + resx/2
+ minlat = md['minlat'] + resy/2
  undef = md['undef']
  nt = md['nt']
  tstep = md['tstep']
@@ -1741,17 +1812,17 @@ def Create_NETCDF_File(md):
 
  #Longitude
  f.createVariable('lon','d',('lon',))
- f.variables['lon'][:] = np.linspace(minlon,minlon+res*(nlon-1),nlon)
+ f.variables['lon'][:] = np.linspace(minlon,minlon+resx*(nlon-1),nlon)
  f.variables['lon'].units = 'degrees_east'
  f.variables['lon'].long_name = 'Longitude'
- f.variables['lon'].res = res
+ f.variables['lon'].res = resx
 
  #Latitude
  f.createVariable('lat','d',('lat',))
- f.variables['lat'][:] = np.linspace(minlat,minlat+res*(nlat-1),nlat)
+ f.variables['lat'][:] = np.linspace(minlat,minlat+resy*(nlat-1),nlat)
  f.variables['lat'].units = 'degrees_north'
  f.variables['lat'].long_name = 'Latitude'
- f.variables['lat'].res = res
+ f.variables['lat'].res = resy
 
  #Time
  if nt > 0:
@@ -1772,7 +1843,7 @@ def Create_NETCDF_File(md):
 
 def flip(m, axis):
     if not hasattr(m, 'ndim'):
-        m = asarray(m)
+        m = np.asarray(m)
     indexer = [slice(None)] * m.ndim
     try:
         indexer[axis] = slice(None, None, -1)
@@ -1969,4 +2040,22 @@ def Create_Administrative_Boundaries(cdb,workspace,metadata,icatch,log):
 
  return
 
+def build_window_metadata(mask_md,raster_md):   
+ minx = mask_md['minx']
+ miny = mask_md['miny']
+ maxx = mask_md['maxx']
+ maxy = mask_md['maxy']   
+ # Read the geotransform of the reference raster (soilgrids)
+ gt = raster_md['gt']
+ # Pixel coordinates of the bbox edges
+ ixmin = int(np.floor((minx - gt[0]) / gt[1]))
+ ixmax = int(np.ceil((maxx - gt[0]) / gt[1])) - 1
+ # gt[5] is usually negative for north-up rasters
+ iymin = int(np.floor((maxy - gt[3]) / gt[5]))
+ iymax = int(np.ceil((miny - gt[3]) / gt[5])) - 1
 
+ window_md = {"ixmin": ixmin,
+              "iymin": iymin,
+              "nx": ixmax - ixmin + 1,
+              "ny": iymax - iymin + 1}
+ return window_md
