@@ -282,10 +282,8 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
     for il in range(nsoil):
         # Heat transport per cluster [J/s], sign aligned with flow direction
         net_heat_cluster = np.zeros(nclusters)
-        #print(f'[intermediate flux] Layer {il}: flows = {flows[:,:,il].sum()} {np.abs(flows[:,:,il]).mean():.2e}', flush=True)
         for k in range(nclusters):
             for m in range(nclusters):
-                #q_link = 0.5 * (flows[k, m, il] - flows[m, k, il])  # m3/s
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
                     continue
@@ -297,25 +295,19 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
                     upwind_cluster = m
                     downwind_cluster = k
 
-                transported_heat = np.abs(q_link) * rho_w * c_w * temperatures[upwind_cluster, il]
+                transported_heat = np.abs(q_link) * rho_w * c_w * temperatures[upwind_cluster, il] #[m3/s] * [kg/m3] * [J/kg/K] * [K] = [J/s]
                 net_heat_cluster[upwind_cluster] += transported_heat
                 net_heat_cluster[downwind_cluster] -= transported_heat
 
-        #print(f'[intermediate enthalpy] Layer {il}: net_heat_cluster = {net_heat_cluster.sum()} {np.abs(net_heat_cluster).mean():.2e}', flush=True)
         # Map cluster heat power [J/s] to HRUs [J/s]
         net_heat_hru = np.zeros(nhrus)
         for i in range(nhrus):
             for k in range(nclusters):
                 net_heat_hru[i] += clusters[k, i] * net_heat_cluster[k]
 
-        # Convert to volumetric divergence [J/m3/s]
+        # Convert to divergence [J/s/m2]
         for i in range(nhrus):
-            volume = area_hrus[i] * dz_hrus[i, il]
-            if volume > eps:
-                #hdiv_heat[i, il] = net_heat_hru[i] / volume
-                hdiv_heat[i, il] = net_heat_hru[i] / area_hrus[i]
-            else:
-                hdiv_heat[i, il] = 0.0
+            hdiv_heat[i, il] = net_heat_hru[i] / area_hrus[i]
 
     return hdiv_heat
 
@@ -335,7 +327,6 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
         net_heat_cluster = np.zeros(nclusters)
         for k in range(nclusters):
             for m in range(nclusters):
-                #q_link = 0.5 * (flows[k, m, il] - flows[m, k, il]) #m3/s, signed flow from k to m
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
                     continue
@@ -351,7 +342,6 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
                 net_heat_cluster[upwind_cluster] += transported_heat
                 net_heat_cluster[downwind_cluster] -= transported_heat
 
-        #print(f'[regional enthalpy] Layer {il}: net_heat_cluster = {net_heat_cluster.sum()} {np.abs(net_heat_cluster).mean():.2e}', flush=True)
         local_net_heat_units = np.zeros(local_clusters.shape[0])
         for i in range(local_clusters.shape[0]):
             local_net_heat_units[i] = net_heat_cluster[local_unit_indices[i]]
@@ -362,12 +352,7 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
                 net_heat_hru[hru] += local_clusters[i, hru] * local_net_heat_units[i]
 
         for hru in range(nhrus):
-            volume = area_hrus[hru] * dz_hrus[hru, il]
-            if volume > eps:
-                #hdiv_heat[hru, il] = net_heat_hru[hru] / volume
-                hdiv_heat[hru, il] = net_heat_hru[hru] / area_hrus[hru]
-            else:
-                hdiv_heat[hru, il] = 0.0
+            hdiv_heat[hru, il] = net_heat_hru[hru] / area_hrus[hru]
 
     return hdiv_heat
 
@@ -382,11 +367,10 @@ def calculate_soil_moisture_potential(il,theta,thetar,thetas,b,satpsi):
 
 @numba.jit(nopython=True,cache=True)
 def calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b, af):
-    #af = 2.0  #Daniel
     Ksat_x = af*ksat #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
     K_x = Ksat_x*np.true_divide(psi,satpsi)**(-2-np.true_divide(3.,b))
-    #Correct hydraulic conductivity if layer is below 1.5 meters
-    depth_threshold = 1.5
+    #Correct hydraulic conductivity if layer is below 2.0 meters
+    depth_threshold = 2.0
     #Calculate transmissivity at top layer (exponential decay)
     Ttop = np.abs(np.where(zbot>depth_threshold, m*K_x*np.exp(-(ztop-depth_threshold)/m),K_x*ztop))
     #Calculate transmissivity at bottom of layer (exponential decay)

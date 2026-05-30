@@ -291,35 +291,24 @@ def calculate_advective_heat_divergence_from_q(q,temperature,rho_w,c_w,area,dz):
   # consistent dtypes (float64) and shapes. q is [mm/s], area [m2], dz [m].
   n = temperature.size
   rhs = np.zeros(n)
-  eps = 1e-20
 
-  # Reconstruct volumetric link flows [m3/s] using the same sign conversion
-  # expected by NoahMP: q_link_m3s = -q[i,j] * area[i] / 1000.0
-  q_link_m3s = np.zeros((n,n))
-  for i in range(n):
-    for j in range(n):
-      q_link_m3s[i,j] = -q[i,j] * area[i] / 1000.0
+  q_link_ms = np.zeros((n,n))
+  q_link_ms[:,:] = -q / 1000.0 # Convert from mm/s to m/s
 
-  # Compute per-node transported heat power and convert to volumetric divergence
+  # Compute per-node transported heat power and convert to divergence
   for i in range(n):
     acc = 0.0
     for j in range(n):
       if i == j:
         continue
-      q_ij = q_link_m3s[i,j]
+      q_ij = q_link_ms[i,j]
       # Upwind temp
       if q_ij > 0.0:
         T_upwind = temperature[i]
       else:
         T_upwind = temperature[j]
-      acc += q_ij * T_upwind
+      acc += q_ij * T_upwind # m/s * K 
 
-    power_J_s = rho_w * c_w * acc
-    volume = area[i] * dz[i]
-    if volume > eps:
-      #rhs[i] = power_J_s / volume
-      rhs[i] = power_J_s / area[i]
-    else:
-      rhs[i] = 0.0
+    rhs[i] = rho_w * c_w * acc # Power in Watts (J/s) / m2 [m/s * K * kg/m3 * J/kg/K = J/s/m2]
 
   return rhs
