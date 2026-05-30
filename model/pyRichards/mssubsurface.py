@@ -312,7 +312,8 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
         for i in range(nhrus):
             volume = area_hrus[i] * dz_hrus[i, il]
             if volume > eps:
-                hdiv_heat[i, il] = net_heat_hru[i] / volume
+                #hdiv_heat[i, il] = net_heat_hru[i] / volume
+                hdiv_heat[i, il] = net_heat_hru[i] / area_hrus[i]
             else:
                 hdiv_heat[i, il] = 0.0
 
@@ -363,7 +364,8 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
         for hru in range(nhrus):
             volume = area_hrus[hru] * dz_hrus[hru, il]
             if volume > eps:
-                hdiv_heat[hru, il] = net_heat_hru[hru] / volume
+                #hdiv_heat[hru, il] = net_heat_hru[hru] / volume
+                hdiv_heat[hru, il] = net_heat_hru[hru] / area_hrus[hru]
             else:
                 hdiv_heat[hru, il] = 0.0
 

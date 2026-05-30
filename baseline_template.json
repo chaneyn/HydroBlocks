@@ -117,10 +117,10 @@
     "dt_routing":3600
   },
   "subsurface_module": "richards",
-  "heat_advection": false,
+  "heat_advection": true,
   "multiscale_subsurface": {
-  "flag":false,
-  "flag_saturatedflux": true,
+  "flag":true,
+  "flag_saturatedflux": false,
   "RISFU_type": "clusters",
   "anisotropy_lateral":2.0,
   "anisotropy_lateral_local":2.0

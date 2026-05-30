@@ -37,7 +37,7 @@ class richards:
 
   return
 
- def update_numba(self,vsp_flag):
+ def update_numba(self,vsp_flag,temperature=None,rho_w=None,c_w=None,hdiv_heat=None):
   af = self.af
   theta = self.theta
   dz = self.dz
@@ -53,11 +53,17 @@ class richards:
   w = self.w
   dx = self.dx
   area = self.area
+  if hdiv_heat is not None:
+   hdiv_heat = self.hdiv_heat
   if vsp_flag==True: #laura svp
    self.hdiv[:] = update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,
-                                       af, self.flag_sat) #divergence computed with vertical variable soil properties
+                                       af, self.flag_sat, #divergence computed with vertical variable soil properties
+                                       temperature=temperature,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat) #heat divergence
   else:
    self.hdiv[:] = update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area)
+  
+  if hdiv_heat is not None:
+   self.hdiv_heat[:] = hdiv_heat
 
   return
 
@@ -97,7 +103,7 @@ class richards_hbands:
 
   return
 
- def update_numba(self,vsp_flag):
+ def update_numba(self,vsp_flag,temperature=None,rho_w=None,c_w=None,hdiv_heat=None):
   af = self.af
   theta = self.theta
   dz = self.dz
@@ -114,6 +120,9 @@ class richards_hbands:
   dx = self.dx
   area = self.area
   ncsbasins=self.ncsbasins #laura, number of characteristic subbasins
+  if hdiv_heat is not None:
+   hdiv_heat = self.hdiv_heat
+  
   #Compute divergence independently per characteristic subbasin, laura
   aux=0
   div=np.empty(self.hdiv.shape)
@@ -129,17 +138,27 @@ class richards_hbands:
                                      w_bas,dx_bas,area[init:fin],af,self.flag_sat) #divergence computed with uniform soil properties
     aux=fin
    else:
+    # Slice temperature and hdiv_heat for the current basin
+    temp_bas = temperature[init:fin,:] if temperature is not None else None
+    hdiv_heat_bas = hdiv_heat[init:fin,:] if hdiv_heat is not None else None
     div[init:fin,:]=update_workhorse_vsp(theta[init:fin,:],dz[init:fin,:],hdiv[init:fin,:],
                                          thetar[init:fin],thetas[init:fin],b[init:fin],
                                          satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],
-                                         w_bas,dx_bas,area[init:fin],af,self.flag_sat)
+                                         w_bas,dx_bas,area[init:fin],af,self.flag_sat,
+                                         temperature=temp_bas,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat_bas)
     aux=fin #laura, added to fix flerchinger
+    # Copy back the hdiv_heat results 
+    if hdiv_heat_bas is not None:
+      hdiv_heat[init:fin,:] = hdiv_heat_bas
   self.hdiv=div
+  if hdiv_heat is not None:
+   self.hdiv_heat[:] = hdiv_heat
 
   return
 
 @numba.jit(nopython=True,cache=True)
-def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,af,flag_sat):
+def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,af,flag_sat,
+                         temperature=None,rho_w=None,c_w=None,hdiv_heat=None):
  # flag_sat passed as parameter; Dupuit-Forchheimer approximation when True
  #Iterate per layer
  for il in range(theta.shape[1]):
@@ -162,6 +181,8 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
   # q[i, j] stores the divergence contribution for source HRU i toward neighbor j.
   # Sum across each row so the integrated mass closes with area-normalized fluxes.
   hdiv[:,il] = np.sum(q,axis=0) #mm/s - sum over all connections to get divergence at each HRU
+  if hdiv_heat is not None:
+   hdiv_heat[:,il] = calculate_advective_heat_divergence_from_q(q,temperature[:,il],rho_w,c_w,area,dz[:,il])
  return hdiv
  
 @numba.jit(nopython=True,cache=True)
@@ -263,3 +284,42 @@ def calculate_That(T):
    That[i,j] = (2*T[i]*T[j])/(T[i] + T[j])
 
  return That
+
+@numba.jit(nopython=True,cache=True)
+def calculate_advective_heat_divergence_from_q(q,temperature,rho_w,c_w,area,dz):
+  # Numba-compatible implementation. All arrays are assumed numpy arrays with
+  # consistent dtypes (float64) and shapes. q is [mm/s], area [m2], dz [m].
+  n = temperature.size
+  rhs = np.zeros(n)
+  eps = 1e-20
+
+  # Reconstruct volumetric link flows [m3/s] using the same sign conversion
+  # expected by NoahMP: q_link_m3s = -q[i,j] * area[i] / 1000.0
+  q_link_m3s = np.zeros((n,n))
+  for i in range(n):
+    for j in range(n):
+      q_link_m3s[i,j] = -q[i,j] * area[i] / 1000.0
+
+  # Compute per-node transported heat power and convert to volumetric divergence
+  for i in range(n):
+    acc = 0.0
+    for j in range(n):
+      if i == j:
+        continue
+      q_ij = q_link_m3s[i,j]
+      # Upwind temp
+      if q_ij > 0.0:
+        T_upwind = temperature[i]
+      else:
+        T_upwind = temperature[j]
+      acc += q_ij * T_upwind
+
+    power_J_s = rho_w * c_w * acc
+    volume = area[i] * dz[i]
+    if volume > eps:
+      #rhs[i] = power_J_s / volume
+      rhs[i] = power_J_s / area[i]
+    else:
+      rhs[i] = 0.0
+
+  return rhs

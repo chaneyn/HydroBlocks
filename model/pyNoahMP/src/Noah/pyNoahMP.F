@@ -524,6 +524,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
                   BEXP_3D,SMCDRY_3D,SMCWLT_3D,SMCREF_3D,SMCMAX_3D,DKSAT_3D,&
                   DWSAT_3D,PSISAT_3D,QUARTZ_3D,&
                   HDIVXY,&
+                  HDIV_HEATXY,&
                   SFCHEADRTXY,&
                   dzb,dzg,dzr,isurban,&
                   num_urban_ndm,urban_map_zrd,urban_map_zwd,&
@@ -760,6 +761,7 @@ subroutine update(zlvl,dt,lwdn,swdn,u_ml,v_ml,q_ml,t_ml,prcp,psfc,&
  !Added
     REAL,    DIMENSION(nhru) :: PAHXY
     REAL,    DIMENSION(nhru,1:nsoil), INTENT(INOUT) ::  HDIVXY     ! divergence
+    REAL,    DIMENSION(nhru,1:nsoil), INTENT(INOUT) ::  HDIV_HEATXY ! heat divergence
     REAL,    DIMENSION(nhru) :: SFCHEADRTXY
 ! Urban canopy model
     REAL, DIMENSION(nsoil), INTENT(INOUT) :: DZR
@@ -1205,7 +1207,7 @@ endif
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !               MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL     )
-               PAHXY,HDIVXY,SFCHEADRTXY)
+               PAHXY,HDIVXY,HDIV_HEATXY,SFCHEADRTXY)
 
 if (debug_flag)then
     print*,'NOAHMPLSM OUT'

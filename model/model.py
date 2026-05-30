@@ -265,7 +265,7 @@ def update_model(cids,rank,size,date,HBdb):
   #Update multiscale subsurface flow
   if HBdb[cid].multiscale_flag == True:
    update_subdomains_subsurface(cids,rank,size,HBdb)
-   _diagnostic_global_mass_balance(HBdb)
+   #_diagnostic_global_mass_balance(HBdb)
   
   #Update routing
   if HBdb[cid].routing_flag == True:update_routing(cids,rank,size,HBdb)
@@ -557,8 +557,8 @@ def update_subdomains_subsurface(cids,rank,size,HBdb):
  
  #Update subsurface regional scheme
  mssubsurface.exchange_smc_regional_units(cids,rank,HBdb)
- #if HBdb[cids[0]].heat_advection == True:
-  #mssubsurface.exchange_temperature_regional_units(cids,rank,HBdb)
+ if HBdb[cids[0]].heat_advection == True:
+  mssubsurface.exchange_temperature_regional_units(cids,rank,HBdb)
  #return
 
 def run(comm,metadata_file):

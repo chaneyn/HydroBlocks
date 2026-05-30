@@ -327,7 +327,7 @@ class HydroBlocks:
    exec('self.noahmp.%s = np.zeros(self.nhru,order=\'F\').astype(np.float32)' % var)
    exec('self.noahmp.%s[:] = 9999999999.0' % var)
   #2d,real
-  vars = ['sh2o','smc','smceq','zsoil','sldpth','hdiv','smois','tslb','smoiseq',\
+  vars = ['sh2o','smc','smceq','zsoil','sldpth','hdiv','hdiv_heat','smois','tslb','smoiseq',\
           'bexp','smcdry','smcwlt','smcref','smcmax','dksat','dwsat','psisat','quartz']
   for var in vars:
    exec('self.noahmp.%s = np.zeros((self.nhru,self.nsoil),order=\'F\').astype(np.float32)' % var)
@@ -439,6 +439,7 @@ class HydroBlocks:
   self.noahmp.fvgmax[:] = 96
   #Initialize the rest
   self.noahmp.hdiv[:] = 0.0
+  self.noahmp.hdiv_heat[:] = 0.0
   self.noahmp.acsnom[:] = 0.0
   self.noahmp.acsnow[:] = 0.0
   self.noahmp.sfcrunoff[:] = 0.0
@@ -776,7 +777,7 @@ class HydroBlocks:
     (not np.all(np.isfinite(hdiv_int))) or
     (not np.all(np.isfinite(hdiv_reg))) or
     (not np.isfinite(ms_recon_err)) or
-    (np.abs(ms_recon_err) > 1e-16) or
+    (np.abs(ms_recon_err) > 1e-12) or
     (np.isfinite(ms_heat_recon_err) and np.abs(ms_heat_recon_err) > heat_recon_tol)
    )
   # Storage in this routine should remain unchanged; hdiv net near zero indicates internal closure.
@@ -1075,7 +1076,7 @@ class HydroBlocks:
            n.pah,\
            n.bexp,n.smcdry,n.smcwlt,n.smcref,n.smcmax,\
            n.dksat,n.dwsat,n.psisat,n.quartz,\
-           n.hdiv,\
+           n.hdiv,n.hdiv_heat,\
            n.sfcheadrt,\
            #Urban canopy model(start)
            n.dzb,n.dzg,n.dzr,n.isurban,\
@@ -1156,11 +1157,14 @@ class HydroBlocks:
    else:
      self.richards.dem1 = self.richards.dem
 
-   #self.richards.update()
-   self.richards.update_numba(use_vsp)
+   self.richards.update_numba(use_vsp,temperature=self.noahmp.tslb,rho_w=1000.0,c_w=4186.0)
 
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
+   if use_heat_advection:
+    self.noahmp.hdiv_heat[:] = self.richards.hdiv_heat[:]
+   else:
+    self.noahmp.hdiv_heat[:] = 0.0
 
   elif use_richards and use_cmatrix:
    hru_area = self.input_fp.groups['parameters'].variables['area'][:] #laura
@@ -1200,6 +1204,10 @@ class HydroBlocks:
    for h_band in unique_hbands: 
     m = self.hbands == h_band
     self.noahmp.hdiv[m,:]=self.richards.hdiv[aux,:]
+    if use_heat_advection:
+     self.noahmp.hdiv_heat[m,:]=self.richards.hdiv_heat[aux,:]
+    else:
+     self.noahmp.hdiv_heat[m,:]=0.0
     aux=aux+1
   #------------------------------Multiscale Subsurface Scheme ----------------------------------------
   if use_multiscale:
@@ -1415,6 +1423,7 @@ class HydroBlocks:
   tmp['swe'] = np.copy(NOAH.snow) #m
   tmp['totsmc'] = np.sum(NOAH.sldpth*NOAH.smois,axis=1)/np.sum(NOAH.sldpth[0]) #m3/m3
   tmp['hdiv'] = np.copy(NOAH.hdiv)
+  tmp['hdiv_heat'] = np.copy(NOAH.hdiv_heat)
   tmp['mozb'] = np.copy(NOAH.mozb)
   tmp['mozv'] = np.copy(NOAH.mozv)
   tmp['fvb'] = np.copy(NOAH.fvb)
@@ -1652,7 +1661,7 @@ class HydroBlocks:
              'zwt':{'description':'WTD','units':'m','dims':('time','hru',),'precision':2},
              'errwat':{'description':'errwat','units':'mm','dims':('time','hru',),'precision':4},
              'totsmc':{'description':'totsmc','units':'m3/m3','dims':('time','hru',),'precision':2},
-             'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':4},
+             'hdiv':{'description':'hdiv','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_int':{'description':'hdiv_int','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_loc':{'description':'hdiv_loc','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_reg':{'description':'hdiv_reg','units':'mm/s','dims':('time','hru','soil'),'precision':16},

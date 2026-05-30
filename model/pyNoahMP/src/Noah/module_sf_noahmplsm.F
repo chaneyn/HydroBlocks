@@ -418,7 +418,7 @@ contains
 !#ifdef WRF_HYDRO
                    ,SFCHEADRT                                                  & ! IN/OUT :
 !#endif
-                   ,HDIV , NO_RUNSUB_OP12                                      & !#HB mssbu: turn-off layer drainage
+                   ,HDIV , HDIV_HEAT, NO_RUNSUB_OP12                           & !#HB mssbu: turn-off layer drainage
                    )
 
 ! --------------------------------------------------------------------------------------------------
@@ -472,6 +472,7 @@ contains
   REAL                           , INTENT(IN)    :: DX
   REAL                           , INTENT(IN)    :: SHDMAX  !yearly max vegetation fraction
   REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV ! #HB
+  REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV_HEAT ! heat divergence #HB
   INTEGER, INTENT(IN)                  :: NO_RUNSUB_OP12 !mssub 
 !jref:end
 
@@ -786,7 +787,7 @@ contains
                  Q1     ,Q2V    ,Q2B    ,Q2E    ,CHV   ,CHB     , & !out
                  EMISSI ,PAH    ,                                 &
 		 SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2,&
-                 JULIAN, SWDOWN, PRCP, FB, GECROS1D )        
+                 JULIAN, SWDOWN, PRCP, FB, GECROS1D, HDIV_HEAT )     
 !jref:end
 
     SICE(:) = MAX(0.0, SMC(:) - SH2O(:))   
@@ -857,7 +858,7 @@ contains
                  NSNOW  ,IST    ,ERRWAT ,ILOC   , JLOC  ,FVEG   , &
                  SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
                  PAHV   ,PAHG   ,PAHB   , &   !in ( Except ERRWAT, which is out )
-                 HDIV ) ! #HB
+                 HDIV, HDIV_HEAT) ! #HB
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
@@ -1372,7 +1373,7 @@ ENDIF   ! CROPTYPE == 0
                     NSNOW  ,IST    ,ERRWAT, ILOC   ,JLOC   ,FVEG   , &
                     SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
                     PAHV   ,PAHG   ,PAHB   , &
-                    HDIV) ! #HB
+                    HDIV, HDIV_HEAT) ! #HB
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1415,6 +1416,7 @@ ENDIF   ! CROPTYPE == 0
   REAL                           , INTENT(IN) :: WA     !water storage in aquifer [mm]
   REAL                           , INTENT(IN) :: DT     !time step [sec]
   REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: HDIV   !#HB
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: HDIV_HEAT !heat flux divergence [W/m2] !#HB
   REAL                           , INTENT(IN) :: BEG_WB !water storage at begin of a timesetp [mm]
   REAL                           , INTENT(OUT) :: ERRWAT !error in water balance [mm/timestep]
   REAL, INTENT(IN)   :: PAH     !precipitation advected heat - total (W/m2)
@@ -1455,6 +1457,7 @@ ENDIF   ! CROPTYPE == 0
       call wrf_error_fatal("Stop in Noah-MP")
    END IF
 
+!   ERRENG = SAV+SAG-(FIRA+FSH+FCEV+FGEV+FCTR+SSOIL+sum(HDIV_HEAT)) +PAH !#HB
    ERRENG = SAV+SAG-(FIRA+FSH+FCEV+FGEV+FCTR+SSOIL) +PAH
 !   ERRENG = FVEG*SAV+SAG-(FIRA+FSH+FCEV+FGEV+FCTR+SSOIL)
 !   WRITE(*,*) "ERRENG =",ERRENG
@@ -1462,6 +1465,10 @@ ENDIF   ! CROPTYPE == 0
       write(message,*) 'ERRENG =',ERRENG,' at i,j: ',ILOC,JLOC
       call wrf_message(trim(message))
       WRITE(message,'(a17,F10.4)') "Net solar:       ",FSA
+      call wrf_message(trim(message))
+      WRITE(message,'(a17,F10.4)') "Solar rad veg:   ",SAV
+      call wrf_message(trim(message))
+      WRITE(message,'(a17,F10.4)') "Solar rad ground:",SAG
       call wrf_message(trim(message))
       WRITE(message,'(a17,F10.4)') "Net longwave:    ",FIRA
       call wrf_message(trim(message))
@@ -1474,6 +1481,8 @@ ENDIF   ! CROPTYPE == 0
       WRITE(message,'(a17,F10.4)') "Transpiration:   ",FCTR
       call wrf_message(trim(message))
       WRITE(message,'(a17,F10.4)') "Total ground:    ",SSOIL
+      call wrf_message(trim(message))
+      WRITE(message,'(a17,F10.4)') "Heat div soil:   ",sum(HDIV_HEAT)
       call wrf_message(trim(message))
       WRITE(message,'(a17,4F10.4)') "Precip advected: ",PAH,PAHV,PAHG,PAHB
       call wrf_message(trim(message))
@@ -1542,7 +1551,7 @@ ENDIF   ! CROPTYPE == 0
                      FSRG   ,RSSUN  ,RSSHA  ,ALBSND  ,ALBSNI,BGAP   ,WGAP,TGV,TGB,&
                      Q1     ,Q2V    ,Q2B    ,Q2E    ,CHV  ,CHB, EMISSI,PAH  ,&
 		     SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2, &
-                     JULIAN, SWDOWN, PRCP, FB, GECROS1D )        
+                     JULIAN, SWDOWN, PRCP, FB, GECROS1D, HDIV_HEAT )        
 !jref:end                            
 
 ! --------------------------------------------------------------------------------------------------
@@ -1624,6 +1633,7 @@ ENDIF   ! CROPTYPE == 0
   REAL, INTENT(IN)   :: PAHV    !precipitation advected heat - vegetation net (W/m2)
   REAL, INTENT(IN)   :: PAHG    !precipitation advected heat - under canopy net (W/m2)
   REAL, INTENT(IN)   :: PAHB    !precipitation advected heat - bare ground net (W/m2)
+  REAL, DIMENSION(1:NSOIL), INTENT(IN) :: HDIV_HEAT !advective heat flux divergence [W/m2] #HB
 
 !jref:start; in 
   REAL                              , INTENT(IN)    :: QC     !cloud water mixing ratio
@@ -2126,7 +2136,7 @@ ENDIF   ! CROPTYPE == 0
     CALL TSNOSOI (parameters,ICE     ,NSOIL   ,NSNOW   ,ISNOW   ,IST     , & !in
                   TBOT    ,ZSNSO   ,SSOIL   ,DF      ,HCPCT   , & !in
                   SAG     ,DT      ,SNOWH   ,DZSNSO  , & !in
-                  TG      ,ILOC    ,JLOC    ,                   & !in
+                  TG      ,ILOC    ,JLOC    ,HDIV_HEAT,            & !in
                   STC     )                                       !inout
 
 ! adjusting snow surface temperature
@@ -5023,7 +5033,7 @@ ENDIF   ! CROPTYPE == 0
   SUBROUTINE TSNOSOI (parameters,ICE     ,NSOIL   ,NSNOW   ,ISNOW   ,IST     , & !in
                       TBOT    ,ZSNSO   ,SSOIL   ,DF      ,HCPCT   , & !in
                       SAG     ,DT      ,SNOWH   ,DZSNSO  , & !in
-                      TG      ,ILOC    ,JLOC    ,                   & !in
+                      TG      ,ILOC    ,JLOC    ,HDIV_HEAT,           & !in
                       STC     )                                       !inout
 ! --------------------------------------------------------------------------------------------------
 ! Compute snow (up to 3L) and soil (4L) temperature. Note that snow temperatures
@@ -5053,6 +5063,7 @@ ENDIF   ! CROPTYPE == 0
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: DZSNSO !snow/soil layer thickness (m)
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: DF     !thermal conductivity
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: HCPCT  !heat capacity (J/m3/k)
+    REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: HDIV_HEAT !advective heat flux divergence [W/m2] #HB
 
 !input and output
 
@@ -5092,7 +5103,7 @@ ENDIF   ! CROPTYPE == 0
                   STC       ,TBOT      ,ZBOTSNO   ,DT        , &
                   DF        ,HCPCT     ,SSOIL     ,PHI       , &
                   AI        ,BI        ,CI        ,RHSTS     , &
-                  EFLXB     )
+                  EFLXB     ,HDIV_HEAT )
 
       CALL HSTEP (parameters,NSNOW     ,NSOIL     ,ISNOW     ,DT        , &
                   AI        ,BI        ,CI        ,RHSTS     , &
@@ -5143,7 +5154,7 @@ ENDIF   ! CROPTYPE == 0
                   STC       ,TBOT      ,ZBOT      ,DT        , &
                   DF        ,HCPCT     ,SSOIL     ,PHI       , &
                   AI        ,BI        ,CI        ,RHSTS     , &
-                  BOTFLX    )
+                  BOTFLX    ,HDIV_HEAT )
 ! ----------------------------------------------------------------------
 ! ----------------------------------------------------------------------
 ! calculate the right hand side of the time tendency term of the soil
@@ -5168,6 +5179,7 @@ ENDIF   ! CROPTYPE == 0
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: DF     !thermal conductivity [w/m/k]
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: HCPCT  !heat capacity [j/m3/k]
     REAL, DIMENSION(-NSNOW+1:NSOIL), INTENT(IN)  :: PHI    !light through water (w/m2)
+    REAL, DIMENSION(1:NSOIL), INTENT(IN)  :: HDIV_HEAT !advective heat flux divergence [W/m2] #HB
 
 ! output
 
@@ -5194,13 +5206,21 @@ ENDIF   ! CROPTYPE == 0
            TEMP1     = - ZSNSO(K+1)
            DDZ(K)    = 2.0 / TEMP1
            DTSDZ(K)  = 2.0 * (STC(K) - STC(K+1)) / TEMP1
-           EFLUX(K)  = DF(K) * DTSDZ(K) - SSOIL - PHI(K)
+           IF (K >= 1) THEN
+              EFLUX(K)  = DF(K) * DTSDZ(K) - SSOIL - PHI(K) - HDIV_HEAT(K)
+           ELSE
+              EFLUX(K)  = DF(K) * DTSDZ(K) - SSOIL - PHI(K)
+           END IF
         ELSE IF (K < NSOIL) THEN
            DENOM(K)  = (ZSNSO(K-1) - ZSNSO(K)) * HCPCT(K)
            TEMP1     = ZSNSO(K-1) - ZSNSO(K+1)
            DDZ(K)    = 2.0 / TEMP1
            DTSDZ(K)  = 2.0 * (STC(K) - STC(K+1)) / TEMP1
-           EFLUX(K)  = (DF(K)*DTSDZ(K) - DF(K-1)*DTSDZ(K-1)) - PHI(K)
+           IF (K >= 1) THEN
+              EFLUX(K)  = (DF(K)*DTSDZ(K) - DF(K-1)*DTSDZ(K-1)) - PHI(K) - HDIV_HEAT(K)
+           ELSE
+              EFLUX(K)  = (DF(K)*DTSDZ(K) - DF(K-1)*DTSDZ(K-1)) - PHI(K)
+           END IF
         ELSE IF (K == NSOIL) THEN
            DENOM(K)  = (ZSNSO(K-1) - ZSNSO(K)) * HCPCT(K)
            TEMP1     =  ZSNSO(K-1) - ZSNSO(K)
@@ -5211,7 +5231,7 @@ ENDIF   ! CROPTYPE == 0
                DTSDZ(K)  = (STC(K) - TBOT) / ( 0.5*(ZSNSO(K-1)+ZSNSO(K)) - ZBOT)
                BOTFLX    = -DF(K) * DTSDZ(K)
            END IF
-           EFLUX(K)  = (-BOTFLX - DF(K-1)*DTSDZ(K-1) ) - PHI(K)
+           EFLUX(K)  = (-BOTFLX - DF(K-1)*DTSDZ(K-1) ) - PHI(K) - HDIV_HEAT(K)
         END IF
     END DO
 

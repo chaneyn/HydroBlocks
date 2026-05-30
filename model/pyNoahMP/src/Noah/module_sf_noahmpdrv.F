@@ -51,7 +51,7 @@ CONTAINS
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte,                    &
 !HB added
-               PAHXY,HDIVXY,SFCHEADRTXY,                        &
+               PAHXY,HDIVXY,HDIV_HEATXY,SFCHEADRTXY,                        &
 !End HB added
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL)
 !----------------------------------------------------------------
@@ -221,6 +221,7 @@ CONTAINS
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  DEEPRECHXY ! recharge to the water table when deep
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  RECHXY    ! recharge to the water table (diagnostic) 
     REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT  ) ::  HDIVXY    ! #HB
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT  ) ::  HDIV_HEATXY  ! heat divergence #HB
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT  ) ::  SFCHEADRTXY  ! #HB
 
 ! OUT (with no Noah LSM equivalent)
@@ -305,6 +306,7 @@ CONTAINS
     REAL                                :: PRCPHAIL     ! hail entering land model [mm]              ! MB/AN : v3.7
     REAL                                :: PRCPOTHR     ! other precip, e.g. fog [mm]                ! MB/AN : v3.7
     REAL,    DIMENSION(NSOIL)           :: HDIV      ! #HB
+    REAL,    DIMENSION(NSOIL)           :: HDIV_HEAT ! heat divergence #HB
     REAL                                :: SFCHEADRT ! #HB
 
 ! INOUT (with generic LSM equivalent)
@@ -654,6 +656,7 @@ CONTAINS
        RECH                  = 0.
        DEEPRECH              = 0.  
        HDIV                  = HDIVXY (I,:,J)
+       HDIV_HEAT             = HDIV_HEATXY (I,:,J)
        SFCHEADRT             = SFCHEADRTXY (I,J)
 
        if(iopt_crop == 2) then   ! gecros crop model
@@ -905,7 +908,7 @@ CONTAINS
 !#ifdef WRF_HYDRO
             , sfcheadrt                               &
 !#endif
-            , hdiv , NO_RUNSUB_OP12 & !mssub: turn-off layer drainage
+            , hdiv , hdiv_heat, NO_RUNSUB_OP12 & !mssub: turn-off layer drainage
             )            ! OUT :
                   
             QFX(I,J) = ECAN + ESOIL + ETRAN
