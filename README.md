@@ -16,6 +16,7 @@ cd HydroBlocks
 conda create --name HB --file spec-file.txt
 source activate HB
 pip install git+https://github.com/chaneyn/geospatialtools@dev_nate
+replace original ~/home/miniconda3/envs/HB1/lib/python3.1/site-packages/geospatialtools/terrain_tools.py with yml/terrain_tools.py to use 2stepHMC
 ```
 
 **3. Install HydroBlocks.**
