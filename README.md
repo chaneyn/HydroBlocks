@@ -34,4 +34,4 @@ pytest -q -s model/unittest/test_*.py
 
 **5. Comments.**
 
-Use SVP should be the default. Some modules don't work if SVP is not the default. 
+SVP should be the default. Some modules don't work if SVP is not the default. 
