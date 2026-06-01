@@ -283,7 +283,7 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
         # Heat transport per cluster [J/s], sign aligned with flow direction
         net_heat_cluster = np.zeros(nclusters)
         for k in range(nclusters):
-            for m in range(nclusters):
+            for m in range(k+1,nclusters):
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
                     continue
@@ -326,7 +326,7 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
         #print(f'[regional flux] Layer {il}: flows = {flows[:,:,il].sum()} {np.abs(flows[:,:,il]).mean():.2e}', flush=True)
         net_heat_cluster = np.zeros(nclusters)
         for k in range(nclusters):
-            for m in range(nclusters):
+            for m in range(k+1,nclusters):
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
                     continue
