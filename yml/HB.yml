@@ -1,26 +1,47 @@
-name: HBnew
+name: HB1
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=1_gnu
   - affine=2.3.0=py_0
+  - appdirs=1.4.4=pyh9f0ad1d_0
+  - asttokens=3.0.1=pyhd8ed1ab_0
   - attrs=21.4.0=pyhd8ed1ab_0
+  - backcall=0.2.0=pyh9f0ad1d_0
   - binutils_impl_linux-64=2.40=hf600244_0
   - blosc=1.21.0=h9c3ff4c_0
   - boost-cpp=1.74.0=h6cacc03_7
+  - branca=0.6.0=pyhd8ed1ab_0
+  - brotli=1.0.9=h166bdaf_8
+  - brotli-bin=1.0.9=h166bdaf_8
+  - brotlipy=0.7.0=py310h5764c6d_1005
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.18.1=h7f98852_0
-  - ca-certificates=2022.12.7=ha878542_0
+  - ca-certificates=2026.2.25=hbd8a1cb_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.16.0=ha00ac49_1009
-  - certifi=2022.12.7=pyhd8ed1ab_0
+  - certifi=2026.2.25=pyhd8ed1ab_0
+  - cffi=1.15.1=py310h255011f_3
   - cfitsio=4.0.0=h9a35b8e_0
+  - cftime=1.6.2=py310hde88566_1
+  - charset-normalizer=3.1.0=pyhd8ed1ab_0
+  - click=8.1.3=unix_pyhd8ed1ab_2
   - click-plugins=1.1.1=py_0
   - cligj=0.7.2=pyhd8ed1ab_1
+  - comm=0.2.3=pyhe01879c_0
+  - cryptography=40.0.2=py310h34c0648_0
   - curl=7.81.0=h494985f_0
+  - cycler=0.11.0=pyhd8ed1ab_0
+  - debugpy=1.8.16=py310hbdd6827_1
+  - decorator=5.2.1=pyhd8ed1ab_0
+  - entrypoints=0.4=pyhd8ed1ab_1
+  - executing=2.2.1=pyhd8ed1ab_0
   - expat=2.4.6=h27087fc_0
+  - fiona=1.8.21=py310hfb73927_0
+  - folium=0.14.0=pyhd8ed1ab_0
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
   - font-ttf-inconsolata=3.000=h77eed37_0
   - font-ttf-source-code-pro=2.038=h77eed37_0
@@ -28,32 +49,50 @@ dependencies:
   - fontconfig=2.13.96=ha180cfb_0
   - fonts-conda-ecosystem=1=0
   - fonts-conda-forge=1=0
+  - fonttools=4.39.3=py310h1fa729e_0
+  - freeglut=3.2.2=h9c3ff4c_1
   - freetype=2.10.4=h0708190_1
   - freexl=1.0.6=h7f98852_0
   - gcc=12.2.0=h26027b1_11
   - gcc_impl_linux-64=12.2.0=hcc96c02_19
+  - gdal=3.4.1=py310h8172e47_5
+  - geopandas-base=0.10.2=pyha770c72_1
   - geos=3.10.2=h9c3ff4c_0
   - geotiff=1.7.0=h6593c0a_6
   - gettext=0.19.8.1=h73d1719_1008
   - gfortran=12.2.0=h8acd90e_11
   - gfortran_impl_linux-64=12.2.0=h55be85b_19
   - giflib=5.2.1=h36c2ea0_2
+  - h5py=3.6.0=nompi_py310he751f51_100
   - hdf4=4.2.15=h10796ff_3
   - hdf5=1.12.1=nompi_h7f166f4_103
   - icu=69.1=h9c3ff4c_0
+  - idna=3.4=pyhd8ed1ab_0
+  - importlib-metadata=4.11.4=py310hff52083_0
   - importlib_metadata=4.11.4=hd8ed1ab_0
+  - ipykernel=6.29.2=pyhd33586a_0
+  - ipython=8.12.0=pyh41d4057_0
+  - jasper=4.0.0=h0ff4b12_0
   - jbig=2.1=h7f98852_2003
+  - jedi=0.19.2=pyhd8ed1ab_1
+  - jinja2=3.1.2=pyhd8ed1ab_1
   - joblib=1.1.0=pyhd8ed1ab_0
   - jpeg=9e=h7f98852_0
   - json-c=0.15=h98cffda_0
+  - jupyter_client=7.4.9=pyhd8ed1ab_0
+  - jupyter_core=5.9.1=pyhc90fa1f_0
   - kealib=1.4.14=h87e4c3c_3
   - kernel-headers_linux-64=2.6.32=he073ed8_15
   - keyutils=1.6.1=h166bdaf_0
+  - kiwisolver=1.4.4=py310hbf28c38_1
   - krb5=1.19.2=h08a2579_4
   - lcms2=2.12=hddcbb42_0
   - ld_impl_linux-64=2.40=h41732ed_0
   - lerc=3.0=h9c3ff4c_0
   - libblas=3.9.0=13_linux64_openblas
+  - libbrotlicommon=1.0.9=h166bdaf_8
+  - libbrotlidec=1.0.9=h166bdaf_8
+  - libbrotlienc=1.0.9=h166bdaf_8
   - libcblas=3.9.0=13_linux64_openblas
   - libcurl=7.81.0=h494985f_0
   - libdap4=3.20.6=hd7c4107_2
@@ -67,6 +106,7 @@ dependencies:
   - libgfortran-ng=12.2.0=h69a702a_19
   - libgfortran5=12.2.0=h337968e_19
   - libglib=2.70.2=h174f98d_4
+  - libglu=9.0.0=hf484d3e_1
   - libgomp=12.2.0=h65d4601_19
   - libiconv=1.16=h516909a_0
   - libkml=1.3.0=h238a007_1014
@@ -80,50 +120,101 @@ dependencies:
   - libpq=14.2=h676c864_0
   - librttopo=1.1.0=hf69c175_9
   - libsanitizer=12.2.0=h46fd767_19
+  - libsodium=1.0.18=h36c2ea0_1
+  - libspatialindex=1.9.3=h9c3ff4c_4
   - libspatialite=5.0.1=h0e567f8_14
   - libssh2=1.10.0=ha35d2d1_2
   - libstdcxx-ng=12.2.0=h46fd767_19
   - libtiff=4.3.0=h542a066_3
   - libuuid=2.32.1=h7f98852_1000
+  - libwebp=1.2.2=h3452ae3_0
   - libwebp-base=1.2.2=h7f98852_1
   - libxcb=1.13=h7f98852_1004
   - libxml2=2.9.12=h885dcf4_1
   - libzip=1.8.0=h1c5bbd1_1
   - libzlib=1.2.11=h36c2ea0_1013
+  - llvmlite=0.38.1=py310h58363a5_0
   - lz4-c=1.9.3=h9c3ff4c_1
+  - markupsafe=2.1.2=py310h1fa729e_0
+  - matplotlib-base=3.5.2=py310h5701ce4_1
+  - matplotlib-inline=0.2.1=pyhd8ed1ab_0
+  - mpi=1.0=mpich
+  - mpi4py=3.1.3=py310h37cc914_3
+  - mpich=4.1.1=h846660c_100
   - munch=2.5.0=py_0
+  - munkres=1.1.4=pyh9f0ad1d_0
   - ncurses=6.3=h9c3ff4c_0
+  - nest-asyncio=1.6.0=pyhd8ed1ab_1
+  - netcdf-fortran=4.5.4=nompi_h2b6e579_100
+  - netcdf4=1.5.8=nompi_py310hd7ca5b8_101
+  - networkx=3.2.1=py310h06a4308_0
   - nspr=4.32=h9c3ff4c_1
   - nss=3.74=hb5efdd6_0
+  - numba=0.55.1=py310ha5257ce_1
+  - numpy=1.21.6=py310h45f3432_0
   - openjpeg=2.4.0=hb52868f_1
-  - openssl=3.1.0=h0b41bf4_0
+  - openssl=3.1.1=hd590300_1
   - packaging=21.3=pyhd8ed1ab_0
+  - pandas=1.5.3=py310h9b08913_1
+  - parso=0.8.6=pyhcf101f3_0
   - pcre=8.45=h9c3ff4c_0
+  - pexpect=4.9.0=pyhd8ed1ab_1
+  - pickleshare=0.7.5=pyhd8ed1ab_1004
+  - pillow=9.1.1=py310he619898_0
   - pip=22.0.3=pyhd8ed1ab_0
   - pixman=0.40.0=h36c2ea0_0
+  - platformdirs=4.9.4=pyhcf101f3_0
+  - pooch=1.6.0=pyhd8ed1ab_0
   - poppler=22.01.0=ha39eefc_0
   - poppler-data=0.4.11=hd8ed1ab_0
   - postgresql=14.2=hce44dc1_0
   - proj=8.2.1=h277dcde_0
+  - prompt-toolkit=3.0.52=pyha770c72_0
+  - prompt_toolkit=3.0.52=hd8ed1ab_0
+  - psutil=5.9.4=py310h5764c6d_0
   - pthread-stubs=0.4=h36c2ea0_1001
+  - ptyprocess=0.7.0=pyhd8ed1ab_1
+  - pure_eval=0.2.3=pyhd8ed1ab_1
+  - pycparser=2.21=pyhd8ed1ab_0
+  - pygments=2.20.0=pyhd8ed1ab_0
+  - pyopenssl=23.1.1=pyhd8ed1ab_0
   - pyparsing=3.0.7=pyhd8ed1ab_0
+  - pyproj=3.3.0=py310h9e0d750_1
+  - pysocks=1.7.1=pyha2e5f31_6
   - python=3.10.2=hc74c709_3_cpython
   - python-dateutil=2.8.2=pyhd8ed1ab_0
   - python_abi=3.10=2_cp310
+  - pytz=2023.3=pyhd8ed1ab_0
+  - pyzmq=24.0.1=py310h330234f_1
+  - rasterio=1.2.10=py310h5e0f756_4
   - readline=8.1=h46c0cb4_0
+  - requests=2.29.0=pyhd8ed1ab_0
+  - rtree=1.0.1=py310hbdcdc62_1
+  - scikit-learn=1.1.3=py310h0c3af53_1
+  - scipy=1.10.1=py310h8deb116_0
+  - setuptools=67.7.2=pyhd8ed1ab_0
+  - shapely=1.8.2=py310hb974679_1
   - six=1.16.0=pyh6c4a22f_0
   - snuggs=1.4.7=py_0
   - sqlite=3.37.0=h9cd32fc_0
+  - stack_data=0.6.3=pyhd8ed1ab_1
   - sysroot_linux-64=2.12=he073ed8_15
   - threadpoolctl=3.1.0=pyh8a188c0_0
   - tiledb=2.7.0=h3f4058f_0
   - tk=8.6.12=h27826a3_0
+  - tornado=6.2=py310h5764c6d_1
+  - traitlets=5.14.3=pyhd8ed1ab_1
   - typing_extensions=4.3.0=pyha770c72_0
   - tzcode=2021e=h7f98852_0
   - tzdata=2021e=he74cb21_0
+  - unicodedata2=15.0.0=py310h5764c6d_0
+  - urllib3=1.26.15=pyhd8ed1ab_0
+  - wcwidth=0.6.0=pyhd8ed1ab_0
   - wheel=0.37.1=pyhd8ed1ab_0
   - xarray=2022.3.0=pyhd8ed1ab_0
   - xerces-c=3.2.3=h8ce2273_4
+  - xorg-fixesproto=5.0=h7f98852_1002
+  - xorg-inputproto=2.3.2=h7f98852_1002
   - xorg-kbproto=1.0.7=h7f98852_1002
   - xorg-libice=1.0.10=h7f98852_0
   - xorg-libsm=1.2.3=hd9c2040_1000
@@ -131,35 +222,16 @@ dependencies:
   - xorg-libxau=1.0.9=h7f98852_0
   - xorg-libxdmcp=1.1.3=h7f98852_0
   - xorg-libxext=1.3.4=h7f98852_1
+  - xorg-libxfixes=5.0.3=h7f98852_1004
+  - xorg-libxi=1.7.10=h7f98852_0
   - xorg-libxrender=0.9.10=h7f98852_1003
   - xorg-renderproto=0.11.1=h7f98852_1002
   - xorg-xextproto=7.3.0=h7f98852_1002
   - xorg-xproto=7.0.31=h7f98852_1007
+  - xyzservices=2023.2.0=pyhd8ed1ab_0
   - xz=5.2.5=h516909a_1
+  - zeromq=4.3.5=h59595ed_1
   - zipp=3.8.0=pyhd8ed1ab_0
   - zlib=1.2.11=h36c2ea0_1013
   - zstd=1.5.2=ha95c52a_0
-  - pip:
-    - cftime==1.6.0
-    - click==8.0.4
-    - fiona==1.8.21
-    - gdal==3.4.1
-    - geopandas==0.10.2
-    #- geospatialtools==0.0.0
-    - h5py==3.6.0
-    - importlib-metadata==4.11.4
-    - llvmlite==0.38.0
-    - mpi4py==3.1.3
-    - netcdf4==1.5.8
-    - numba==0.55.1
-    - numpy==1.21.5
-    - pandas==1.4.1
-    - psutil==5.9.4
-    - pyproj==3.3.0
-    - pytz==2021.3
-    - rasterio==1.2.10
-    - scikit-learn==1.0.2
-    - scipy==1.8.0
-    - setuptools==59.8.0
-    - shapely==1.8.0
-    #- "git+https://github.com/chaneyn/geospatialtools.git@dev_nate_2023"
+prefix: /home/deg31/miniconda3/envs/HB1

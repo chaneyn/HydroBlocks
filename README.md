@@ -16,7 +16,6 @@ cd HydroBlocks
 conda create --name HB --file spec-file.txt
 source activate HB
 pip install git+https://github.com/chaneyn/geospatialtools@dev_nate
-pip install psutil==5.9.4
 ```
 
 **3. Install HydroBlocks.**
@@ -25,3 +24,14 @@ pip install psutil==5.9.4
 python setup.py 
 ```
 
+**4. Run unit test.**
+
+Use an environment with the pytest module
+
+```
+pytest -q -s model/unittest/test_*.py
+```
+
+**5. Comments.**
+
+Use SVP should be the default. Some modules don't work if SVP is not the default. 
