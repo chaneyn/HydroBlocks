@@ -396,7 +396,7 @@ def Map_Model_Output(metadata,vars,rank,bbox,startdate,enddate):
  for icatch in icatchs:
   data_catchment = {}
   for var in vars:
-   if var in ['smc','hdiv','hdiv_heat','zsnso_sn','snice','snliq','soil_m','soil_w','soil_t',]:
+   if var in ['smc','hdiv','hdiv_loc','hdiv_reg','hdiv_int','hdiv_heat','zsnso_sn','snice','snliq','soil_m','soil_w','soil_t',]:
     var_data = fps[icatch]['data'].variables['%s' % var][:,:,:]
     data_catchment[var] = np.average(var_data, axis=2, weights=layers/layers.sum()) #compute weighted average for soil layers
    else:
