@@ -1314,10 +1314,10 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
    #Standard depth (in meters): 	0.0 	-0.05 -0.15 	-0.30 	-0.60 	-1.0 	  -2.0
    #Standard depth (in cm):     	0 cm 	5 cm 	15 cm 	30 cm 	60 cm 	100 cm 	200 cm
    
-  vars = ['clay','sand','silt', 'om', 'ksat']
+  vars = ['clay','sand','silt', 'om']
   properties = {}
   for var in vars:
-   files = sorted(glob.glob(metadata['soil'][var] + '/*.tif'))
+   files = sorted(glob.glob(metadata['soil'][var]))
    if len(files) != 7:
     print(f'Error: SoilGrids files incomplete. Number of files {len(files)}; should be 7 (former version)',flush=True)
     exit()
@@ -1326,7 +1326,7 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
    sg_md = gdal_tools.retrieve_metadata(files[0])
    window_md = build_window_metadata(md, sg_md)
    #output temp raster metadata
-   with rasterio.open(files[i]) as src:
+   with rasterio.open(files[0]) as src:
     nodata = src.nodata # get original nodata value
    sg_gt = sg_md["gt"]
    ixmin = window_md["ixmin"]
@@ -1335,7 +1335,7 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
    out_md = {'nx':window_md["nx"],
              'ny':window_md["ny"],
              'gt':out_gt,
-             'proj':sg_md['proj'],
+             'projection':sg_md['projection'],
              'nodata':nodata}
    
    properties[var]={}
@@ -1348,8 +1348,8 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
      exit()
     layer_id = int(files[i][index + 3]) - 1 #String: 3 spaces right --> (_sl1)
     
-    top = gdal_tools.read_raster_subarea(layer_id, window_md)
-    bottom = gdal_tools.read_raster_subarea(layer_id + 1, window_md)
+    top = gdal_tools.read_raster_subarea(files[layer_id], window_md)
+    bottom = gdal_tools.read_raster_subarea(files[layer_id + 1], window_md)
 
     out = np.full(top.shape, -9999.0, dtype=np.float32)
     valid = (top != nodata) & (bottom != nodata)
