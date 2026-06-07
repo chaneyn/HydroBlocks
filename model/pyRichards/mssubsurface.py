@@ -93,7 +93,7 @@ class mssubsurface:
         q_hru_m3s = np.dot(self.farea_gw.T, unit_divergence_m3s)
         hdiv_hru = np.zeros_like(q_hru_m3s)
         area = area_hrus[:, np.newaxis]
-        np.divide(-1000.0 * q_hru_m3s, area, out=hdiv_hru, where=area > 0.0)
+        np.divide(1000.0 * q_hru_m3s, area, out=hdiv_hru, where=area > 0.0)
         return hdiv_hru
 
     def _build_regional_indexing(self):
