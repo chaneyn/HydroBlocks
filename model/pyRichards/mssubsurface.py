@@ -533,7 +533,8 @@ def exchange_smc_regional_units(cids,rank,HBdb):
 
             elif cid != cid_in_rank and cid in risfu_mapping[cid_in_rank].keys():
                 rows = risfu_mapping[cid_in_rank][cid]
-                smc_other_cid = HBdb[cid].mssubsurface.th_gw[:]
+                #smc_other_cid = HBdb[cid].mssubsurface.th_gw[:]
+                smc_other_cid = HBdb[cid].mssubsurface.aggregate_variable(HBdb[cid].noahmp.smois[:])
                 smc_db[cid] = smc_other_cid[rows, :]
 
         for cid in risfu_mapping.keys():
@@ -597,7 +598,7 @@ def exchange_temperature_regional_units(cids,rank,HBdb):
 
     for cid_in_rank in cids_core:
         local_subsurface = HBdb[cid_in_rank].mssubsurface
-        temperature_gw = local_subsurface.temp_gw[:]
+        temperature_gw = local_subsurface.aggregate_variable(HBdb[cid_in_rank].noahmp.tslb[:]) #use the latest soil temp
         risfu_mapping = local_subsurface.risfu_mapping
 
         temperature_db = {}
@@ -616,7 +617,7 @@ def exchange_temperature_regional_units(cids,rank,HBdb):
             elif cid in cids_core and cid != cid_in_rank:
                 if cid in risfu_mapping[cid_in_rank].keys():
                     rows = risfu_mapping[cid_in_rank][cid]
-                    temperature_other_cid = HBdb[cid].mssubsurface.temp_gw[:]
+                    temperature_other_cid = HBdb[cid].mssubsurface.aggregate_variable(HBdb[cid].noahmp.tslb[:])
                     data_rows = temperature_other_cid[rows, :]
                     temperature_db[cid] = data_rows
 
