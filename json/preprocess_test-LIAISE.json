@@ -15,12 +15,12 @@
                      "fdir":"dir/dir.vrt"}},
 "landcover":{"dataset":"CORINE",
              "file":"/stor/soteria/hydro/private/deg31/DATASETS/CORINE_LC/U2018_CLC2012_V2020_20u1_raster100m/land_cover_liaise.tif",
-             "mapping_file":"/stor/tyche/soteria/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/HydroBlocks/json/mapping_CORINE.json"},
+             "mapping_lc_file":"/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_dev_daniel/HydroBlocks/json/mapping_CORINE.json"},
 "soil":{"dataset":"soilgrids",
-        "clay":"/home/deg31/sotdeg31/DATASETS/SoilGrids/SoilGrids_LIAISE/clay/CLYPPT_M_sl*_250m_ll_glhymps3arcsec.tif",
-        "sand":"/home/deg31/sotdeg31/DATASETS/SoilGrids/SoilGrids_LIAISE/sand/SNDPPT_M_sl*_250m_ll_glhymps3arcsec.tif",
-        "silt":"/home/deg31/sotdeg31/DATASETS/SoilGrids/SoilGrids_LIAISE/silt/SLTPPT_M_sl*_250m_ll_glhymps3arcsec.tif",
-        "om":"/home/deg31/sotdeg31/DATASETS/SoilGrids/SoilGrids_LIAISE/om/ORCDRC_M_sl*_250m_ll_glhymps3arcsec.tif"
+        "clay":"/stor/soteria/hydro/private/deg31/DATASETS/SoilGrids/CLYPPT_M_sl*_250m_ll.tif",
+        "sand":"/stor/soteria/hydro/private/deg31/DATASETS/SoilGrids/SNDPPT_M_sl*_250m_ll.tif",
+        "silt":"/stor/soteria/hydro/private/deg31/DATASETS/SoilGrids/SLTPPT_M_sl*_250m_ll.tif",
+        "om":"/stor/soteria/hydro/private/deg31/DATASETS/SoilGrids/ORCDRC_M_sl*_250m_ll.tif"
         },
 "dbedrock":"/stor/soteria/hydro/shared/data/Global_Soil_Regolith_Sediment/data/average_soil_and_sedimentary-deposit_thickness.tif",
 "administrative_boundaries":"/stor/soteria/hydro/private/deg31/DATASETS/LIAISE-Forcing/admin_boundaries_from_forcing/shp_3km/admin_forcing.shp",

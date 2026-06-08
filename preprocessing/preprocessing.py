@@ -1336,7 +1336,7 @@ def Extract_Soils(cdb,workspace,metadata,icatch,log):
              'ny':window_md["ny"],
              'gt':out_gt,
              'projection':sg_md['projection'],
-             'nodata':nodata}
+             'nodata':-9999.0}
    
    properties[var]={}
    # Interpolate to the center of the layer
