@@ -515,7 +515,7 @@ def exchange_smc_regional_units(cids,rank,HBdb):
 
     for cid_in_rank in cids:
         local_subsurface = HBdb[cid_in_rank].mssubsurface
-        smc_hb = local_subsurface.th_gw[:]
+        smc_hb = local_subsurface.aggregate_variable(HBdb[cid_in_rank].noahmp.smois[:]) #use the latest smc
         risfu_mapping = local_subsurface.risfu_mapping
 
         smc_db = {cid_in_rank: smc_hb}
