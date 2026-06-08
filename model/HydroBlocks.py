@@ -1157,7 +1157,7 @@ class HydroBlocks:
    else:
      self.richards.dem1 = self.richards.dem
 
-   self.richards.update_numba(use_vsp,temperature=self.noahmp.tslb,rho_w=1000.0,c_w=4186.0)
+   self.richards.update_numba(use_vsp,temperature=self.noahmp.tslb,rho_w=1000.0,c_w=4186.0,hdiv_heat=self.richards.hdiv_heat if use_heat_advection else None)
 
    #Assign subsurface module variables to noahmp
    self.noahmp.hdiv[:] = self.richards.hdiv[:]
@@ -1197,7 +1197,7 @@ class HydroBlocks:
     aux=aux+1
 
    #Update subsurface module (Local Lateral Flow)
-   self.richards.update_numba(use_vsp) #laura, svp
+   self.richards.update_numba(self.richards.update_numba(use_vsp,temperature=self.noahmp.tslb,rho_w=1000.0,c_w=4186.0,hdiv_heat=self.richards.hdiv_heat if use_heat_advection else None))
 
    #Assign subsurface module variables to noahmp
    aux=0 #laura convert hband level divergence to HRU level. TO DO: limit the dovergence for different land covers
