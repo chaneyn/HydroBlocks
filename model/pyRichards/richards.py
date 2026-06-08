@@ -178,6 +178,14 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
     if theta[i, il] <= (1 - eps) * thetas[i, il]:
      q[i, :] = 0 #no horizontal flow in unsaturated layers
      q[:, i] = 0
+  # Suppress water transfer at frozen nodes so any link touching a subfreezing
+  # endpoint contributes no liquid flux or advective heat transport.
+  if temperature is not None:
+   freezing_point = 273.15 #K
+   for i in range(q.shape[0]):
+    if temperature[i, il] < freezing_point:
+     q[i, :] = 0
+     q[:, i] = 0
   # q[i, j] stores the divergence contribution for source HRU i toward neighbor j.
   # Sum across each row so the integrated mass closes with area-normalized fluxes.
   hdiv[:,il] = np.sum(q,axis=1) #mm/s - sum over all connections to get divergence at each HRU

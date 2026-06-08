@@ -219,7 +219,7 @@ class mssubsurface:
         inter_unit_flow_m3s  = np.zeros((theta_gw.shape[0], theta_gw.shape[0], self.nsoil))
         self.inter_unit_flow_m3s = update_workhorse_int_gw(theta_gw,self.dz_gw,inter_unit_flow_m3s,self.tr_gw,self.ts_gw,\
                                                            self.bb_gw,self.sp_gw,self.m_gw,self.ks_gw,self.dem_gw,self.w_gw,self.dx_gw,\
-                                                               self.mconx,af,self.flag_sat)
+                                                           self.mconx,af,self.flag_sat)
         self.q_int = self._unit_divergence_from_flow_tensor(self.inter_unit_flow_m3s)
         self.hdiv_int = self._distribute_unit_divergence_to_hrus(self.q_int, area_hrus)
         return
