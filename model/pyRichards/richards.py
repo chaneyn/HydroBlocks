@@ -297,6 +297,7 @@ def calculate_That(T):
 def calculate_advective_heat_divergence_from_q(q,temperature,rho_w,c_w):
   # Numba-compatible implementation. All arrays are assumed numpy arrays with
   # consistent dtypes (float64) and shapes. q is [mm/s].
+  freezing_point = 273.15 #K
   n = temperature.size
   rhs = np.zeros(n)
 
@@ -308,6 +309,9 @@ def calculate_advective_heat_divergence_from_q(q,temperature,rho_w,c_w):
     acc = 0.0
     for j in range(n):
       if i == j:
+        continue
+      # Suppress advective heat transport if either endpoint is frozen.
+      if temperature[i] < freezing_point or temperature[j] < freezing_point:
         continue
       q_ij = q_link_ms[i,j]
       # Upwind temp

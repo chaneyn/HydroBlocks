@@ -754,6 +754,12 @@ class HydroBlocks:
    net_hdiv_loc = np.sum(self.pct*np.sum(hdiv_loc,axis=1))
    net_hdiv_int = np.sum(self.pct*np.sum(hdiv_int,axis=1))
    net_hdiv_reg = np.sum(self.pct*np.sum(hdiv_reg,axis=1))
+   #compute positives and negatives hdiv_loc
+   use_hdiv = hdiv_reg
+   pos_hdiv = np.sum(self.pct*np.sum(np.where(use_hdiv > 0, use_hdiv, 0.0),axis=1))
+   neg_hdiv = np.sum(self.pct*np.sum(np.where(use_hdiv < 0, use_hdiv, 0.0),axis=1))
+   diff_hdiv = pos_hdiv + neg_hdiv
+   
    if hdiv_reg_same is not None:
     net_hdiv_reg_same = np.sum(self.pct*np.sum(hdiv_reg_same,axis=1))
     ms_recon_err = (net_hdiv_loc + net_hdiv_int + net_hdiv_reg) - hdiv_domain_net
@@ -772,6 +778,12 @@ class HydroBlocks:
     net_hdiv_heat_int = np.sum(pct64*np.sum(hdiv_heat_int64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
     net_hdiv_heat_reg = np.sum(pct64*np.sum(hdiv_heat_reg64*sldpth64,axis=1,dtype=np.float64),dtype=np.float64)
     ms_heat_recon_err = (net_hdiv_heat_loc + net_hdiv_heat_int + net_hdiv_heat_reg) - net_hdiv_heat
+    #compute positives and negatives hdiv_heat_loc
+    use_hdiv_heat = hdiv_heat_reg64
+    pos_hdiv_heat = np.sum(pct64*np.sum(np.where(use_hdiv_heat > 0, use_hdiv_heat, 0.0),axis=1,dtype=np.float64),dtype=np.float64)
+    neg_hdiv_heat = np.sum(pct64*np.sum(np.where(use_hdiv_heat < 0, use_hdiv_heat, 0.0),axis=1,dtype=np.float64),dtype=np.float64)
+    diff_hdiv_heat = pos_hdiv_heat + neg_hdiv_heat
+    
    bad_ms = (
     (not np.all(np.isfinite(hdiv_loc))) or
     (not np.all(np.isfinite(hdiv_int))) or
@@ -793,7 +805,7 @@ class HydroBlocks:
    heat_reg_str = 'na' if not np.isfinite(net_hdiv_heat_reg) else '%.3e' % net_hdiv_heat_reg
    heat_recon_str = 'na' if not np.isfinite(ms_heat_recon_err) else '%.3e' % ms_heat_recon_err
    print(
-    '  Subsurface|cid:%s|itime:%s|dSMmax_mm:%.3e|net_hdiv_mmps:%.3e|net_hdiv_loc_mmps:%s|net_hdiv_int_mmps:%s|net_hdiv_reg_mmps:%s|net_hdiv_reg_same_mmps:%s|ms_recon_err_mmps:%s|net_hdiv_heat_loc_wm2:%s|net_hdiv_heat_int_wm2:%s|net_hdiv_heat_reg_wm2:%s|ms_heat_recon_err_wm2:%s'\
+    '  Subsurface|cid:%s|itime:%s|dSMmax_mm:%.3e|net_hdiv_mmps:%.3e|net_hdiv_loc_mmps:%s|net_hdiv_int_mmps:%s|net_hdiv_reg_mmps:%s|net_hdiv_reg_same_mmps:%s|ms_recon_err_mmps:%s|net_hdiv_heat_wm2:%.3e|net_hdiv_heat_loc_wm2:%s|net_hdiv_heat_int_wm2:%s|net_hdiv_heat_reg_wm2:%s|ms_heat_recon_err_wm2:%s'\
     % (
      self.cid,
      self.itime,
@@ -804,6 +816,7 @@ class HydroBlocks:
      reg_str,
      reg_same_str,
      recon_str,
+     net_hdiv_heat,
      heat_loc_str,
      heat_int_str,
      heat_reg_str,
@@ -811,6 +824,8 @@ class HydroBlocks:
     ),
     flush=True
    )
+   print(' Checking hdiv balance: (pos=%.3e, neg=%.3e), net_int=%.3e' % (pos_hdiv, neg_hdiv, diff_hdiv), flush=True)
+   print(' Checking hdiv_heat balance: (pos=%.3e, neg=%.3e), net_int=%.3e' % (pos_hdiv_heat, neg_hdiv_heat, diff_hdiv_heat), flush=True)
 
  def initialize_richards(self,ncsbasins):
    
@@ -1227,7 +1242,6 @@ class HydroBlocks:
    #Compute hru hdiv (local, intermediate, regional)
    self.noahmp.hdiv[:] = hdiv_loc + hdiv_int + hdiv_reg
    self.mssubsurface.hdiv_loc = np.copy(hdiv_loc)
-   self.mssubsurface.hdiv_total = np.copy(self.noahmp.hdiv)
 
    if use_heat_advection:
     #Reshape soil temperature for regional units flow
@@ -1238,7 +1252,8 @@ class HydroBlocks:
     hdiv_heat_reg = self.mssubsurface.compute_regional_hdiv_heat(self.area, self.noahmp.sldpth)
     self.noahmp.hdiv_heat[:] = hdiv_heat_loc + hdiv_heat_int + hdiv_heat_reg
     self.mssubsurface.hdiv_heat_loc = np.copy(hdiv_heat_loc)
-    self.mssubsurface.hdiv_heat_total = np.copy(self.noahmp.hdiv_heat)
+    self.mssubsurface.hdiv_heat_int = np.copy(hdiv_heat_int)
+    self.mssubsurface.hdiv_heat_reg = np.copy(hdiv_heat_reg)
 
     ms_diag = {
       'hdiv_loc':hdiv_loc,
@@ -1443,14 +1458,32 @@ class HydroBlocks:
    tmp['sfcheadrt'] = np.copy(NOAH.sfcheadrt)
    tmp['inundation'] = np.copy(self.routing.hru_inundation)
   #----------Multiscale Subsurface Scheme ------------------
-  if self.multiscale_flag == True:
+  zero_hdiv = np.zeros_like(self.noahmp.hdiv)
+  zero_heat = np.zeros_like(self.noahmp.hdiv_heat)
+  if self.multiscale_flag:
    tmp['hdiv_loc'] = np.copy(self.mssubsurface.hdiv_loc)
    tmp['hdiv_int'] = np.copy(self.mssubsurface.hdiv_int)
    tmp['hdiv_reg'] = np.copy(self.mssubsurface.hdiv_reg)
+   if self.heat_advection:
+    tmp['hdiv_heat_loc'] = np.copy(self.mssubsurface.hdiv_heat_loc)
+    tmp['hdiv_heat_int'] = np.copy(self.mssubsurface.hdiv_heat_int)
+    tmp['hdiv_heat_reg'] = np.copy(self.mssubsurface.hdiv_heat_reg)
+   else:
+    tmp['hdiv_heat_loc'] = zero_heat
+    tmp['hdiv_heat_int'] = zero_heat
+    tmp['hdiv_heat_reg'] = zero_heat
   else:
    tmp['hdiv_loc'] = np.copy(self.noahmp.hdiv)
-   tmp['hdiv_int'] = np.zeros(self.noahmp.hdiv.shape)
-   tmp['hdiv_reg'] = np.zeros(self.noahmp.hdiv.shape)
+   tmp['hdiv_int'] = zero_hdiv
+   tmp['hdiv_reg'] = zero_hdiv
+   if self.heat_advection:
+    tmp['hdiv_heat_loc'] = np.copy(self.noahmp.hdiv_heat)
+    tmp['hdiv_heat_int'] = zero_heat
+    tmp['hdiv_heat_reg'] = zero_heat
+   else:
+    tmp['hdiv_heat_loc'] = zero_heat
+    tmp['hdiv_heat_int'] = zero_heat
+    tmp['hdiv_heat_reg'] = zero_heat
   #--------------------------------------------------------
   # root zone
   cs = np.cumsum(NOAH.sldpth[0,:])
@@ -1562,20 +1595,20 @@ class HydroBlocks:
              'lwnet':{'description':'Net longwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              'swnet':{'description':'Absorbed shortwave radiation','units':'W/m2','dims':('time','hru',),'precision':4},
              "t2mv":{'description':'Vegetated air temperature','units':'K','dims':('time','hru',),'precision':4},
-	     "t2mb":{'description':'Bare air temperature','units':'K','dims':('time','hru',),'precision':4},
-	     "fveg":{'description':'Vegetated fraction','units':'','dims':('time','hru',),'precision':8},
-	     "mozb":{'description':'Bare stability parameter','units':'','dims':('time','hru',),'precision':4},
-	     "mozv":{'description':'Vegetated stability parameter','units':'','dims':('time','hru',),'precision':4},
-	     "zpd":{'description':'Vegetated zero plane displacement','units':'','dims':('time','hru',),'precision':4},
-	     "zpdg":{'description':'Ground zero plane displacement','units':'','dims':('time','hru',),'precision':4},
+	           "t2mb":{'description':'Bare air temperature','units':'K','dims':('time','hru',),'precision':4},
+	           "fveg":{'description':'Vegetated fraction','units':'','dims':('time','hru',),'precision':8},
+	           "mozb":{'description':'Bare stability parameter','units':'','dims':('time','hru',),'precision':4},
+	           "mozv":{'description':'Vegetated stability parameter','units':'','dims':('time','hru',),'precision':4},
+	           "zpd":{'description':'Vegetated zero plane displacement','units':'','dims':('time','hru',),'precision':4},
+	           "zpdg":{'description':'Ground zero plane displacement','units':'','dims':('time','hru',),'precision':4},
              "cm":{'description':'Momentum drag coefficient','units':'','dims':('time','hru',),'precision':4},
              "ch":{'description':'Sensible heat exchange coefficient','units':'','dims':('time','hru',),'precision':4},
-	     "tauxb":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
-	     "tauyb":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
-	     "tauxv":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
-	     "tauyv":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
-	     "fvb":{'description':'Bare friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
-	     "fvv":{'description':'Vegetated friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
+	           "tauxb":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
+	           "tauyb":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
+	           "tauxv":{'description':'Bare wind stress (e-w)','units':'','dims':('time','hru',),'precision':4},
+	           "tauyv":{'description':'Bare wind stress (n-s)','units':'','dims':('time','hru',),'precision':4},
+	           "fvb":{'description':'Bare friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
+	           "fvv":{'description':'Vegetated friction velocity','units':'m/s','dims':('time','hru',),'precision':4},
              "shb":{'description':'Bare sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "shc":{'description':'Vegetated canopy sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
              "shg":{'description':'Vegetated ground sensible heat flux','units':'W/m2','dims':('time','hru',),'precision':4},
@@ -1666,10 +1699,11 @@ class HydroBlocks:
              'hdiv_loc':{'description':'hdiv_loc','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_reg':{'description':'hdiv_reg','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_heat':{'description':'hdiv_heat','units':'W/m2','dims':('time','hru','soil'),'precision':16},
-
+             'hdiv_heat_loc':{'description':'hdiv_heat_loc','units':'W/m2','dims':('time','hru','soil'),'precision':16},
+             'hdiv_heat_int':{'description':'hdiv_heat_int','units':'W/m2','dims':('time','hru','soil'),'precision':16},
+             'hdiv_heat_reg':{'description':'hdiv_heat_reg','units':'W/m2','dims':('time','hru','soil'),'precision':16},
              'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
              'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
-
              # Water Management
              'demand_agric':{'description':'Irrigation water demand','units':'m','dims':('time','hru',),'precision':4},
              'deficit_agric':{'description':'Irrigation water deficit','units':'m','dims':('time','hru',),'precision':4},

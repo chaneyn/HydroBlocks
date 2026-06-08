@@ -59,11 +59,10 @@ class mssubsurface:
         self.hdiv_int = None
         self.hdiv_reg = None
         self.hdiv_reg_same_cid = None
-        self.hdiv_total = None
+        #self.hdiv_total = None
         self.hdiv_heat_loc = None
         self.hdiv_heat_int = None
         self.hdiv_heat_reg = None
-        self.hdiv_heat_total = None
         self.q_int = None
         self.q_reg = None
         self.q_reg_same_cid = None
@@ -270,10 +269,12 @@ def update_workhorse_int_gw(theta_gw, dz_gw, inter_unit_flow_m3s, thetar_gw, the
     return inter_unit_flow_m3s
 
 #solve enthalpy flux for the intermediate interaction
+@numba.jit(nopython=True, cache=True)
 def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
     rho_w = 1000.0
     c_w = 4186.0
     eps = 1e-20
+    freezing_point = 273.15 #K
 
     nclusters, nhrus = clusters.shape
     nsoil = temperatures.shape[1]
@@ -286,6 +287,10 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
             for m in range(k+1,nclusters):
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
+                    continue
+
+                # Suppress advective heat transport if either endpoint is frozen.
+                if temperatures[k, il] < freezing_point or temperatures[m, il] < freezing_point:
                     continue
 
                 if q_link > 0.0:
@@ -312,10 +317,12 @@ def compute_enthalpy_flux(clusters, flows, temperatures, area_hrus, dz_hrus):
     return hdiv_heat
 
 #solve enthalpy flux for the regional interaction
+@numba.jit(nopython=True, cache=True)
 def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices, local_clusters, area_hrus, dz_hrus):
     rho_w = 1000.0
     c_w = 4186.0
     eps = 1e-20
+    freezing_point = 273.15 #K
 
     nclusters = flows.shape[0]
     nhrus = local_clusters.shape[1]
@@ -323,12 +330,15 @@ def compute_enthalpy_flux_regional(flows, unit_temperatures, local_unit_indices,
 
     hdiv_heat = np.zeros((nhrus, nsoil))
     for il in range(nsoil):
-        #print(f'[regional flux] Layer {il}: flows = {flows[:,:,il].sum()} {np.abs(flows[:,:,il]).mean():.2e}', flush=True)
         net_heat_cluster = np.zeros(nclusters)
         for k in range(nclusters):
             for m in range(k+1,nclusters):
                 q_link = flows[k, m, il]  # Use signed flow directly for clarity
                 if np.abs(q_link) <= eps:
+                    continue
+
+                # Suppress advective heat transport if either endpoint is frozen.
+                if unit_temperatures[k, il] < freezing_point or unit_temperatures[m, il] < freezing_point:
                     continue
 
                 if q_link > 0.0:
