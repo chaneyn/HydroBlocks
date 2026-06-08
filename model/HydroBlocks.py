@@ -1665,7 +1665,7 @@ class HydroBlocks:
              'hdiv_int':{'description':'hdiv_int','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_loc':{'description':'hdiv_loc','units':'mm/s','dims':('time','hru','soil'),'precision':16},
              'hdiv_reg':{'description':'hdiv_reg','units':'mm/s','dims':('time','hru','soil'),'precision':16},
-             'hdiv_heat':{'description':'hdiv_heat','units':'J/m3/s','dims':('time','hru','soil'),'precision':16},
+             'hdiv_heat':{'description':'hdiv_heat','units':'W/m2','dims':('time','hru','soil'),'precision':16},
 
              'smc1':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},
              'smc_root':{'description':'Soil water content at the root zone','units':'m3/m3','dims':('time','hru',),'precision':3},  
