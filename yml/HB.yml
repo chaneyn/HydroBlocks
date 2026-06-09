@@ -1,4 +1,4 @@
-name: HB1
+name: HB
 channels:
   - conda-forge
   - defaults
