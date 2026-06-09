@@ -272,12 +272,12 @@ def calculate_divergence(h,T,w,dx,area):
   for j in range(h.size):
    if dx[i,j] > eps:
     #[mm/s] = [mm/m]*[m/s]*[m]/[m]*[m]*[m]/[m2]
-    calc_div[i,j] = -1000.0*That[i,j]*dh[i,j]/dx[i,j]*w[i,j]/area[i] # mm/s
+    calc_div[i,j] = 1000.0*That[i,j]*dh[i,j]/dx[i,j]*w[i,j]/area[i] # mm/s
    else:
     calc_div[i,j] = 0.0  # No flow if distance is zero
  # sign convention: positive dh means flow from i to j, negative dh means flow from j to i. (Darcy's law: q = -K * A * (h[j] - h[i]) / dx[i,j])
  # negative sign because flow is from high to low head, but dh is calculated as h[i] - h[j]
- # The negative sign in the formula accounts for this convention, ensuring that positive divergence corresponds to net outflow from node i.
+ # The positive divergence corresponds to net outflow from node i.
 
  return calc_div
 
