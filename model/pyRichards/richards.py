@@ -310,7 +310,7 @@ def calculate_advective_heat_divergence_from_q(q,temperature,rho_w,c_w):
   rhs = np.zeros(n)
 
   q_link_ms = np.zeros((n,n))
-  q_link_ms[:,:] = -q / 1000.0 # Convert from mm/s to m/s
+  q_link_ms[:,:] = q / 1000.0 # Convert from mm/s to m/s
 
   # Compute per-node transported heat power and convert to divergence
   for i in range(n):
