@@ -2543,7 +2543,11 @@ def Correct_Shreve(rank,size,cids,edir,comm):
  comm.Barrier()
 
  ##Update input_file with corrected Shreve order
- shreve_final = pickle.load(open('%s/workspace/fix_shreve_all.pck' %(edir),'rb'))
+ file = '%s/workspace/fix_shreve_all.pck' % (edir)
+ while not os.path.exists(file):
+  print(f"Waiting for file: {file}",flush=True)
+  time.sleep(1)  # Check every 1 second
+ shreve_final = pickle.load(open(file,'rb'))
  for cid in cids[rank::size]:
   with h5py.File('%s/%s/input_file.nc' % (edir,cid),'r+') as fp3:
    if 'shreve' in fp3['stream_network'].keys():
@@ -2569,7 +2573,11 @@ def Network_Abstraction(rank,size,cids,edir,comm,metadata):
   pickle.dump(thr,open('%s/workspace/percentile_analysis.pck' %(edir),'wb'))
  comm.Barrier()
 
- thr = pickle.load(open('%s/workspace/percentile_analysis.pck' %(edir),'rb')) 
+ file = '%s/workspace/percentile_analysis.pck' % (edir)
+ while not os.path.exists(file):
+  print(f"Waiting for file: {file}",flush=True)
+  time.sleep(1)  # Check every 1 second
+ thr = pickle.load(open(file,'rb')) 
  for cid in cids[rank::size]:
   abst_mask=[] #0=abstracted, 1=explicit
   fp=h5py.File('%s/%s/input_file.nc' % (edir,cid),'a')
@@ -2762,6 +2770,9 @@ def read_channel_database(cid,edir):
 
  #Open input_file.nc for cid in append mode
  file = '%s/%s/input_file.nc' % (edir,cid)
+ while not os.path.exists(file):
+  print(f"Waiting for file: {file}",flush=True)
+  time.sleep(1)  # Check every 1 second
  fp = nc.Dataset(file,'r')
  
  #create enhanced topology by adding outlet information (channel id and cid)
