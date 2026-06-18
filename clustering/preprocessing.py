@@ -2536,7 +2536,11 @@ def Correct_Shreve(rank,size,cids,edir,comm):
   for i in cids:
    shreve_final[i-1][:] = 0
   for cid in cids:
-   shreve_cid = pickle.load(open('%s/workspace/fix_shreve_%s.pck' %(edir,cid),'rb'))
+   file = '%s/workspace/fix_shreve_%s.pck' % (edir,cid)
+   while not os.path.exists(file):
+    print(f"Waiting for file: {file}",flush=True)
+    time.sleep(1)  # Check every 1 second
+   shreve_cid = pickle.load(open(file,'rb'))
    for i in cids:
     shreve_final[i-1][:] = shreve_final[i-1][:] + shreve_cid[i-1][:]
   pickle.dump(shreve_final,open('%s/workspace/fix_shreve_all.pck' %(edir),'wb'))
