@@ -34,6 +34,8 @@ class richards:
   #Initialize the width array
   self.width = []
   self.I = []
+  # Store pairwise divergence links for tracer transport
+  self.q_links = np.zeros((nsoil, nhru, nhru))
 
   return
 
@@ -53,15 +55,17 @@ class richards:
   w = self.w
   dx = self.dx
   area = self.area
+  q_links = np.zeros((theta.shape[1], theta.shape[0], theta.shape[0]))
   if hdiv_heat is not None:
    hdiv_heat = self.hdiv_heat
   if vsp_flag==True: #laura svp
    self.hdiv[:] = update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,
                                        af, self.flag_sat, #divergence computed with vertical variable soil properties
-                                       temperature=temperature,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat) #heat divergence
+                                       temperature=temperature,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat, #heat divergence
+                                       q_links=q_links) #divergent flows for tracer transport
   else:
    self.hdiv[:] = update_workhorse(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,af)
-  
+  self.q_links[:] = q_links
   if hdiv_heat is not None:
    self.hdiv_heat[:] = hdiv_heat
 
@@ -72,19 +76,19 @@ class richards_hbands:
  def __init__(self,nhru,nhband,nsoil,vsp_flag): #laura
   
   # Initialize arrays for soil moisture and hydraulic properties
-  self.theta = np.zeros((nhru,nsoil))
+  self.theta = np.zeros((nhband,nsoil))
   if vsp_flag==True:
-   self.thetar = np.zeros((nhru,nsoil)) #laura svp
-   self.thetas = np.zeros((nhru,nsoil)) #laura svp
-   self.b = np.zeros((nhru,nsoil)) #laura svp
-   self.satpsi = np.zeros((nhru,nsoil)) #laura svp
-   self.ksat = np.zeros((nhru,nsoil)) #laura svp
+   self.thetar = np.zeros((nhband,nsoil)) #laura svp
+   self.thetas = np.zeros((nhband,nsoil)) #laura svp
+   self.b = np.zeros((nhband,nsoil)) #laura svp
+   self.satpsi = np.zeros((nhband,nsoil)) #laura svp
+   self.ksat = np.zeros((nhband,nsoil)) #laura svp
   else:
-   self.thetar = np.zeros(nhru)
-   self.thetas = np.zeros(nhru)
-   self.b = np.zeros(nhru)
-   self.satpsi = np.zeros(nhru)
-   self.ksat = np.zeros(nhru)
+   self.thetar = np.zeros(nhband)
+   self.thetas = np.zeros(nhband)
+   self.b = np.zeros(nhband)
+   self.satpsi = np.zeros(nhband)
+   self.ksat = np.zeros(nhband)
   # Initialize arrays for hru properties
   self.dem = np.zeros(nhru)
   self.demhband = np.zeros(nhband) #laura added
@@ -100,6 +104,8 @@ class richards_hbands:
   #Initialize the width array
   self.width = {} #laura
   self.I = {}#laura
+  # Store pairwise divergence links for tracer transport
+  self.q_links = np.zeros((nhband, nhband, nsoil))
 
   return
 
@@ -120,6 +126,7 @@ class richards_hbands:
   dx = self.dx
   area = self.area
   ncsbasins=self.ncsbasins #laura, number of characteristic subbasins
+  q_links = np.zeros((self.hdiv.shape[0], self.hdiv.shape[0], theta.shape[1])) # (nhband, nhband, nsoil)
   if hdiv_heat is not None:
    hdiv_heat = self.hdiv_heat
   
@@ -145,12 +152,14 @@ class richards_hbands:
                                          thetar[init:fin],thetas[init:fin],b[init:fin],
                                          satpsi[init:fin],m[init:fin],ksat[init:fin],hand[init:fin],
                                          w_bas,dx_bas,area[init:fin],af,self.flag_sat,
-                                         temperature=temp_bas,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat_bas)
+                                         temperature=temp_bas,rho_w=rho_w,c_w=c_w,hdiv_heat=hdiv_heat_bas,
+                                         q_links=q_links[init:fin,init:fin,:])
     aux=fin #laura, added to fix flerchinger
     # Copy back the hdiv_heat results 
     if hdiv_heat_bas is not None:
       hdiv_heat[init:fin,:] = hdiv_heat_bas
   self.hdiv=div
+  self.q_links = q_links
   if hdiv_heat is not None:
    self.hdiv_heat[:] = hdiv_heat
 
@@ -158,7 +167,7 @@ class richards_hbands:
 
 @numba.jit(nopython=True,cache=True)
 def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,af,flag_sat,
-                         temperature=None,rho_w=None,c_w=None,hdiv_heat=None):
+                         temperature=None,rho_w=None,c_w=None,hdiv_heat=None,q_links=None):
  # flag_sat passed as parameter; Dupuit-Forchheimer approximation when True
  #Iterate per layer
  for il in range(theta.shape[1]):
@@ -191,6 +200,8 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
   hdiv[:,il] = np.sum(q,axis=1) #mm/s - sum over all connections to get divergence at each HRU
   if hdiv_heat is not None:
    hdiv_heat[:,il] = calculate_advective_heat_divergence_from_q(q,temperature[:,il],rho_w,c_w)
+  if q_links is not None:
+   q_links[:,:,il] = q
  return hdiv
  
 @numba.jit(nopython=True,cache=True)

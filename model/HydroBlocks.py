@@ -216,6 +216,7 @@ class HydroBlocks:
   self.flagcmatrix=info['connection_matrix_hbands'] #laura
   self.multiscale_flag = info['multiscale_subsurface']['flag']
   self.heat_advection = info.get('heat_advection', False)
+  self.tracer_flag = info.get('tracer_flag', False)
   # Retrieve routing information
   self.routing_module = info['routing_module']['type']
   self.routing_flag = info['routing_module']['flag']
@@ -905,7 +906,12 @@ class HydroBlocks:
    #Define anisotropic factor
    self.mssubsurface.af = float(self.metadata['multiscale_subsurface']['anisotropy_lateral'])
   #-------------------------------------------------------------------------------------
-  
+  if self.tracer_flag and self.multiscale_flag == True:
+   from model.pyRichards.advectivetransport import AdvectiveTransport
+   self.advectivetransport = AdvectiveTransport(self.nhru,self.mssubsurface.units,self.nsoil,self.mssubsurface.reg_ids,self.MPI.COMM_WORLD)
+   self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
+   self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c0_hrus,self.mssubsurface.farea_gw)
+
   return
 
  def initialize_hwu(self,info):
@@ -1029,7 +1035,7 @@ class HydroBlocks:
   no_runsub = int(getattr(self.noahmp,'no_runsub_op12',0))
   flag_sat = self.metadata.get('multiscale_subsurface', {}).get('flag_saturatedflux', False)
   print(
-   '    Subsurface options|cid:%s|module:%s|vsp:%s|cmatrix:%s|multiscale:%s|LatFlow Sat:%s|heat:%s|no_runsub_op12:%s (%d)' % (
+   '    Subsurface options|cid:%s|module:%s|vsp:%s|cmatrix:%s|multiscale:%s|LatFlow Sat:%s|heat:%s|tracer:%s|no_runsub_op12:%s (%d)' % (
     self.cid,
     self.subsurface_module,
     'on' if self.vsp_flag else 'off',
@@ -1037,6 +1043,7 @@ class HydroBlocks:
     'on' if self.multiscale_flag else 'off',
     'on' if flag_sat else 'off',
     'on' if self.heat_advection else 'off',
+    'on' if self.tracer_flag else 'off',
     'on' if no_runsub != 0 else 'off',
     no_runsub
    ),
@@ -1144,6 +1151,7 @@ class HydroBlocks:
   use_routing_coupling = self.routing_flag and self.routing_surface_coupling
   use_multiscale = self.multiscale_flag
   use_heat_advection = self.heat_advection
+  use_tracer = self.tracer_flag
   ms_diag = None
 
   if use_richards and not use_cmatrix:
@@ -1273,10 +1281,48 @@ class HydroBlocks:
     }
 
    self._diagnose_subsurface_balance(smw_before,ms_diag=ms_diag)
-  
-  return
 
- def initialize_water_balance(self,):
+   if use_tracer: # Exchange concentrations take place in model.py
+    #Compute tracer advection regional flow components
+    self.advectivetransport.c_reg_new = self.advectivetransport.compute_reg_tracer(self.advectivetransport.reg_conc_risfu,self.mssubsurface.regional_inter_unit_flow_m3s_cross,
+                                                                                   self.mssubsurface.this_cid,self.mssubsurface.reg_area_gw,self.mssubsurface.reg_theta_gw,
+                                                                                   self.mssubsurface.reg_dz_gw,self.dt)
+    #Compute tracer advection intermediate flow components (with regionally uptadated concentrations)
+    self.advectivetransport.c_int_new = self.advectivetransport.compute_int_tracer(self.advectivetransport.c_reg_new,self.mssubsurface.inter_unit_flow_m3s,
+                                                                                   self.mssubsurface.area_units,self.mssubsurface.th_gw,
+                                                                                   self.mssubsurface.dz_gw,self.dt)
+    #Redistribute tracer concentrations to HRUs
+    self.advectivetransport.c_hrus_new = self.advectivetransport.redistribute_concentration_hrus(self.advectivetransport.c_int_new,self.mssubsurface.farea_gw,
+                                                                                                 self.mssubsurface.area_units, self.mssubsurface.th_gw, self.mssubsurface.dz_gw, 
+                                                                                                 self.area, self.noahmp.smois, self.noahmp.sldpth)
+    
+    #Compute tracer advection for local flow components (has to work for hbands and hrus schemes)
+    if use_cmatrix: # use hbands scheme
+     #  Aggregate tracer concentrations for local flow components (in this cid) shape (nhbands, soil_layers)
+     hru_area = self.input_fp.groups['parameters'].variables['area'][:]
+     unique_hbands = np.unique(self.hbands)
+     self.advectivetransport.c_hbands = np.empty((len(unique_hbands),self.nsoil))
+     aux=0
+     for h_band in unique_hbands:
+      m = self.hbands == h_band
+      self.advectivetransport.c_hbands[aux,:]=(np.sum(((self.advectivetransport.c_hrus_new[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
+      aux = aux + 1
+     #  Compute tracer advection
+     self.advectivetransport.c_hbands = self.advectivetransport.compute_loc_tracer(self.advectivetransport.c_hbands, self.richards.q_links, self.richards.area, 
+                                                                                   self.richards.theta, self.richards.dz, self.dt)
+     #  Redistribute tracer concentrations to HRUs
+     aux=0
+     for h_band in unique_hbands:
+      m = self.hbands == h_band
+      self.advectivetransport.c_hrus_new[m,:]=self.advectivetransport.c_hbands[aux,:]
+    else: # use hrus scheme
+     self.advectivetransport.c_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.c_hrus_new, self.richards.q_links, self.richards.area,
+                                                                                    self.richards.theta, self.richards.dz, self.dt)
+
+    #Reshape tracer concentration for regional units flow (in this cid) shape (nunits, soil_layers)
+    self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c_hrus_new,self.mssubsurface.farea_gw, self.area, self.noahmp.smois, self.noahmp.sldpth)
+
+ def initialize_water_balance(self,): 
  
   smw = np.sum(1000*self.noahmp.sldpth*self.noahmp.smois,axis=1)
   self.beg_wb = np.copy(self.noahmp.canliq + self.noahmp.canice + self.noahmp.swe + self.noahmp.wa + smw)

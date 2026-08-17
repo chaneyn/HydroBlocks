@@ -118,6 +118,7 @@
   },
   "subsurface_module": "richards",
   "heat_advection": true,
+  "tracer_flag": true,
   "multiscale_subsurface": {
   "flag":true,
   "flag_saturatedflux": false,

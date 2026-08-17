@@ -18,7 +18,7 @@ class mssubsurface:
         self.farea_gw   = np.zeros((self.units,farea.shape[1]))
         self.farea_gw[:]= farea[self.total_area > 0]
         #Open files with characteristics of groundwater units
-        self.area_units = pickle.load(open(info['gw_areg_file'],'rb')) 
+        self.area_units = pickle.load(open(info['gw_areg_file'],'rb'))
         self.w_gw       = pickle.load(open(info['gw_wreg_file'],'rb'))
         self.dx_gw      = pickle.load(open(info['gw_dxrg_file'],'rb'))       
         self.mconx      = pickle.load(open(info['gw_conx_file'],'rb')) #mconx intermediate level
@@ -53,6 +53,7 @@ class mssubsurface:
         self.reg_theta_gw = np.zeros((n,self.nsoil))
         self.reg_temperature_gw = np.zeros((n,self.nsoil))
         self.reg_dz_gw = np.zeros((n,self.nsoil)) + dz
+        self.reg_area_gw = np.zeros(n)
 
         # Initialize multiscale components
         self.hdiv_loc = None
@@ -752,5 +753,96 @@ def exchange_dz_regional_units(cids, rank, HBdb):
             dz = np.concatenate((dz, dz_db[cid]), axis=0)
 
         local_subsurface.reg_dz_gw[:, :] = dz[1:, :]
+
+    return
+
+def exchange_area_regional_units(cids, rank, HBdb):
+    # This function performs the exchange of risfu areas between regional units across ranks.
+    # It uses non-blocking MPI communication to send and receive the necessary area data based on the connections defined in the risfu_mapping.
+    if len(cids) == 0:
+        return
+
+    cid_rank_mapping = HBdb[cids[0]].cid_rank_mapping
+    cids_core = set(cids)
+    comm = HBdb[cids[0]].mssubsurface.comm
+
+    # Keep area exchanges in an exclusive tag space to avoid cross-variable collisions.
+    area_tag_offset = 900000
+
+    request_send = []
+    request_recv = []
+    area_db_all = {}
+
+    # Track communication plans so mismatches can fail fast instead of hanging in Waitall.
+    planned_send = []
+    planned_recv = []
+
+    for cid_in_rank in cids:
+        local_subsurface = HBdb[cid_in_rank].mssubsurface
+        area_hb = local_subsurface.area_units[:]
+        risfu_mapping = local_subsurface.risfu_mapping
+
+        area_db = {cid_in_rank: area_hb}
+
+        for cid in risfu_mapping.keys():
+            if cid not in cids_core:
+                if cid_in_rank in risfu_mapping[cid].keys():
+                    rows_to_send = risfu_mapping[cid][cid_in_rank]
+                    data_to_send = area_hb[rows_to_send]
+                    dest = cid_rank_mapping[cid]
+                    tag = area_tag_offset + (cid_in_rank * 1000 + cid)
+
+                    request_send.append(local_subsurface.comm.Isend(data_to_send, dest=dest, tag=tag))
+                    planned_send.append((rank, dest, tag, data_to_send.shape[0], str(data_to_send.dtype)))
+
+            elif cid != cid_in_rank and cid in risfu_mapping[cid_in_rank].keys():
+                rows = risfu_mapping[cid_in_rank][cid]
+                area_other_cid = HBdb[cid].mssubsurface.area_units[:]
+                area_db[cid] = area_other_cid[rows]
+
+        for cid in risfu_mapping.keys():
+            if cid not in cids_core and cid in risfu_mapping[cid_in_rank].keys():
+                src = cid_rank_mapping[cid]
+                tag = area_tag_offset + (cid * 1000 + cid_in_rank)
+                rows = risfu_mapping[cid_in_rank][cid]
+                # Match dtype with local area arrays to avoid MPI datatype inconsistencies.
+                data_recv_buffer = np.empty((len(rows)), dtype=area_hb.dtype)
+
+                request_recv.append(local_subsurface.comm.Irecv(data_recv_buffer, source=src, tag=tag))
+                planned_recv.append((src, rank, tag, data_recv_buffer.shape[0], str(data_recv_buffer.dtype)))
+                area_db[cid] = data_recv_buffer
+
+        area_db_all[cid_in_rank] = area_db
+
+    gathered_sends = comm.allgather(planned_send)
+    gathered_recvs = comm.allgather(planned_recv)
+    global_send_plan = sum(gathered_sends, [])
+    global_recv_plan = sum(gathered_recvs, [])
+    if Counter(global_send_plan) != Counter(global_recv_plan):
+        missing_recvs = list((Counter(global_send_plan) - Counter(global_recv_plan)).elements())[:5]
+        missing_sends = list((Counter(global_recv_plan) - Counter(global_send_plan)).elements())[:5]
+        raise ValueError(
+            f"Area MPI plan mismatch on rank={rank}. "
+            f"Missing recv matches (sample): {missing_recvs}; "
+            f"missing send matches (sample): {missing_sends}"
+        )
+
+    comm.Barrier()
+    all_requests = request_recv + request_send
+    if len(all_requests) > 0:
+        MPI.Request.Waitall(all_requests)
+    comm.Barrier()
+
+    for cid_in_rank in cids:
+        local_subsurface = HBdb[cid_in_rank].mssubsurface
+        area_db = area_db_all[cid_in_rank]
+
+        area = np.empty(1)
+        for cid in local_subsurface.reg_ids.keys():
+            if cid not in area_db:
+                raise ValueError(f"Missing area data for cid_in_rank={cid_in_rank}, cid={cid} on rank={rank}")
+            area = np.concatenate((area, area_db[cid]), axis=0)
+
+        local_subsurface.reg_area_gw[:] = area[1:]
 
     return
