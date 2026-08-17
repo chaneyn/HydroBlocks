@@ -17,6 +17,11 @@ class AdvectiveTransport:
         self.c_reg_new = np.zeros((nrisfus, nsoil), dtype=float)
         self.c_hrus_new = np.zeros((nhrus, nsoil), dtype=float)
         self.c_hbands = None
+        # Per-step local HRU donor->receiver tracer mass transfer [mass/time step].
+        # Filled only when the HRU local-flow scheme requests tracking.
+        self.local_mass_transfer_matrix = None
+        self.local_mass_convergence = np.zeros(nhrus, dtype=float)
+        self.local_mass_divergence = np.zeros(nhrus, dtype=float)
         self.comm = comm
         self.reg_ids = reg_ids
 
@@ -25,6 +30,14 @@ class AdvectiveTransport:
         for cid in self.reg_ids.keys():
             n += len(self.reg_ids[cid])
         self.reg_conc_risfu = np.zeros((n,self.nsoil))
+
+    def clear_local_mass_transfer(self):
+        """
+        Reset per-step local HRU mass-transfer diagnostics.
+        """
+        self.local_mass_transfer_matrix = None
+        self.local_mass_convergence[:] = 0.0
+        self.local_mass_divergence[:] = 0.0
 
     def synthetic_concentration(self,):
         """
@@ -93,11 +106,33 @@ class AdvectiveTransport:
 
         return local_net_tracer_conc
 
-    def compute_loc_tracer(self, c_hrus_hbands, q_links, area_hrus_hbands, theta_hrus_hbands, dz_hrus_hbands, dt):
+    def compute_loc_tracer(self, c_hrus_hbands, q_links, area_hrus_hbands, theta_hrus_hbands, dz_hrus_hbands, dt, store_mass_transfer=False):
         """
-        Compute the local tracer mass in each HRU.
+        Compute local tracer advection.
+
+        When `store_mass_transfer=True`, save a donor->receiver matrix for this
+        step where entry [i, j] is tracer mass moved from HRU i to HRU j.
         """
-        c_hbands_hrus_new = self.advect_tracer_step(c_hrus_hbands, q_links, area_hrus_hbands, theta_hrus_hbands, dz_hrus_hbands, dt)
+        if store_mass_transfer:
+            c_hbands_hrus_new, pair_mass = self.advect_tracer_step(
+                c_hrus_hbands,
+                q_links,
+                area_hrus_hbands,
+                theta_hrus_hbands,
+                dz_hrus_hbands,
+                dt,
+                track_pair_mass=True,
+            )
+
+            if c_hrus_hbands.shape[0] == self.nhrus:
+                self.local_mass_transfer_matrix = pair_mass
+                self.local_mass_divergence[:] = np.sum(pair_mass, axis=1)
+                self.local_mass_convergence[:] = np.sum(pair_mass, axis=0)
+            else:
+                # Keep diagnostics disabled for non-HRU local schemes (e.g., hbands).
+                self.clear_local_mass_transfer()
+        else:
+            c_hbands_hrus_new = self.advect_tracer_step(c_hrus_hbands, q_links, area_hrus_hbands, theta_hrus_hbands, dz_hrus_hbands, dt)
 
         return c_hbands_hrus_new
 
@@ -134,7 +169,7 @@ class AdvectiveTransport:
         water_hrus = area_hrus[:, None] * theta_hrus * dz_hrus
         return mass_hrus / np.maximum(water_hrus, 1e-20)
 
-    def advect_tracer_step(self, c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt):
+    def advect_tracer_step(self, c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=False):
         """
         Conservative tracer advection for one step using richards q links.
         """
@@ -158,6 +193,9 @@ class AdvectiveTransport:
 
         # Tracer mass [mass]
         M = c_risfu * Vw
+        pair_mass = None
+        if track_pair_mass:
+            pair_mass = np.zeros((nrisfu, nrisfu), dtype=float)
 
         for il in range(nsoil):
             for i in range(nrisfu):
@@ -185,7 +223,12 @@ class AdvectiveTransport:
                     Vw[donor, il] -= vol
                     Vw[recv, il] += vol
 
+                    if track_pair_mass:
+                        pair_mass[donor, recv] += m_move
+
         conc_new = M / Vw
+        if track_pair_mass:
+            return conc_new, pair_mass
         return conc_new
 
 def exchange_concentrations_regional_units(cids, rank, HBdb):

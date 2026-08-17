@@ -1298,6 +1298,7 @@ class HydroBlocks:
     
     #Compute tracer advection for local flow components (has to work for hbands and hrus schemes)
     if use_cmatrix: # use hbands scheme
+     self.advectivetransport.clear_local_mass_transfer()
      #  Aggregate tracer concentrations for local flow components (in this cid) shape (nhbands, soil_layers)
      hru_area = self.input_fp.groups['parameters'].variables['area'][:]
      unique_hbands = np.unique(self.hbands)
@@ -1316,8 +1317,10 @@ class HydroBlocks:
       m = self.hbands == h_band
       self.advectivetransport.c_hrus_new[m,:]=self.advectivetransport.c_hbands[aux,:]
     else: # use hrus scheme
+     self.advectivetransport.clear_local_mass_transfer()
      self.advectivetransport.c_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.c_hrus_new, self.richards.q_links, self.richards.area,
-                                                                                    self.richards.theta, self.richards.dz, self.dt)
+                                                                                    self.richards.theta, self.richards.dz, self.dt,
+                                                                                    store_mass_transfer=True)
 
     #Reshape tracer concentration for regional units flow (in this cid) shape (nunits, soil_layers)
     self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c_hrus_new,self.mssubsurface.farea_gw, self.area, self.noahmp.smois, self.noahmp.sldpth)
