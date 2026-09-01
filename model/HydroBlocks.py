@@ -910,7 +910,13 @@ class HydroBlocks:
    from model.pyRichards.advectivetransport import AdvectiveTransport
    self.advectivetransport = AdvectiveTransport(self.nhru,self.mssubsurface.units,self.nsoil,self.mssubsurface.reg_ids,self.MPI.COMM_WORLD)
    self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
+   #change the source to one single hru
+   mask = np.zeros(self.advectivetransport.c0_hrus.shape,dtype=bool)
+   mask[26,:] = True
+   self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
+   print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
    self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c0_hrus,self.mssubsurface.farea_gw)
+   print('      Aggregated concentrations per risfu\n',self.advectivetransport.c_risfu)
 
   return
 
@@ -1286,11 +1292,11 @@ class HydroBlocks:
     #Compute tracer advection regional flow components
     self.advectivetransport.c_reg_new = self.advectivetransport.compute_reg_tracer(self.advectivetransport.reg_conc_risfu,self.mssubsurface.regional_inter_unit_flow_m3s_cross,
                                                                                    self.mssubsurface.this_cid,self.mssubsurface.reg_area_gw,self.mssubsurface.reg_theta_gw,
-                                                                                   self.mssubsurface.reg_dz_gw,self.dt)
+                                                                                   self.mssubsurface.reg_dz_gw,self.dt,store_mass_transfer=True)
     #Compute tracer advection intermediate flow components (with regionally uptadated concentrations)
     self.advectivetransport.c_int_new = self.advectivetransport.compute_int_tracer(self.advectivetransport.c_reg_new,self.mssubsurface.inter_unit_flow_m3s,
                                                                                    self.mssubsurface.area_units,self.mssubsurface.th_gw,
-                                                                                   self.mssubsurface.dz_gw,self.dt)
+                                                                                   self.mssubsurface.dz_gw,self.dt,store_mass_transfer=True)
     #Redistribute tracer concentrations to HRUs
     self.advectivetransport.c_hrus_new = self.advectivetransport.redistribute_concentration_hrus(self.advectivetransport.c_int_new,self.mssubsurface.farea_gw,
                                                                                                  self.mssubsurface.area_units, self.mssubsurface.th_gw, self.mssubsurface.dz_gw, 
@@ -1387,6 +1393,12 @@ class HydroBlocks:
   grp = self.output_fp.groups['metadata']
   dates = grp.variables['date']
   dates[itime] = nc.date2num(date,units=dates.units,calendar=dates.calendar)
+  
+  # Also update tracer diagnostics metadata if it exists
+  if self.tracer_flag and hasattr(self, 'tracer_diag_fp'):
+   grp_meta = self.tracer_diag_fp.groups['metadata']
+   dates_diag = grp_meta.variables['date']
+   dates_diag[itime] = nc.date2num(date,units=dates_diag.units,calendar=dates_diag.calendar)
   
   #Update the variables
   grp = self.output_fp.groups['data']
@@ -1588,6 +1600,97 @@ class HydroBlocks:
    val = int(sep*np.ceil((itime - sep)/sep))
    for var in self.metadata['output']['vars']:
     grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
+
+  # Buffer all tracer diagnostics (local HRU, intermediate, and regional RISFU).
+  if self.tracer_flag and hasattr(self, 'tracer_diag_fp'):
+   nhru = self.nhru
+   nrisfu = self.advectivetransport.nrisfus
+   if itime == 0:
+    # Local HRU buffers
+    self.local_mass_transfer_output = np.zeros((sep,nhru,nhru,self.nsoil), dtype=np.float64)
+    self.local_q_links_output = np.zeros((sep,nhru,nhru,self.nsoil), dtype=np.float64)
+    # Intermediate RISFU buffers
+    self.int_mass_transfer_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
+    self.int_q_links_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
+    # Regional RISFU buffers
+    self.reg_mass_transfer_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
+    self.reg_q_links_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
+    # HRU concentration buffer
+    self.conc_hrus_output = np.zeros((sep,nhru,self.nsoil), dtype=np.float64)
+   
+   # Store local HRU matrices
+   if not self.flagcmatrix:
+    loc_matrix = self.advectivetransport.local_mass_transfer_matrix
+    q_links = self.richards.q_links
+    if loc_matrix is None:
+     self.local_mass_transfer_output[itime % sep,:,:,:] = 0.0
+    else:
+     self.local_mass_transfer_output[itime % sep,:,:,:] = loc_matrix
+    if q_links is None:
+     self.local_q_links_output[itime % sep,:,:,:] = 0.0
+    else:
+     self.local_q_links_output[itime % sep,:,:,:] = q_links
+   
+   # Store intermediate matrices
+   int_matrix = self.advectivetransport.int_mass_transfer_matrix
+   if int_matrix is None:
+    self.int_mass_transfer_output[itime % sep,:,:,:] = 0.0
+    self.int_q_links_output[itime % sep,:,:,:] = 0.0
+   else:
+    self.int_mass_transfer_output[itime % sep,:,:,:] = int_matrix
+    # q_links for intermediate = mssubsurface.inter_unit_flow_m3s
+    self.int_q_links_output[itime % sep,:,:,:] = self.mssubsurface.inter_unit_flow_m3s
+   
+   # Store regional matrices
+   reg_matrix = self.advectivetransport.reg_mass_transfer_matrix
+   if reg_matrix is None:
+    self.reg_mass_transfer_output[itime % sep,:,:,:] = 0.0
+    self.reg_q_links_output[itime % sep,:,:,:] = 0.0
+   else:
+    self.reg_mass_transfer_output[itime % sep,:,:,:] = reg_matrix
+    # q_links for regional = mssubsurface.regional_inter_unit_flow_m3s_cross
+    self.reg_q_links_output[itime % sep,:,:,:] = self.mssubsurface.regional_inter_unit_flow_m3s_cross
+   
+   # Store HRU concentrations
+   c_hrus = self.advectivetransport.c_hrus_new
+   if c_hrus is None:
+    self.conc_hrus_output[itime % sep,:,:] = 0.0
+   else:
+    self.conc_hrus_output[itime % sep,:,:] = c_hrus
+   
+   # Write full chunks
+   if (itime+1) % sep == 0:
+    if not self.flagcmatrix:
+     grp_loc = self.tracer_diag_fp.groups['local_tracer']
+     grp_loc.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:,:] = self.local_mass_transfer_output
+     grp_loc.variables['q_link_flows'][itime-sep+1:itime+1,:,:,:] = self.local_q_links_output
+    grp_int = self.tracer_diag_fp.groups['intermediate_tracer']
+    grp_int.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:,:] = self.int_mass_transfer_output
+    grp_int.variables['q_link_flows'][itime-sep+1:itime+1,:,:,:] = self.int_q_links_output
+    grp_reg = self.tracer_diag_fp.groups['regional_tracer']
+    grp_reg.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:,:] = self.reg_mass_transfer_output
+    grp_reg.variables['q_link_flows'][itime-sep+1:itime+1,:,:,:] = self.reg_q_links_output
+    grp_conc = self.tracer_diag_fp.groups['hru_concentration']
+    grp_conc.variables['concentration'][itime-sep+1:itime+1,:,:] = self.conc_hrus_output
+   
+   # Write final partial chunk
+   if (itime+1) == self.ntime and (itime+1) % sep != 0:
+    start = itime - (itime % sep)
+    count = itime % sep + 1
+    if not self.flagcmatrix:
+     grp_loc = self.tracer_diag_fp.groups['local_tracer']
+     grp_loc.variables['mass_transfer_matrix'][start:itime+1,:,:,:] = self.local_mass_transfer_output[0:count,:,:,:]
+     grp_loc.variables['q_link_flows'][start:itime+1,:,:,:] = self.local_q_links_output[0:count,:,:,:]
+    grp_int = self.tracer_diag_fp.groups['intermediate_tracer']
+    grp_int.variables['mass_transfer_matrix'][start:itime+1,:,:,:] = self.int_mass_transfer_output[0:count,:,:,:]
+    grp_int.variables['q_link_flows'][start:itime+1,:,:,:] = self.int_q_links_output[0:count,:,:,:]
+    grp_reg = self.tracer_diag_fp.groups['regional_tracer']
+    grp_reg.variables['mass_transfer_matrix'][start:itime+1,:,:,:] = self.reg_mass_transfer_output[0:count,:,:,:]
+    grp_reg.variables['q_link_flows'][start:itime+1,:,:,:] = self.reg_q_links_output[0:count,:,:,:]
+    grp_conc = self.tracer_diag_fp.groups['hru_concentration']
+    grp_conc.variables['concentration'][start:itime+1,:,:] = self.conc_hrus_output[0:count,:,:]
+    # Close the tracer diagnostics file
+    self.tracer_diag_fp.close()
 
   #Output routing variables
   #if self.routing_module == 'kinematic':
@@ -1837,6 +1940,135 @@ class HydroBlocks:
   for value in range(nhru):hrus.append(value)
   hru[:] = np.array(hrus)
   hru.description = 'hru ids'
+
+  # Create tracer diagnostics file if tracer flag is enabled
+  self.create_tracer_diagnostics_file()
+
+  return
+ 
+ def create_tracer_diagnostics_file(self,):
+  """
+  Create a separate NetCDF file for tracer mass transfer diagnostics (local HRU, regional, and intermediate).
+  Uses both HRU and RISFU dimensions.
+  """
+  if not self.tracer_flag:
+   return
+   
+  ofile = '%s/%s_tracer_diag.nc' % (self.metadata['output']['dir'],self.idate.strftime('%Y-%m-%d'))
+  self.tracer_diag_fp = nc.Dataset(ofile,'w',format='NETCDF4')
+  fp_out = self.tracer_diag_fp
+  
+  # Determine dimensions
+  nhru = self.nhru
+  nrisfu = self.advectivetransport.nrisfus
+  ntime = int(24*3600*((self.fdate - self.idate).days)/self.dt)
+  
+  # Create dimensions
+  fp_out.createDimension('time', ntime)
+  fp_out.createDimension('donor_hru', nhru)
+  fp_out.createDimension('receiver_hru', nhru)
+  fp_out.createDimension('donor_risfu', nrisfu)
+  fp_out.createDimension('receiver_risfu', nrisfu)
+  fp_out.createDimension('soil', self.nsoil)
+  
+  # Create metadata group
+  grp = fp_out.createGroup('metadata')
+  grp.createVariable('time','f8',('time',))
+  dates = grp.createVariable('date','f8',('time',))
+  dates.units = 'hours since 1900-01-01'
+  dates.calendar = 'standard'
+  
+  # Create data group for local HRU tracer mass transfer
+  grp_loc = fp_out.createGroup('local_tracer')
+  loc_matrix = grp_loc.createVariable(
+   'mass_transfer_matrix',
+   'f8',
+   ('time','donor_hru','receiver_hru','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  loc_matrix.description = 'Tracer mass transferred from donor HRU to receiver HRU per time step (local flow)'
+  loc_matrix.units = 'tracer mass'
+  loc_matrix.donor_axis = 'donor_hru'
+  loc_matrix.receiver_axis = 'receiver_hru'
+  
+  loc_flows = grp_loc.createVariable(
+   'q_link_flows',
+   'f8',
+   ('time','donor_hru','receiver_hru','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  loc_flows.description = 'Richards pairwise flow contribution from donor HRU to receiver HRU'
+  loc_flows.units = 'mm/s'
+  loc_flows.donor_axis = 'donor_hru'
+  loc_flows.receiver_axis = 'receiver_hru'
+  
+  # Create data group for intermediate tracer mass transfer
+  grp_int = fp_out.createGroup('intermediate_tracer')
+  int_matrix = grp_int.createVariable(
+   'mass_transfer_matrix',
+   'f8',
+   ('time','donor_risfu','receiver_risfu','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  int_matrix.description = 'Tracer mass transferred from donor RISFU to receiver RISFU per time step (intermediate flow)'
+  int_matrix.units = 'tracer mass'
+  int_matrix.donor_axis = 'donor_risfu'
+  int_matrix.receiver_axis = 'receiver_risfu'
+  
+  int_flows = grp_int.createVariable(
+   'q_link_flows',
+   'f8',
+   ('time','donor_risfu','receiver_risfu','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  int_flows.description = 'Richards pairwise flow contribution from donor RISFU to receiver RISFU'
+  int_flows.units = 'm3/s'
+  int_flows.donor_axis = 'donor_risfu'
+  int_flows.receiver_axis = 'receiver_risfu'
+  
+  # Create data group for regional tracer mass transfer
+  grp_reg = fp_out.createGroup('regional_tracer')
+  reg_matrix = grp_reg.createVariable(
+   'mass_transfer_matrix',
+   'f8',
+   ('time','donor_risfu','receiver_risfu','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  reg_matrix.description = 'Tracer mass transferred from donor RISFU to receiver RISFU per time step (regional flow)'
+  reg_matrix.units = 'tracer mass'
+  reg_matrix.donor_axis = 'donor_risfu'
+  reg_matrix.receiver_axis = 'receiver_risfu'
+  
+  reg_flows = grp_reg.createVariable(
+   'q_link_flows',
+   'f8',
+   ('time','donor_risfu','receiver_risfu','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  reg_flows.description = 'Richards pairwise flow contribution from donor RISFU to receiver RISFU'
+  reg_flows.units = 'm3/s'
+  reg_flows.donor_axis = 'donor_risfu'
+  reg_flows.receiver_axis = 'receiver_risfu'
+  
+  # Create data group for HRU tracer concentration
+  grp_conc = fp_out.createGroup('hru_concentration')
+  conc_var = grp_conc.createVariable(
+   'concentration',
+   'f8',
+   ('time','donor_hru','soil'),
+   zlib=True,
+   complevel=1,
+  )
+  conc_var.description = 'Tracer concentration in each HRU per soil layer'
+  conc_var.units = 'mass/m3 water'
+  conc_var.hru_axis = 'donor_hru'
+  conc_var.soil_axis = 'soil'
 
   return
 

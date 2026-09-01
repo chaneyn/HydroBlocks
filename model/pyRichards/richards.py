@@ -35,7 +35,7 @@ class richards:
   self.width = []
   self.I = []
   # Store pairwise divergence links for tracer transport
-  self.q_links = np.zeros((nsoil, nhru, nhru))
+  self.q_links = np.zeros((nhru, nhru, nsoil))
 
   return
 
@@ -55,7 +55,7 @@ class richards:
   w = self.w
   dx = self.dx
   area = self.area
-  q_links = np.zeros((theta.shape[1], theta.shape[0], theta.shape[0]))
+  q_links = np.zeros((theta.shape[0], theta.shape[0], theta.shape[1]))
   if hdiv_heat is not None:
    hdiv_heat = self.hdiv_heat
   if vsp_flag==True: #laura svp
@@ -165,7 +165,7 @@ class richards_hbands:
 
   return
 
-@numba.jit(nopython=True,cache=True)
+#@numba.jit(nopython=True,cache=True)
 def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,area,af,flag_sat,
                          temperature=None,rho_w=None,c_w=None,hdiv_heat=None,q_links=None):
  # flag_sat passed as parameter; Dupuit-Forchheimer approximation when True

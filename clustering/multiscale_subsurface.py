@@ -190,6 +190,12 @@ def generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_inf
  resx = np.mean(mask_object.area**0.5) #all pixels in the subdomain have the same resolution in x and y; still not ideal a but much better than resx = 90...
  hrus = gdal_tools.read_data('%s/hru_mapping_latlon.tif' % input_dir).data
  risfu_org = gdal_tools.read_data('%s/groundwater/risfu_map.tif' % input_dir).data
+
+ # HRU areas include the channel-width correction applied during preprocessing.
+ file = '%s/input_file.nc' % input_dir
+ fp = nc.Dataset(file)
+ hru_areas = fp['parameters']['area'][:].astype(np.float64)
+ fp.close()
  
  #(2) Get the number of hrus and regional/intermediate units
  gwunits_id = np.unique(risfu_org) #ids for regional/intermediate units
@@ -198,6 +204,16 @@ def generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_inf
  hru_ids    = np.unique(hrus) #ids of hrus
  hru_ids    = hru_ids[hru_ids!=-9999]
  num_hrus   = hru_ids.size
+ hru_ids = hru_ids.astype(np.int64)
+
+ # Reconstruct corrected area per raster cell from each HRU's total area.
+ valid_hrus = hrus != -9999
+ hru_cell_counts = np.bincount(hrus[valid_hrus].astype(np.int64),
+                               minlength=hru_areas.size)
+ cell_areas = np.zeros(hrus.shape, dtype=np.float64)
+ for hru in hru_ids:
+  if hru_cell_counts[hru] > 0:
+   cell_areas[hrus == hru] = hru_areas[hru] / hru_cell_counts[hru]
  #print('num gw units: ', num_gwus,flush=True)
  #print('num hrus: '    , num_hrus,flush=True)
  
@@ -211,16 +227,17 @@ def generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_inf
   gwunits_count['gw_units_%d' % i]['counts_hrus'] = dict(zip(unique, counts)) 
  #print('Counting HRUS inside basins done',flush=True)
  
- #(4) Computing the fraction of area covered by each hrus within each groundwater unit
+ # (4) Compute corrected HRU-area fractions within each groundwater unit
  areas_gws = np.zeros((num_gwus,num_hrus), dtype=np.float64);
+ gw_area = np.zeros(num_gwus, dtype=np.float64)
  n = 0 #the array structure follows the gwunits_id array
  for i in gwunits_id:
-  area_risfu = sum(gwunits_count['gw_units_%d' % i]['counts_hrus'].values()) #the area of each regional/intermediate unit
+  risfu_mask = risfu_org == i
+  area_risfu = np.sum(cell_areas[risfu_mask])
+  gw_area[n] = area_risfu
   for nhru, hru in enumerate(hru_ids):
-   try:
-    areas_gws[n,nhru] = gwunits_count['gw_units_%d' % i]['counts_hrus'][hru] / area_risfu; #compute the percentage of area covered by the hru
-   except:
-    areas_gws[n,nhru] = .0; #no hru present in basin
+   if area_risfu > 0:
+    areas_gws[n,nhru] = np.sum(cell_areas[risfu_mask & (hrus == hru)]) / area_risfu
   n += 1 #move on to the next regional/intermediate unit
 
  #print('Area of HRUS inside basins done',flush=True)
@@ -279,9 +296,9 @@ def generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_inf
 
  pickle.dump(gw_elv,open('%s/groundwater/elv.pck' % input_dir,'wb')); #save file
  
- return risfu_org,gwunits_id,num_gwus,resx,input_dir, gwunits_count
+ return risfu_org,gwunits_id,num_gwus,resx,input_dir,gwunits_count,gw_area
  
-def compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count):
+def compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count,gw_area):
  '''Function to compute the connection matrix (reduced) between the regional units for intermediate subsurface flow'''
  #(1) Defining the shared length between units and computing the distance between centroids
  recat_gw = np.copy(risfu_org) # copy array with the risfu areas to change its names
@@ -295,13 +312,7 @@ def compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gw
   w_gws = gwus_counts * resx  # Converting the number of cells to distance in meters
  #print('Defining the shared length between units',flush=True)
 
- #To compute dx matrix we need to compute the areas of each gw unit and then dived the area by the shared length between them.
- gw_area = np.zeros((ngwus));  #Computing area of regional/intermediate units
- n = 0
- for i in gwunits_id:
-  gw_area[n] = sum(gwunits_count['gw_units_%d' % i]['counts_hrus'].values())*resx*resx
-  n += 1
- #print('area for',rank + 1,gw_area.shape,flush=True)
+ # gw_area is derived from corrected HRU areas, including channel-width corrections.
  
  #The final dx matrix assumes that the distance between units is equal to the total area divided by the shared length. The results are then further 
  #divided by 2 assuming a centroid and then, the centroid of the coneected unit is added to the distance.
@@ -477,12 +488,12 @@ def multiscale_subsurface_preprocessing(comm,edir,rdir,hydroblocks_info,cids):
   #(2) Create mask regional and intermediate units
   mask_risfu = create_risfu_mask(cid,edir,rdir,workspace)
   #(2) Generate files of aggregated soil hydraulic properties
-  (risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count) = generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_info)
+  (risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count,gw_area) = generate_risfu_aggregated_properties(cid,edir,rdir,workspace,hydroblocks_info)
   mask_risfu_list[cid] = mask_risfu
   resx_list[cid] = resx
   input_dir_list[cid] = input_dir
   #(3) Generate matrix of connections for intermediate subsurface flow
-  compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count)
+  compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gwunits_count,gw_area)
  comm.Barrier()
  #for cid in range(start_idx, end_idx):
  for cid in cids[rank::size]:

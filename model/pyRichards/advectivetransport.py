@@ -20,8 +20,12 @@ class AdvectiveTransport:
         # Per-step local HRU donor->receiver tracer mass transfer [mass/time step].
         # Filled only when the HRU local-flow scheme requests tracking.
         self.local_mass_transfer_matrix = None
-        self.local_mass_convergence = np.zeros(nhrus, dtype=float)
-        self.local_mass_divergence = np.zeros(nhrus, dtype=float)
+        self.local_mass_convergence = np.zeros((nhrus, nsoil), dtype=float)
+        self.local_mass_divergence = np.zeros((nhrus, nsoil), dtype=float)
+        # Per-step intermediate RISFU donor->receiver mass transfer [mass/time step].
+        self.int_mass_transfer_matrix = None
+        # Per-step regional RISFU donor->receiver mass transfer [mass/time step].
+        self.reg_mass_transfer_matrix = None
         self.comm = comm
         self.reg_ids = reg_ids
 
@@ -42,10 +46,10 @@ class AdvectiveTransport:
     def synthetic_concentration(self,):
         """
         Build a synthetic initial concentration field [mass / m3 water].
-        Higher near low HRU index, decays with depth.
+        Higher near highest HRU index, decays with depth.
         """
         x = np.arange(self.nhrus, dtype=float)
-        center = 0.2 * max(1, self.nhrus - 1)
+        center = 0.9 * max(1, self.nhrus - 1)
         sigma = max(1.0, 0.25 * self.nhrus)
 
         horizontal = np.exp(-0.5 * ((x - center) / sigma) ** 2)
@@ -83,22 +87,37 @@ class AdvectiveTransport:
 
         return mass_risfu / np.maximum(water_risfu, 1e-20)
 
-    def compute_int_tracer(self, c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt):
+    def compute_int_tracer(self, c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, store_mass_transfer=False):
         """
         Compute the intermediate tracer mass in each RISFU.
+        
+        When `store_mass_transfer=True`, save a donor->receiver matrix for this step.
         """
-        c_risfu_new = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
+        if store_mass_transfer:
+            c_risfu_new, pair_mass = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=True)
+            self.int_mass_transfer_matrix = pair_mass
+        else:
+            c_risfu_new = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
+            self.int_mass_transfer_matrix = None
 
         return c_risfu_new
 
-    def compute_reg_tracer(self, c_risfu, q_m3s, local_risfu_indices, area_risfu, theta_risfu, dz_risfu, dt):
+    def compute_reg_tracer(self, c_risfu, q_m3s, local_risfu_indices, area_risfu, theta_risfu, dz_risfu, dt, store_mass_transfer=False):
         """
         Compute the regional tracer mass in each RISFU.
 
         `local_risfu_indices` identifies the subset of RISFUs that belong to the
         local region; return only those rows in the original regional ordering.
+        
+        When `store_mass_transfer=True`, save the full global pair_mass matrix.
         """
-        c_risfu_reg_new = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
+        if store_mass_transfer:
+            c_risfu_reg_new, pair_mass = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=True)
+            self.reg_mass_transfer_matrix = pair_mass
+        else:
+            c_risfu_reg_new = self.advect_tracer_step(c_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
+            self.reg_mass_transfer_matrix = None
+            
         local_risfu_indices = np.asarray(local_risfu_indices, dtype=int)
         local_net_tracer_conc = np.zeros((len(local_risfu_indices), self.nsoil), dtype=float)
         for i, idx in enumerate(local_risfu_indices):
@@ -195,7 +214,7 @@ class AdvectiveTransport:
         M = c_risfu * Vw
         pair_mass = None
         if track_pair_mass:
-            pair_mass = np.zeros((nrisfu, nrisfu), dtype=float)
+            pair_mass = np.zeros((nrisfu, nrisfu, nsoil), dtype=float)
 
         for il in range(nsoil):
             for i in range(nrisfu):
@@ -224,7 +243,7 @@ class AdvectiveTransport:
                     Vw[recv, il] += vol
 
                     if track_pair_mass:
-                        pair_mass[donor, recv] += m_move
+                        pair_mass[donor, recv, il] += m_move
 
         conc_new = M / Vw
         if track_pair_mass:
