@@ -211,7 +211,7 @@ class AdvectiveTransport:
         Vw = np.maximum(Vw, 1e-20)
 
         # Tracer mass [mass]
-        M = c_risfu * Vw
+        M = c_risfu #* Vw #Previous mass
         pair_mass = None
         if track_pair_mass:
             pair_mass = np.zeros((nrisfu, nrisfu, nsoil), dtype=float)
@@ -245,7 +245,7 @@ class AdvectiveTransport:
                     if track_pair_mass:
                         pair_mass[donor, recv, il] += m_move
 
-        conc_new = M / Vw
+        conc_new = M #/ Vw
         if track_pair_mass:
             return conc_new, pair_mass
         return conc_new

@@ -915,7 +915,8 @@ class HydroBlocks:
    mask[26,:] = True
    self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
    print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
-   self.advectivetransport.c_hrus_new = np.copy(self.advectivetransport.c0_hrus)
+   self.advectivetransport.c_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
+   print('      Initial mass per hru\n',self.advectivetransport.c_hrus_new)
    #self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c0_hrus,self.mssubsurface.farea_gw)
    #print('      Aggregated concentrations per risfu\n',self.advectivetransport.c_risfu)
 
