@@ -553,8 +553,8 @@ def determine_subsurface_connections(cids,rank,size,HBdb):
  mssubsurface.risfu_connections_regional(cids,rank,size,HBdb)
  mssubsurface.exchange_dz_regional_units(cids,rank,HBdb)
  mssubsurface.exchange_area_regional_units(cids,rank,HBdb)
- if HBdb[cids[0]].tracer_flag == True:
-   exchange_concentrations_regional_units(cids,rank,HBdb) #Initial concentration 
+ #if HBdb[cids[0]].tracer_flag == True:
+   #exchange_concentrations_regional_units(cids,rank,HBdb) #Initial concentration 
  return
 
 def update_subdomains_subsurface(cids,rank,size,HBdb):
@@ -563,8 +563,8 @@ def update_subdomains_subsurface(cids,rank,size,HBdb):
  mssubsurface.exchange_smc_regional_units(cids,rank,HBdb)
  if HBdb[cids[0]].heat_advection == True:
   mssubsurface.exchange_temperature_regional_units(cids,rank,HBdb)
- if HBdb[cids[0]].tracer_flag == True:
-  exchange_concentrations_regional_units(cids,rank,HBdb)
+ #if HBdb[cids[0]].tracer_flag == True:
+  #exchange_concentrations_regional_units(cids,rank,HBdb)
  return
 
 def run(comm,metadata_file):
