@@ -12,7 +12,7 @@ import netCDF4 as nc
 from model.pyRouting import routing as HBrouting
 from model.numba_cache import clear_numba_cache
 from model.pyRichards import mssubsurface as mssubsurface
-from model.pyRichards.advectivetransport import exchange_concentrations_regional_units
+from model.pyRichards.advectivetransport import exchange_tracer_mass_regional_units
 
 def Read_Metadata_File(file):
 
@@ -554,7 +554,7 @@ def determine_subsurface_connections(cids,rank,size,HBdb):
  mssubsurface.exchange_dz_regional_units(cids,rank,HBdb)
  mssubsurface.exchange_area_regional_units(cids,rank,HBdb)
  #if HBdb[cids[0]].tracer_flag == True:
-   #exchange_concentrations_regional_units(cids,rank,HBdb) #Initial concentration 
+  #exchange_tracer_mass_regional_units(cids,rank,HBdb) #Initial tracer mass
  return
 
 def update_subdomains_subsurface(cids,rank,size,HBdb):
@@ -564,7 +564,7 @@ def update_subdomains_subsurface(cids,rank,size,HBdb):
  if HBdb[cids[0]].heat_advection == True:
   mssubsurface.exchange_temperature_regional_units(cids,rank,HBdb)
  #if HBdb[cids[0]].tracer_flag == True:
-  #exchange_concentrations_regional_units(cids,rank,HBdb)
+  #exchange_tracer_mass_regional_units(cids,rank,HBdb)
  return
 
 def run(comm,metadata_file):

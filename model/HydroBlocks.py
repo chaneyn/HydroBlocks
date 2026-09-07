@@ -915,10 +915,10 @@ class HydroBlocks:
    mask[26,:] = True
    self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
    print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
-   self.advectivetransport.c_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
-   print('      Initial mass per hru\n',self.advectivetransport.c_hrus_new)
-   #self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c0_hrus,self.mssubsurface.farea_gw)
-   #print('      Aggregated concentrations per risfu\n',self.advectivetransport.c_risfu)
+  self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
+  print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
+  #self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
+  #print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
 
   return
 
@@ -1292,46 +1292,45 @@ class HydroBlocks:
 
    if use_tracer: # Exchange concentrations take place in model.py
     #Compute tracer advection regional flow components
-    #self.advectivetransport.c_reg_new = self.advectivetransport.compute_reg_tracer(self.advectivetransport.reg_conc_risfu,self.mssubsurface.regional_inter_unit_flow_m3s_cross,
+    #self.advectivetransport.tracer_mass_reg_new = self.advectivetransport.compute_reg_tracer(self.advectivetransport.tracer_mass_reg_risfu,self.mssubsurface.regional_inter_unit_flow_m3s_cross,
     #                                                                               self.mssubsurface.this_cid,self.mssubsurface.reg_area_gw,self.mssubsurface.reg_theta_gw,
     #                                                                               self.mssubsurface.reg_dz_gw,self.dt,store_mass_transfer=True)
     #Compute tracer advection intermediate flow components (with regionally uptadated concentrations)
-    #self.advectivetransport.c_int_new = self.advectivetransport.compute_int_tracer(self.advectivetransport.c_reg_new,self.mssubsurface.inter_unit_flow_m3s,
+    #self.advectivetransport.tracer_mass_int_new = self.advectivetransport.compute_int_tracer(self.advectivetransport.tracer_mass_reg_new,self.mssubsurface.inter_unit_flow_m3s,
     #                                                                              self.mssubsurface.area_units,self.mssubsurface.th_gw,
     #                                                                               self.mssubsurface.dz_gw,self.dt,store_mass_transfer=True)
     #Redistribute tracer concentrations to HRUs
-    #self.advectivetransport.c_hrus_new = self.advectivetransport.redistribute_concentration_hrus(self.advectivetransport.c_int_new,self.mssubsurface.farea_gw,
+    #self.advectivetransport.tracer_mass_hrus_new = self.advectivetransport.redistribute_mass_hrus(self.advectivetransport.tracer_mass_int_new,self.mssubsurface.farea_gw)
     #                                                                                             self.mssubsurface.area_units, self.mssubsurface.th_gw, self.mssubsurface.dz_gw, 
     #                                                                                             self.area, self.noahmp.smois, self.noahmp.sldpth)
     
     #Compute tracer advection for local flow components (has to work for hbands and hrus schemes)
     if use_cmatrix: # use hbands scheme
      self.advectivetransport.clear_local_mass_transfer()
-     #  Aggregate tracer concentrations for local flow components (in this cid) shape (nhbands, soil_layers)
-     hru_area = self.input_fp.groups['parameters'].variables['area'][:]
+     #  Aggregate tracer mass for local flow components (in this cid) shape (nhbands, soil_layers)
      unique_hbands = np.unique(self.hbands)
-     self.advectivetransport.c_hbands = np.empty((len(unique_hbands),self.nsoil))
+     self.advectivetransport.tracer_mass_hbands = np.empty((len(unique_hbands),self.nsoil))
      aux=0
      for h_band in unique_hbands:
       m = self.hbands == h_band
-      self.advectivetransport.c_hbands[aux,:]=(np.sum(((self.advectivetransport.c_hrus_new[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
+      self.advectivetransport.tracer_mass_hbands[aux,:]=np.sum(self.advectivetransport.tracer_mass_hrus_new[m,:],axis=0)
       aux = aux + 1
-     #  Compute tracer advection
-     self.advectivetransport.c_hbands = self.advectivetransport.compute_loc_tracer(self.advectivetransport.c_hbands, self.richards.q_links, self.richards.area, 
+      #  Compute tracer advection
+      self.advectivetransport.tracer_mass_hbands = self.advectivetransport.compute_loc_tracer(self.advectivetransport.tracer_mass_hbands, self.richards.q_links, self.richards.area, 
                                                                                    self.richards.theta, self.richards.dz, self.dt)
-     #  Redistribute tracer concentrations to HRUs
+      #  Redistribute tracer mass to HRUs
      aux=0
      for h_band in unique_hbands:
       m = self.hbands == h_band
-      self.advectivetransport.c_hrus_new[m,:]=self.advectivetransport.c_hbands[aux,:]
+      self.advectivetransport.tracer_mass_hrus_new[m,:]=self.advectivetransport.tracer_mass_hbands[aux,:]
     else: # use hrus scheme
      self.advectivetransport.clear_local_mass_transfer()
-     self.advectivetransport.c_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.c_hrus_new, self.richards.q_links, self.richards.area,
+     self.advectivetransport.tracer_mass_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.tracer_mass_hrus_new, self.richards.q_links, self.richards.area,
                                                                                      self.richards.theta, self.richards.dz, self.dt,
                                                                                      store_mass_transfer=True)
 
     #Reshape tracer concentration for regional units flow (in this cid) shape (nunits, soil_layers)
-    #self.advectivetransport.c_risfu = self.advectivetransport.aggregate_concentration_risfu(self.advectivetransport.c_hrus_new,self.mssubsurface.farea_gw, self.area, self.noahmp.smois, self.noahmp.sldpth)
+    #self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
 
  def initialize_water_balance(self,): 
  
@@ -1618,7 +1617,7 @@ class HydroBlocks:
     self.reg_mass_transfer_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
     self.reg_q_links_output = np.zeros((sep,nrisfu,nrisfu,self.nsoil), dtype=np.float64)
     # HRU concentration buffer
-    self.conc_hrus_output = np.zeros((sep,nhru,self.nsoil), dtype=np.float64)
+    self.mass_hrus_output = np.zeros((sep,nhru,self.nsoil), dtype=np.float64)
    
    # Store local HRU matrices
    if not self.flagcmatrix:
@@ -1653,12 +1652,12 @@ class HydroBlocks:
     # q_links for regional = mssubsurface.regional_inter_unit_flow_m3s_cross
     self.reg_q_links_output[itime % sep,:,:,:] = self.mssubsurface.regional_inter_unit_flow_m3s_cross
    
-   # Store HRU concentrations
-   c_hrus = self.advectivetransport.c_hrus_new
-   if c_hrus is None:
-    self.conc_hrus_output[itime % sep,:,:] = 0.0
-   else:
-    self.conc_hrus_output[itime % sep,:,:] = c_hrus
+  # Store HRU tracer mass
+  tracer_mass_hrus = self.advectivetransport.tracer_mass_hrus_new
+  if tracer_mass_hrus is None:
+   self.mass_hrus_output[itime % sep,:,:] = 0.0
+  else:
+   self.mass_hrus_output[itime % sep,:,:] = tracer_mass_hrus
    
    # Write full chunks
    if (itime+1) % sep == 0:
@@ -1672,8 +1671,8 @@ class HydroBlocks:
     grp_reg = self.tracer_diag_fp.groups['regional_tracer']
     grp_reg.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:,:] = self.reg_mass_transfer_output
     grp_reg.variables['q_link_flows'][itime-sep+1:itime+1,:,:,:] = self.reg_q_links_output
-    grp_conc = self.tracer_diag_fp.groups['hru_concentration']
-    grp_conc.variables['concentration'][itime-sep+1:itime+1,:,:] = self.conc_hrus_output
+    grp_mass = self.tracer_diag_fp.groups['hru_mass']
+    grp_mass.variables['mass'][itime-sep+1:itime+1,:,:] = self.mass_hrus_output
    
    # Write final partial chunk
    if (itime+1) == self.ntime and (itime+1) % sep != 0:
@@ -1689,8 +1688,8 @@ class HydroBlocks:
     grp_reg = self.tracer_diag_fp.groups['regional_tracer']
     grp_reg.variables['mass_transfer_matrix'][start:itime+1,:,:,:] = self.reg_mass_transfer_output[0:count,:,:,:]
     grp_reg.variables['q_link_flows'][start:itime+1,:,:,:] = self.reg_q_links_output[0:count,:,:,:]
-    grp_conc = self.tracer_diag_fp.groups['hru_concentration']
-    grp_conc.variables['concentration'][start:itime+1,:,:] = self.conc_hrus_output[0:count,:,:]
+    grp_mass = self.tracer_diag_fp.groups['hru_mass']
+    grp_mass.variables['mass'][start:itime+1,:,:] = self.mass_hrus_output[0:count,:,:]
     # Close the tracer diagnostics file
     self.tracer_diag_fp.close()
 
@@ -2058,19 +2057,19 @@ class HydroBlocks:
   reg_flows.donor_axis = 'donor_risfu'
   reg_flows.receiver_axis = 'receiver_risfu'
   
-  # Create data group for HRU tracer concentration
-  grp_conc = fp_out.createGroup('hru_concentration')
-  conc_var = grp_conc.createVariable(
-   'concentration',
+  # Create data group for HRU tracer mass
+  grp_mass = fp_out.createGroup('hru_mass')
+  mass_var = grp_mass.createVariable(
+   'mass',
    'f8',
    ('time','donor_hru','soil'),
    zlib=True,
    complevel=1,
   )
-  conc_var.description = 'Tracer concentration in each HRU per soil layer'
-  conc_var.units = 'mass/m3 water'
-  conc_var.hru_axis = 'donor_hru'
-  conc_var.soil_axis = 'soil'
+  mass_var.description = 'Tracer mass in each HRU per soil layer'
+  mass_var.units = 'tracer mass'
+  mass_var.hru_axis = 'donor_hru'
+  mass_var.soil_axis = 'soil'
 
   return
 
