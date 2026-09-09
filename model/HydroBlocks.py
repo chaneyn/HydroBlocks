@@ -94,6 +94,13 @@ class HydroBlocks:
   self.acc_errwat = fp['acc_errwat'][()]
   self.acc_erreng = fp['acc_erreng'][()]
   self.runtime0 = fp['runtime'][()]
+  if self.tracer_flag and hasattr(self, 'advectivetransport') and 'tracer_mass_hrus_new' in fp:
+   tracer_mass = fp['tracer_mass_hrus_new'][:]
+   expected_shape = self.advectivetransport.tracer_mass_hrus_new.shape
+   if tracer_mass.shape != expected_shape:
+    fp.close()
+    raise ValueError('Restart tracer_mass_hrus_new has shape %s; expected %s' % (tracer_mass.shape, expected_shape))
+   self.advectivetransport.tracer_mass_hrus_new[:] = tracer_mass
   #noahmp
   self.noahmp.smceq[:] = fp['smceq'][:]
   self.noahmp.albold[:] = fp['albold'][:]
@@ -2091,6 +2098,8 @@ class HydroBlocks:
   fp['acc_errwat'] = self.acc_errwat
   fp['acc_erreng'] = self.acc_erreng
   fp['runtime'] = self.runtime
+  if self.tracer_flag and hasattr(self, 'advectivetransport'):
+   fp['tracer_mass_hrus_new'] = self.advectivetransport.tracer_mass_hrus_new[:]
   #noahmp
   fp['smceq'] = self.noahmp.smceq[:]
   fp['albold'] = self.noahmp.albold[:]
