@@ -1604,7 +1604,7 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
 
 
        ! Check if snow/snowh are consistent and cap SWE at 2000mm;
-       !  the Noah-MP code does it internally but if we don't do it here, problems ensue
+       !  the Noah-MP code does it internally but if we dont do it here, problems ensue
        DO J = jts,jtf
           DO I = its,itf
              IF ( SNOW(i,j) > 0. .AND. SNOWH(i,j) == 0. .OR. SNOWH(i,j) > 0. .AND. SNOW(i,j) == 0.) THEN
