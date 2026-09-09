@@ -14,3 +14,4 @@ model/pyNoahMP/src/Utility_routines/*.f90
 # Ignore VS Code configuration directory
 .vscode/
 **/__pycache__/
+model/pyNoahMP/src/user_build_options
