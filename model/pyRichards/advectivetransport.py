@@ -16,6 +16,7 @@ class AdvectiveTransport:
         self.tracer_mass_int_new = np.zeros((nrisfus, nsoil), dtype=float)
         self.tracer_mass_reg_new = np.zeros((nrisfus, nsoil), dtype=float)
         self.tracer_mass_hrus_new = np.zeros((nhrus, nsoil), dtype=float)
+        self.tracer_mass_hrus_old = np.zeros((nhrus, nsoil), dtype=float)
         # Per-step local HRU donor->receiver tracer mass transfer [mass/time step].
         # Filled only when the HRU local-flow scheme requests tracking.
         self.local_mass_transfer_matrix = None
@@ -69,7 +70,7 @@ class AdvectiveTransport:
         tracer_mass_hrus = np.asarray(tracer_mass_hrus, dtype=float)
         farea = np.asarray(farea, dtype=float)
 
-        return farea @ tracer_mass_hrus
+        return (farea > 0.0).astype(int) @ tracer_mass_hrus
 
     def compute_int_tracer(self, tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, store_mass_transfer=False):
         """
@@ -139,17 +140,50 @@ class AdvectiveTransport:
 
         return tracer_mass_hrus_hbands_new
 
-    def redistribute_mass_hrus(self, tracer_mass_risfu, farea):
+    def redistribute_mass_hrus(self, mass_hrus, new_mass_risfu, old_mass_risfu, farea):
         """
         Redistribute RISFU tracer mass back to HRUs.
 
         `farea` is the HRU-to-RISFU area-fraction matrix with shape
         (nrisfu, nhrus).
         """
-        tracer_mass_risfu = np.asarray(tracer_mass_risfu, dtype=float)
+        new_mass_risfu = np.asarray(new_mass_risfu, dtype=float)
+        old_mass_risfu = np.asarray(old_mass_risfu, dtype=float)
         farea = np.asarray(farea, dtype=float)
+        mass_hrus = np.asarray(mass_hrus, dtype=float)
 
-        return farea.T @ tracer_mass_risfu
+        mass_hrus_updated = mass_hrus.copy()
+        delta_risfu = new_mass_risfu - old_mass_risfu
+        active_hrus = farea > 0.0
+        has_mass = ~np.isclose(mass_hrus, 0.0)
+
+        for risfu_index in range(farea.shape[0]):
+            for tracer_index in range(mass_hrus.shape[1]):
+                delta = delta_risfu[risfu_index, tracer_index]
+                if np.isclose(delta, 0.0):
+                    continue
+
+                if delta > 0.0:
+                    # A gain is shared by all HRUs in the RISFU according to farea.
+                    candidate_hrus = np.flatnonzero(active_hrus[risfu_index])
+                    weights = farea[risfu_index, candidate_hrus].astype(float)
+                    weights /= weights.sum()
+                else:
+                    # A loss is taken only from HRUs that already carry this tracer's mass.
+                    candidate_hrus = np.flatnonzero(active_hrus[risfu_index] & has_mass[:, tracer_index])
+                    if candidate_hrus.size == 0:
+                        raise ValueError(
+                            f"RISFU {risfu_index + 1}, tracer {tracer_index} has a loss but no HRU with mass"
+                        )
+                    weights = mass_hrus[candidate_hrus, tracer_index]
+                    weights /= weights.sum()
+
+                mass_hrus_updated[candidate_hrus, tracer_index] += delta * weights
+
+        # Check that the updated HRU masses still aggregate to the requested RISFU masses.
+        assert np.all(mass_hrus_updated >= -1e-10)
+        assert np.allclose((farea > 0.0).astype(int) @ mass_hrus_updated, new_mass_risfu)
+        return mass_hrus_updated #farea.T @ tracer_mass_risfu
 
     def advect_tracer_step(self, tracer_mass, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=False):
         """
