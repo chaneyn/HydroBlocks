@@ -3,6 +3,88 @@ import numba
 from collections import Counter
 from mpi4py import MPI
 
+@numba.njit #Avoid parallel=True because the advection loop updates shared donor/receiver masses.
+def _advect_tracer_step_kernel(tracer_mass, q_m3s, water_volume, dt, track_pair_mass):
+    nrisfu, nsoil = tracer_mass.shape
+    mass = tracer_mass.copy()
+
+    if track_pair_mass:
+        pair_mass = np.zeros((nrisfu, nrisfu, nsoil), dtype=np.float64)
+    else:
+        pair_mass = np.empty((0, 0, 0), dtype=np.float64)
+
+    for layer in range(nsoil):
+        for donor_candidate in range(nrisfu):
+            for receiver_candidate in range(donor_candidate + 1, nrisfu):
+                flow = q_m3s[donor_candidate, receiver_candidate, layer]
+                if abs(flow) < 1e-20:
+                    continue
+
+                if flow > 0.0:
+                    donor = donor_candidate
+                    receiver = receiver_candidate
+                else:
+                    donor = receiver_candidate
+                    receiver = donor_candidate
+
+                requested_volume = abs(flow) * dt
+                available_volume = max(water_volume[donor, layer], 0.0)
+                volume = min(requested_volume, available_volume)
+                if volume <= 0.0:
+                    continue
+
+                donor_concentration = mass[donor, layer] / water_volume[donor, layer]
+                moved_mass = min(volume * donor_concentration, mass[donor, layer])
+
+                mass[donor, layer] -= moved_mass
+                mass[receiver, layer] += moved_mass
+                water_volume[donor, layer] -= volume
+                water_volume[receiver, layer] += volume
+
+                if track_pair_mass:
+                    pair_mass[donor, receiver, layer] += moved_mass
+
+    return mass, pair_mass
+
+
+@numba.njit
+def _redistribute_mass_hrus_kernel(mass_hrus, delta_risfu, farea):
+    nrisfu, nhrus = farea.shape
+    nsoil = mass_hrus.shape[1]
+    mass_hrus_updated = mass_hrus.copy()
+
+    for risfu_index in range(nrisfu):
+        for tracer_index in range(nsoil):
+            delta = delta_risfu[risfu_index, tracer_index]
+            if abs(delta) <= 1e-12:
+                continue
+
+            total_weight = 0.0
+            if delta > 0.0:
+                for hru_index in range(nhrus):
+                    if farea[risfu_index, hru_index] > 0.0:
+                        total_weight += farea[risfu_index, hru_index]
+            else:
+                for hru_index in range(nhrus):
+                    if (farea[risfu_index, hru_index] > 0.0 and
+                            abs(mass_hrus[hru_index, tracer_index]) > 1e-12):
+                        total_weight += mass_hrus[hru_index, tracer_index]
+
+                if total_weight <= 1e-12:
+                    raise ValueError("RISFU has a mass loss but no HRU with mass")
+
+            for hru_index in range(nhrus):
+                if delta > 0.0:
+                    if farea[risfu_index, hru_index] > 0.0:
+                        weight = farea[risfu_index, hru_index] / total_weight
+                        mass_hrus_updated[hru_index, tracer_index] += delta * weight
+                elif (farea[risfu_index, hru_index] > 0.0 and
+                      abs(mass_hrus[hru_index, tracer_index]) > 1e-12):
+                    weight = mass_hrus[hru_index, tracer_index] / total_weight
+                    mass_hrus_updated[hru_index, tracer_index] += delta * weight
+
+    return mass_hrus_updated
+
 class AdvectiveTransport:
     """
     Conservative tracer advection using richards q links.
@@ -152,33 +234,12 @@ class AdvectiveTransport:
         farea = np.asarray(farea, dtype=float)
         mass_hrus = np.asarray(mass_hrus, dtype=float)
 
-        mass_hrus_updated = mass_hrus.copy()
         delta_risfu = new_mass_risfu - old_mass_risfu
-        active_hrus = farea > 0.0
-        has_mass = ~np.isclose(mass_hrus, 0.0)
-
-        for risfu_index in range(farea.shape[0]):
-            for tracer_index in range(mass_hrus.shape[1]):
-                delta = delta_risfu[risfu_index, tracer_index]
-                if np.isclose(delta, 0.0):
-                    continue
-
-                if delta > 0.0:
-                    # A gain is shared by all HRUs in the RISFU according to farea.
-                    candidate_hrus = np.flatnonzero(active_hrus[risfu_index])
-                    weights = farea[risfu_index, candidate_hrus].astype(float)
-                    weights /= weights.sum()
-                else:
-                    # A loss is taken only from HRUs that already carry this tracer's mass.
-                    candidate_hrus = np.flatnonzero(active_hrus[risfu_index] & has_mass[:, tracer_index])
-                    if candidate_hrus.size == 0:
-                        raise ValueError(
-                            f"RISFU {risfu_index + 1}, tracer {tracer_index} has a loss but no HRU with mass"
-                        )
-                    weights = mass_hrus[candidate_hrus, tracer_index]
-                    weights /= weights.sum()
-
-                mass_hrus_updated[candidate_hrus, tracer_index] += delta * weights
+        mass_hrus_updated = _redistribute_mass_hrus_kernel(
+            mass_hrus,
+            delta_risfu,
+            farea,
+        )
 
         # Check that the updated HRU masses still aggregate to the requested RISFU masses.
         assert np.all(mass_hrus_updated >= -1e-10)
@@ -207,45 +268,16 @@ class AdvectiveTransport:
             raise ValueError("area must have shape (nrisfu,).")
 
         # Water volume per node/layer [m3]
-        Vw = area_risfu[:, None] * dz_risfu * theta_risfu
-        Vw = np.maximum(Vw, 1e-20)
+        water_volume = area_risfu[:, None] * dz_risfu * theta_risfu
+        water_volume = np.maximum(water_volume, 1e-20)
 
-        # Tracer mass [mass]
-        M = tracer_mass.copy()
-        pair_mass = None
-        if track_pair_mass:
-            pair_mass = np.zeros((nrisfu, nrisfu, nsoil), dtype=float)
-
-        for il in range(nsoil):
-            for i in range(nrisfu):
-                for j in range(i + 1, nrisfu):
-                    f = q_m3s[i, j, il]  # [m3/s] positive means i -> j
-                    if abs(f) < 1e-20:
-                        continue
-
-                    if f > 0.0:
-                        donor = i
-                        recv = j
-                    else:
-                        donor = j
-                        recv = i
-
-                    qabs = abs(f)
-                    vol = qabs * dt
-
-                    c_donor = M[donor, il] / Vw[donor, il]
-                    m_potential = vol * c_donor
-                    m_move = min(m_potential, M[donor, il])
-
-                    M[donor, il] -= m_move
-                    M[recv, il] += m_move
-                    Vw[donor, il] -= vol
-                    Vw[recv, il] += vol
-
-                    if track_pair_mass:
-                        pair_mass[donor, recv, il] += m_move
-
-        conc_new = M #/ Vw
+        conc_new, pair_mass = _advect_tracer_step_kernel(
+            tracer_mass,
+            q_m3s,
+            water_volume,
+            dt,
+            track_pair_mass,
+        )
         if track_pair_mass:
             return conc_new, pair_mass
         return conc_new

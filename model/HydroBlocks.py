@@ -33,6 +33,10 @@ class HydroBlocks:
 
   #Read in general information
   self.general_information(info)
+  restart_file = '%s/%s.h5' % (self.metadata['restart']['dir'], self.idate.strftime('%Y-%m-%d'))
+  self.restart_available = (
+   self.metadata['restart']['flag'] and os.path.exists(restart_file)
+  )
 
   #Initialize Noah-MP
   print("  Initializing Noah-MP",flush=True)
@@ -101,6 +105,11 @@ class HydroBlocks:
     fp.close()
     raise ValueError('Restart tracer_mass_hrus_new has shape %s; expected %s' % (tracer_mass.shape, expected_shape))
    self.advectivetransport.tracer_mass_hrus_new[:] = tracer_mass
+  self.advectivetransport.tracer_mass_risfu[:] = self.advectivetransport.aggregate_mass_risfu(
+   self.advectivetransport.tracer_mass_hrus_new,
+   self.mssubsurface.farea_gw,
+  )
+  self.advectivetransport.tracer_mass_hrus_old[:] = self.advectivetransport.tracer_mass_hrus_new
   #noahmp
   self.noahmp.smceq[:] = fp['smceq'][:]
   self.noahmp.albold[:] = fp['albold'][:]
@@ -913,16 +922,17 @@ class HydroBlocks:
   if self.tracer_flag and self.multiscale_flag == True:
    from model.pyRichards.advectivetransport import AdvectiveTransport
    self.advectivetransport = AdvectiveTransport(self.nhru,self.mssubsurface.units,self.nsoil,self.mssubsurface.reg_ids,self.MPI.COMM_WORLD)
-   self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
-   #change the source to one single hru
-   mask = np.zeros(self.advectivetransport.c0_hrus.shape,dtype=bool)
-   mask[26,:] = True
-   self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
-   #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
-   self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
-   #print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
-   self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
-   #print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
+   if not self.restart_available:
+    self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
+    #change the source to one single hru
+    mask = np.zeros(self.advectivetransport.c0_hrus.shape,dtype=bool)
+    mask[26,:] = True
+    self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
+    #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
+    self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
+    #print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
+    self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
+    #print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
 
   return
 
@@ -1342,6 +1352,7 @@ class HydroBlocks:
 
     #Reshape tracer concentration for regional units flow (in this cid) shape (nunits, soil_layers)
     self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
+    #print('      Updated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu, flush=True)
 
  def initialize_water_balance(self,): 
  
@@ -1954,7 +1965,7 @@ class HydroBlocks:
   hru.description = 'hru ids'
 
   # Create tracer diagnostics file if tracer flag is enabled
-  #self.create_tracer_diagnostics_file()
+  self.create_tracer_diagnostics_file()
 
   return
  
