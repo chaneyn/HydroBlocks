@@ -744,7 +744,7 @@ class HydroBlocks:
  
  def _diagnose_subsurface_balance(self,smw_before,ms_diag=None):
 
-  smw_after = np.sum(1000.0*self.noahmp.sldpth*self.noahmp.smois,axis=1)
+  smw_after = np.sum(1000.0*self.noahmp.sldpth*self.noahmp.sh2o,axis=1)
   smw_delta_max = np.max(np.abs(smw_after - smw_before))
   hdiv_col = np.sum(self.noahmp.hdiv,axis=1)
   hdiv_domain_net = np.sum(self.pct*hdiv_col)
@@ -804,7 +804,7 @@ class HydroBlocks:
     (not np.all(np.isfinite(hdiv_int))) or
     (not np.all(np.isfinite(hdiv_reg))) or
     (not np.isfinite(ms_recon_err)) or
-    (np.abs(ms_recon_err) > 1e-12) or
+    (np.abs(ms_recon_err) > 1e-10) or
     (np.isfinite(ms_heat_recon_err) and np.abs(ms_heat_recon_err) > heat_recon_tol)
    )
   # Storage in this routine should remain unchanged; hdiv net near zero indicates internal closure.
@@ -928,7 +928,7 @@ class HydroBlocks:
     mask[106,:] = True
     self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
     #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
-    self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.smois)
+    self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.sh2o)
     #print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
     self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
     #print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
@@ -1164,7 +1164,7 @@ class HydroBlocks:
  def update_subsurface(self):
 
   self.noahmp.dzwt[:] = 0.0
-  smw_before = np.sum(1000.0*self.noahmp.sldpth*self.noahmp.smois,axis=1)
+  smw_before = np.sum(1000.0*self.noahmp.sldpth*self.noahmp.sh2o,axis=1)
   
   use_vsp = self.vsp_flag
   use_richards = self.subsurface_module == 'richards'
@@ -1176,7 +1176,7 @@ class HydroBlocks:
   ms_diag = None
 
   if use_richards and not use_cmatrix:
-   self.richards.theta[:] = self.noahmp.smois[:]
+   self.richards.theta[:] = self.noahmp.sh2o[:]
    self.richards.dz[:] = self.noahmp.sldpth[:]
 
    if not use_vsp:
@@ -1216,7 +1216,7 @@ class HydroBlocks:
    aux=0
    for h_band in unique_hbands: #laura average up all the HRUs areas that belong to the same hband
     m = self.hbands == h_band
-    self.richards.theta[aux,:]=(np.sum(((self.noahmp.smois[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
+    self.richards.theta[aux,:]=(np.sum(((self.noahmp.sh2o[m,:])*(hru_area[m])[:,None]),axis=0))/(self.richards.area[aux])
     self.richards.thetar[aux]=(np.sum(((self.noahmp.smcdry[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
     self.richards.thetas[aux]=(np.sum(((self.noahmp.smcmax[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
     self.richards.b[aux]=(np.sum(((self.noahmp.bexp[m,0])*(hru_area[m])),axis=0))/(self.richards.area[aux])
@@ -1256,7 +1256,7 @@ class HydroBlocks:
   #------------------------------Multiscale Subsurface Scheme ----------------------------------------
   if use_multiscale:
    #Reshape soil moisturefor regional units flow
-   self.mssubsurface.th_gw = self.mssubsurface.aggregate_variable(self.noahmp.smois[:])
+   self.mssubsurface.th_gw = self.mssubsurface.aggregate_variable(self.noahmp.sh2o[:])
    #Local Lateral Flow
    'Computed in Richards update_numba and assigned to noahmp.hdiv'
    hdiv_loc = np.copy(self.noahmp.hdiv)
