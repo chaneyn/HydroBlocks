@@ -1547,7 +1547,7 @@ def Calculate_HRU_Connections_Matrix_HMC(cluster_ids,nhru,dx,HMC_info,hydroblock
 
  #Prepare length, width, and ksat matrices
  wmatrix = cmatrix.copy()
- wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
+ wmatrix = wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
 
  #Prepare output dictionary
  cdata = {'width':wmatrix.T,}
@@ -1587,7 +1587,7 @@ def Calculate_HRU_Connections_Matrix_HMC_hbands(hbands,dx,HMC_info,hydroblocks_i
 
  #Prepare length, width, and ksat matrices
  wmatrix = cmatrix.copy()
- wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
+ wmatrix = wmatrix.multiply(dx) #wmatrix[:] = dx*wmatrix[:]
 
  #Prepare output dictionary
  cdata = {'width':wmatrix.T,}
