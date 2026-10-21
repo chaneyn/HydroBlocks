@@ -1,8 +1,8 @@
 {
-"dir":"/scratch/TEST",
+"dir":"/stor/soteria/hydro/private/deg31/SOFTWARE/HydroBlocks_Nate/test",
 "domain_decomposition":{"type":"latlon",
-                        "boundaries":{"minlat":36.0,"maxlat":36.2,"minlon":-100.0,"maxlon":-99.8},
-                        "res":0.1,
+                        "boundaries":{"minlat":41.33,"maxlat":41.83,"minlon":-71.63,"maxlon":-71.13},
+                        "res":0.25,
                         "layer":"domain",
                         "id":"ID"},
 "res_latlon":0.0008333333333333467,
@@ -21,9 +21,8 @@
 "administrative_boundaries":"/home/nc153/soteria/data/USCENSUS/cb_2018_us_state_500k.shp",
 "meteo":{
         "startdate":"01Jan2013",
-        "enddate":"31Dec2013",
+        "enddate":"31Jan2013",
         "tstep":"1hr",
         "dir":"/home/nc153/soteria/data/PCF/1hr/daily",
         "file_template":"$YEAR$MTH$DAY.nc"}
 }
-
