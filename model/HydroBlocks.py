@@ -790,7 +790,7 @@ class HydroBlocks:
     (not np.all(np.isfinite(hdiv_int))) or
     (not np.all(np.isfinite(hdiv_reg))) or
     (not np.isfinite(ms_recon_err)) or
-    (np.abs(ms_recon_err) > 1e-12) or
+    (np.abs(ms_recon_err) > 1e-20) or
     (np.isfinite(ms_heat_recon_err) and np.abs(ms_heat_recon_err) > heat_recon_tol)
    )
   # Storage in this routine should remain unchanged; hdiv net near zero indicates internal closure.
