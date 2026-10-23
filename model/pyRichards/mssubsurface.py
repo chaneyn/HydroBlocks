@@ -526,7 +526,7 @@ def exchange_smc_regional_units(cids,rank,HBdb):
 
     for cid_in_rank in cids:
         local_subsurface = HBdb[cid_in_rank].mssubsurface
-        smc_hb = local_subsurface.aggregate_variable(HBdb[cid_in_rank].noahmp.smois[:]) #use the latest smc
+        smc_hb = local_subsurface.aggregate_variable(HBdb[cid_in_rank].noahmp.sh2o[:]) #use the latest smc
         risfu_mapping = local_subsurface.risfu_mapping
 
         smc_db = {cid_in_rank: smc_hb}
@@ -545,7 +545,7 @@ def exchange_smc_regional_units(cids,rank,HBdb):
             elif cid != cid_in_rank and cid in risfu_mapping[cid_in_rank].keys():
                 rows = risfu_mapping[cid_in_rank][cid]
                 #smc_other_cid = HBdb[cid].mssubsurface.th_gw[:]
-                smc_other_cid = HBdb[cid].mssubsurface.aggregate_variable(HBdb[cid].noahmp.smois[:])
+                smc_other_cid = HBdb[cid].mssubsurface.aggregate_variable(HBdb[cid].noahmp.sh2o[:])
                 smc_db[cid] = smc_other_cid[rows, :]
 
         for cid in risfu_mapping.keys():
