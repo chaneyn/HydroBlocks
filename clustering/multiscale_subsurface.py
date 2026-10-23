@@ -307,9 +307,9 @@ def compute_connection_matrix_risfu(risfu_org,gwunits_id,ngwus,resx,input_dir,gw
   recat_gw[risfu_org == i] = nid
   nid += 1
   
-  recat_cp = np.copy(recat_gw)
-  gwus_counts = build_adjacency_from_labels(recat_cp, nodata=-9999)
-  w_gws = gwus_counts * resx  # Converting the number of cells to distance in meters
+ recat_cp = np.copy(recat_gw)
+ gwus_counts = build_adjacency_from_labels(recat_cp, nodata=-9999)
+ w_gws = gwus_counts * resx  # Converting the number of cells to distance in meters
  #print('Defining the shared length between units',flush=True)
 
  # gw_area is derived from corrected HRU areas, including channel-width corrections.
