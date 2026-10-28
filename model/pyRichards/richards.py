@@ -251,6 +251,7 @@ def calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b,af):
   
  Ksat_x = af*ksat #lateral saturated hydraulic conductivity (multiply times anisotropy factor) [m/s]
  K_x = Ksat_x*np.true_divide(psi,satpsi)**(-2-np.true_divide(3.,b))
+ #K_x = Ksat_x # Use saturated hydraulic conductivity directly without unsaturated correction
  #Correct hydraulic conductivity if layer is deeper than 2.0 meters
  depth_threshold = 2.0
  #Calculate transmissivity at top layer (exponential decay)
@@ -266,6 +267,7 @@ def calculate_transmissivity(psi,ztop,zbot,m,ksat,satpsi,b,af):
 def calculate_hydraulic_head(hand,psi,depth):
   
  h = hand - depth - psi
+ #h = hand - depth # Remove psi from the calculation for saturated conditions
 
  return h
 
