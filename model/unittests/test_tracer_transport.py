@@ -67,18 +67,27 @@ def test_aggregate_and_redistribute_mass_round_trip_preserves_mass():
 
     farea = np.eye(3, dtype=float)
 
+    tracer_mass_hrus = np.zeros((3, 1), dtype=float)
+    tracer_mass_risfu_old = np.zeros((3, 1), dtype=float)
     tracer_mass_risfu = np.array([[12.0], [24.0], [36.0]], dtype=float)
 
+    print("[redistribute] tracer_mass_hrus=", tracer_mass_hrus, flush=True)
+    print("[redistribute] tracer_mass_risfu_old=", tracer_mass_risfu_old, flush=True)
     print("[redistribute] tracer_mass_risfu=", tracer_mass_risfu, flush=True)
     print("[redistribute] farea=", farea, flush=True)
 
-    tracer_mass_hrus = adv.redistribute_mass_hrus(tracer_mass_risfu, farea)
-    tracer_mass_risfu_back = adv.aggregate_mass_risfu(tracer_mass_hrus, farea)
+    tracer_mass_hrus_updated = adv.redistribute_mass_hrus(
+        tracer_mass_hrus,
+        tracer_mass_risfu,
+        tracer_mass_risfu_old,
+        farea,
+    )
+    tracer_mass_risfu_back = adv.aggregate_mass_risfu(tracer_mass_hrus_updated, farea)
 
     mass_risfu = np.sum(tracer_mass_risfu)
-    mass_hrus = np.sum(tracer_mass_hrus)
+    mass_hrus = np.sum(tracer_mass_hrus_updated)
 
-    print("[redistribute] tracer_mass_hrus=", tracer_mass_hrus, flush=True)
+    print("[redistribute] tracer_mass_hrus_updated=", tracer_mass_hrus_updated, flush=True)
     print("[redistribute] tracer_mass_risfu_back=", tracer_mass_risfu_back, flush=True)
     print("[redistribute] mass_risfu=", mass_risfu, flush=True)
     print("[redistribute] mass_hrus=", mass_hrus, flush=True)
