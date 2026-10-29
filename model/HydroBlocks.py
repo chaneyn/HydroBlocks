@@ -921,6 +921,18 @@ class HydroBlocks:
   if self.tracer_flag and self.multiscale_flag == True:
    from model.pyRichards.advectivetransport import AdvectiveTransport
    self.advectivetransport = AdvectiveTransport(self.nhru,self.mssubsurface.units,self.nsoil,self.mssubsurface.reg_ids,self.MPI.COMM_WORLD)
+   if not self.flagcmatrix:
+    local_neighbors = self.richards.I.toarray()
+    local_edges = self.advectivetransport.directed_edges_from_neighbors(
+     local_neighbors, self.nhru)
+   else:
+    local_edges = None
+   intermediate_edges = self.advectivetransport.directed_edges_from_neighbors(
+    self.mssubsurface.mconx, self.mssubsurface.units)
+   regional_edges = self.advectivetransport.directed_edges_from_neighbors(
+    self.mssubsurface.ccid, self.mssubsurface.units)
+   self.advectivetransport.set_transport_edges(
+    local=local_edges, intermediate=intermediate_edges, regional=regional_edges)
    if not self.restart_available:
     #self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
     #change the source to one single hru
@@ -929,7 +941,7 @@ class HydroBlocks:
     #self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
     #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
     #self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.sh2o)
-    self.advectivetransport.tracer_mass_hrus_new[5,:] = np.array([8.0e3,1.0e5,1.0e6,4.0e6, 2.0e7]) # set initial mass x source HRU
+    self.advectivetransport.tracer_mass_hrus_new[1,:] = np.array([8.0e3,1.0e5,1.0e6,4.0e6, 2.0e7]) # set initial mass x source HRU
     print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
     self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
     print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
@@ -1624,55 +1636,76 @@ class HydroBlocks:
    for var in self.metadata['output']['vars']:
     grp.variables[var][val:itime+1,:] = self.output[var][0:itime-val+1,:]
 
-  # Buffer all tracer diagnostics (local HRU, intermediate, and regional RISFU).
+  # Buffer sparse tracer diagnostics as values on fixed directed edges.
   if self.tracer_flag and hasattr(self, 'tracer_diag_fp'):
    nhru = self.nhru
    nrisfu = self.advectivetransport.nrisfus
    if itime == 0:
-    # Local HRU buffers
-    self.local_mass_transfer_output = np.zeros((sep,nhru,nhru), dtype=np.float64)
-    self.local_q_links_output = np.zeros((sep,nhru,nhru), dtype=np.float64)
-    # Intermediate RISFU buffers
-    self.int_mass_transfer_output = np.zeros((sep,nrisfu,nrisfu), dtype=np.float64)
-    self.int_q_links_output = np.zeros((sep,nrisfu,nrisfu), dtype=np.float64)
-    # Regional RISFU buffers
-    self.reg_mass_transfer_output = np.zeros((sep,nrisfu,nrisfu), dtype=np.float64)
-    self.reg_q_links_output = np.zeros((sep,nrisfu,nrisfu), dtype=np.float64)
+    self.local_edge_count = self.tracer_diag_fp.dimensions['local_edge'].size
+    self.int_edge_count = self.tracer_diag_fp.dimensions['intermediate_edge'].size
+    self.reg_edge_count = self.tracer_diag_fp.dimensions['regional_edge'].size
+    self.local_mass_transfer_output = np.zeros((sep,self.local_edge_count), dtype=np.float64)
+    self.local_q_links_output = np.zeros((sep,self.local_edge_count), dtype=np.float64)
+    self.int_mass_transfer_output = np.zeros((sep,self.int_edge_count), dtype=np.float64)
+    self.int_q_links_output = np.zeros((sep,self.int_edge_count), dtype=np.float64)
+    self.reg_mass_transfer_output = np.zeros((sep,self.reg_edge_count), dtype=np.float64)
+    self.reg_q_links_output = np.zeros((sep,self.reg_edge_count), dtype=np.float64)
     # HRU concentration buffer
     self.mass_hrus_output = np.zeros((sep,nhru), dtype=np.float64)
    
-   # Store local HRU matrices
+   def edge_values(edges):
+    if edges is None:
+     return np.empty(0, dtype=np.float64)
+    return np.sum(edges[2], axis=-1)
+
+   def edge_flows(q_links, edges):
+    if edges is None:
+     return np.empty(0, dtype=np.float64)
+    donors, receivers = edges[:2]
+    upper_donors = np.minimum(donors, receivers)
+    upper_receivers = np.maximum(donors, receivers)
+    flow = q_links[upper_donors, upper_receivers, :].mean(axis=-1)
+    return np.where(donors < receivers, flow, -flow)
+
+   # Store local HRU edges
    if not self.flagcmatrix:
-    loc_matrix = self.advectivetransport.local_mass_transfer_matrix.sum(axis=-1)
-    q_links = self.richards.q_links.mean(axis=-1)
-    if loc_matrix is None:
-     self.local_mass_transfer_output[itime % sep,:,:] = 0.0
+    local_edges = self.advectivetransport.local_mass_transfer_edges
+    if local_edges is None:
+     local_mass = np.zeros(self.local_edge_count, dtype=np.float64)
+     local_flow = np.zeros(self.local_edge_count, dtype=np.float64)
     else:
-     self.local_mass_transfer_output[itime % sep,:,:] = loc_matrix
-    if q_links is None:
-     self.local_q_links_output[itime % sep,:,:] = 0.0
-    else:
-     self.local_q_links_output[itime % sep,:,:] = q_links
+     if len(local_edges[0]) != self.local_edge_count:
+      raise ValueError('Local tracer edge topology changed during diagnostics')
+     local_mass = edge_values(local_edges)
+     local_flow = edge_flows(self.richards.q_links, local_edges)
+    self.local_mass_transfer_output[itime % sep,:] = local_mass
+    self.local_q_links_output[itime % sep,:] = local_flow
    
-   # Store intermediate matrices
-   int_matrix = self.advectivetransport.int_mass_transfer_matrix.sum(axis=-1)
-   if int_matrix is None:
-    self.int_mass_transfer_output[itime % sep,:,:] = 0.0
-    self.int_q_links_output[itime % sep,:,:] = 0.0
+   # Store intermediate edges
+   int_edges = self.advectivetransport.int_mass_transfer_edges
+   if int_edges is None:
+    int_mass = np.zeros(self.int_edge_count, dtype=np.float64)
+    int_flow = np.zeros(self.int_edge_count, dtype=np.float64)
    else:
-    self.int_mass_transfer_output[itime % sep,:,:] = int_matrix
-    # q_links for intermediate = mssubsurface.inter_unit_flow_m3s
-    self.int_q_links_output[itime % sep,:,:] = self.mssubsurface.inter_unit_flow_m3s.mean(axis=-1)
+    if len(int_edges[0]) != self.int_edge_count:
+     raise ValueError('Intermediate tracer edge topology changed during diagnostics')
+    int_mass = edge_values(int_edges)
+    int_flow = edge_flows(self.mssubsurface.inter_unit_flow_m3s, int_edges)
+   self.int_mass_transfer_output[itime % sep,:] = int_mass
+   self.int_q_links_output[itime % sep,:] = int_flow
    
-   # Store regional matrices
-   reg_matrix = self.advectivetransport.reg_mass_transfer_matrix.sum(axis=-1)
-   if reg_matrix is None:
-    self.reg_mass_transfer_output[itime % sep,:,:] = 0.0
-    self.reg_q_links_output[itime % sep,:,:] = 0.0
+   # Store regional edges
+   reg_edges = self.advectivetransport.reg_mass_transfer_edges
+   if reg_edges is None:
+    reg_mass = np.zeros(self.reg_edge_count, dtype=np.float64)
+    reg_flow = np.zeros(self.reg_edge_count, dtype=np.float64)
    else:
-    self.reg_mass_transfer_output[itime % sep,:,:] = reg_matrix
-    # q_links for regional = mssubsurface.regional_inter_unit_flow_m3s_cross
-    self.reg_q_links_output[itime % sep,:,:] = self.mssubsurface.regional_inter_unit_flow_m3s_cross.mean(axis=-1)
+    if len(reg_edges[0]) != self.reg_edge_count:
+     raise ValueError('Regional tracer edge topology changed during diagnostics')
+    reg_mass = edge_values(reg_edges)
+    reg_flow = edge_flows(self.mssubsurface.regional_inter_unit_flow_m3s_cross, reg_edges)
+   self.reg_mass_transfer_output[itime % sep,:] = reg_mass
+   self.reg_q_links_output[itime % sep,:] = reg_flow
    
    # Store HRU tracer mass
    tracer_mass_hrus = self.advectivetransport.tracer_mass_hrus_new.sum(axis=-1)
@@ -1685,14 +1718,14 @@ class HydroBlocks:
    if (itime+1) % sep == 0:
     if not self.flagcmatrix:
      grp_loc = self.tracer_diag_fp.groups['local_tracer']
-     grp_loc.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:] = self.local_mass_transfer_output
-     grp_loc.variables['q_link_flows'][itime-sep+1:itime+1,:,:] = self.local_q_links_output
+     grp_loc.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:] = self.local_mass_transfer_output
+     grp_loc.variables['q_link_flows'][itime-sep+1:itime+1,:] = self.local_q_links_output
     grp_int = self.tracer_diag_fp.groups['intermediate_tracer']
-    grp_int.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:] = self.int_mass_transfer_output
-    grp_int.variables['q_link_flows'][itime-sep+1:itime+1,:,:] = self.int_q_links_output
+    grp_int.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:] = self.int_mass_transfer_output
+    grp_int.variables['q_link_flows'][itime-sep+1:itime+1,:] = self.int_q_links_output
     grp_reg = self.tracer_diag_fp.groups['regional_tracer']
-    grp_reg.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:,:] = self.reg_mass_transfer_output
-    grp_reg.variables['q_link_flows'][itime-sep+1:itime+1,:,:] = self.reg_q_links_output
+    grp_reg.variables['mass_transfer_matrix'][itime-sep+1:itime+1,:] = self.reg_mass_transfer_output
+    grp_reg.variables['q_link_flows'][itime-sep+1:itime+1,:] = self.reg_q_links_output
     grp_mass = self.tracer_diag_fp.groups['hru_mass']
     grp_mass.variables['mass'][itime-sep+1:itime+1,:] = self.mass_hrus_output
    
@@ -1702,14 +1735,14 @@ class HydroBlocks:
     count = itime % sep + 1
     if not self.flagcmatrix:
      grp_loc = self.tracer_diag_fp.groups['local_tracer']
-     grp_loc.variables['mass_transfer_matrix'][start:itime+1,:,:] = self.local_mass_transfer_output[0:count,:,:]
-     grp_loc.variables['q_link_flows'][start:itime+1,:,:] = self.local_q_links_output[0:count,:,:]
+     grp_loc.variables['mass_transfer_matrix'][start:itime+1,:] = self.local_mass_transfer_output[0:count,:]
+     grp_loc.variables['q_link_flows'][start:itime+1,:] = self.local_q_links_output[0:count,:]
     grp_int = self.tracer_diag_fp.groups['intermediate_tracer']
-    grp_int.variables['mass_transfer_matrix'][start:itime+1,:,:] = self.int_mass_transfer_output[0:count,:,:]
-    grp_int.variables['q_link_flows'][start:itime+1,:,:] = self.int_q_links_output[0:count,:,:]
+    grp_int.variables['mass_transfer_matrix'][start:itime+1,:] = self.int_mass_transfer_output[0:count,:]
+    grp_int.variables['q_link_flows'][start:itime+1,:] = self.int_q_links_output[0:count,:]
     grp_reg = self.tracer_diag_fp.groups['regional_tracer']
-    grp_reg.variables['mass_transfer_matrix'][start:itime+1,:,:] = self.reg_mass_transfer_output[0:count,:,:]
-    grp_reg.variables['q_link_flows'][start:itime+1,:,:] = self.reg_q_links_output[0:count,:,:]
+    grp_reg.variables['mass_transfer_matrix'][start:itime+1,:] = self.reg_mass_transfer_output[0:count,:]
+    grp_reg.variables['q_link_flows'][start:itime+1,:] = self.reg_q_links_output[0:count,:]
     grp_mass = self.tracer_diag_fp.groups['hru_mass']
     grp_mass.variables['mass'][start:itime+1,:] = self.mass_hrus_output[0:count,:]
     # Close the tracer diagnostics file
@@ -1985,13 +2018,21 @@ class HydroBlocks:
   nhru = self.nhru
   nrisfu = self.advectivetransport.nrisfus
   ntime = int(24*3600*((self.fdate - self.idate).days)/self.dt)
+
+  local_edges = self.advectivetransport.local_transport_edges
+  if local_edges is None:
+   local_edges = (np.empty(0, dtype=np.int32), np.empty(0, dtype=np.int32))
+  int_edges = self.advectivetransport.int_transport_edges
+  reg_edges = self.advectivetransport.reg_transport_edges
+  if int_edges is None or reg_edges is None:
+   raise RuntimeError('Tracer structural edge topology was not initialized')
   
   # Create dimensions
   fp_out.createDimension('time', ntime)
-  fp_out.createDimension('donor_hru', nhru)
-  fp_out.createDimension('receiver_hru', nhru)
-  fp_out.createDimension('donor_risfu', nrisfu)
-  fp_out.createDimension('receiver_risfu', nrisfu)
+  fp_out.createDimension('local_edge', len(local_edges[0]))
+  fp_out.createDimension('intermediate_edge', len(int_edges[0]))
+  fp_out.createDimension('regional_edge', len(reg_edges[0]))
+  fp_out.createDimension('hru', nhru)
   
   # Create metadata group
   grp = fp_out.createGroup('metadata')
@@ -2002,88 +2043,94 @@ class HydroBlocks:
   
   # Create data group for local HRU tracer mass transfer
   grp_loc = fp_out.createGroup('local_tracer')
+  loc_donors = grp_loc.createVariable('donor_hru','i4',('local_edge',))
+  loc_receivers = grp_loc.createVariable('receiver_hru','i4',('local_edge',))
+  loc_donors[:] = local_edges[0]
+  loc_receivers[:] = local_edges[1]
   loc_matrix = grp_loc.createVariable(
    'mass_transfer_matrix',
    'f8',
-   ('time','donor_hru','receiver_hru'),
+   ('time','local_edge'),
    zlib=True,
    complevel=1,
   )
-  loc_matrix.description = 'Tracer mass transferred from donor HRU to receiver HRU per time step (local flow)'
+  loc_matrix.description = 'Tracer mass transferred along each directed local HRU edge per time step'
   loc_matrix.units = 'tracer mass'
-  loc_matrix.donor_axis = 'donor_hru'
-  loc_matrix.receiver_axis = 'receiver_hru'
+  loc_matrix.edge_axis = 'local_edge'
   
   loc_flows = grp_loc.createVariable(
    'q_link_flows',
    'f8',
-   ('time','donor_hru','receiver_hru'),
+   ('time','local_edge'),
    zlib=True,
    complevel=1,
   )
   loc_flows.description = 'Richards pairwise flow contribution from donor HRU to receiver HRU'
   loc_flows.units = 'mm/s'
-  loc_flows.donor_axis = 'donor_hru'
-  loc_flows.receiver_axis = 'receiver_hru'
+  loc_flows.edge_axis = 'local_edge'
   
   # Create data group for intermediate tracer mass transfer
   grp_int = fp_out.createGroup('intermediate_tracer')
+  int_donors = grp_int.createVariable('donor_risfu','i4',('intermediate_edge',))
+  int_receivers = grp_int.createVariable('receiver_risfu','i4',('intermediate_edge',))
+  int_donors[:] = int_edges[0]
+  int_receivers[:] = int_edges[1]
   int_matrix = grp_int.createVariable(
    'mass_transfer_matrix',
    'f8',
-   ('time','donor_risfu','receiver_risfu'),
+   ('time','intermediate_edge'),
    zlib=True,
    complevel=1,
   )
-  int_matrix.description = 'Tracer mass transferred from donor RISFU to receiver RISFU per time step (intermediate flow)'
+  int_matrix.description = 'Tracer mass transferred along each directed intermediate RISFU edge per time step'
   int_matrix.units = 'tracer mass'
-  int_matrix.donor_axis = 'donor_risfu'
-  int_matrix.receiver_axis = 'receiver_risfu'
+  int_matrix.edge_axis = 'intermediate_edge'
   
   int_flows = grp_int.createVariable(
    'q_link_flows',
    'f8',
-   ('time','donor_risfu','receiver_risfu'),
+   ('time','intermediate_edge'),
    zlib=True,
    complevel=1,
   )
   int_flows.description = 'Richards pairwise flow contribution from donor RISFU to receiver RISFU'
   int_flows.units = 'm3/s'
-  int_flows.donor_axis = 'donor_risfu'
-  int_flows.receiver_axis = 'receiver_risfu'
+  int_flows.edge_axis = 'intermediate_edge'
   
   # Create data group for regional tracer mass transfer
   grp_reg = fp_out.createGroup('regional_tracer')
+  reg_donors = grp_reg.createVariable('donor_risfu','i4',('regional_edge',))
+  reg_receivers = grp_reg.createVariable('receiver_risfu','i4',('regional_edge',))
+  reg_donors[:] = reg_edges[0]
+  reg_receivers[:] = reg_edges[1]
   reg_matrix = grp_reg.createVariable(
    'mass_transfer_matrix',
    'f8',
-   ('time','donor_risfu','receiver_risfu'),
+   ('time','regional_edge'),
    zlib=True,
    complevel=1,
   )
-  reg_matrix.description = 'Tracer mass transferred from donor RISFU to receiver RISFU per time step (regional flow)'
+  reg_matrix.description = 'Tracer mass transferred along each directed regional RISFU edge per time step'
   reg_matrix.units = 'tracer mass'
-  reg_matrix.donor_axis = 'donor_risfu'
-  reg_matrix.receiver_axis = 'receiver_risfu'
+  reg_matrix.edge_axis = 'regional_edge'
   
   reg_flows = grp_reg.createVariable(
    'q_link_flows',
    'f8',
-   ('time','donor_risfu','receiver_risfu'),
+   ('time','regional_edge'),
    zlib=True,
    complevel=1,
   )
   reg_flows.description = 'Richards pairwise flow contribution from donor RISFU to receiver RISFU'
   reg_flows.units = 'm3/s'
-  reg_flows.donor_axis = 'donor_risfu'
-  reg_flows.receiver_axis = 'receiver_risfu'
+  reg_flows.edge_axis = 'regional_edge'
   
   # Create data group for HRU tracer mass
   grp_mass = fp_out.createGroup('hru_mass')
   mass_var = grp_mass.createVariable(
    'mass',
    'f8',
-   ('time','donor_hru'),
+   ('time','hru'),
    zlib=True,
    complevel=1,
   )
