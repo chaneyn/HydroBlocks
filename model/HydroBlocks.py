@@ -935,13 +935,9 @@ class HydroBlocks:
     local=local_edges, intermediate=intermediate_edges, regional=regional_edges)
    if not self.restart_available:
     #self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
-    #change the source to one single hru
-    #mask = np.zeros(self.advectivetransport.c0_hrus.shape,dtype=bool)
-    #mask[12,:] = True
-    #self.advectivetransport.c0_hrus = np.where(mask, self.advectivetransport.c0_hrus, 0)
     #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
     #self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.sh2o)
-    self.advectivetransport.tracer_mass_hrus_new[1,:] = np.array([8.0e3,1.0e5,1.0e6,4.0e6, 2.0e7]) # set initial mass x source HRU
+    self.advectivetransport.tracer_mass_hrus_new[1,:] = np.array([1.0e3,1.0e3,1.0e3,1.0e3, 1.0e3]) # set initial mass x source HRU
     print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
     self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
     print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
