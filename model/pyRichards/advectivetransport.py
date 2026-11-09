@@ -4,47 +4,62 @@ from collections import Counter
 from mpi4py import MPI
 
 @numba.njit #Avoid parallel=True because the advection loop updates shared donor/receiver masses.
-def _advect_tracer_step_kernel(tracer_mass, q_m3s, water_volume, dt, track_pair_mass):
+def _advect_tracer_step_kernel(tracer_mass, q_m3s, water_volume, dt,
+                               edge_donors, edge_receivers, track_pair_mass):
     nrisfu, nsoil = tracer_mass.shape
     mass = tracer_mass.copy()
 
     if track_pair_mass:
-        pair_mass = np.zeros((nrisfu, nrisfu, nsoil), dtype=np.float64)
+        pair_mass = np.zeros((edge_donors.shape[0], nsoil), dtype=np.float64)
     else:
-        pair_mass = np.empty((0, 0, 0), dtype=np.float64)
+        pair_mass = np.empty((0, 0), dtype=np.float64)
 
     for layer in range(nsoil):
-        for donor_candidate in range(nrisfu):
-            for receiver_candidate in range(donor_candidate + 1, nrisfu):
-                flow = q_m3s[donor_candidate, receiver_candidate, layer]
-                if abs(flow) < 1e-20:
-                    continue
+        for edge_index in range(edge_donors.shape[0]):
+            donor = edge_donors[edge_index]
+            receiver = edge_receivers[edge_index]
+            if donor < receiver:
+                flow = q_m3s[donor, receiver, layer]
+            else:
+                flow = -q_m3s[receiver, donor, layer]
+            if flow <= 1e-20:
+                continue
 
-                if flow > 0.0:
-                    donor = donor_candidate
-                    receiver = receiver_candidate
-                else:
-                    donor = receiver_candidate
-                    receiver = donor_candidate
+            requested_volume = flow * dt
+            available_volume = max(water_volume[donor, layer], 0.0)
+            volume = min(requested_volume, available_volume)
+            if volume <= 0.0:
+                continue
 
-                requested_volume = abs(flow) * dt
-                available_volume = max(water_volume[donor, layer], 0.0)
-                volume = min(requested_volume, available_volume)
-                if volume <= 0.0:
-                    continue
+            donor_concentration = mass[donor, layer] / water_volume[donor, layer]
+            moved_mass = min(volume * donor_concentration, mass[donor, layer])
 
-                donor_concentration = mass[donor, layer] / water_volume[donor, layer]
-                moved_mass = min(volume * donor_concentration, mass[donor, layer])
+            mass[donor, layer] -= moved_mass
+            mass[receiver, layer] += moved_mass
+            water_volume[donor, layer] -= volume
+            water_volume[receiver, layer] += volume
 
-                mass[donor, layer] -= moved_mass
-                mass[receiver, layer] += moved_mass
-                water_volume[donor, layer] -= volume
-                water_volume[receiver, layer] += volume
-
-                if track_pair_mass:
-                    pair_mass[donor, receiver, layer] += moved_mass
+            if track_pair_mass:
+                pair_mass[edge_index, layer] += moved_mass
 
     return mass, pair_mass
+
+
+def _transport_edges(q_m3s, n_nodes, structural_edges=None):
+    """Return directed edges for a fixed topology or active flow."""
+    if structural_edges is None:
+        connected = np.any(np.abs(q_m3s[:n_nodes, :n_nodes, :]) >= 1e-20, axis=2)
+    else:
+        connected = np.zeros((n_nodes, n_nodes), dtype=bool)
+        connected[structural_edges[0], structural_edges[1]] = True
+    donors = []
+    receivers = []
+    for donor in range(n_nodes):
+        for receiver in range(donor + 1, n_nodes):
+            if connected[donor, receiver]:
+                donors.extend((donor, receiver))
+                receivers.extend((receiver, donor))
+    return np.asarray(donors, dtype=np.int64), np.asarray(receivers, dtype=np.int64)
 
 
 @numba.njit
@@ -102,12 +117,18 @@ class AdvectiveTransport:
         # Per-step local HRU donor->receiver tracer mass transfer [mass/time step].
         # Filled only when the HRU local-flow scheme requests tracking.
         self.local_mass_transfer_matrix = None
+        self.local_mass_transfer_edges = None
         self.local_mass_convergence = np.zeros((nhrus, nsoil), dtype=float)
         self.local_mass_divergence = np.zeros((nhrus, nsoil), dtype=float)
         # Per-step intermediate RISFU donor->receiver mass transfer [mass/time step].
         self.int_mass_transfer_matrix = None
+        self.int_mass_transfer_edges = None
         # Per-step regional RISFU donor->receiver mass transfer [mass/time step].
         self.reg_mass_transfer_matrix = None
+        self.reg_mass_transfer_edges = None
+        self.local_transport_edges = None
+        self.int_transport_edges = None
+        self.reg_transport_edges = None
         self.comm = comm
         self.reg_ids = reg_ids
 
@@ -122,8 +143,39 @@ class AdvectiveTransport:
         Reset per-step local HRU mass-transfer diagnostics.
         """
         self.local_mass_transfer_matrix = None
+        self.local_mass_transfer_edges = None
         self.local_mass_convergence[:] = 0.0
         self.local_mass_divergence[:] = 0.0
+
+    @staticmethod
+    def directed_edges_from_neighbors(neighbors, n_nodes):
+        """Build a stable directed edge list from a structural neighbor table."""
+        neighbors = np.asarray(neighbors)
+        connected = np.zeros((n_nodes, n_nodes), dtype=bool)
+        if neighbors.ndim == 2 and neighbors.shape == (n_nodes, n_nodes):
+            connected = neighbors != 0
+        else:
+            for donor in range(neighbors.shape[0]):
+                for receiver in neighbors[donor]:
+                    receiver = int(receiver)
+                    if 0 <= receiver < n_nodes and receiver != donor:
+                        connected[donor, receiver] = True
+        pairs = np.argwhere(np.triu(connected | connected.T, 1))
+        if len(pairs) == 0:
+            return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.int64)
+        donors = np.empty(2 * len(pairs), dtype=np.int64)
+        receivers = np.empty(2 * len(pairs), dtype=np.int64)
+        donors[0::2] = pairs[:, 0]
+        receivers[0::2] = pairs[:, 1]
+        donors[1::2] = pairs[:, 1]
+        receivers[1::2] = pairs[:, 0]
+        return donors, receivers
+
+    def set_transport_edges(self, local=None, intermediate=None, regional=None):
+        """Set fixed structural topologies used by tracked diagnostics."""
+        self.local_transport_edges = local
+        self.int_transport_edges = intermediate
+        self.reg_transport_edges = regional
 
     def synthetic_concentration(self,):
         """
@@ -161,11 +213,15 @@ class AdvectiveTransport:
         When `store_mass_transfer=True`, save a donor->receiver matrix for this step.
         """
         if store_mass_transfer:
-            tracer_mass_risfu_new, pair_mass = self.advect_tracer_step(tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=True)
-            self.int_mass_transfer_matrix = pair_mass
+            tracer_mass_risfu_new, pair_mass, donors, receivers = self.advect_tracer_step(
+                tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt,
+                track_pair_mass=True, structural_edges=self.int_transport_edges)
+            self.int_mass_transfer_edges = (donors, receivers, pair_mass)
+            self.int_mass_transfer_matrix = None
         else:
             tracer_mass_risfu_new = self.advect_tracer_step(tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
             self.int_mass_transfer_matrix = None
+            self.int_mass_transfer_edges = None
 
         return tracer_mass_risfu_new
 
@@ -179,11 +235,15 @@ class AdvectiveTransport:
         When `store_mass_transfer=True`, save the full global pair_mass matrix.
         """
         if store_mass_transfer:
-            tracer_mass_risfu_reg_new, pair_mass = self.advect_tracer_step(tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=True)
-            self.reg_mass_transfer_matrix = pair_mass
+            tracer_mass_risfu_reg_new, pair_mass, donors, receivers = self.advect_tracer_step(
+                tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt,
+                track_pair_mass=True, structural_edges=self.reg_transport_edges)
+            self.reg_mass_transfer_edges = (donors, receivers, pair_mass)
+            self.reg_mass_transfer_matrix = None
         else:
             tracer_mass_risfu_reg_new = self.advect_tracer_step(tracer_mass_risfu, q_m3s, area_risfu, theta_risfu, dz_risfu, dt)
             self.reg_mass_transfer_matrix = None
+            self.reg_mass_transfer_edges = None
             
         local_risfu_indices = np.asarray(local_risfu_indices, dtype=int)
         local_tracer_mass = np.zeros((len(local_risfu_indices), self.nsoil), dtype=float)
@@ -200,7 +260,7 @@ class AdvectiveTransport:
         step where entry [i, j] is tracer mass moved from HRU i to HRU j.
         """
         if store_mass_transfer:
-            tracer_mass_hrus_hbands_new, pair_mass = self.advect_tracer_step(
+            tracer_mass_hrus_hbands_new, pair_mass, donors, receivers = self.advect_tracer_step(
                 tracer_mass_hrus_hbands,
                 q_links,
                 area_hrus_hbands,
@@ -208,17 +268,24 @@ class AdvectiveTransport:
                 dz_hrus_hbands,
                 dt,
                 track_pair_mass=True,
+                structural_edges=self.local_transport_edges,
             )
 
             if tracer_mass_hrus_hbands.shape[0] == self.nhrus:
-                self.local_mass_transfer_matrix = pair_mass
-                self.local_mass_divergence[:] = np.sum(pair_mass, axis=1)
-                self.local_mass_convergence[:] = np.sum(pair_mass, axis=0)
+                self.local_mass_transfer_edges = (donors, receivers, pair_mass)
+                self.local_mass_transfer_matrix = None
+                self.local_mass_divergence[:] = 0.0
+                self.local_mass_convergence[:] = 0.0
+                # Preserve the soil-layer dimension while aggregating edge
+                # transfers; the diagnostics arrays are shaped [node, soil].
+                np.add.at(self.local_mass_divergence, donors, pair_mass)
+                np.add.at(self.local_mass_convergence, receivers, pair_mass)
             else:
                 # Keep diagnostics disabled for non-HRU local schemes (e.g., hbands).
                 self.clear_local_mass_transfer()
         else:
             tracer_mass_hrus_hbands_new = self.advect_tracer_step(tracer_mass_hrus_hbands, q_links, area_hrus_hbands, theta_hrus_hbands, dz_hrus_hbands, dt)
+            self.local_mass_transfer_edges = None
 
         return tracer_mass_hrus_hbands_new
 
@@ -246,7 +313,7 @@ class AdvectiveTransport:
         assert np.allclose((farea > 0.0).astype(int) @ mass_hrus_updated, new_mass_risfu)
         return mass_hrus_updated #farea.T @ tracer_mass_risfu
 
-    def advect_tracer_step(self, tracer_mass, q_m3s, area_risfu, theta_risfu, dz_risfu, dt, track_pair_mass=False):
+    def advect_tracer_step(self, tracer_mass, q_m3s, area_risfu, theta_risfu, dz_risfu, dt,     track_pair_mass=False, structural_edges=None):
         """
         Conservatively advect tracer mass for one step using Richards q links.
 
@@ -271,15 +338,19 @@ class AdvectiveTransport:
         water_volume = area_risfu[:, None] * dz_risfu * theta_risfu
         water_volume = np.maximum(water_volume, 1e-20)
 
+        edge_donors, edge_receivers = _transport_edges(
+            q_m3s, nrisfu, structural_edges)
         conc_new, pair_mass = _advect_tracer_step_kernel(
             tracer_mass,
             q_m3s,
             water_volume,
             dt,
+            edge_donors,
+            edge_receivers,
             track_pair_mass,
         )
         if track_pair_mass:
-            return conc_new, pair_mass
+            return conc_new, pair_mass, edge_donors, edge_receivers
         return conc_new
 
 def exchange_tracer_mass_regional_units(cids, rank, HBdb):
