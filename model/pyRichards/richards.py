@@ -201,7 +201,7 @@ def update_workhorse_vsp(theta,dz,hdiv,thetar,thetas,b,satpsi,m,ksat,hand,w,dx,a
   if hdiv_heat is not None:
    hdiv_heat[:,il] = calculate_advective_heat_divergence_from_q(q,temperature[:,il],rho_w,c_w)
   if q_links is not None:
-   q_links[:,:,il] = q
+   q_links[:,:,il] = q * area[:, np.newaxis] / 1000.0 # Convert from mm/s to m3/s for tracer transport
  return hdiv
  
 @numba.jit(nopython=True,cache=True)

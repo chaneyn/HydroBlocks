@@ -937,7 +937,7 @@ class HydroBlocks:
     #self.advectivetransport.c0_hrus = self.advectivetransport.synthetic_concentration() #Initial concentrations x hrus
     #print('      Initial concentrations per hru\n',self.advectivetransport.c0_hrus)
     #self.advectivetransport.tracer_mass_hrus_new = np.copy(self.advectivetransport.c0_hrus * self.richards.area[:, None] * self.noahmp.sldpth * self.noahmp.sh2o)
-    self.advectivetransport.tracer_mass_hrus_new[1,:] = np.array([1.0e3,1.0e3,1.0e3,1.0e3, 1.0e3]) # set initial mass x source HRU
+    self.advectivetransport.tracer_mass_hrus_new[1,:] = np.array([1.0e3,1.0e3,1.0e3,1.0e3,1.0e3]) # set initial mass x source HRU
     print('      Initial mass per hru\n',self.advectivetransport.tracer_mass_hrus_new)
     self.advectivetransport.tracer_mass_risfu = self.advectivetransport.aggregate_mass_risfu(self.advectivetransport.tracer_mass_hrus_new,self.mssubsurface.farea_gw)
     print('      Aggregated tracer mass per risfu\n',self.advectivetransport.tracer_mass_risfu)
@@ -1353,7 +1353,7 @@ class HydroBlocks:
     else: # use hrus scheme
      self.advectivetransport.clear_local_mass_transfer()
      #print('      Current mass per hru\n',self.advectivetransport.tracer_mass_hrus_new.sum(axis=-1), flush=True)
-     self.advectivetransport.tracer_mass_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.tracer_mass_hrus_new, self.richards.q_links, self.richards.area,
+     self.advectivetransport.tracer_mass_hrus_new = self.advectivetransport.compute_loc_tracer(self.advectivetransport.tracer_mass_hrus_new, self.richards.q_links,  self.richards.area, 
                                                                                               self.richards.theta, self.richards.dz, self.dt,
                                                                                               store_mass_transfer=True)
     #print('      Updated mass per hru\n',self.advectivetransport.tracer_mass_hrus_new.sum(axis=-1), flush=True)
